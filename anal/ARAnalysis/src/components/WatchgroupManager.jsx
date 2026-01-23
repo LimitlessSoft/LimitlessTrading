@@ -47,6 +47,7 @@ const WatchgroupManager = forwardRef(({ onActiveGroupChange, onGroupsChange }, r
   const [newSymbol, setNewSymbol] = useState('')
   const [editingGroupId, setEditingGroupId] = useState(null)
   const [editingGroupName, setEditingGroupName] = useState('')
+  const [groupCounts, setGroupCounts] = useState({}) // groupId -> symbol count
   const toast = useToast()
 
   useImperativeHandle(ref, () => ({
@@ -71,6 +72,14 @@ const WatchgroupManager = forwardRef(({ onActiveGroupChange, onGroupsChange }, r
     const loadedGroups = await getWatchgroups()
     setGroups(loadedGroups)
     onGroupsChange?.(loadedGroups)
+
+    // Load symbol counts for all groups
+    const counts = {}
+    for (const group of loadedGroups) {
+      const symbols = await getWatchgroupSymbols(group.id)
+      counts[group.id] = symbols.length
+    }
+    setGroupCounts(counts)
 
     const savedActiveGroup = await getActiveWatchgroup()
     if (savedActiveGroup && loadedGroups.some(g => g.id === savedActiveGroup)) {
@@ -139,9 +148,19 @@ const WatchgroupManager = forwardRef(({ onActiveGroupChange, onGroupsChange }, r
   const handleAddSymbol = async () => {
     if (!newSymbol.trim() || !selectedGroupId) return
     const symbol = newSymbol.trim().toUpperCase()
+
+    // Check if symbol already exists in this group
+    if (groupSymbols.includes(symbol)) {
+      setNewSymbol('')
+      toast({ title: `${symbol} already exists`, status: 'warning', duration: 1500 })
+      return
+    }
+
     await addToWatchgroup(selectedGroupId, symbol)
     setNewSymbol('')
     await loadGroupSymbols(selectedGroupId)
+    // Update count for this group
+    setGroupCounts(prev => ({ ...prev, [selectedGroupId]: (prev[selectedGroupId] || 0) + 1 }))
     onGroupsChange?.(groups) // trigger refresh
     toast({ title: `Added ${symbol}`, status: 'success', duration: 1500 })
   }
@@ -150,6 +169,8 @@ const WatchgroupManager = forwardRef(({ onActiveGroupChange, onGroupsChange }, r
     if (!selectedGroupId) return
     await removeFromWatchgroup(selectedGroupId, symbol)
     await loadGroupSymbols(selectedGroupId)
+    // Update count for this group
+    setGroupCounts(prev => ({ ...prev, [selectedGroupId]: Math.max(0, (prev[selectedGroupId] || 1) - 1) }))
     onGroupsChange?.(groups) // trigger refresh
   }
 
@@ -210,6 +231,9 @@ const WatchgroupManager = forwardRef(({ onActiveGroupChange, onGroupsChange }, r
                       <>
                         <HStack>
                           <Text color="gray.200">{group.name}</Text>
+                          <Badge colorScheme="gray" fontSize="xs" variant="subtle">
+                            {groupCounts[group.id] || 0}
+                          </Badge>
                           {group.id === activeGroupId && (
                             <Badge colorScheme="yellow" fontSize="xs">Active</Badge>
                           )}
@@ -254,9 +278,14 @@ const WatchgroupManager = forwardRef(({ onActiveGroupChange, onGroupsChange }, r
 
             {/* Symbols Section */}
             <Box p={3} bg="gray.700" borderRadius="md">
-              <Text color="gray.300" fontWeight="bold" mb={3}>
-                Symbols {selectedGroup && `in "${selectedGroup.name}"`}
-              </Text>
+              <HStack mb={3}>
+                <Text color="gray.300" fontWeight="bold">
+                  Symbols {selectedGroup && `in "${selectedGroup.name}"`}
+                </Text>
+                {selectedGroup && (
+                  <Badge colorScheme="blue" fontSize="xs">{groupSymbols.length}</Badge>
+                )}
+              </HStack>
 
               {!selectedGroupId ? (
                 <Text color="gray.500" fontSize="sm">Select a group to manage symbols</Text>

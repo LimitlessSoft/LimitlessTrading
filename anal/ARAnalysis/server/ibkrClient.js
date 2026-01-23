@@ -62,7 +62,9 @@ export async function connect(port = 7497) {
       // Handle pending request errors
       if (reqId && pendingRequests.has(reqId)) {
         const request = pendingRequests.get(reqId)
-        request.reject(new Error(err?.message || `IBKR error code: ${code}`))
+        if (request.reject) {
+          request.reject(new Error(err?.message || `IBKR error code: ${code}`))
+        }
         pendingRequests.delete(reqId)
       }
 
@@ -543,7 +545,13 @@ async function getCurrentPriceOnce(symbol) {
       try { ib.cancelMktData(reqId) } catch (e) {}
     }
 
-    pendingRequests.set(reqId, { resolve })
+    pendingRequests.set(reqId, {
+      resolve,
+      reject: () => {
+        cleanup()
+        resolve(null) // Resolve with null on error instead of rejecting
+      }
+    })
     ib.on(EventName.tickPrice, onTickPrice)
 
     // Wait 1.5 seconds for price data then return
@@ -844,7 +852,13 @@ async function getOptionData(symbol, expiration, strike, right, exchange, multip
       try { ib.cancelMktData(reqId) } catch (e) {}
     }
 
-    pendingRequests.set(reqId, { resolve })
+    pendingRequests.set(reqId, {
+      resolve,
+      reject: () => {
+        cleanup()
+        resolve(null) // Resolve with null on error instead of rejecting
+      }
+    })
     ib.on(EventName.tickPrice, onTickPrice)
     ib.on(EventName.tickSize, onTickSize)
 

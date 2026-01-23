@@ -24,11 +24,16 @@ import {
   NumberIncrementStepper,
   NumberDecrementStepper,
   Alert,
-  AlertIcon
+  AlertIcon,
+  RangeSlider,
+  RangeSliderTrack,
+  RangeSliderFilledTrack,
+  RangeSliderThumb,
+  Divider
 } from '@chakra-ui/react'
 import { ChevronDownIcon, ChevronRightIcon, WarningIcon } from '@chakra-ui/icons'
 import { fetchFromCache, fetchOptionsChain, fetchCurrentPrices, fetchOptionHistory } from '../modules/dataService'
-import { getWatchgroups, getWatchgroupSymbols, getActiveWatchgroup } from '../db/database'
+import { getWatchgroups, getWatchgroupSymbols, getActiveWatchgroup, getThresholdReportSettings, saveThresholdReportSettings } from '../db/database'
 
 // Time periods in trading days
 const TIME_PERIODS = [
@@ -591,11 +596,60 @@ function MultiSymbolReport() {
   const [currentPrices, setCurrentPrices] = useState({}) // symbol -> { price, fetchedAt }
   const [loadingPrices, setLoadingPrices] = useState(false)
   const [minVolume, setMinVolume] = useState(1000) // Minimum options volume threshold
+  const [expandingAll, setExpandingAll] = useState(false)
+  const [avgVolumeRange, setAvgVolumeRange] = useState([0, 100000000]) // [min, max] average daily volume filter
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [settingsSaved, setSettingsSaved] = useState(false)
 
-  // Load watchgroups on mount
+  // Load watchgroups and saved settings on mount
   useEffect(() => {
-    loadWatchgroups()
+    loadInitialData()
   }, [])
+
+  const loadInitialData = async () => {
+    // Load watchgroups first
+    const groups = await getWatchgroups()
+    setWatchgroups(groups)
+
+    // Load saved settings
+    const saved = await getThresholdReportSettings()
+    if (saved) {
+      if (saved.selectedThreshold !== undefined) setSelectedThreshold(saved.selectedThreshold)
+      if (saved.selectedPeriod !== undefined) setSelectedPeriod(saved.selectedPeriod)
+      if (saved.avgVolumeRange !== undefined) setAvgVolumeRange(saved.avgVolumeRange)
+      if (saved.minVolume !== undefined) setMinVolume(saved.minVolume)
+      // Use saved group if it still exists, otherwise fall back to active or first
+      if (saved.selectedGroupId !== undefined && groups.some(g => g.id === saved.selectedGroupId)) {
+        setSelectedGroupId(saved.selectedGroupId)
+        setSettingsLoaded(true)
+        return
+      }
+    }
+
+    // Fall back to active watchgroup or first group
+    const activeId = await getActiveWatchgroup()
+    if (activeId && groups.some(g => g.id === activeId)) {
+      setSelectedGroupId(activeId)
+    } else if (groups.length > 0) {
+      setSelectedGroupId(groups[0].id)
+    }
+    setSettingsLoaded(true)
+  }
+
+  const saveSettings = async () => {
+    setSavingSettings(true)
+    await saveThresholdReportSettings({
+      selectedThreshold,
+      selectedPeriod,
+      avgVolumeRange,
+      minVolume,
+      selectedGroupId
+    })
+    setSavingSettings(false)
+    setSettingsSaved(true)
+    setTimeout(() => setSettingsSaved(false), 2000)
+  }
 
   // Load symbols when selected group changes
   useEffect(() => {
@@ -605,17 +659,6 @@ function MultiSymbolReport() {
       setGroupSymbols([])
     }
   }, [selectedGroupId])
-
-  const loadWatchgroups = async () => {
-    const groups = await getWatchgroups()
-    setWatchgroups(groups)
-    const activeId = await getActiveWatchgroup()
-    if (activeId && groups.some(g => g.id === activeId)) {
-      setSelectedGroupId(activeId)
-    } else if (groups.length > 0) {
-      setSelectedGroupId(groups[0].id)
-    }
-  }
 
   const loadAllData = async () => {
     if (!groupSymbols || groupSymbols.length === 0) return
@@ -639,12 +682,17 @@ function MultiSymbolReport() {
           // Get current price (latest bar's close)
           const latestBar = data[0]
           const currentPrice = latestBar?.close || null
+          // Calculate average daily volume (last 20 trading days)
+          const volumeDays = Math.min(20, data.length)
+          const volumes = data.slice(0, volumeDays).map(d => d.volume || 0).filter(v => v > 0)
+          const avgVolume = volumes.length > 0 ? volumes.reduce((a, b) => a + b, 0) / volumes.length : 0
           results.push({
             symbol: symbol,
             results: periodResults,
             changes,
             dataLength: data.length,
-            currentPrice
+            currentPrice,
+            avgVolume
           })
         }
       } catch (err) {
@@ -702,6 +750,62 @@ function MultiSymbolReport() {
     }
   }
 
+  // Retry fetching options chain after error
+  const retryOptionsChain = async (symbol, currentPrice) => {
+    // Clear previous error
+    setOptionsData(prev => {
+      const newData = { ...prev }
+      delete newData[symbol]
+      return newData
+    })
+
+    setLoadingOptions(prev => ({ ...prev, [symbol]: true }))
+    try {
+      const chain = await fetchOptionsChain(symbol, currentPrice)
+      setOptionsData(prev => ({ ...prev, [symbol]: chain }))
+    } catch (err) {
+      console.error(`Failed to fetch options chain for ${symbol}:`, err)
+      setOptionsData(prev => ({ ...prev, [symbol]: { error: err.message } }))
+    }
+    setLoadingOptions(prev => ({ ...prev, [symbol]: false }))
+  }
+
+  // Expand all rows on current page
+  const expandAll = async () => {
+    if (!paginatedResults || paginatedResults.length === 0) return
+
+    setExpandingAll(true)
+
+    // Mark all as expanded
+    const newExpanded = {}
+    paginatedResults.forEach(item => {
+      newExpanded[item.symbol] = true
+    })
+    setExpandedRows(prev => ({ ...prev, ...newExpanded }))
+
+    // Fetch options for all that don't have data yet
+    for (const item of paginatedResults) {
+      if (!optionsData[item.symbol] && !loadingOptions[item.symbol]) {
+        setLoadingOptions(prev => ({ ...prev, [item.symbol]: true }))
+        try {
+          const chain = await fetchOptionsChain(item.symbol, item.currentPrice)
+          setOptionsData(prev => ({ ...prev, [item.symbol]: chain }))
+        } catch (err) {
+          console.error(`Failed to fetch options chain for ${item.symbol}:`, err)
+          setOptionsData(prev => ({ ...prev, [item.symbol]: { error: err.message } }))
+        }
+        setLoadingOptions(prev => ({ ...prev, [item.symbol]: false }))
+      }
+    }
+
+    setExpandingAll(false)
+  }
+
+  // Collapse all rows
+  const collapseAll = () => {
+    setExpandedRows({})
+  }
+
   // Calculate hit rate for sorting
   const getHitRate = (item, threshold, periodLabel) => {
     const result = item.results?.[periodLabel]
@@ -709,15 +813,17 @@ function MultiSymbolReport() {
     return (result.counts[threshold] / result.validDays) * 100
   }
 
-  // Sort results by selected threshold/period
+  // Filter and sort results by selected threshold/period
   const sortedResults = useMemo(() => {
     if (!allResults) return null
-    return [...allResults].sort((a, b) => {
-      const rateA = getHitRate(a, selectedThreshold, selectedPeriod)
-      const rateB = getHitRate(b, selectedThreshold, selectedPeriod)
-      return rateB - rateA
-    })
-  }, [allResults, selectedThreshold, selectedPeriod])
+    return [...allResults]
+      .filter(item => item.avgVolume >= avgVolumeRange[0] && item.avgVolume <= avgVolumeRange[1])
+      .sort((a, b) => {
+        const rateA = getHitRate(a, selectedThreshold, selectedPeriod)
+        const rateB = getHitRate(b, selectedThreshold, selectedPeriod)
+        return rateB - rateA
+      })
+  }, [allResults, selectedThreshold, selectedPeriod, avgVolumeRange])
 
   // Pagination
   const totalPages = sortedResults ? Math.ceil(sortedResults.length / PAGE_SIZE) : 0
@@ -727,10 +833,13 @@ function MultiSymbolReport() {
     return sortedResults.slice(startIdx, startIdx + PAGE_SIZE)
   }, [sortedResults, currentPage])
 
+  // Check if all visible rows are expanded
+  const allExpanded = paginatedResults?.every(item => expandedRows[item.symbol]) || false
+
   // Reset to page 1 when results change
   useEffect(() => {
     setCurrentPage(1)
-  }, [allResults, selectedThreshold, selectedPeriod])
+  }, [allResults, selectedThreshold, selectedPeriod, avgVolumeRange])
 
   const selectedGroup = watchgroups.find(g => g.id === selectedGroupId)
 
@@ -744,85 +853,164 @@ function MultiSymbolReport() {
 
   return (
     <Box>
-      <HStack mb={4} spacing={4} wrap="wrap">
-        <HStack>
-          <Text fontSize="sm" color="gray.400">Watchgroup:</Text>
-          <Select
+      <VStack align="stretch" spacing={3} mb={4}>
+        {/* Row 1: Data source & load */}
+        <HStack spacing={4}>
+          <HStack>
+            <Text fontSize="sm" color="gray.400">Watchgroup:</Text>
+            <Select
+              size="sm"
+              w="150px"
+              value={selectedGroupId || ''}
+              onChange={(e) => {
+                setSelectedGroupId(Number(e.target.value))
+                setAllResults(null)
+              }}
+            >
+              {watchgroups.map(g => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </Select>
+          </HStack>
+
+          <Button
+            colorScheme="blue"
             size="sm"
-            w="150px"
-            value={selectedGroupId || ''}
-            onChange={(e) => {
-              setSelectedGroupId(Number(e.target.value))
-              setAllResults(null)
-            }}
+            onClick={loadAllData}
+            isLoading={loading}
+            isDisabled={groupSymbols.length === 0}
           >
-            {watchgroups.map(g => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </Select>
+            Analyze {selectedGroup?.name || 'Watchgroup'} ({groupSymbols.length} tickers)
+          </Button>
+
+          <Tooltip label={settingsSaved ? 'Saved!' : 'Save current settings'}>
+            <Button
+              colorScheme={settingsSaved ? 'green' : 'gray'}
+              variant="outline"
+              size="sm"
+              onClick={saveSettings}
+              isLoading={savingSettings}
+            >
+              {settingsSaved ? '✓ Saved' : 'Save Settings'}
+            </Button>
+          </Tooltip>
+
+          {allResults && (
+            <>
+              <Button
+                colorScheme="green"
+                size="sm"
+                onClick={fetchLivePrices}
+                isLoading={loadingPrices}
+                isDisabled={!paginatedResults || paginatedResults.length === 0}
+              >
+                Refresh Prices ({paginatedResults?.length || 0})
+              </Button>
+              <Button
+                colorScheme={allExpanded ? 'gray' : 'orange'}
+                size="sm"
+                onClick={allExpanded ? collapseAll : expandAll}
+                isLoading={expandingAll}
+                isDisabled={!paginatedResults || paginatedResults.length === 0}
+              >
+                {allExpanded ? 'Collapse All' : 'Expand All'}
+              </Button>
+            </>
+          )}
         </HStack>
 
-        <Button
-          colorScheme="blue"
-          size="sm"
-          onClick={loadAllData}
-          isLoading={loading}
-          isDisabled={groupSymbols.length === 0}
-        >
-          Analyze {selectedGroup?.name || 'Watchgroup'} ({groupSymbols.length} tickers)
-        </Button>
-
+        {/* Row 2: Filters & Sort (only when results loaded) */}
         {allResults && (
-          <HStack>
-            <Button
-              colorScheme="green"
-              size="sm"
-              onClick={fetchLivePrices}
-              isLoading={loadingPrices}
-              isDisabled={!paginatedResults || paginatedResults.length === 0}
-            >
-              Refresh Prices ({paginatedResults?.length || 0})
-            </Button>
-            <Text fontSize="sm" color="gray.400">Threshold:</Text>
-            <Select
-              size="sm"
-              w="100px"
-              value={selectedThreshold}
-              onChange={(e) => setSelectedThreshold(parseFloat(e.target.value))}
-            >
-              {THRESHOLDS.map(t => (
-                <option key={t} value={t}>+{t}%</option>
-              ))}
-            </Select>
-            <Text fontSize="sm" color="gray.400" ml={2}>Sort by:</Text>
-            <Select
-              size="sm"
-              w="100px"
-              value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value)}
-            >
-              {TIME_PERIODS.map(p => (
-                <option key={p.label} value={p.label}>{p.label}</option>
-              ))}
-            </Select>
-            <Text fontSize="sm" color="gray.400" ml={2}>Min opt vol:</Text>
-            <NumberInput
-              size="sm"
-              w="100px"
-              value={minVolume}
-              onChange={(_, val) => setMinVolume(val || 0)}
-              min={0}
-              step={100}
-            >
-              <NumberInputField bg="gray.700" borderColor="gray.600" />
-              <NumberInputStepper>
-                <NumberIncrementStepper borderColor="gray.600" />
-                <NumberDecrementStepper borderColor="gray.600" />
-              </NumberInputStepper>
-            </NumberInput>
+          <Box bg="gray.700" p={3} borderRadius="md">
+            <HStack spacing={6} wrap="wrap" align="center">
+              <Text fontSize="xs" color="gray.500" fontWeight="bold" textTransform="uppercase">Filters & Sort</Text>
+
+              <HStack spacing={2}>
+                <Text fontSize="sm" color="gray.400">Threshold:</Text>
+                <Select
+                  size="sm"
+                  w="90px"
+                  value={selectedThreshold}
+                  onChange={(e) => setSelectedThreshold(parseFloat(e.target.value))}
+                >
+                  {THRESHOLDS.map(t => (
+                    <option key={t} value={t}>+{t}%</option>
+                  ))}
+                </Select>
+              </HStack>
+
+              <HStack spacing={2}>
+                <Text fontSize="sm" color="gray.400">Sort by:</Text>
+                <Select
+                  size="sm"
+                  w="90px"
+                  value={selectedPeriod}
+                  onChange={(e) => setSelectedPeriod(e.target.value)}
+                >
+                  {TIME_PERIODS.map(p => (
+                    <option key={p.label} value={p.label}>{p.label}</option>
+                  ))}
+                </Select>
+              </HStack>
+
+              <Divider orientation="vertical" h="24px" borderColor="gray.500" />
+
+              <HStack spacing={2} flex="1" minW="300px" maxW="500px">
+                <Text fontSize="sm" color="gray.400" whiteSpace="nowrap">Avg Volume:</Text>
+                <Text fontSize="xs" color="gray.500" w="50px" textAlign="right">
+                  {avgVolumeRange[0] >= 1000000 ? `${(avgVolumeRange[0]/1000000).toFixed(1)}M` : avgVolumeRange[0] >= 1000 ? `${(avgVolumeRange[0]/1000).toFixed(0)}K` : avgVolumeRange[0]}
+                </Text>
+                <RangeSlider
+                  min={0}
+                  max={50000000}
+                  step={100000}
+                  value={avgVolumeRange}
+                  onChange={setAvgVolumeRange}
+                  flex="1"
+                >
+                  <RangeSliderTrack bg="gray.600">
+                    <RangeSliderFilledTrack bg="blue.400" />
+                  </RangeSliderTrack>
+                  <RangeSliderThumb index={0} boxSize={4} />
+                  <RangeSliderThumb index={1} boxSize={4} />
+                </RangeSlider>
+                <Text fontSize="xs" color="gray.500" w="50px">
+                  {avgVolumeRange[1] >= 1000000 ? `${(avgVolumeRange[1]/1000000).toFixed(1)}M` : avgVolumeRange[1] >= 1000 ? `${(avgVolumeRange[1]/1000).toFixed(0)}K` : avgVolumeRange[1]}
+                </Text>
+              </HStack>
+
+              <Text fontSize="xs" color="gray.500">
+                Showing {sortedResults?.length || 0} of {allResults?.length || 0}
+              </Text>
+            </HStack>
+          </Box>
+        )}
+
+        {/* Row 3: Options chain settings (only when results loaded) */}
+        {allResults && (
+          <HStack spacing={4}>
+            <Text fontSize="xs" color="gray.500" fontWeight="bold" textTransform="uppercase">Options Chain Settings</Text>
+            <HStack spacing={2}>
+              <Text fontSize="sm" color="gray.400">Min contract volume:</Text>
+              <NumberInput
+                size="sm"
+                w="100px"
+                value={minVolume}
+                onChange={(_, val) => setMinVolume(val || 0)}
+                min={0}
+                step={100}
+              >
+                <NumberInputField bg="gray.700" borderColor="gray.600" />
+                <NumberInputStepper>
+                  <NumberIncrementStepper borderColor="gray.600" />
+                  <NumberDecrementStepper borderColor="gray.600" />
+                </NumberInputStepper>
+              </NumberInput>
+              <Text fontSize="xs" color="gray.500">(warns if no option meets this)</Text>
+            </HStack>
           </HStack>
         )}
-      </HStack>
+      </VStack>
 
       {loading && (
         <HStack spacing={3}>
@@ -840,6 +1028,7 @@ function MultiSymbolReport() {
                 <Th color="gray.400" borderColor="gray.600" rowSpan={2}>#</Th>
                 <Th color="gray.400" borderColor="gray.600" rowSpan={2}>Symbol</Th>
                 <Th color="gray.400" borderColor="gray.600" rowSpan={2} textAlign="right">Last Day Close</Th>
+                <Th color="gray.400" borderColor="gray.600" rowSpan={2} textAlign="right">Avg Vol (20d)</Th>
                 <Th
                   color="cyan.300"
                   bg="cyan.900"
@@ -929,7 +1118,7 @@ function MultiSymbolReport() {
                 const isExpanded = expandedRows[item.symbol]
                 const chainData = optionsData[item.symbol]
                 const isLoadingChain = loadingOptions[item.symbol]
-                const totalCols = 4 + CHANGE_PERIODS.length + 1 + THRESHOLDS.length + (TIME_PERIODS.length * THRESHOLDS.length) // +1 for Current Price
+                const totalCols = 5 + CHANGE_PERIODS.length + 1 + THRESHOLDS.length + (TIME_PERIODS.length * THRESHOLDS.length) // +1 for Current Price, +1 for Avg Vol
                 const globalIdx = (currentPage - 1) * PAGE_SIZE + idx + 1
 
                 return (
@@ -952,6 +1141,13 @@ function MultiSymbolReport() {
                       </Td>
                       <Td borderColor="gray.600" color="gray.300" textAlign="right" fontSize="sm">
                         {item.currentPrice ? `$${item.currentPrice.toFixed(2)}` : '-'}
+                      </Td>
+                      <Td borderColor="gray.600" color="gray.400" textAlign="right" fontSize="xs">
+                        {item.avgVolume ? (item.avgVolume >= 1000000
+                          ? `${(item.avgVolume / 1000000).toFixed(1)}M`
+                          : item.avgVolume >= 1000
+                            ? `${(item.avgVolume / 1000).toFixed(0)}K`
+                            : item.avgVolume.toFixed(0)) : '-'}
                       </Td>
                       {CHANGE_PERIODS.map(p => {
                         const change = item.changes?.[p.label]
@@ -1036,7 +1232,17 @@ function MultiSymbolReport() {
                               </HStack>
                             )}
                             {chainData?.error && (
-                              <Text color="red.400">Error: {chainData.error}</Text>
+                              <HStack spacing={3}>
+                                <Text color="red.400">Error: {chainData.error}</Text>
+                                <Button
+                                  size="xs"
+                                  colorScheme="red"
+                                  variant="outline"
+                                  onClick={() => retryOptionsChain(item.symbol, item.currentPrice)}
+                                >
+                                  Retry
+                                </Button>
+                              </HStack>
                             )}
                             {chainData && !chainData.error && (
                               <OptionsChainTable chain={chainData} currentPrice={item.currentPrice} minVolume={minVolume} />

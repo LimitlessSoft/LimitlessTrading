@@ -341,4 +341,13 @@ export async function clearScreenerSymbols() {
   await db.screenerSymbols.clear()
 }
 
+// Threshold Report settings
+export async function getThresholdReportSettings() {
+  return getSetting('thresholdReportSettings')
+}
+
+export async function saveThresholdReportSettings(settings) {
+  return setSetting('thresholdReportSettings', settings)
+}
+
 export default db
