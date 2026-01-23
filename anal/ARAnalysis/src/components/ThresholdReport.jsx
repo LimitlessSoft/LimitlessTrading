@@ -17,6 +17,7 @@ import {
   VStack
 } from '@chakra-ui/react'
 import { fetchFromCache } from '../modules/dataService'
+import { getWatchgroups, getWatchgroupSymbols, getActiveWatchgroup } from '../db/database'
 
 // Time periods in trading days
 const TIME_PERIODS = [
@@ -169,21 +170,49 @@ function SingleSymbolReport({ symbol, data }) {
 }
 
 // Multi-symbol ranking report
-function MultiSymbolReport({ securities }) {
+function MultiSymbolReport() {
   const [allResults, setAllResults] = useState(null)
   const [loading, setLoading] = useState(false)
   const [selectedThreshold, setSelectedThreshold] = useState(0.5)
   const [selectedPeriod, setSelectedPeriod] = useState('100d')
+  const [watchgroups, setWatchgroups] = useState([])
+  const [selectedGroupId, setSelectedGroupId] = useState(null)
+  const [groupSymbols, setGroupSymbols] = useState([])
+
+  // Load watchgroups on mount
+  useEffect(() => {
+    loadWatchgroups()
+  }, [])
+
+  // Load symbols when selected group changes
+  useEffect(() => {
+    if (selectedGroupId) {
+      getWatchgroupSymbols(selectedGroupId).then(setGroupSymbols)
+    } else {
+      setGroupSymbols([])
+    }
+  }, [selectedGroupId])
+
+  const loadWatchgroups = async () => {
+    const groups = await getWatchgroups()
+    setWatchgroups(groups)
+    const activeId = await getActiveWatchgroup()
+    if (activeId && groups.some(g => g.id === activeId)) {
+      setSelectedGroupId(activeId)
+    } else if (groups.length > 0) {
+      setSelectedGroupId(groups[0].id)
+    }
+  }
 
   const loadAllData = async () => {
-    if (!securities || securities.length === 0) return
+    if (!groupSymbols || groupSymbols.length === 0) return
 
     setLoading(true)
     const results = []
 
-    for (const security of securities) {
+    for (const symbol of groupSymbols) {
       try {
-        const data = await fetchFromCache(security.symbol, '1d')
+        const data = await fetchFromCache(symbol, '1d')
         if (data && data.length > 0) {
           const periodResults = {}
           TIME_PERIODS.forEach(period => {
@@ -193,14 +222,14 @@ function MultiSymbolReport({ securities }) {
           const latestBar = data[0]
           const currentPrice = latestBar?.close || null
           results.push({
-            symbol: security.symbol,
+            symbol: symbol,
             results: periodResults,
             dataLength: data.length,
             currentPrice
           })
         }
       } catch (err) {
-        console.error(`Failed to load ${security.symbol}:`, err)
+        console.error(`Failed to load ${symbol}:`, err)
       }
     }
 
@@ -225,10 +254,12 @@ function MultiSymbolReport({ securities }) {
     })
   }, [allResults, selectedThreshold, selectedPeriod])
 
-  if (!securities || securities.length === 0) {
+  const selectedGroup = watchgroups.find(g => g.id === selectedGroupId)
+
+  if (watchgroups.length === 0) {
     return (
       <Box bg="gray.800" borderRadius="md" p={6}>
-        <Text color="gray.400">No cached securities available</Text>
+        <Text color="gray.400">No watchgroups available. Create a watchgroup first.</Text>
       </Box>
     )
   }
@@ -236,13 +267,31 @@ function MultiSymbolReport({ securities }) {
   return (
     <Box>
       <HStack mb={4} spacing={4} wrap="wrap">
+        <HStack>
+          <Text fontSize="sm" color="gray.400">Watchgroup:</Text>
+          <Select
+            size="sm"
+            w="150px"
+            value={selectedGroupId || ''}
+            onChange={(e) => {
+              setSelectedGroupId(Number(e.target.value))
+              setAllResults(null)
+            }}
+          >
+            {watchgroups.map(g => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </Select>
+        </HStack>
+
         <Button
           colorScheme="blue"
           size="sm"
           onClick={loadAllData}
           isLoading={loading}
+          isDisabled={groupSymbols.length === 0}
         >
-          Analyze All ({securities.length} tickers)
+          Analyze {selectedGroup?.name || 'Watchgroup'} ({groupSymbols.length} tickers)
         </Button>
 
         {allResults && (
@@ -400,8 +449,8 @@ function MultiSymbolReport({ securities }) {
   )
 }
 
-function ThresholdReport({ symbol, data, securities }) {
-  const [mode, setMode] = useState('single') // 'single' or 'all'
+function ThresholdReport({ symbol, data }) {
+  const [mode, setMode] = useState('single') // 'single' or 'watchgroup'
 
   return (
     <Box bg="gray.800" borderRadius="md" p={4}>
@@ -420,11 +469,11 @@ function ThresholdReport({ symbol, data, securities }) {
           </Button>
           <Button
             size="sm"
-            variant={mode === 'all' ? 'solid' : 'outline'}
+            variant={mode === 'watchgroup' ? 'solid' : 'outline'}
             colorScheme="blue"
-            onClick={() => setMode('all')}
+            onClick={() => setMode('watchgroup')}
           >
-            All Tickers
+            Watchgroup
           </Button>
         </HStack>
       </HStack>
@@ -438,9 +487,9 @@ function ThresholdReport({ symbol, data, securities }) {
 
       {mode === 'single' ? (
         <SingleSymbolReport symbol={symbol} data={data} />
-      ) : (
-        <MultiSymbolReport securities={securities} />
-      )}
+      ) : mode === 'watchgroup' ? (
+        <MultiSymbolReport />
+      ) : null}
 
       <HStack mt={4} spacing={4} fontSize="xs" color="gray.500">
         <HStack spacing={2}>

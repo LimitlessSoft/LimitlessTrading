@@ -284,7 +284,6 @@ function App() {
                 <ThresholdReport
                   symbol={selectedSymbol}
                   data={priceData}
-                  securities={securities}
                 />
               </TabPanel>
             </TabPanels>
