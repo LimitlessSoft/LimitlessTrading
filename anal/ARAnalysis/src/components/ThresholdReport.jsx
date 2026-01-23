@@ -17,7 +17,14 @@ import {
   VStack,
   IconButton,
   Collapse,
-  Tooltip
+  Tooltip,
+  NumberInput,
+  NumberInputField,
+  NumberInputStepper,
+  NumberIncrementStepper,
+  NumberDecrementStepper,
+  Alert,
+  AlertIcon
 } from '@chakra-ui/react'
 import { ChevronDownIcon, ChevronRightIcon, WarningIcon } from '@chakra-ui/icons'
 import { fetchFromCache, fetchOptionsChain, fetchCurrentPrices, fetchOptionHistory } from '../modules/dataService'
@@ -325,7 +332,7 @@ function OptionPriceChart({ data }) {
 }
 
 // Options chain table component
-function OptionsChainTable({ chain, currentPrice }) {
+function OptionsChainTable({ chain, currentPrice, minVolume }) {
   const [expandedOption, setExpandedOption] = useState(null) // "exp-strike-right"
   const [optionHistory, setOptionHistory] = useState({}) // key -> data
   const [loadingHistory, setLoadingHistory] = useState({}) // key -> boolean
@@ -334,6 +341,9 @@ function OptionsChainTable({ chain, currentPrice }) {
   if (!chain || !chain.options || chain.options.length === 0) {
     return <Text color="gray.500">No options data</Text>
   }
+
+  // Check if any option has volume >= minVolume
+  const hasHighVolumeOption = chain.options.some(opt => (opt.volume || 0) >= minVolume)
 
   const toggleOption = async (exp, strike, right) => {
     const key = `${exp}-${strike}-${right}`
@@ -382,6 +392,16 @@ function OptionsChainTable({ chain, currentPrice }) {
       <Text color="gray.300" fontSize="sm">
         Options Chain for {chain.symbol} | Current: ${currentPrice?.toFixed(2)} | Click on bid/ask to see chart
       </Text>
+
+      {!hasHighVolumeOption && (
+        <Alert status="warning" variant="left-accent" bg="yellow.900" borderColor="yellow.500">
+          <AlertIcon color="yellow.400" />
+          <Text color="yellow.200" fontSize="sm">
+            Low liquidity warning: No option contract has volume ≥ {minVolume.toLocaleString()}. Trading may be difficult due to low activity.
+          </Text>
+        </Alert>
+      )}
+
       {expirations.slice(0, 4).map(exp => {
         const strikeData = byExpiration[exp]
         const strikes = Object.keys(strikeData).map(Number).sort((a, b) => a - b)
@@ -570,6 +590,7 @@ function MultiSymbolReport() {
   const [currentPage, setCurrentPage] = useState(1)
   const [currentPrices, setCurrentPrices] = useState({}) // symbol -> { price, fetchedAt }
   const [loadingPrices, setLoadingPrices] = useState(false)
+  const [minVolume, setMinVolume] = useState(1000) // Minimum options volume threshold
 
   // Load watchgroups on mount
   useEffect(() => {
@@ -784,6 +805,21 @@ function MultiSymbolReport() {
                 <option key={p.label} value={p.label}>{p.label}</option>
               ))}
             </Select>
+            <Text fontSize="sm" color="gray.400" ml={2}>Min opt vol:</Text>
+            <NumberInput
+              size="sm"
+              w="100px"
+              value={minVolume}
+              onChange={(_, val) => setMinVolume(val || 0)}
+              min={0}
+              step={100}
+            >
+              <NumberInputField bg="gray.700" borderColor="gray.600" />
+              <NumberInputStepper>
+                <NumberIncrementStepper borderColor="gray.600" />
+                <NumberDecrementStepper borderColor="gray.600" />
+              </NumberInputStepper>
+            </NumberInput>
           </HStack>
         )}
       </HStack>
@@ -1003,7 +1039,7 @@ function MultiSymbolReport() {
                               <Text color="red.400">Error: {chainData.error}</Text>
                             )}
                             {chainData && !chainData.error && (
-                              <OptionsChainTable chain={chainData} currentPrice={item.currentPrice} />
+                              <OptionsChainTable chain={chainData} currentPrice={item.currentPrice} minVolume={minVolume} />
                             )}
                             {!isLoadingChain && !chainData && (
                               <Text color="gray.500">No options data available</Text>
