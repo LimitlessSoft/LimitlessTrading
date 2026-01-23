@@ -1,0 +1,35 @@
+import express from 'express'
+import cors from 'cors'
+import marketRoutes from './routes/market.js'
+import { getConnectionStatus } from './ibkrClient.js'
+
+const app = express()
+const PORT = process.env.PORT || 3001
+
+app.use(cors())
+app.use(express.json())
+
+// API Routes
+app.use('/api', marketRoutes)
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
+// Status endpoint
+app.get('/api/status', (req, res) => {
+  const status = getConnectionStatus()
+  res.json(status)
+})
+
+// Error handling
+app.use((err, req, res, next) => {
+  console.error('Server error:', err)
+  res.status(500).json({ error: err.message })
+})
+
+app.listen(PORT, () => {
+  console.log(`ARAnalysis server running on port ${PORT}`)
+  console.log(`API available at http://localhost:${PORT}/api`)
+})
