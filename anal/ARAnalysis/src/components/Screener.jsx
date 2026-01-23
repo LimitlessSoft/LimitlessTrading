@@ -27,7 +27,7 @@ import {
   useDisclosure
 } from '@chakra-ui/react'
 import { AddIcon, DeleteIcon, SearchIcon, ChevronDownIcon, ChevronUpIcon, StarIcon } from '@chakra-ui/icons'
-import { fetchFromCache } from '../modules/dataService'
+import { fetchForScreener } from '../modules/dataService'
 import {
   getScreenerSymbols,
   addScreenerSymbol,
@@ -256,7 +256,7 @@ function Screener() {
       setProgress({ current: i + 1, total: symbols.length })
 
       try {
-        const data = await fetchFromCache(symbol, '1d')
+        const data = await fetchForScreener(symbol)
         if (data && data.length >= 2) {
           const metrics = calculateMetrics(data)
           if (metrics) {
@@ -450,7 +450,7 @@ function Screener() {
               isAnimated
             />
             <Text fontSize="xs" color="gray.400" mt={1}>
-              Screening {progress.current} of {progress.total} symbols...
+              Fetching & screening {progress.current} of {progress.total} symbols...
             </Text>
           </Box>
         )}
@@ -541,7 +541,7 @@ function Screener() {
         )}
 
         <Text fontSize="xs" color="gray.500">
-          Note: Screener uses cached data. Load symbols via the main view first to populate the cache.
+          Data is fetched from IBKR if not cached or outdated. Requires active IBKR connection.
         </Text>
       </VStack>
     </Box>

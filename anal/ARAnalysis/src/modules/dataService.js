@@ -256,6 +256,44 @@ export async function getLastFetchTime(symbol, interval) {
   return getLastFetch(symbol, interval)
 }
 
+// Fetch data for screener - uses cache if available and recent, otherwise fetches from IBKR
+// Returns at least 30 bars for metrics calculation
+export async function fetchForScreener(symbol) {
+  const interval = '1d'
+
+  // Check cache first
+  const cached = await getPriceData(symbol, interval)
+
+  // If we have at least 30 recent bars, use cache
+  if (cached && cached.length >= 30) {
+    const newestBar = cached[0]
+    const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000)
+    if (newestBar.timestamp >= threeDaysAgo) {
+      return cached
+    }
+  }
+
+  // Otherwise fetch from IBKR (single chunk = ~1 year of daily data)
+  try {
+    const response = await axios.get(`/api/historical/${symbol}/chunk`, {
+      params: { interval },
+      timeout: 30000
+    })
+
+    if (response.data?.data && response.data.data.length > 0) {
+      await addPriceData(symbol, interval, response.data.data)
+      await addSecurity(symbol)
+      // Return fresh data from cache (deduplicated)
+      return getPriceData(symbol, interval)
+    }
+  } catch (err) {
+    console.error(`Failed to fetch ${symbol}:`, err.message)
+  }
+
+  // Return whatever we have in cache
+  return cached || []
+}
+
 // Get the start of day in market time (US Eastern)
 function getMarketDayStart(timestamp) {
   const date = new Date(timestamp)
