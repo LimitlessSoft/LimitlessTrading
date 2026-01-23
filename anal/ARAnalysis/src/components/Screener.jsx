@@ -248,12 +248,12 @@ function Screener() {
 
     setLoading(true)
     setResults(null)
-    setProgress({ current: 0, total: symbols.length })
+    setProgress({ current: 0, total: symbols.length, failed: 0 })
     const matches = []
+    let failedCount = 0
 
     for (let i = 0; i < symbols.length; i++) {
       const symbol = symbols[i]
-      setProgress({ current: i + 1, total: symbols.length })
 
       try {
         const data = await fetchForScreener(symbol)
@@ -267,10 +267,15 @@ function Screener() {
               matches.push(metrics)
             }
           }
+        } else {
+          failedCount++
         }
       } catch (err) {
-        console.error(`Failed to screen ${symbol}:`, err)
+        console.error(`Failed to screen ${symbol}:`, err.message)
+        failedCount++
       }
+
+      setProgress({ current: i + 1, total: symbols.length, failed: failedCount })
     }
 
     setResults(matches)
@@ -451,6 +456,7 @@ function Screener() {
             />
             <Text fontSize="xs" color="gray.400" mt={1}>
               Fetching & screening {progress.current} of {progress.total} symbols...
+              {progress.failed > 0 && <Text as="span" color="red.400"> ({progress.failed} failed)</Text>}
             </Text>
           </Box>
         )}
@@ -461,7 +467,8 @@ function Screener() {
             <Divider borderColor="gray.600" />
             <HStack justify="space-between">
               <Text color="gray.300" fontWeight="bold">
-                Results: {results.length} matches out of {symbols.length} screened
+                Results: {results.length} matches out of {symbols.length - progress.failed} screened
+                {progress.failed > 0 && <Text as="span" color="red.400" fontWeight="normal"> ({progress.failed} symbols failed)</Text>}
               </Text>
               {results.length > 0 && activeGroup && (
                 <Button

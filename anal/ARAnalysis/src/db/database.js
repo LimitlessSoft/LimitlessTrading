@@ -63,8 +63,9 @@ db.version(6).stores({
 })
 
 // Default screener symbols (combined from major indices)
+// Note: Removed BRK.B (needs special IBKR handling), GOOG (duplicate of GOOGL)
 const DEFAULT_SCREENER_SYMBOLS = [
-  'AAPL', 'MSFT', 'AMZN', 'NVDA', 'GOOGL', 'GOOG', 'META', 'BRK.B', 'UNH', 'XOM',
+  'AAPL', 'MSFT', 'AMZN', 'NVDA', 'GOOGL', 'META', 'UNH', 'XOM',
   'LLY', 'JPM', 'JNJ', 'V', 'PG', 'MA', 'AVGO', 'HD', 'CVX', 'MRK', 'ABBV', 'COST',
   'PEP', 'ADBE', 'WMT', 'KO', 'MCD', 'CSCO', 'CRM', 'BAC', 'PFE', 'TMO', 'ACN',
   'NFLX', 'AMD', 'LIN', 'ABT', 'DIS', 'DHR', 'ORCL', 'CMCSA', 'VZ', 'INTC', 'WFC',
@@ -77,7 +78,7 @@ const DEFAULT_SCREENER_SYMBOLS = [
   'NXPI', 'FTNT', 'WDAY', 'MRVL', 'ADSK', 'ABNB', 'DXCM', 'KDP', 'PCAR', 'AEP',
   'MCHP', 'CPRT', 'ODFL', 'KHC', 'PAYX', 'LULU', 'EXC', 'AZN', 'IDXX', 'ROST',
   'FAST', 'CSGP', 'VRSK', 'EA', 'CTSH', 'GEHC', 'XEL', 'BKR', 'DDOG', 'BIIB',
-  'FANG', 'TEAM', 'ANSS', 'DLTR', 'WBD', 'ZS', 'ILMN', 'ALGN', 'EBAY', 'WBA',
+  'FANG', 'TEAM', 'ANSS', 'DLTR', 'ZS', 'ALGN', 'EBAY',
   'ENPH', 'DOW', 'MMM', 'TRV', 'SQ', 'SHOP', 'SNOW', 'PLTR', 'UBER'
 ]
 
