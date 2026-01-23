@@ -17,11 +17,36 @@ import {
   Input,
   IconButton,
   Spinner,
-  Divider
+  Divider,
+  Progress,
+  Textarea
 } from '@chakra-ui/react'
 import { AddIcon, DeleteIcon, SearchIcon } from '@chakra-ui/icons'
 import { fetchFromCache } from '../modules/dataService'
-import { getWatchgroups, getWatchgroupSymbols, getActiveWatchgroup } from '../db/database'
+
+// Predefined symbol lists
+const SYMBOL_LISTS = {
+  'sp500': {
+    name: 'S&P 500',
+    symbols: ['AAPL', 'MSFT', 'AMZN', 'NVDA', 'GOOGL', 'GOOG', 'META', 'BRK.B', 'UNH', 'XOM', 'LLY', 'JPM', 'JNJ', 'V', 'PG', 'MA', 'AVGO', 'HD', 'CVX', 'MRK', 'ABBV', 'COST', 'PEP', 'ADBE', 'WMT', 'KO', 'MCD', 'CSCO', 'CRM', 'BAC', 'PFE', 'TMO', 'ACN', 'NFLX', 'AMD', 'LIN', 'ABT', 'DIS', 'DHR', 'ORCL', 'CMCSA', 'VZ', 'INTC', 'WFC', 'PM', 'TXN', 'INTU', 'COP', 'QCOM', 'NKE', 'UNP', 'IBM', 'CAT', 'NOW', 'SPGI', 'HON', 'LOW', 'AMGN', 'UPS', 'GE', 'BA', 'RTX', 'ISRG', 'DE', 'AMAT', 'ELV', 'PLD', 'GS', 'BKNG', 'SYK', 'BLK', 'MDLZ', 'AXP', 'SBUX', 'GILD', 'LMT', 'ADI', 'TJX', 'MMC', 'VRTX', 'ADP', 'REGN', 'CVS', 'ETN', 'C', 'SCHW', 'LRCX', 'CI', 'MU', 'PANW', 'ZTS', 'TMUS', 'BSX', 'FI', 'MO', 'CB', 'SO', 'SLB']
+  },
+  'nasdaq100': {
+    name: 'NASDAQ 100',
+    symbols: ['AAPL', 'MSFT', 'AMZN', 'NVDA', 'GOOGL', 'GOOG', 'META', 'AVGO', 'COST', 'TSLA', 'ADBE', 'PEP', 'CSCO', 'NFLX', 'AMD', 'CMCSA', 'INTC', 'TMUS', 'INTU', 'TXN', 'QCOM', 'AMGN', 'HON', 'AMAT', 'ISRG', 'BKNG', 'SBUX', 'GILD', 'ADI', 'VRTX', 'MDLZ', 'ADP', 'REGN', 'LRCX', 'PANW', 'MU', 'PYPL', 'CSX', 'SNPS', 'KLAC', 'CDNS', 'MELI', 'MAR', 'ORLY', 'MNST', 'CTAS', 'NXPI', 'FTNT', 'WDAY', 'MRVL', 'ADSK', 'ABNB', 'DXCM', 'KDP', 'PCAR', 'AEP', 'MCHP', 'CPRT', 'ODFL', 'KHC', 'PAYX', 'LULU', 'EXC', 'AZN', 'IDXX', 'ROST', 'FAST', 'CSGP', 'VRSK', 'EA', 'CTSH', 'GEHC', 'XEL', 'BKR', 'DDOG', 'BIIB', 'FANG', 'TEAM', 'ANSS', 'DLTR', 'WBD', 'ZS', 'ILMN', 'ALGN', 'EBAY', 'WBA', 'ENPH', 'SIRI', 'JD', 'LCID', 'RIVN']
+  },
+  'dow30': {
+    name: 'Dow 30',
+    symbols: ['AAPL', 'AMGN', 'AXP', 'BA', 'CAT', 'CRM', 'CSCO', 'CVX', 'DIS', 'DOW', 'GS', 'HD', 'HON', 'IBM', 'INTC', 'JNJ', 'JPM', 'KO', 'MCD', 'MMM', 'MRK', 'MSFT', 'NKE', 'PG', 'TRV', 'UNH', 'V', 'VZ', 'WBA', 'WMT']
+  },
+  'mega_tech': {
+    name: 'Mega Tech',
+    symbols: ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA', 'TSLA', 'NFLX', 'AMD', 'INTC', 'CRM', 'ORCL', 'ADBE', 'PYPL', 'SQ', 'SHOP', 'SNOW', 'PLTR', 'UBER', 'ABNB']
+  },
+  'custom': {
+    name: 'Custom List',
+    symbols: []
+  }
+}
 
 // Available columns for screening
 const COLUMNS = [
@@ -146,37 +171,23 @@ function formatValue(value, format) {
 
 function Screener() {
   const [conditions, setConditions] = useState([{ ...DEFAULT_CONDITION }])
-  const [watchgroups, setWatchgroups] = useState([])
-  const [selectedGroupId, setSelectedGroupId] = useState(null)
-  const [groupSymbols, setGroupSymbols] = useState([])
+  const [selectedList, setSelectedList] = useState('nasdaq100')
+  const [customSymbols, setCustomSymbols] = useState('')
   const [results, setResults] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [progress, setProgress] = useState({ current: 0, total: 0 })
   const [sortColumn, setSortColumn] = useState('changePercent')
   const [sortAsc, setSortAsc] = useState(false)
 
-  // Load watchgroups on mount
-  useEffect(() => {
-    loadWatchgroups()
-  }, [])
-
-  // Load symbols when selected group changes
-  useEffect(() => {
-    if (selectedGroupId) {
-      getWatchgroupSymbols(selectedGroupId).then(setGroupSymbols)
-    } else {
-      setGroupSymbols([])
+  const getSymbolsToScreen = () => {
+    if (selectedList === 'custom') {
+      return customSymbols
+        .toUpperCase()
+        .split(/[\s,]+/)
+        .map(s => s.trim())
+        .filter(s => s.length > 0)
     }
-  }, [selectedGroupId])
-
-  const loadWatchgroups = async () => {
-    const groups = await getWatchgroups()
-    setWatchgroups(groups)
-    const activeId = await getActiveWatchgroup()
-    if (activeId && groups.some(g => g.id === activeId)) {
-      setSelectedGroupId(activeId)
-    } else if (groups.length > 0) {
-      setSelectedGroupId(groups[0].id)
-    }
+    return SYMBOL_LISTS[selectedList]?.symbols || []
   }
 
   const handleAddCondition = () => {
@@ -196,12 +207,18 @@ function Screener() {
   }
 
   const runScreener = async () => {
-    if (groupSymbols.length === 0) return
+    const symbols = getSymbolsToScreen()
+    if (symbols.length === 0) return
 
     setLoading(true)
+    setResults(null)
+    setProgress({ current: 0, total: symbols.length })
     const matches = []
 
-    for (const symbol of groupSymbols) {
+    for (let i = 0; i < symbols.length; i++) {
+      const symbol = symbols[i]
+      setProgress({ current: i + 1, total: symbols.length })
+
       try {
         const data = await fetchFromCache(symbol, '1d')
         if (data && data.length >= 2) {
@@ -242,7 +259,7 @@ function Screener() {
     })
   }, [results, sortColumn, sortAsc])
 
-  const selectedGroup = watchgroups.find(g => g.id === selectedGroupId)
+  const symbolCount = getSymbolsToScreen().length
 
   // Display columns in results table
   const displayColumns = ['close', 'changePercent', 'gap', 'volume', 'relativeVolume', 'atrPercent']
@@ -254,23 +271,42 @@ function Screener() {
       </Heading>
 
       <VStack spacing={4} align="stretch">
-        {/* Watchgroup selector */}
-        <HStack>
-          <Text fontSize="sm" color="gray.400">Watchgroup:</Text>
-          <Select
-            size="sm"
-            w="150px"
-            value={selectedGroupId || ''}
-            onChange={(e) => {
-              setSelectedGroupId(Number(e.target.value))
-              setResults(null)
-            }}
-          >
-            {watchgroups.map(g => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </Select>
-          <Text fontSize="sm" color="gray.500">({groupSymbols.length} symbols)</Text>
+        {/* Symbol list selector */}
+        <HStack spacing={4} align="flex-start">
+          <VStack align="stretch" spacing={2}>
+            <Text fontSize="sm" color="gray.400">Symbol List:</Text>
+            <Select
+              size="sm"
+              w="180px"
+              value={selectedList}
+              onChange={(e) => {
+                setSelectedList(e.target.value)
+                setResults(null)
+              }}
+            >
+              {Object.entries(SYMBOL_LISTS).map(([key, list]) => (
+                <option key={key} value={key}>{list.name}</option>
+              ))}
+            </Select>
+          </VStack>
+
+          {selectedList === 'custom' && (
+            <VStack align="stretch" spacing={2} flex={1}>
+              <Text fontSize="sm" color="gray.400">Enter symbols (comma or space separated):</Text>
+              <Textarea
+                size="sm"
+                value={customSymbols}
+                onChange={(e) => setCustomSymbols(e.target.value)}
+                placeholder="AAPL, MSFT, GOOGL, AMZN..."
+                bg="gray.700"
+                rows={2}
+              />
+            </VStack>
+          )}
+
+          <Text fontSize="sm" color="gray.500" alignSelf="flex-end" pb={2}>
+            ({symbolCount} symbols)
+          </Text>
         </HStack>
 
         {/* Conditions */}
@@ -352,24 +388,33 @@ function Screener() {
           colorScheme="blue"
           onClick={runScreener}
           isLoading={loading}
-          isDisabled={groupSymbols.length === 0}
+          isDisabled={symbolCount === 0}
         >
-          Screen {selectedGroup?.name || 'Watchgroup'}
+          Screen {SYMBOL_LISTS[selectedList]?.name || 'Custom List'}
         </Button>
 
-        {/* Results */}
+        {/* Progress */}
         {loading && (
-          <HStack spacing={3}>
-            <Spinner size="sm" />
-            <Text color="gray.400">Screening {groupSymbols.length} symbols...</Text>
-          </HStack>
+          <Box>
+            <Progress
+              value={(progress.current / progress.total) * 100}
+              size="sm"
+              colorScheme="blue"
+              hasStripe
+              isAnimated
+            />
+            <Text fontSize="xs" color="gray.400" mt={1}>
+              Screening {progress.current} of {progress.total} symbols...
+            </Text>
+          </Box>
         )}
 
+        {/* Results */}
         {results && !loading && (
           <>
             <Divider borderColor="gray.600" />
             <Text color="gray.300" fontWeight="bold">
-              Results: {results.length} matches
+              Results: {results.length} matches out of {symbolCount} screened
             </Text>
 
             {results.length === 0 ? (
@@ -434,6 +479,10 @@ function Screener() {
             )}
           </>
         )}
+
+        <Text fontSize="xs" color="gray.500">
+          Note: Screener uses cached data. Load symbols via the main view first to populate the cache.
+        </Text>
       </VStack>
     </Box>
   )
