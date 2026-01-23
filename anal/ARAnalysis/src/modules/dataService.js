@@ -256,13 +256,69 @@ export async function getLastFetchTime(symbol, interval) {
   return getLastFetch(symbol, interval)
 }
 
-// Fetch data for screener - uses cache if available and recent, otherwise fetches from IBKR
-// Returns at least 30 bars for metrics calculation
-export async function fetchForScreener(symbol) {
+// Get the most recent trading day (Mon-Fri, before or on today)
+function getMostRecentTradingDay() {
+  const now = new Date()
+  const day = now.getDay() // 0=Sun, 1=Mon, ..., 6=Sat
+  const hour = now.getHours()
+
+  // Start with today
+  let tradingDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+  // If it's before market open (9:30 ET), use previous trading day
+  // Simplified: if before 10am local, consider previous day
+  if (hour < 10) {
+    tradingDay.setDate(tradingDay.getDate() - 1)
+  }
+
+  // Adjust for weekends
+  const tradingDayOfWeek = tradingDay.getDay()
+  if (tradingDayOfWeek === 0) { // Sunday
+    tradingDay.setDate(tradingDay.getDate() - 2) // Go to Friday
+  } else if (tradingDayOfWeek === 6) { // Saturday
+    tradingDay.setDate(tradingDay.getDate() - 1) // Go to Friday
+  }
+
+  return tradingDay
+}
+
+// Check if bar date matches a target date (ignoring time)
+function isSameDate(timestamp, targetDate) {
+  const barDate = new Date(timestamp)
+  return barDate.getFullYear() === targetDate.getFullYear() &&
+         barDate.getMonth() === targetDate.getMonth() &&
+         barDate.getDate() === targetDate.getDate()
+}
+
+// Check if bar is from recent trading days (within maxTradingDays)
+function isFromRecentTradingDay(barTimestamp, maxTradingDays) {
+  const mostRecent = getMostRecentTradingDay()
+
+  // Check if bar is from most recent trading day or within allowed range
+  for (let i = 0; i < maxTradingDays; i++) {
+    const checkDate = new Date(mostRecent)
+    checkDate.setDate(checkDate.getDate() - i)
+
+    // Skip weekends when counting back
+    while (checkDate.getDay() === 0 || checkDate.getDay() === 6) {
+      checkDate.setDate(checkDate.getDate() - 1)
+    }
+
+    if (isSameDate(barTimestamp, checkDate)) {
+      return true
+    }
+  }
+  return false
+}
+
+// Fetch data for screener - uses cache if bar is from recent trading day
+// Returns { data, fromCache } - data array and whether it came from cache
+// maxTradingDays: how many trading days old the data can be (default: 1 = must be from most recent trading day)
+export async function fetchForScreener(symbol, maxTradingDays = 1) {
   // Validate symbol
   if (!symbol || typeof symbol !== 'string' || symbol.trim() === '') {
     console.warn('fetchForScreener called with empty symbol')
-    return []
+    return { data: [], fromCache: false }
   }
 
   const cleanSymbol = symbol.trim().toUpperCase()
@@ -271,13 +327,20 @@ export async function fetchForScreener(symbol) {
   // Check cache first
   const cached = await getPriceData(cleanSymbol, interval)
 
-  // If we have at least 30 recent bars, use cache
+  // If we have at least 30 bars and newest bar is from recent trading day, use cache
   if (cached && cached.length >= 30) {
     const newestBar = cached[0]
-    const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000)
-    if (newestBar.timestamp >= threeDaysAgo) {
-      return cached
+    const barDate = new Date(newestBar.timestamp).toDateString()
+    const mostRecentTradingDay = getMostRecentTradingDay().toDateString()
+
+    if (isFromRecentTradingDay(newestBar.timestamp, maxTradingDays)) {
+      console.log(`${cleanSymbol}: CACHE HIT - bar from ${barDate}, recent trading day is ${mostRecentTradingDay}`)
+      return { data: cached, fromCache: true }
+    } else {
+      console.log(`${cleanSymbol}: CACHE MISS - bar from ${barDate}, need within ${maxTradingDays} trading days of ${mostRecentTradingDay}`)
     }
+  } else {
+    console.log(`${cleanSymbol}: CACHE MISS - only ${cached?.length || 0} bars (need 30)`)
   }
 
   // Otherwise fetch from IBKR (single chunk = ~1 year of daily data)
@@ -291,14 +354,15 @@ export async function fetchForScreener(symbol) {
       await addPriceData(cleanSymbol, interval, response.data.data)
       await addSecurity(cleanSymbol)
       // Return fresh data from cache (deduplicated)
-      return getPriceData(cleanSymbol, interval)
+      const freshData = await getPriceData(cleanSymbol, interval)
+      return { data: freshData, fromCache: false }
     }
   } catch (err) {
     console.error(`Failed to fetch ${cleanSymbol}:`, err.message)
   }
 
   // Return whatever we have in cache
-  return cached || []
+  return { data: cached || [], fromCache: !!cached }
 }
 
 // Get the start of day in market time (US Eastern)

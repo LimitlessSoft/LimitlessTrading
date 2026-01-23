@@ -21,21 +21,16 @@ import {
   Wrap,
   WrapItem,
   Tag,
-  TagLabel,
-  TagCloseButton,
-  Collapse,
-  useDisclosure
+  TagLabel
 } from '@chakra-ui/react'
-import { AddIcon, DeleteIcon, SearchIcon, ChevronDownIcon, ChevronUpIcon, StarIcon } from '@chakra-ui/icons'
+import { AddIcon, DeleteIcon, SearchIcon, StarIcon } from '@chakra-ui/icons'
 import { fetchForScreener } from '../modules/dataService'
 import {
-  getScreenerSymbols,
-  addScreenerSymbol,
-  addScreenerSymbols,
-  removeScreenerSymbol,
   getWatchgroups,
   getActiveWatchgroup,
-  addToWatchgroup
+  getWatchgroupSymbols,
+  addToWatchgroup,
+  removeFromWatchgroup
 } from '../db/database'
 
 // Available columns for screening
@@ -72,6 +67,15 @@ const DEFAULT_CONDITION = {
   value: 0,
   value2: 0
 }
+
+// Max data age options (in trading days)
+const DATA_AGE_OPTIONS = [
+  { value: 1, label: 'Today' },
+  { value: 2, label: '2 trading days' },
+  { value: 5, label: '1 week' },
+  { value: 10, label: '2 weeks' },
+  { value: 999, label: 'Any (no refetch)' }
+]
 
 // Calculate derived values from price data
 function calculateMetrics(data) {
@@ -162,25 +166,36 @@ function formatValue(value, format) {
 function Screener() {
   const [conditions, setConditions] = useState([{ ...DEFAULT_CONDITION }])
   const [symbols, setSymbols] = useState([])
-  const [newSymbol, setNewSymbol] = useState('')
   const [results, setResults] = useState(null)
+  const [failedSymbols, setFailedSymbols] = useState([])
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState({ current: 0, total: 0 })
   const [sortColumn, setSortColumn] = useState('changePercent')
   const [sortAsc, setSortAsc] = useState(false)
   const [watchgroups, setWatchgroups] = useState([])
-  const [activeGroupId, setActiveGroupId] = useState(null)
+  const [sourceGroupId, setSourceGroupId] = useState(null) // Watchgroup to screen
+  const [targetGroupId, setTargetGroupId] = useState(null) // Watchgroup to add results to
   const [addingToWatchlist, setAddingToWatchlist] = useState(false)
-  const { isOpen: isSymbolsOpen, onToggle: onSymbolsToggle } = useDisclosure()
+  const [maxDataAge, setMaxDataAge] = useState(1) // Default: 1 trading day (today)
 
-  // Load symbols and watchgroups on mount
+  // Load watchgroups on mount
   useEffect(() => {
-    loadSymbols()
     loadWatchgroups()
   }, [])
 
+  // Load symbols when source group changes
+  useEffect(() => {
+    if (sourceGroupId) {
+      loadSymbols()
+    }
+  }, [sourceGroupId])
+
   const loadSymbols = async () => {
-    const syms = await getScreenerSymbols()
+    if (!sourceGroupId) {
+      setSymbols([])
+      return
+    }
+    const syms = await getWatchgroupSymbols(sourceGroupId)
     setSymbols(syms)
   }
 
@@ -189,42 +204,34 @@ function Screener() {
     setWatchgroups(groups)
     const activeId = await getActiveWatchgroup()
     if (activeId && groups.some(g => g.id === activeId)) {
-      setActiveGroupId(activeId)
+      setSourceGroupId(activeId)
+      setTargetGroupId(activeId)
     } else if (groups.length > 0) {
-      setActiveGroupId(groups[0].id)
+      setSourceGroupId(groups[0].id)
+      setTargetGroupId(groups[0].id)
     }
   }
 
   const handleAddResultsToWatchlist = async () => {
-    if (!results || results.length === 0 || !activeGroupId) return
+    if (!results || results.length === 0 || !targetGroupId) return
 
     setAddingToWatchlist(true)
     for (const item of results) {
-      await addToWatchgroup(activeGroupId, item.symbol)
+      await addToWatchgroup(targetGroupId, item.symbol)
     }
     setAddingToWatchlist(false)
   }
 
-  const activeGroup = watchgroups.find(g => g.id === activeGroupId)
+  const sourceGroup = watchgroups.find(g => g.id === sourceGroupId)
+  const targetGroup = watchgroups.find(g => g.id === targetGroupId)
 
-  const handleAddSymbol = async () => {
-    const toAdd = newSymbol.toUpperCase().trim()
-    if (!toAdd) return
-
-    // Support comma/space separated input
-    const symbolsToAdd = toAdd.split(/[\s,]+/).filter(s => s.length > 0)
-    if (symbolsToAdd.length > 1) {
-      await addScreenerSymbols(symbolsToAdd)
-    } else {
-      await addScreenerSymbol(toAdd)
+  const handleRemoveFailedFromSource = async () => {
+    if (!sourceGroupId || failedSymbols.length === 0) return
+    for (const symbol of failedSymbols) {
+      await removeFromWatchgroup(sourceGroupId, symbol)
     }
-    setNewSymbol('')
     await loadSymbols()
-  }
-
-  const handleRemoveSymbol = async (symbol) => {
-    await removeScreenerSymbol(symbol)
-    await loadSymbols()
+    setFailedSymbols([])
   }
 
   const handleAddCondition = () => {
@@ -248,13 +255,19 @@ function Screener() {
     const validSymbols = symbols.filter(s => s && s.trim() !== '')
     if (validSymbols.length === 0) return
 
+    // Refresh active watchgroup before screening
+    await loadWatchgroups()
+
     setLoading(true)
     setResults(null)
-    setProgress({ current: 0, total: validSymbols.length, failed: 0 })
+    setFailedSymbols([])
+    setProgress({ current: 0, total: validSymbols.length, failed: 0, cached: 0, fetched: 0 })
 
     const matches = []
+    const failed = []
     let completedCount = 0
-    let failedCount = 0
+    let cachedCount = 0
+    let fetchedCount = 0
     const BATCH_SIZE = 10 // Parallel requests per batch
 
     // Process symbols in parallel batches
@@ -266,20 +279,22 @@ function Screener() {
       const batchResults = await Promise.all(
         batch.map(async (symbol) => {
           try {
-            const data = await fetchForScreener(symbol)
+            const result = await fetchForScreener(symbol, maxDataAge)
+            const data = result.data
+            const fromCache = result.fromCache
             if (data && data.length >= 2) {
               const metrics = calculateMetrics(data)
               if (metrics) {
                 metrics.symbol = symbol
                 // Check all conditions (AND logic)
                 const passesAll = conditions.every(cond => passesCondition(metrics, cond))
-                return { success: true, match: passesAll ? metrics : null }
+                return { success: true, symbol, match: passesAll ? metrics : null, fromCache }
               }
             }
-            return { success: false }
+            return { success: false, symbol, fromCache: false }
           } catch (err) {
             console.error(`Failed to screen ${symbol}:`, err.message)
-            return { success: false }
+            return { success: false, symbol, fromCache: false }
           }
         })
       )
@@ -288,16 +303,24 @@ function Screener() {
       for (const result of batchResults) {
         completedCount++
         if (!result.success) {
-          failedCount++
-        } else if (result.match) {
-          matches.push(result.match)
+          failed.push(result.symbol)
+        } else {
+          if (result.fromCache) {
+            cachedCount++
+          } else {
+            fetchedCount++
+          }
+          if (result.match) {
+            matches.push(result.match)
+          }
         }
       }
 
-      setProgress({ current: completedCount, total: validSymbols.length, failed: failedCount })
+      setProgress({ current: completedCount, total: validSymbols.length, failed: failed.length, cached: cachedCount, fetched: fetchedCount })
     }
 
     setResults(matches)
+    setFailedSymbols(failed)
     setLoading(false)
   }
 
@@ -329,54 +352,25 @@ function Screener() {
       </Heading>
 
       <VStack spacing={4} align="stretch">
-        {/* Symbol list management */}
+        {/* Watchgroup selector */}
         <Box p={3} bg="gray.700" borderRadius="md">
-          <HStack justify="space-between" mb={2}>
+          <HStack spacing={4}>
             <HStack>
-              <Text color="gray.300" fontWeight="bold">Symbols</Text>
-              <Badge colorScheme="blue">{symbols.length}</Badge>
-            </HStack>
-            <Button
-              size="xs"
-              variant="ghost"
-              rightIcon={isSymbolsOpen ? <ChevronUpIcon /> : <ChevronDownIcon />}
-              onClick={onSymbolsToggle}
-            >
-              {isSymbolsOpen ? 'Hide' : 'Show'}
-            </Button>
-          </HStack>
-
-          <HStack mb={2}>
-            <Input
-              size="sm"
-              placeholder="Add symbol(s) - e.g. AAPL, TSLA, MSFT"
-              value={newSymbol}
-              onChange={(e) => setNewSymbol(e.target.value.toUpperCase())}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddSymbol()}
-              bg="gray.600"
-              flex={1}
-            />
-            <Button size="sm" colorScheme="blue" leftIcon={<AddIcon />} onClick={handleAddSymbol}>
-              Add
-            </Button>
-          </HStack>
-
-          <Collapse in={isSymbolsOpen}>
-            {symbols.length === 0 ? (
-              <Text color="gray.500" fontSize="sm">No symbols added yet</Text>
-            ) : (
-              <Wrap spacing={1} maxH="200px" overflowY="auto">
-                {symbols.map(symbol => (
-                  <WrapItem key={symbol}>
-                    <Tag size="sm" colorScheme="blue" borderRadius="full">
-                      <TagLabel>{symbol}</TagLabel>
-                      <TagCloseButton onClick={() => handleRemoveSymbol(symbol)} />
-                    </Tag>
-                  </WrapItem>
+              <Text color="gray.300" fontWeight="bold" whiteSpace="nowrap">Screen from:</Text>
+              <Select
+                size="sm"
+                w="200px"
+                value={sourceGroupId || ''}
+                onChange={(e) => setSourceGroupId(Number(e.target.value))}
+                bg="gray.600"
+              >
+                {watchgroups.map(g => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
                 ))}
-              </Wrap>
-            )}
-          </Collapse>
+              </Select>
+              <Badge colorScheme="blue">{symbols.length} symbols</Badge>
+            </HStack>
+          </HStack>
         </Box>
 
         {/* Conditions */}
@@ -452,16 +446,32 @@ function Screener() {
           </VStack>
         </Box>
 
-        {/* Run button */}
-        <Button
-          leftIcon={<SearchIcon />}
-          colorScheme="blue"
-          onClick={runScreener}
-          isLoading={loading}
-          isDisabled={symbols.length === 0}
-        >
-          Screen {symbols.length} Symbols
-        </Button>
+        {/* Run button and data age selector */}
+        <HStack spacing={4}>
+          <Button
+            leftIcon={<SearchIcon />}
+            colorScheme="blue"
+            onClick={runScreener}
+            isLoading={loading}
+            isDisabled={symbols.length === 0}
+          >
+            Screen {symbols.length} Symbols
+          </Button>
+          <HStack spacing={2}>
+            <Text color="gray.400" fontSize="sm" whiteSpace="nowrap">Data from:</Text>
+            <Select
+              size="sm"
+              w="140px"
+              value={maxDataAge}
+              onChange={(e) => setMaxDataAge(Number(e.target.value))}
+              bg="gray.700"
+            >
+              {DATA_AGE_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </Select>
+          </HStack>
+        </HStack>
 
         {/* Progress */}
         {loading && (
@@ -474,7 +484,9 @@ function Screener() {
               isAnimated
             />
             <Text fontSize="xs" color="gray.400" mt={1}>
-              Fetching & screening {progress.current} of {progress.total} symbols...
+              Screening {progress.current} of {progress.total} symbols
+              <Text as="span" color="green.400"> ({progress.cached} cached)</Text>
+              <Text as="span" color="blue.400"> ({progress.fetched} fetched)</Text>
               {progress.failed > 0 && <Text as="span" color="red.400"> ({progress.failed} failed)</Text>}
             </Text>
           </Box>
@@ -484,24 +496,65 @@ function Screener() {
         {results && !loading && (
           <>
             <Divider borderColor="gray.600" />
-            <HStack justify="space-between">
+            <HStack justify="space-between" wrap="wrap">
               <Text color="gray.300" fontWeight="bold">
-                Results: {results.length} matches out of {symbols.length - progress.failed} screened
-                {progress.failed > 0 && <Text as="span" color="red.400" fontWeight="normal"> ({progress.failed} symbols failed)</Text>}
+                Results: {results.length} matches out of {symbols.length - failedSymbols.length} screened
               </Text>
-              {results.length > 0 && activeGroup && (
-                <Button
-                  size="sm"
-                  leftIcon={<StarIcon />}
-                  colorScheme="yellow"
-                  variant="outline"
-                  onClick={handleAddResultsToWatchlist}
-                  isLoading={addingToWatchlist}
-                >
-                  Add {results.length} to "{activeGroup.name}"
-                </Button>
+              {results.length > 0 && watchgroups.length > 0 && (
+                <HStack>
+                  <Button
+                    size="sm"
+                    leftIcon={<StarIcon />}
+                    colorScheme="yellow"
+                    variant="outline"
+                    onClick={handleAddResultsToWatchlist}
+                    isLoading={addingToWatchlist}
+                  >
+                    Add {results.length} to
+                  </Button>
+                  <Select
+                    size="sm"
+                    w="150px"
+                    value={targetGroupId || ''}
+                    onChange={(e) => setTargetGroupId(Number(e.target.value))}
+                    bg="gray.700"
+                  >
+                    {watchgroups.map(g => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </Select>
+                </HStack>
               )}
             </HStack>
+
+            {/* Failed symbols */}
+            {failedSymbols.length > 0 && (
+              <Box p={2} bg="red.900" borderRadius="md">
+                <HStack justify="space-between" mb={1}>
+                  <Text color="red.300" fontSize="sm" fontWeight="bold">
+                    Failed ({failedSymbols.length}):
+                  </Text>
+                  <Button
+                    size="xs"
+                    colorScheme="red"
+                    variant="outline"
+                    leftIcon={<DeleteIcon />}
+                    onClick={handleRemoveFailedFromSource}
+                  >
+                    Remove failed from "{sourceGroup?.name}"
+                  </Button>
+                </HStack>
+                <Wrap spacing={1}>
+                  {failedSymbols.map(symbol => (
+                    <WrapItem key={symbol}>
+                      <Tag size="sm" colorScheme="red" borderRadius="full">
+                        <TagLabel>{symbol}</TagLabel>
+                      </Tag>
+                    </WrapItem>
+                  ))}
+                </Wrap>
+              </Box>
+            )}
 
             {results.length === 0 ? (
               <Text color="gray.500">No symbols matched your criteria</Text>
@@ -567,7 +620,7 @@ function Screener() {
         )}
 
         <Text fontSize="xs" color="gray.500">
-          Data is fetched from IBKR if not cached or outdated. Requires active IBKR connection.
+          Uses cached data if within max age. Fetches from IBKR only if cache is older or missing.
         </Text>
       </VStack>
     </Box>
