@@ -74,6 +74,11 @@ router.get('/historical/:symbol/chunk', async (req, res) => {
   const { symbol } = req.params
   const { interval = '1d', endDate } = req.query
 
+  // Validate symbol
+  if (!symbol || symbol.trim() === '') {
+    return res.status(400).json({ error: 'Symbol is required' })
+  }
+
   const config = INTERVAL_CONFIG[interval]
   if (!config) {
     return res.status(400).json({ error: `Invalid interval: ${interval}` })

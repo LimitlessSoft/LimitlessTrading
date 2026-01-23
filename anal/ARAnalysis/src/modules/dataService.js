@@ -259,10 +259,17 @@ export async function getLastFetchTime(symbol, interval) {
 // Fetch data for screener - uses cache if available and recent, otherwise fetches from IBKR
 // Returns at least 30 bars for metrics calculation
 export async function fetchForScreener(symbol) {
+  // Validate symbol
+  if (!symbol || typeof symbol !== 'string' || symbol.trim() === '') {
+    console.warn('fetchForScreener called with empty symbol')
+    return []
+  }
+
+  const cleanSymbol = symbol.trim().toUpperCase()
   const interval = '1d'
 
   // Check cache first
-  const cached = await getPriceData(symbol, interval)
+  const cached = await getPriceData(cleanSymbol, interval)
 
   // If we have at least 30 recent bars, use cache
   if (cached && cached.length >= 30) {
@@ -275,19 +282,19 @@ export async function fetchForScreener(symbol) {
 
   // Otherwise fetch from IBKR (single chunk = ~1 year of daily data)
   try {
-    const response = await axios.get(`/api/historical/${symbol}/chunk`, {
+    const response = await axios.get(`/api/historical/${encodeURIComponent(cleanSymbol)}/chunk`, {
       params: { interval },
       timeout: 30000
     })
 
     if (response.data?.data && response.data.data.length > 0) {
-      await addPriceData(symbol, interval, response.data.data)
-      await addSecurity(symbol)
+      await addPriceData(cleanSymbol, interval, response.data.data)
+      await addSecurity(cleanSymbol)
       // Return fresh data from cache (deduplicated)
-      return getPriceData(symbol, interval)
+      return getPriceData(cleanSymbol, interval)
     }
   } catch (err) {
-    console.error(`Failed to fetch ${symbol}:`, err.message)
+    console.error(`Failed to fetch ${cleanSymbol}:`, err.message)
   }
 
   // Return whatever we have in cache

@@ -244,16 +244,18 @@ function Screener() {
   }
 
   const runScreener = async () => {
-    if (symbols.length === 0) return
+    // Filter out empty/invalid symbols
+    const validSymbols = symbols.filter(s => s && s.trim() !== '')
+    if (validSymbols.length === 0) return
 
     setLoading(true)
     setResults(null)
-    setProgress({ current: 0, total: symbols.length, failed: 0 })
+    setProgress({ current: 0, total: validSymbols.length, failed: 0 })
     const matches = []
     let failedCount = 0
 
-    for (let i = 0; i < symbols.length; i++) {
-      const symbol = symbols[i]
+    for (let i = 0; i < validSymbols.length; i++) {
+      const symbol = validSymbols[i]
 
       try {
         const data = await fetchForScreener(symbol)
@@ -275,7 +277,7 @@ function Screener() {
         failedCount++
       }
 
-      setProgress({ current: i + 1, total: symbols.length, failed: failedCount })
+      setProgress({ current: i + 1, total: validSymbols.length, failed: failedCount })
     }
 
     setResults(matches)
