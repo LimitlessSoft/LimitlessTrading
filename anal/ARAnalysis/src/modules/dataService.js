@@ -504,8 +504,25 @@ const INTERVAL_MS = {
   '1d': 24 * 60 * 60 * 1000
 }
 
+// Fetch options chain for a symbol
+export async function fetchOptionsChain(symbol, currentPrice) {
+  if (!symbol || typeof symbol !== 'string' || symbol.trim() === '') {
+    return null
+  }
+
+  try {
+    const params = currentPrice ? `?price=${currentPrice}` : ''
+    const response = await api.get(`/options-chain/${encodeURIComponent(symbol.trim().toUpperCase())}${params}`)
+    return response.data
+  } catch (err) {
+    console.error(`Failed to fetch options chain for ${symbol}:`, err.message)
+    throw err
+  }
+}
+
 // Check for missing bars in the data
 // Data is sorted descending (newest first)
+
 export function checkMissingBars(data, interval) {
   if (!data || data.length < 2) {
     return { hasMissing: false, missingCount: 0, latestBarTime: data?.[0]?.timestamp || null }

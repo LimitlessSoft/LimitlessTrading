@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { connect, disconnect, getHistoricalData, getConnectionStatus } from '../ibkrClient.js'
+import { connect, disconnect, getHistoricalData, getConnectionStatus, getOptionsChain } from '../ibkrClient.js'
 
 const router = Router()
 
@@ -105,6 +105,25 @@ router.get('/historical/:symbol/chunk', async (req, res) => {
       daysPerChunk: parseDurationToDays(config.duration)
     })
   } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Get options chain for a symbol
+router.get('/options-chain/:symbol', async (req, res) => {
+  const { symbol } = req.params
+  const { price } = req.query
+
+  if (!symbol || symbol.trim() === '') {
+    return res.status(400).json({ error: 'Symbol is required' })
+  }
+
+  try {
+    const currentPrice = price ? parseFloat(price) : null
+    const chain = await getOptionsChain(symbol.toUpperCase(), currentPrice)
+    res.json(chain)
+  } catch (error) {
+    console.error('Options chain error:', error)
     res.status(500).json({ error: error.message })
   }
 })

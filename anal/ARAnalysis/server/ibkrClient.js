@@ -418,4 +418,271 @@ function parseIBKRDate(dateStr) {
   }
 }
 
+// Get options chain for a symbol
+export async function getOptionsChain(symbol, currentPrice) {
+  if (!ib || !connectionState.connected) {
+    throw new Error('Not connected to IBKR')
+  }
+
+  console.log(`Fetching options chain for ${symbol}...`)
+
+  // Step 1: Get option parameters (expirations, strikes)
+  const params = await getOptionParams(symbol)
+  if (!params || params.expirations.length === 0) {
+    return { symbol, options: [] }
+  }
+
+  console.log(`  Found ${params.expirations.length} expirations, ${params.strikes.length} strikes`)
+
+  // Step 2: Filter to relevant strikes (near the money, within 20%)
+  const nearStrikes = params.strikes.filter(strike => {
+    if (!currentPrice) return true
+    const diff = Math.abs(strike - currentPrice) / currentPrice
+    return diff <= 0.2
+  })
+
+  // Step 3: Get first 4 expirations
+  const nearExpirations = params.expirations.slice(0, 4)
+
+  console.log(`  Filtering to ${nearExpirations.length} expirations, ${nearStrikes.length} strikes`)
+
+  // Step 4: Build list of all contracts to fetch
+  const contractsToFetch = []
+  for (const expiration of nearExpirations) {
+    for (const strike of nearStrikes) {
+      for (const right of ['C', 'P']) {
+        contractsToFetch.push({ expiration, strike, right })
+      }
+    }
+  }
+
+  console.log(`  Fetching ${contractsToFetch.length} option contracts...`)
+
+  // Step 5: Fetch in batches of 8 to avoid overwhelming IBKR
+  const BATCH_SIZE = 8
+  const options = []
+
+  for (let i = 0; i < contractsToFetch.length; i += BATCH_SIZE) {
+    const batch = contractsToFetch.slice(i, i + BATCH_SIZE)
+    const batchPromises = batch.map(({ expiration, strike, right }) =>
+      getOptionData(symbol, expiration, strike, right, params.exchange, params.multiplier)
+    )
+
+    const batchResults = await Promise.all(batchPromises)
+    batchResults.forEach(optData => {
+      if (optData) options.push(optData)
+    })
+
+    // Small delay between batches
+    if (i + BATCH_SIZE < contractsToFetch.length) {
+      await sleep(200)
+    }
+  }
+
+  console.log(`  Fetched ${options.length} option contracts with data`)
+  return { symbol, options }
+}
+
+// Get contract details to find conId
+async function getContractId(symbol) {
+  return new Promise((resolve, reject) => {
+    const reqId = nextRequestId++
+
+    const contract = {
+      symbol,
+      secType: SecType.STK,
+      exchange: 'SMART',
+      currency: 'USD'
+    }
+
+    let conId = null
+    let resolved = false
+
+    const onContractDetails = (rId, contractDetails) => {
+      if (rId !== reqId) return
+      if (contractDetails?.contract?.conId) {
+        conId = contractDetails.contract.conId
+        console.log(`  Found conId for ${symbol}: ${conId}`)
+      }
+    }
+
+    const onContractDetailsEnd = (rId) => {
+      if (rId !== reqId) return
+      cleanup()
+      resolve(conId)
+    }
+
+    const cleanup = () => {
+      if (resolved) return
+      resolved = true
+      try { ib.off(EventName.contractDetails, onContractDetails) } catch (e) {}
+      try { ib.off(EventName.contractDetailsEnd, onContractDetailsEnd) } catch (e) {}
+      pendingRequests.delete(reqId)
+    }
+
+    pendingRequests.set(reqId, { resolve, reject })
+    ib.on(EventName.contractDetails, onContractDetails)
+    ib.on(EventName.contractDetailsEnd, onContractDetailsEnd)
+
+    setTimeout(() => {
+      if (!resolved) {
+        cleanup()
+        resolve(conId)
+      }
+    }, 5000)
+
+    try {
+      ib.reqContractDetails(reqId, contract)
+    } catch (err) {
+      cleanup()
+      reject(err)
+    }
+  })
+}
+
+// Get option parameters (expirations and strikes)
+async function getOptionParams(symbol) {
+  // First get the contract ID
+  const conId = await getContractId(symbol)
+  if (!conId) {
+    console.log(`  Could not find conId for ${symbol}`)
+    return { expirations: [], strikes: [], exchange: '', multiplier: '100' }
+  }
+
+  return new Promise((resolve, reject) => {
+    const reqId = nextRequestId++
+
+    let expirations = []
+    let strikes = []
+    let exchange = ''
+    let multiplier = '100'
+    let resolved = false
+
+    const onSecDefOptParams = (rId, exchg, underlyingConId, tradingClass, mult, exps, strks) => {
+      if (rId !== reqId) return
+      console.log(`  Option params: exchange=${exchg}, expirations=${exps?.length}, strikes=${strks?.length}`)
+      if (exps && exps.length > 0) {
+        expirations = [...exps].sort()
+        strikes = [...strks].sort((a, b) => a - b)
+        exchange = exchg
+        multiplier = mult || '100'
+      }
+    }
+
+    const onSecDefOptParamsEnd = (rId) => {
+      if (rId !== reqId) return
+      cleanup()
+      resolve({ expirations, strikes, exchange, multiplier })
+    }
+
+    const cleanup = () => {
+      if (resolved) return
+      resolved = true
+      try { ib.off(EventName.securityDefinitionOptionParameter, onSecDefOptParams) } catch (e) {}
+      try { ib.off(EventName.securityDefinitionOptionParameterEnd, onSecDefOptParamsEnd) } catch (e) {}
+      pendingRequests.delete(reqId)
+    }
+
+    pendingRequests.set(reqId, { resolve, reject })
+    ib.on(EventName.securityDefinitionOptionParameter, onSecDefOptParams)
+    ib.on(EventName.securityDefinitionOptionParameterEnd, onSecDefOptParamsEnd)
+
+    setTimeout(() => {
+      if (!resolved) {
+        cleanup()
+        resolve({ expirations, strikes, exchange, multiplier })
+      }
+    }, 10000)
+
+    try {
+      console.log(`  Requesting option params for ${symbol}, conId=${conId}, reqId=${reqId}`)
+      ib.reqSecDefOptParams(reqId, symbol, '', 'STK', conId)
+    } catch (err) {
+      console.error(`  reqSecDefOptParams error:`, err)
+      cleanup()
+      reject(err)
+    }
+  })
+}
+
+// Get data for a single option contract using streaming (not snapshot)
+async function getOptionData(symbol, expiration, strike, right, exchange, multiplier) {
+  return new Promise((resolve) => {
+    const reqId = nextRequestId++
+
+    const contract = {
+      symbol,
+      secType: 'OPT',
+      exchange: 'SMART',  // Always use SMART for options
+      currency: 'USD',
+      lastTradeDateOrContractMonth: expiration,
+      strike,
+      right,
+      multiplier: multiplier || '100'
+    }
+
+    let optionData = {
+      symbol,
+      expiration,
+      strike,
+      right,
+      bid: null,
+      ask: null,
+      last: null,
+      volume: null,
+      openInterest: null
+    }
+    let resolved = false
+    let dataReceived = false
+
+    const onTickPrice = (rId, tickType, price) => {
+      if (rId !== reqId) return
+      dataReceived = true
+      if (tickType === 1) optionData.bid = price  // bid
+      if (tickType === 2) optionData.ask = price  // ask
+      if (tickType === 4) optionData.last = price // last
+    }
+
+    const onTickSize = (rId, tickType, size) => {
+      if (rId !== reqId) return
+      dataReceived = true
+      if (tickType === 8) optionData.volume = size       // volume
+      if (tickType === 27) optionData.openInterest = size // open interest
+    }
+
+    const cleanup = () => {
+      if (resolved) return
+      resolved = true
+      try { ib.off(EventName.tickPrice, onTickPrice) } catch (e) {}
+      try { ib.off(EventName.tickSize, onTickSize) } catch (e) {}
+      pendingRequests.delete(reqId)
+      try { ib.cancelMktData(reqId) } catch (e) {}
+    }
+
+    pendingRequests.set(reqId, { resolve })
+    ib.on(EventName.tickPrice, onTickPrice)
+    ib.on(EventName.tickSize, onTickSize)
+
+    // Use streaming mode with timeout - collect data for 1.5 seconds then return
+    setTimeout(() => {
+      if (!resolved) {
+        cleanup()
+        if (dataReceived && (optionData.bid !== null || optionData.ask !== null)) {
+          resolve(optionData)
+        } else {
+          resolve(null)
+        }
+      }
+    }, 1500)
+
+    try {
+      // Request streaming market data (false = not snapshot)
+      ib.reqMktData(reqId, contract, '', false, false, [])
+    } catch (err) {
+      cleanup()
+      resolve(null)
+    }
+  })
+}
+
 export { ib }

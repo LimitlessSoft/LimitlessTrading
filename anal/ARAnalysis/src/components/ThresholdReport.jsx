@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, Fragment } from 'react'
 import {
   Box,
   Table,
@@ -14,9 +14,12 @@ import {
   Button,
   Select,
   Spinner,
-  VStack
+  VStack,
+  IconButton,
+  Collapse
 } from '@chakra-ui/react'
-import { fetchFromCache } from '../modules/dataService'
+import { ChevronDownIcon, ChevronRightIcon } from '@chakra-ui/icons'
+import { fetchFromCache, fetchOptionsChain } from '../modules/dataService'
 import { getWatchgroups, getWatchgroupSymbols, getActiveWatchgroup } from '../db/database'
 
 // Time periods in trading days
@@ -190,6 +193,133 @@ function SingleSymbolReport({ symbol, data }) {
   )
 }
 
+// Format expiration date from YYYYMMDD to readable format
+function formatExpiration(exp) {
+  if (!exp || exp.length !== 8) return exp
+  const year = exp.substring(0, 4)
+  const month = parseInt(exp.substring(4, 6)) - 1
+  const day = exp.substring(6, 8)
+  const date = new Date(year, month, day)
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// Options chain table component
+function OptionsChainTable({ chain, currentPrice }) {
+  if (!chain || !chain.options || chain.options.length === 0) {
+    return <Text color="gray.500">No options data</Text>
+  }
+
+  // Group options by expiration and strike
+  const byExpiration = {}
+  chain.options.forEach(opt => {
+    if (!byExpiration[opt.expiration]) {
+      byExpiration[opt.expiration] = {}
+    }
+    if (!byExpiration[opt.expiration][opt.strike]) {
+      byExpiration[opt.expiration][opt.strike] = { call: null, put: null }
+    }
+    if (opt.right === 'C') {
+      byExpiration[opt.expiration][opt.strike].call = opt
+    } else {
+      byExpiration[opt.expiration][opt.strike].put = opt
+    }
+  })
+
+  // Sort expirations
+  const expirations = Object.keys(byExpiration).sort()
+
+  return (
+    <VStack align="stretch" spacing={4}>
+      <Text color="gray.300" fontSize="sm">
+        Options Chain for {chain.symbol} | Current: ${currentPrice?.toFixed(2)}
+      </Text>
+      {expirations.slice(0, 4).map(exp => {
+        const strikeData = byExpiration[exp]
+        const strikes = Object.keys(strikeData).map(Number).sort((a, b) => a - b)
+
+        // Filter to strikes near the money (within 20%)
+        const filteredStrikes = strikes.filter(strike => {
+          if (!currentPrice) return true
+          const diff = Math.abs(strike - currentPrice) / currentPrice
+          return diff <= 0.2
+        })
+
+        return (
+          <Box key={exp}>
+            <Text color="orange.300" fontSize="sm" fontWeight="bold" mb={2}>
+              {formatExpiration(exp)}
+            </Text>
+            <Table size="sm" variant="simple">
+              <Thead>
+                <Tr>
+                  <Th color="green.300" borderColor="gray.600" fontSize="xs" px={2} textAlign="center" colSpan={4}>CALLS</Th>
+                  <Th color="yellow.300" borderColor="gray.600" fontSize="xs" px={2} textAlign="center">STRIKE</Th>
+                  <Th color="red.300" borderColor="gray.600" fontSize="xs" px={2} textAlign="center" colSpan={4}>PUTS</Th>
+                </Tr>
+                <Tr>
+                  <Th color="gray.400" borderColor="gray.600" fontSize="xs" px={2}>OI</Th>
+                  <Th color="gray.400" borderColor="gray.600" fontSize="xs" px={2}>Vol</Th>
+                  <Th color="gray.400" borderColor="gray.600" fontSize="xs" px={2}>Bid</Th>
+                  <Th color="gray.400" borderColor="gray.600" fontSize="xs" px={2}>Ask</Th>
+                  <Th color="yellow.300" borderColor="gray.600" fontSize="xs" px={2} textAlign="center" bg="gray.700"></Th>
+                  <Th color="gray.400" borderColor="gray.600" fontSize="xs" px={2}>Bid</Th>
+                  <Th color="gray.400" borderColor="gray.600" fontSize="xs" px={2}>Ask</Th>
+                  <Th color="gray.400" borderColor="gray.600" fontSize="xs" px={2}>Vol</Th>
+                  <Th color="gray.400" borderColor="gray.600" fontSize="xs" px={2}>OI</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {filteredStrikes.map(strike => {
+                  const { call, put } = strikeData[strike]
+                  const isITMCall = strike <= currentPrice
+                  const isITMPut = strike >= currentPrice
+                  return (
+                    <Tr key={strike}>
+                      {/* Call side */}
+                      <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMCall ? 'green.900' : undefined}>
+                        {call?.openInterest?.toLocaleString() || '-'}
+                      </Td>
+                      <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMCall ? 'green.900' : undefined}>
+                        {call?.volume?.toLocaleString() || '-'}
+                      </Td>
+                      <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMCall ? 'green.900' : undefined}>
+                        {call?.bid?.toFixed(2) || '-'}
+                      </Td>
+                      <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMCall ? 'green.900' : undefined}>
+                        {call?.ask?.toFixed(2) || '-'}
+                      </Td>
+                      {/* Strike in center */}
+                      <Td borderColor="gray.600" color="yellow.200" px={3} textAlign="center" fontWeight="bold" bg="gray.700">
+                        ${strike}
+                      </Td>
+                      {/* Put side */}
+                      <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMPut ? 'red.900' : undefined}>
+                        {put?.bid?.toFixed(2) || '-'}
+                      </Td>
+                      <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMPut ? 'red.900' : undefined}>
+                        {put?.ask?.toFixed(2) || '-'}
+                      </Td>
+                      <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMPut ? 'red.900' : undefined}>
+                        {put?.volume?.toLocaleString() || '-'}
+                      </Td>
+                      <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMPut ? 'red.900' : undefined}>
+                        {put?.openInterest?.toLocaleString() || '-'}
+                      </Td>
+                    </Tr>
+                  )
+                })}
+                {filteredStrikes.length === 0 && (
+                  <Tr><Td colSpan={9} color="gray.500" textAlign="center">No options near the money</Td></Tr>
+                )}
+              </Tbody>
+            </Table>
+          </Box>
+        )
+      })}
+    </VStack>
+  )
+}
+
 // Multi-symbol ranking report
 function MultiSymbolReport() {
   const [allResults, setAllResults] = useState(null)
@@ -199,6 +329,9 @@ function MultiSymbolReport() {
   const [watchgroups, setWatchgroups] = useState([])
   const [selectedGroupId, setSelectedGroupId] = useState(null)
   const [groupSymbols, setGroupSymbols] = useState([])
+  const [expandedRows, setExpandedRows] = useState({}) // symbol -> true/false
+  const [optionsData, setOptionsData] = useState({}) // symbol -> options chain data
+  const [loadingOptions, setLoadingOptions] = useState({}) // symbol -> true/false
 
   // Load watchgroups on mount
   useEffect(() => {
@@ -262,6 +395,31 @@ function MultiSymbolReport() {
 
     setAllResults(results)
     setLoading(false)
+  }
+
+  // Toggle row expansion and fetch options chain
+  const toggleRow = async (symbol, currentPrice) => {
+    const isExpanded = expandedRows[symbol]
+
+    if (isExpanded) {
+      // Collapse
+      setExpandedRows(prev => ({ ...prev, [symbol]: false }))
+    } else {
+      // Expand and fetch options if not already loaded
+      setExpandedRows(prev => ({ ...prev, [symbol]: true }))
+
+      if (!optionsData[symbol] && !loadingOptions[symbol]) {
+        setLoadingOptions(prev => ({ ...prev, [symbol]: true }))
+        try {
+          const chain = await fetchOptionsChain(symbol, currentPrice)
+          setOptionsData(prev => ({ ...prev, [symbol]: chain }))
+        } catch (err) {
+          console.error(`Failed to fetch options chain for ${symbol}:`, err)
+          setOptionsData(prev => ({ ...prev, [symbol]: { error: err.message } }))
+        }
+        setLoadingOptions(prev => ({ ...prev, [symbol]: false }))
+      }
+    }
   }
 
   // Calculate hit rate for sorting
@@ -361,6 +519,7 @@ function MultiSymbolReport() {
           <Table variant="simple" size="sm">
             <Thead>
               <Tr>
+                <Th color="gray.400" borderColor="gray.600" rowSpan={2}></Th>
                 <Th color="gray.400" borderColor="gray.600" rowSpan={2}>#</Th>
                 <Th color="gray.400" borderColor="gray.600" rowSpan={2}>Symbol</Th>
                 <Th color="gray.400" borderColor="gray.600" rowSpan={2} textAlign="right">Price</Th>
@@ -441,64 +600,103 @@ function MultiSymbolReport() {
             </Thead>
             <Tbody>
               {sortedResults.map((item, idx) => {
+                const isExpanded = expandedRows[item.symbol]
+                const chainData = optionsData[item.symbol]
+                const isLoadingChain = loadingOptions[item.symbol]
+                const totalCols = 4 + CHANGE_PERIODS.length + THRESHOLDS.length + (TIME_PERIODS.length * THRESHOLDS.length)
+
                 return (
-                  <Tr key={item.symbol}>
-                    <Td borderColor="gray.600" color="gray.500" fontSize="xs">
-                      {idx + 1}
-                    </Td>
-                    <Td borderColor="gray.600" fontWeight="medium" color="gray.200">
-                      {item.symbol}
-                    </Td>
-                    <Td borderColor="gray.600" color="gray.300" textAlign="right" fontSize="sm">
-                      {item.currentPrice ? `$${item.currentPrice.toFixed(2)}` : '-'}
-                    </Td>
-                    {CHANGE_PERIODS.map(p => {
-                      const change = item.changes?.[p.label]
-                      const color = change === null ? 'gray.500' : change >= 0 ? 'green.300' : 'red.300'
-                      return (
-                        <Td key={`change-${p.label}`} bg="cyan.900" borderColor="gray.600" textAlign="center" px={1}>
-                          <Text color={color} fontSize="xs" fontWeight="medium">
-                            {change !== null ? `${change >= 0 ? '+' : ''}${change.toFixed(1)}%` : '-'}
-                          </Text>
-                        </Td>
-                      )
-                    })}
-                    {THRESHOLDS.map(t => (
-                      <Td key={`target-${t}`} bg="purple.900" borderColor="gray.600" textAlign="center" px={1}>
-                        <Text color="purple.200" fontSize="xs">
-                          {item.currentPrice ? `$${(item.currentPrice * (1 + t / 100)).toFixed(2)}` : '-'}
-                        </Text>
+                  <Fragment key={item.symbol}>
+                    <Tr>
+                      <Td borderColor="gray.600" px={1}>
+                        <IconButton
+                          icon={isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                          size="xs"
+                          variant="ghost"
+                          onClick={() => toggleRow(item.symbol, item.currentPrice)}
+                          aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                        />
                       </Td>
-                    ))}
-                    {TIME_PERIODS.map((period, periodIdx) => {
-                      const result = item.results?.[period.label]
-                      const validDays = result?.validDays || 0
-                      const bgColor = periodIdx % 2 === 0 ? 'whiteAlpha.50' : 'blackAlpha.300'
-
-                      return THRESHOLDS.map(threshold => {
-                        if (!result || validDays === 0) {
-                          return (
-                            <Td key={`${period.label}-${threshold}`} bg={bgColor} borderColor="gray.600" textAlign="center" px={1}>
-                              <Text color="gray.500" fontSize="xs">-</Text>
-                            </Td>
-                          )
-                        }
-
-                        const count = result.counts[threshold] || 0
-                        const hitRate = (count / validDays) * 100
-                        const colorScheme = getColorScheme(hitRate)
-                        const variant = hitRate >= 70 ? 'solid' : 'subtle'
-
+                      <Td borderColor="gray.600" color="gray.500" fontSize="xs">
+                        {idx + 1}
+                      </Td>
+                      <Td borderColor="gray.600" fontWeight="medium" color="gray.200">
+                        {item.symbol}
+                      </Td>
+                      <Td borderColor="gray.600" color="gray.300" textAlign="right" fontSize="sm">
+                        {item.currentPrice ? `$${item.currentPrice.toFixed(2)}` : '-'}
+                      </Td>
+                      {CHANGE_PERIODS.map(p => {
+                        const change = item.changes?.[p.label]
+                        const color = change === null ? 'gray.500' : change >= 0 ? 'green.300' : 'red.300'
                         return (
-                          <Td key={`${period.label}-${threshold}`} bg={bgColor} borderColor="gray.600" textAlign="center" px={1}>
-                            <Badge colorScheme={colorScheme} variant={variant} fontSize="xs" px={1}>
-                              {hitRate.toFixed(0)}
-                            </Badge>
+                          <Td key={`change-${p.label}`} bg="cyan.900" borderColor="gray.600" textAlign="center" px={1}>
+                            <Text color={color} fontSize="xs" fontWeight="medium">
+                              {change !== null ? `${change >= 0 ? '+' : ''}${change.toFixed(1)}%` : '-'}
+                            </Text>
                           </Td>
                         )
-                      })
-                    })}
-                  </Tr>
+                      })}
+                      {THRESHOLDS.map(t => (
+                        <Td key={`target-${t}`} bg="purple.900" borderColor="gray.600" textAlign="center" px={1}>
+                          <Text color="purple.200" fontSize="xs">
+                            {item.currentPrice ? `$${(item.currentPrice * (1 + t / 100)).toFixed(2)}` : '-'}
+                          </Text>
+                        </Td>
+                      ))}
+                      {TIME_PERIODS.map((period, periodIdx) => {
+                        const result = item.results?.[period.label]
+                        const validDays = result?.validDays || 0
+                        const bgColor = periodIdx % 2 === 0 ? 'whiteAlpha.50' : 'blackAlpha.300'
+
+                        return THRESHOLDS.map(threshold => {
+                          if (!result || validDays === 0) {
+                            return (
+                              <Td key={`${period.label}-${threshold}`} bg={bgColor} borderColor="gray.600" textAlign="center" px={1}>
+                                <Text color="gray.500" fontSize="xs">-</Text>
+                              </Td>
+                            )
+                          }
+
+                          const count = result.counts[threshold] || 0
+                          const hitRate = (count / validDays) * 100
+                          const colorScheme = getColorScheme(hitRate)
+                          const variant = hitRate >= 70 ? 'solid' : 'subtle'
+
+                          return (
+                            <Td key={`${period.label}-${threshold}`} bg={bgColor} borderColor="gray.600" textAlign="center" px={1}>
+                              <Badge colorScheme={colorScheme} variant={variant} fontSize="xs" px={1}>
+                                {hitRate.toFixed(0)}
+                              </Badge>
+                            </Td>
+                          )
+                        })
+                      })}
+                    </Tr>
+                    {isExpanded && (
+                      <Tr key={`${item.symbol}-options`}>
+                        <Td colSpan={totalCols} bg="gray.900" borderColor="gray.600" p={0}>
+                          <Box p={4}>
+                            {isLoadingChain && (
+                              <HStack spacing={2}>
+                                <Spinner size="sm" />
+                                <Text color="gray.400">Loading options chain...</Text>
+                              </HStack>
+                            )}
+                            {chainData?.error && (
+                              <Text color="red.400">Error: {chainData.error}</Text>
+                            )}
+                            {chainData && !chainData.error && (
+                              <OptionsChainTable chain={chainData} currentPrice={item.currentPrice} />
+                            )}
+                            {!isLoadingChain && !chainData && (
+                              <Text color="gray.500">No options data available</Text>
+                            )}
+                          </Box>
+                        </Td>
+                      </Tr>
+                    )}
+                  </Fragment>
                 )
               })}
             </Tbody>
