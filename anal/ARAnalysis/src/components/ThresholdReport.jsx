@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import {
   Box,
   Table,
@@ -10,8 +10,13 @@ import {
   Text,
   Heading,
   Badge,
-  HStack
+  HStack,
+  Button,
+  Select,
+  Spinner,
+  VStack
 } from '@chakra-ui/react'
+import { fetchFromCache } from '../modules/dataService'
 
 // Time periods in trading days
 const TIME_PERIODS = [
@@ -63,8 +68,8 @@ function getColorScheme(hitRate) {
   return 'gray'
 }
 
-function ThresholdReport({ symbol, data }) {
-  // Calculate results for all time periods
+// Single symbol report component
+function SingleSymbolReport({ symbol, data }) {
   const results = useMemo(() => {
     if (!data || data.length === 0) return null
 
@@ -91,18 +96,13 @@ function ThresholdReport({ symbol, data }) {
     )
   }
 
-  const availableDays = data.length - 1 // -1 because we need previous bar for calculation
+  const availableDays = data.length - 1
 
   return (
-    <Box bg="gray.800" borderRadius="md" p={4}>
-      <Heading size="md" color="blue.300" mb={4}>
-        Threshold Report - {symbol}
+    <Box>
+      <Heading size="sm" color="blue.300" mb={3}>
+        {symbol}
       </Heading>
-
-      <Text fontSize="sm" color="gray.400" mb={4}>
-          Counts how many times price raised for X% compared to previous day close. <br />
-          LONG the CLOSE @ X DAYS DTE (or stocks at leverage)
-      </Text>
 
       <Box overflowX="auto">
         <Table variant="simple" size="sm">
@@ -161,8 +161,250 @@ function ThresholdReport({ symbol, data }) {
         </Table>
       </Box>
 
+      <Text mt={2} fontSize="xs" color="gray.500">
+        Data available: {availableDays} trading days
+      </Text>
+    </Box>
+  )
+}
+
+// Multi-symbol ranking report
+function MultiSymbolReport({ securities }) {
+  const [allResults, setAllResults] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [selectedThreshold, setSelectedThreshold] = useState(0.5)
+  const [selectedPeriod, setSelectedPeriod] = useState('1yr')
+
+  const loadAllData = async () => {
+    if (!securities || securities.length === 0) return
+
+    setLoading(true)
+    const results = []
+
+    for (const security of securities) {
+      try {
+        const data = await fetchFromCache(security.symbol, '1d')
+        if (data && data.length > 0) {
+          const periodResults = {}
+          TIME_PERIODS.forEach(period => {
+            periodResults[period.label] = analyzeThresholds(data, period.days)
+          })
+          results.push({
+            symbol: security.symbol,
+            results: periodResults,
+            dataLength: data.length
+          })
+        }
+      } catch (err) {
+        console.error(`Failed to load ${security.symbol}:`, err)
+      }
+    }
+
+    setAllResults(results)
+    setLoading(false)
+  }
+
+  // Calculate hit rate for sorting
+  const getHitRate = (item, threshold, periodLabel) => {
+    const result = item.results?.[periodLabel]
+    if (!result || result.validDays === 0) return -1
+    return (result.counts[threshold] / result.validDays) * 100
+  }
+
+  // Sort results by selected threshold/period
+  const sortedResults = useMemo(() => {
+    if (!allResults) return null
+    return [...allResults].sort((a, b) => {
+      const rateA = getHitRate(a, selectedThreshold, selectedPeriod)
+      const rateB = getHitRate(b, selectedThreshold, selectedPeriod)
+      return rateB - rateA
+    })
+  }, [allResults, selectedThreshold, selectedPeriod])
+
+  if (!securities || securities.length === 0) {
+    return (
+      <Box bg="gray.800" borderRadius="md" p={6}>
+        <Text color="gray.400">No cached securities available</Text>
+      </Box>
+    )
+  }
+
+  return (
+    <Box>
+      <HStack mb={4} spacing={4} wrap="wrap">
+        <Button
+          colorScheme="blue"
+          size="sm"
+          onClick={loadAllData}
+          isLoading={loading}
+        >
+          Analyze All ({securities.length} tickers)
+        </Button>
+
+        {allResults && (
+          <HStack>
+            <Text fontSize="sm" color="gray.400">Threshold:</Text>
+            <Select
+              size="sm"
+              w="100px"
+              value={selectedThreshold}
+              onChange={(e) => setSelectedThreshold(parseFloat(e.target.value))}
+            >
+              {THRESHOLDS.map(t => (
+                <option key={t} value={t}>+{t}%</option>
+              ))}
+            </Select>
+            <Text fontSize="sm" color="gray.400" ml={2}>Sort by:</Text>
+            <Select
+              size="sm"
+              w="100px"
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+            >
+              {TIME_PERIODS.map(p => (
+                <option key={p.label} value={p.label}>{p.label}</option>
+              ))}
+            </Select>
+          </HStack>
+        )}
+      </HStack>
+
+      {loading && (
+        <HStack spacing={3}>
+          <Spinner size="sm" />
+          <Text color="gray.400">Loading data for all tickers...</Text>
+        </HStack>
+      )}
+
+      {sortedResults && (
+        <Box overflowX="auto">
+          <Table variant="simple" size="sm">
+            <Thead>
+              <Tr>
+                <Th color="gray.400" borderColor="gray.600" rowSpan={2}>#</Th>
+                <Th color="gray.400" borderColor="gray.600" rowSpan={2}>Symbol</Th>
+                {TIME_PERIODS.map((period, periodIdx) => (
+                  <Th
+                    key={period.label}
+                    color={period.label === selectedPeriod ? 'white' : 'gray.300'}
+                    bg={periodIdx % 2 === 0 ? 'gray.700' : 'gray.600'}
+                    borderColor="gray.500"
+                    textAlign="center"
+                    colSpan={THRESHOLDS.length}
+                  >
+                    {period.label}
+                  </Th>
+                ))}
+              </Tr>
+              <Tr>
+                {TIME_PERIODS.map((period, periodIdx) => (
+                  THRESHOLDS.map(t => (
+                    <Th
+                      key={`${period.label}-${t}`}
+                      color={period.label === selectedPeriod && t === selectedThreshold ? 'blue.300' : 'gray.400'}
+                      bg={periodIdx % 2 === 0 ? 'gray.700' : 'gray.600'}
+                      borderColor="gray.500"
+                      textAlign="center"
+                      fontSize="xs"
+                      px={1}
+                    >
+                      {t}%
+                    </Th>
+                  ))
+                ))}
+              </Tr>
+            </Thead>
+            <Tbody>
+              {sortedResults.map((item, idx) => {
+                return (
+                  <Tr key={item.symbol}>
+                    <Td borderColor="gray.600" color="gray.500" fontSize="xs">
+                      {idx + 1}
+                    </Td>
+                    <Td borderColor="gray.600" fontWeight="medium" color="gray.200">
+                      {item.symbol}
+                    </Td>
+                    {TIME_PERIODS.map((period, periodIdx) => {
+                      const result = item.results?.[period.label]
+                      const validDays = result?.validDays || 0
+                      const bgColor = periodIdx % 2 === 0 ? 'whiteAlpha.50' : 'blackAlpha.300'
+
+                      return THRESHOLDS.map(threshold => {
+                        if (!result || validDays === 0) {
+                          return (
+                            <Td key={`${period.label}-${threshold}`} bg={bgColor} borderColor="gray.600" textAlign="center" px={1}>
+                              <Text color="gray.500" fontSize="xs">-</Text>
+                            </Td>
+                          )
+                        }
+
+                        const count = result.counts[threshold] || 0
+                        const hitRate = (count / validDays) * 100
+                        const colorScheme = getColorScheme(hitRate)
+                        const variant = hitRate >= 70 ? 'solid' : 'subtle'
+
+                        return (
+                          <Td key={`${period.label}-${threshold}`} bg={bgColor} borderColor="gray.600" textAlign="center" px={1}>
+                            <Badge colorScheme={colorScheme} variant={variant} fontSize="xs" px={1}>
+                              {hitRate.toFixed(0)}
+                            </Badge>
+                          </Td>
+                        )
+                      })
+                    })}
+                  </Tr>
+                )
+              })}
+            </Tbody>
+          </Table>
+        </Box>
+      )}
+    </Box>
+  )
+}
+
+function ThresholdReport({ symbol, data, securities }) {
+  const [mode, setMode] = useState('single') // 'single' or 'all'
+
+  return (
+    <Box bg="gray.800" borderRadius="md" p={4}>
+      <HStack justify="space-between" mb={4}>
+        <Heading size="md" color="blue.300">
+          Threshold Report
+        </Heading>
+        <HStack>
+          <Button
+            size="sm"
+            variant={mode === 'single' ? 'solid' : 'outline'}
+            colorScheme="blue"
+            onClick={() => setMode('single')}
+          >
+            Single
+          </Button>
+          <Button
+            size="sm"
+            variant={mode === 'all' ? 'solid' : 'outline'}
+            colorScheme="blue"
+            onClick={() => setMode('all')}
+          >
+            All Tickers
+          </Button>
+        </HStack>
+      </HStack>
+
+      <Text fontSize="sm" color="gray.400" mb={4}>
+        Counts how many times price raised for X% compared to previous day close. <br />
+        LONG the CLOSE @ X DAYS DTE (or stocks at leverage)  <br />
+          Data in cells are % for period (header) analysis is made from
+      </Text>
+
+      {mode === 'single' ? (
+        <SingleSymbolReport symbol={symbol} data={data} />
+      ) : (
+        <MultiSymbolReport securities={securities} />
+      )}
+
       <HStack mt={4} spacing={4} fontSize="xs" color="gray.500">
-        <Text>Data available: {availableDays} trading days</Text>
         <HStack spacing={2}>
           <Badge colorScheme={getColorScheme(70)} variant="solid" size="sm">70%+</Badge>
           <Badge colorScheme={getColorScheme(60)} variant="subtle" size="sm">60-69%</Badge>
