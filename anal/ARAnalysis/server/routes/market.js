@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { connect, disconnect, getHistoricalData, getConnectionStatus, getOptionsChain, getCurrentPrices } from '../ibkrClient.js'
+import { connect, disconnect, getHistoricalData, getConnectionStatus, getOptionsChain, getCurrentPrices, getOptionHistoricalData } from '../ibkrClient.js'
 
 const router = Router()
 
@@ -141,6 +141,29 @@ router.get('/options-chain/:symbol', async (req, res) => {
     res.json(chain)
   } catch (error) {
     console.error('Options chain error:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Get historical data for an option contract
+router.get('/option-history/:symbol', async (req, res) => {
+  const { symbol } = req.params
+  const { expiration, strike, right } = req.query
+
+  if (!symbol || !expiration || !strike || !right) {
+    return res.status(400).json({ error: 'Symbol, expiration, strike, and right (C/P) are required' })
+  }
+
+  try {
+    const data = await getOptionHistoricalData(
+      symbol.toUpperCase(),
+      expiration,
+      parseFloat(strike),
+      right.toUpperCase()
+    )
+    res.json({ data })
+  } catch (error) {
+    console.error('Option history error:', error)
     res.status(500).json({ error: error.message })
   }
 })

@@ -20,7 +20,7 @@ import {
   Tooltip
 } from '@chakra-ui/react'
 import { ChevronDownIcon, ChevronRightIcon, WarningIcon } from '@chakra-ui/icons'
-import { fetchFromCache, fetchOptionsChain, fetchCurrentPrices } from '../modules/dataService'
+import { fetchFromCache, fetchOptionsChain, fetchCurrentPrices, fetchOptionHistory } from '../modules/dataService'
 import { getWatchgroups, getWatchgroupSymbols, getActiveWatchgroup } from '../db/database'
 
 // Time periods in trading days
@@ -204,10 +204,158 @@ function formatExpiration(exp) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+// Simple line chart for option price history
+function OptionPriceChart({ data }) {
+  if (!data || data.length === 0) {
+    return <Text color="gray.500" fontSize="sm">No chart data</Text>
+  }
+
+  // Sort by timestamp ascending and filter valid prices
+  const sorted = [...data]
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .filter(d => d.close > 0)
+
+  if (sorted.length < 2) {
+    return <Text color="gray.500" fontSize="sm">Not enough price data</Text>
+  }
+
+  const prices = sorted.map(d => d.close)
+  const minPrice = Math.min(...prices)
+  const maxPrice = Math.max(...prices)
+  const range = maxPrice - minPrice || 0.01
+
+  const width = 500
+  const height = 150
+  const paddingLeft = 50
+  const paddingRight = 20
+  const paddingTop = 20
+  const paddingBottom = 30
+
+  const chartWidth = width - paddingLeft - paddingRight
+  const chartHeight = height - paddingTop - paddingBottom
+
+  // Find day boundaries for vertical separators
+  const dayBoundaries = []
+  const dayLabels = []
+  let currentDay = null
+  sorted.forEach((d, i) => {
+    const date = new Date(d.timestamp)
+    const dayStr = date.toDateString()
+    if (dayStr !== currentDay) {
+      if (currentDay !== null) {
+        // Add boundary at this index
+        dayBoundaries.push(i)
+      }
+      dayLabels.push({ index: i, label: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) })
+      currentDay = dayStr
+    }
+  })
+
+  // Generate SVG path
+  const points = sorted.map((d, i) => {
+    const x = paddingLeft + (i / (sorted.length - 1)) * chartWidth
+    const y = paddingTop + (1 - (d.close - minPrice) / range) * chartHeight
+    return `${x},${y}`
+  }).join(' ')
+
+  const lastPrice = sorted[sorted.length - 1].close
+
+  // Y-axis labels
+  const midPrice = (minPrice + maxPrice) / 2
+
+  return (
+    <Box>
+      <svg width={width} height={height} style={{ backgroundColor: '#1a1a2e' }}>
+        {/* Y-axis labels */}
+        <text x="5" y={paddingTop + 5} fill="#a0aec0" fontSize="10">${maxPrice.toFixed(2)}</text>
+        <text x="5" y={paddingTop + chartHeight / 2} fill="#a0aec0" fontSize="10">${midPrice.toFixed(2)}</text>
+        <text x="5" y={height - paddingBottom} fill="#a0aec0" fontSize="10">${minPrice.toFixed(2)}</text>
+
+        {/* Horizontal grid lines */}
+        <line x1={paddingLeft} y1={paddingTop} x2={width - paddingRight} y2={paddingTop} stroke="#2d3748" strokeWidth="1" />
+        <line x1={paddingLeft} y1={paddingTop + chartHeight / 2} x2={width - paddingRight} y2={paddingTop + chartHeight / 2} stroke="#2d3748" strokeWidth="1" />
+        <line x1={paddingLeft} y1={height - paddingBottom} x2={width - paddingRight} y2={height - paddingBottom} stroke="#2d3748" strokeWidth="1" />
+
+        {/* Day separator vertical lines */}
+        {dayBoundaries.map((idx, i) => {
+          const x = paddingLeft + (idx / (sorted.length - 1)) * chartWidth
+          return (
+            <line
+              key={i}
+              x1={x}
+              y1={paddingTop}
+              x2={x}
+              y2={height - paddingBottom}
+              stroke="#4a5568"
+              strokeWidth="1"
+              strokeDasharray="4,4"
+            />
+          )
+        })}
+
+        {/* Price line */}
+        <polyline
+          fill="none"
+          stroke="#68D391"
+          strokeWidth="2"
+          points={points}
+        />
+
+        {/* Current price dot */}
+        <circle
+          cx={paddingLeft + chartWidth}
+          cy={paddingTop + (1 - (lastPrice - minPrice) / range) * chartHeight}
+          r="4"
+          fill="#68D391"
+        />
+
+        {/* Day labels on X-axis */}
+        {dayLabels.map((d, i) => {
+          const x = paddingLeft + (d.index / (sorted.length - 1)) * chartWidth
+          return (
+            <text key={i} x={x} y={height - 8} fill="#a0aec0" fontSize="10">{d.label}</text>
+          )
+        })}
+      </svg>
+      <Text fontSize="sm" color="green.300" mt={1}>
+        Last: ${lastPrice.toFixed(2)}
+      </Text>
+    </Box>
+  )
+}
+
 // Options chain table component
 function OptionsChainTable({ chain, currentPrice }) {
+  const [expandedOption, setExpandedOption] = useState(null) // "exp-strike-right"
+  const [optionHistory, setOptionHistory] = useState({}) // key -> data
+  const [loadingHistory, setLoadingHistory] = useState({}) // key -> boolean
+  const [hoveredOption, setHoveredOption] = useState(null) // "exp-strike-right" for hover state
+
   if (!chain || !chain.options || chain.options.length === 0) {
     return <Text color="gray.500">No options data</Text>
+  }
+
+  const toggleOption = async (exp, strike, right) => {
+    const key = `${exp}-${strike}-${right}`
+
+    if (expandedOption === key) {
+      setExpandedOption(null)
+      return
+    }
+
+    setExpandedOption(key)
+
+    // Fetch history if not already loaded
+    if (!optionHistory[key] && !loadingHistory[key]) {
+      setLoadingHistory(prev => ({ ...prev, [key]: true }))
+      try {
+        const data = await fetchOptionHistory(chain.symbol, exp, strike, right)
+        setOptionHistory(prev => ({ ...prev, [key]: data }))
+      } catch (err) {
+        setOptionHistory(prev => ({ ...prev, [key]: { error: err.message } }))
+      }
+      setLoadingHistory(prev => ({ ...prev, [key]: false }))
+    }
   }
 
   // Group options by expiration and strike
@@ -232,7 +380,7 @@ function OptionsChainTable({ chain, currentPrice }) {
   return (
     <VStack align="stretch" spacing={4}>
       <Text color="gray.300" fontSize="sm">
-        Options Chain for {chain.symbol} | Current: ${currentPrice?.toFixed(2)}
+        Options Chain for {chain.symbol} | Current: ${currentPrice?.toFixed(2)} | Click on bid/ask to see chart
       </Text>
       {expirations.slice(0, 4).map(exp => {
         const strikeData = byExpiration[exp]
@@ -274,39 +422,123 @@ function OptionsChainTable({ chain, currentPrice }) {
                   const { call, put } = strikeData[strike]
                   const isITMCall = strike <= currentPrice
                   const isITMPut = strike >= currentPrice
+                  const callKey = `${exp}-${strike}-C`
+                  const putKey = `${exp}-${strike}-P`
+                  const isCallExpanded = expandedOption === callKey
+                  const isPutExpanded = expandedOption === putKey
+                  const isCallHovered = hoveredOption === callKey
+                  const isPutHovered = hoveredOption === putKey
+
+                  // Background color logic for call bid/ask
+                  const callBidAskBg = isCallExpanded ? 'blue.700' : isCallHovered ? 'blue.800' : isITMCall ? 'green.900' : undefined
+                  // Background color logic for put bid/ask
+                  const putBidAskBg = isPutExpanded ? 'blue.700' : isPutHovered ? 'blue.800' : isITMPut ? 'red.900' : undefined
+
                   return (
-                    <Tr key={strike}>
-                      {/* Call side */}
-                      <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMCall ? 'green.900' : undefined}>
-                        {call?.openInterest?.toLocaleString() || '-'}
-                      </Td>
-                      <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMCall ? 'green.900' : undefined}>
-                        {call?.volume?.toLocaleString() || '-'}
-                      </Td>
-                      <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMCall ? 'green.900' : undefined}>
-                        {call?.bid?.toFixed(2) || '-'}
-                      </Td>
-                      <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMCall ? 'green.900' : undefined}>
-                        {call?.ask?.toFixed(2) || '-'}
-                      </Td>
-                      {/* Strike in center */}
-                      <Td borderColor="gray.600" color="yellow.200" px={3} textAlign="center" fontWeight="bold" bg="gray.700">
-                        ${strike}
-                      </Td>
-                      {/* Put side */}
-                      <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMPut ? 'red.900' : undefined}>
-                        {put?.bid?.toFixed(2) || '-'}
-                      </Td>
-                      <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMPut ? 'red.900' : undefined}>
-                        {put?.ask?.toFixed(2) || '-'}
-                      </Td>
-                      <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMPut ? 'red.900' : undefined}>
-                        {put?.volume?.toLocaleString() || '-'}
-                      </Td>
-                      <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMPut ? 'red.900' : undefined}>
-                        {put?.openInterest?.toLocaleString() || '-'}
-                      </Td>
-                    </Tr>
+                    <Fragment key={strike}>
+                      <Tr>
+                        {/* Call side */}
+                        <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMCall ? 'green.900' : undefined}>
+                          {call?.openInterest?.toLocaleString() || '-'}
+                        </Td>
+                        <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMCall ? 'green.900' : undefined}>
+                          {call?.volume?.toLocaleString() || '-'}
+                        </Td>
+                        <Td
+                          borderColor="gray.600"
+                          color="gray.300"
+                          px={2}
+                          bg={callBidAskBg}
+                          cursor={call ? 'pointer' : 'default'}
+                          onClick={() => call && toggleOption(exp, strike, 'C')}
+                          onMouseEnter={() => call && setHoveredOption(callKey)}
+                          onMouseLeave={() => setHoveredOption(null)}
+                        >
+                          {call?.bid?.toFixed(2) || '-'}
+                        </Td>
+                        <Td
+                          borderColor="gray.600"
+                          color="gray.300"
+                          px={2}
+                          bg={callBidAskBg}
+                          cursor={call ? 'pointer' : 'default'}
+                          onClick={() => call && toggleOption(exp, strike, 'C')}
+                          onMouseEnter={() => call && setHoveredOption(callKey)}
+                          onMouseLeave={() => setHoveredOption(null)}
+                        >
+                          {call?.ask?.toFixed(2) || '-'}
+                        </Td>
+                        {/* Strike in center */}
+                        <Td borderColor="gray.600" color="yellow.200" px={3} textAlign="center" fontWeight="bold" bg="gray.700">
+                          ${strike}
+                        </Td>
+                        {/* Put side */}
+                        <Td
+                          borderColor="gray.600"
+                          color="gray.300"
+                          px={2}
+                          bg={putBidAskBg}
+                          cursor={put ? 'pointer' : 'default'}
+                          onClick={() => put && toggleOption(exp, strike, 'P')}
+                          onMouseEnter={() => put && setHoveredOption(putKey)}
+                          onMouseLeave={() => setHoveredOption(null)}
+                        >
+                          {put?.bid?.toFixed(2) || '-'}
+                        </Td>
+                        <Td
+                          borderColor="gray.600"
+                          color="gray.300"
+                          px={2}
+                          bg={putBidAskBg}
+                          cursor={put ? 'pointer' : 'default'}
+                          onClick={() => put && toggleOption(exp, strike, 'P')}
+                          onMouseEnter={() => put && setHoveredOption(putKey)}
+                          onMouseLeave={() => setHoveredOption(null)}
+                        >
+                          {put?.ask?.toFixed(2) || '-'}
+                        </Td>
+                        <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMPut ? 'red.900' : undefined}>
+                          {put?.volume?.toLocaleString() || '-'}
+                        </Td>
+                        <Td borderColor="gray.600" color="gray.300" px={2} bg={isITMPut ? 'red.900' : undefined}>
+                          {put?.openInterest?.toLocaleString() || '-'}
+                        </Td>
+                      </Tr>
+                      {/* Expanded chart row for Call */}
+                      {isCallExpanded && (
+                        <Tr>
+                          <Td colSpan={9} bg="gray.800" borderColor="gray.600" p={3}>
+                            <Text color="green.300" fontSize="sm" mb={2}>
+                              {chain.symbol} ${strike} Call - {formatExpiration(exp)}
+                            </Text>
+                            {loadingHistory[callKey] && <Spinner size="sm" />}
+                            {optionHistory[callKey]?.error && (
+                              <Text color="red.400" fontSize="sm">{optionHistory[callKey].error}</Text>
+                            )}
+                            {optionHistory[callKey] && !optionHistory[callKey].error && (
+                              <OptionPriceChart data={optionHistory[callKey]} />
+                            )}
+                          </Td>
+                        </Tr>
+                      )}
+                      {/* Expanded chart row for Put */}
+                      {isPutExpanded && (
+                        <Tr>
+                          <Td colSpan={9} bg="gray.800" borderColor="gray.600" p={3}>
+                            <Text color="red.300" fontSize="sm" mb={2}>
+                              {chain.symbol} ${strike} Put - {formatExpiration(exp)}
+                            </Text>
+                            {loadingHistory[putKey] && <Spinner size="sm" />}
+                            {optionHistory[putKey]?.error && (
+                              <Text color="red.400" fontSize="sm">{optionHistory[putKey].error}</Text>
+                            )}
+                            {optionHistory[putKey] && !optionHistory[putKey].error && (
+                              <OptionPriceChart data={optionHistory[putKey]} />
+                            )}
+                          </Td>
+                        </Tr>
+                      )}
+                    </Fragment>
                   )
                 })}
                 {filteredStrikes.length === 0 && (

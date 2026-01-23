@@ -535,6 +535,22 @@ export async function fetchCurrentPrices(symbols) {
   }
 }
 
+// Fetch historical data for an option contract
+export async function fetchOptionHistory(symbol, expiration, strike, right) {
+  try {
+    const params = new URLSearchParams({
+      expiration,
+      strike: strike.toString(),
+      right
+    })
+    const response = await api.get(`/option-history/${encodeURIComponent(symbol)}?${params}`)
+    return response.data?.data || []
+  } catch (err) {
+    console.error(`Failed to fetch option history for ${symbol} ${expiration} ${strike} ${right}:`, err.message)
+    throw err
+  }
+}
+
 // Check for missing bars in the data
 // Data is sorted descending (newest first)
 

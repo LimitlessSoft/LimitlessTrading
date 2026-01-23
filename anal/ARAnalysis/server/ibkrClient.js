@@ -180,6 +180,87 @@ export async function getHistoricalData(symbol, barSize = '1 day', duration = '1
   })
 }
 
+// Get historical data for an option contract
+export async function getOptionHistoricalData(symbol, expiration, strike, right, barSize = '1 hour', duration = '3 D') {
+  if (!ib || !connectionState.connected) {
+    throw new Error('Not connected to IBKR')
+  }
+
+  return new Promise((resolve, reject) => {
+    const reqId = nextRequestId++
+    const bars = []
+
+    const contract = {
+      symbol,
+      secType: 'OPT',
+      exchange: 'SMART',
+      currency: 'USD',
+      lastTradeDateOrContractMonth: expiration,
+      strike: parseFloat(strike),
+      right, // 'C' or 'P'
+      multiplier: '100'
+    }
+
+    const whatToShow = 'MIDPOINT' // Use midpoint for options as TRADES may have gaps
+    const useRTH = 1
+    const formatDate = 1
+
+    pendingRequests.set(reqId, { resolve, reject })
+
+    const onHistoricalData = (rId, date, open, high, low, close, volume, count, wap, hasGaps) => {
+      if (rId !== reqId) return
+
+      if (date.startsWith('finished')) {
+        ib.off(EventName.historicalData, onHistoricalData)
+        pendingRequests.delete(reqId)
+        resolve(bars)
+        return
+      }
+
+      bars.push({
+        timestamp: parseIBKRDate(date),
+        open,
+        high,
+        low,
+        close,
+        volume
+      })
+    }
+
+    ib.on(EventName.historicalData, onHistoricalData)
+
+    setTimeout(() => {
+      if (pendingRequests.has(reqId)) {
+        ib.off(EventName.historicalData, onHistoricalData)
+        pendingRequests.delete(reqId)
+        if (bars.length > 0) {
+          resolve(bars)
+        } else {
+          reject(new Error('Request timeout'))
+        }
+      }
+    }, 30000)
+
+    try {
+      ib.reqHistoricalData(
+        reqId,
+        contract,
+        '', // endDateTime - empty for now
+        duration,
+        barSize,
+        whatToShow,
+        useRTH,
+        formatDate,
+        false
+      )
+    } catch (err) {
+      ib.off(EventName.historicalData, onHistoricalData)
+      pendingRequests.delete(reqId)
+      reject(err)
+    }
+  })
+}
+
 // Parse IBKR duration string to days
 function parseDurationToDays(duration) {
   const match = duration.match(/^(\d+)\s*([DWMY])$/)
