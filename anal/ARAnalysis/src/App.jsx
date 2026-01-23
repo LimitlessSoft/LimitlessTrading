@@ -11,6 +11,11 @@ import {
   Tooltip,
   Progress,
   Text,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel,
   useToast
 } from '@chakra-ui/react'
 import { RepeatIcon, CloseIcon } from '@chakra-ui/icons'
@@ -19,6 +24,7 @@ import SecurityPicker from './components/SecurityPicker'
 import IntervalPicker from './components/IntervalPicker'
 import ConnectionStatus from './components/ConnectionStatus'
 import DataStatus from './components/DataStatus'
+import ThresholdReport from './components/ThresholdReport'
 import DataManager from './modules/DataManager'
 import {
   getConnectionStatus,
@@ -259,14 +265,30 @@ function App() {
             data={priceData}
           />
 
-          {/* Spreadsheet */}
-          <SecuritySpreadsheet
-            data={priceData}
-            symbol={selectedSymbol}
-            interval={selectedInterval}
-            loading={false}
-            connectionState={connectionState}
-          />
+          {/* Tab Navigation */}
+          <Tabs colorScheme="blue" variant="enclosed">
+            <TabList>
+              <Tab>Spreadsheet</Tab>
+              <Tab>Threshold Report</Tab>
+            </TabList>
+            <TabPanels>
+              <TabPanel px={0}>
+                <SecuritySpreadsheet
+                  data={priceData}
+                  symbol={selectedSymbol}
+                  interval={selectedInterval}
+                  loading={false}
+                  connectionState={connectionState}
+                />
+              </TabPanel>
+              <TabPanel px={0}>
+                <ThresholdReport
+                  symbol={selectedSymbol}
+                  data={priceData}
+                />
+              </TabPanel>
+            </TabPanels>
+          </Tabs>
         </VStack>
       </Container>
     </Box>
