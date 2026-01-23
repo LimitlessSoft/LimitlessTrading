@@ -300,7 +300,8 @@ export async function getIntradayForDay(symbol, startTimestamp, interval = '5m',
 
 // Fetch intraday data for a date range from IBKR
 // startTimestamp and endTimestamp define the range (inclusive of full days)
-export async function fetchIntradayForDay(symbol, startTimestamp, interval = '5m', endTimestamp = null) {
+// onProgress callback is called after each chunk is fetched and saved
+export async function fetchIntradayForDay(symbol, startTimestamp, interval = '5m', endTimestamp = null, onProgress = null) {
   // If no end timestamp, use start (single day)
   if (!endTimestamp) endTimestamp = startTimestamp
 
@@ -314,29 +315,50 @@ export async function fetchIntradayForDay(symbol, startTimestamp, interval = '5m
 
   // Calculate approximate days for chunking
   const totalDays = Math.ceil((rangeEnd - rangeStart) / (24 * 60 * 60 * 1000)) + 1
+  const numChunks = Math.ceil(totalDays / 7)
+
+  // Generate all end dates for parallel fetching
+  const endDates = []
+  let currentEnd = new Date(rangeEnd)
+  for (let i = 0; i < numChunks; i++) {
+    if (currentEnd.getTime() < rangeStart) break
+    endDates.push(new Date(currentEnd))
+    currentEnd.setDate(currentEnd.getDate() - 7)
+  }
+
+  const allData = []
+  const PARALLEL_REQUESTS = 5 // Number of parallel requests
 
   try {
-    // Fetch data for the range - may need multiple requests for longer ranges
-    const allData = []
-    let currentEnd = new Date(rangeEnd)
+    // Process in batches of parallel requests
+    for (let batchStart = 0; batchStart < endDates.length; batchStart += PARALLEL_REQUESTS) {
+      const batch = endDates.slice(batchStart, batchStart + PARALLEL_REQUESTS)
 
-    for (let i = 0; i < Math.ceil(totalDays / 7); i++) {
-      const response = await api.get(`/historical/${symbol}/chunk`, {
-        params: {
-          interval,
-          endDate: currentEnd.toISOString()
-        }
-      })
+      // Fetch batch in parallel
+      const promises = batch.map(endDate =>
+        api.get(`/historical/${symbol}/chunk`, {
+          params: {
+            interval,
+            endDate: endDate.toISOString()
+          }
+        }).then(async response => {
+          const data = response.data?.data || []
+          if (data.length > 0) {
+            allData.push(...data)
+            await addPriceData(symbol, interval, data)
+            // Call progress callback after each chunk is saved
+            if (onProgress) {
+              onProgress()
+            }
+          }
+          return data
+        }).catch(err => {
+          console.error('Chunk fetch failed:', err.message)
+          return []
+        })
+      )
 
-      const data = response.data?.data || []
-      if (data.length > 0) {
-        allData.push(...data)
-        await addPriceData(symbol, interval, data)
-      }
-
-      // Move back one week
-      currentEnd.setDate(currentEnd.getDate() - 7)
-      if (currentEnd.getTime() < rangeStart) break
+      await Promise.all(promises)
     }
 
     // Filter and return only data within the range

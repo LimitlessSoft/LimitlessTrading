@@ -343,12 +343,21 @@ function ConditionalFormatManager({ onRulesChange }) {
             as={Button}
             size="sm"
             variant="outline"
-            colorScheme="purple"
+            colorScheme={activeGroupId ? "purple" : "gray"}
             rightIcon={<ChevronDownIcon />}
           >
-            {activeGroup?.name || 'No Group'}
+            {activeGroup?.name || 'None'}
           </MenuButton>
           <MenuList bg="gray.700">
+            <MenuItem
+              bg={activeGroupId === null ? 'gray.600' : 'transparent'}
+              _hover={{ bg: 'gray.600' }}
+              onClick={() => handleSelectGroup(null)}
+              fontStyle="italic"
+            >
+              None (no formatting)
+            </MenuItem>
+            {groups.length > 0 && <Box borderBottom="1px solid" borderColor="gray.600" my={1} />}
             {groups.map(group => (
               <MenuItem
                 key={group.id}

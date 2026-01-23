@@ -80,12 +80,12 @@ router.get('/historical/:symbol/chunk', async (req, res) => {
   }
 
   try {
-    // Format endDate for IBKR (YYYYMMDD HH:mm:ss) or empty for now
+    // Format endDate for IBKR: yyyymmdd-hh:mm:ss (dash between date and time means UTC)
     let endDateTime = ''
     if (endDate) {
       const d = new Date(endDate)
       const pad = (n) => String(n).padStart(2, '0')
-      endDateTime = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+      endDateTime = `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}-${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`
     }
 
     const data = await getHistoricalData(

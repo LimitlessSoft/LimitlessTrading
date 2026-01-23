@@ -21,15 +21,51 @@ import {
   NumberInputField,
   NumberInputStepper,
   NumberIncrementStepper,
-  NumberDecrementStepper
+  NumberDecrementStepper,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  Checkbox,
+  Input,
+  useToast,
+  MenuDivider
 } from '@chakra-ui/react'
-import { ViewIcon, ViewOffIcon, ChevronDownIcon, ChevronRightIcon } from '@chakra-ui/icons'
+import { ViewIcon, ViewOffIcon, ChevronDownIcon, ChevronRightIcon, RepeatIcon, DeleteIcon, EditIcon, CheckIcon, CloseIcon } from '@chakra-ui/icons'
 import CandlestickChart from './CandlestickChart'
-import { getIntradayForDay, fetchIntradayForDay } from '../modules/dataService'
+import { getIntradayForDay, fetchIntradayForDay, fetchFromCache } from '../modules/dataService'
 import ConditionalFormatManager from './ConditionalFormatManager'
-import { getConditionalFormats } from '../db/database'
+import {
+  getConditionalFormats,
+  getAnalysisPresets,
+  addAnalysisPreset,
+  updateAnalysisPreset,
+  deleteAnalysisPreset,
+  getSetting,
+  setSetting
+} from '../db/database'
 
 const ROWS_PER_PAGE_OPTIONS = [25, 50, 100, 200]
+
+// Column definitions
+const COLUMNS = [
+  { id: 'date', label: 'Date/Time', defaultVisible: true },
+  { id: 'open', label: 'Open', defaultVisible: true },
+  { id: 'high', label: 'High', defaultVisible: true },
+  { id: 'low', label: 'Low', defaultVisible: true },
+  { id: 'close', label: 'Close', defaultVisible: true },
+  { id: 'volume', label: 'Volume', defaultVisible: true },
+  { id: '5m', label: '5min', defaultVisible: true, dailyOnly: true, group: 'openingMins' },
+  { id: '10m', label: '10min', defaultVisible: true, dailyOnly: true, group: 'openingMins' },
+  { id: '15m', label: '15min', defaultVisible: true, dailyOnly: true, group: 'openingMins' },
+  { id: '30m', label: '30min', defaultVisible: true, dailyOnly: true, group: 'openingMins' },
+  { id: '1h', label: '1hr', defaultVisible: true, dailyOnly: true, group: 'openingMins' }
+]
+
+// Column groups
+const COLUMN_GROUPS = [
+  { id: 'openingMins', label: 'Opening Minutes', dailyOnly: true }
+]
 
 // Evaluate a single condition against a row
 function evaluateCondition(cond, row, prevRow) {
@@ -159,10 +195,270 @@ function SecuritySpreadsheet({ data, symbol, interval, loading, connectionState 
   const [intradayData, setIntradayData] = useState({})
   const [loadingIntraday, setLoadingIntraday] = useState({})
   const [fetchingIntraday, setFetchingIntraday] = useState({})
+  const [fiveMinData, setFiveMinData] = useState([])
+  const [loadingOpeningMins, setLoadingOpeningMins] = useState(false)
+  const [visibleColumns, setVisibleColumns] = useState(null)
+  const [columnsLoaded, setColumnsLoaded] = useState(false)
+  const [presets, setPresets] = useState([])
+  const [newPresetName, setNewPresetName] = useState('')
+  const [editingPresetId, setEditingPresetId] = useState(null)
+  const [editingPresetName, setEditingPresetName] = useState('')
+  const toast = useToast()
+
+  // Load presets and column visibility on mount
+  useEffect(() => {
+    loadPresets()
+    loadColumnVisibility()
+  }, [])
+
+  const loadColumnVisibility = async () => {
+    const saved = await getSetting('columnVisibility')
+    if (saved) {
+      setVisibleColumns(saved)
+    } else {
+      // Use defaults
+      setVisibleColumns(COLUMNS.reduce((acc, col) => ({ ...acc, [col.id]: col.defaultVisible }), {}))
+    }
+    setColumnsLoaded(true)
+  }
+
+  // Save column visibility when it changes
+  useEffect(() => {
+    if (columnsLoaded && visibleColumns) {
+      setSetting('columnVisibility', visibleColumns)
+    }
+  }, [visibleColumns, columnsLoaded])
+
+  const loadPresets = async () => {
+    const loaded = await getAnalysisPresets()
+    setPresets(loaded)
+  }
+
+  const handleSavePreset = async () => {
+    if (!newPresetName.trim()) {
+      toast({ title: 'Enter a preset name', status: 'warning', duration: 2000 })
+      return
+    }
+
+    const preset = {
+      name: newPresetName.trim(),
+      rowsPerPage,
+      filterEnabled,
+      contextBefore,
+      contextAfter,
+      interval,
+      visibleColumns
+    }
+
+    await addAnalysisPreset(preset)
+    setNewPresetName('')
+    await loadPresets()
+    toast({ title: 'Preset saved', status: 'success', duration: 2000 })
+  }
+
+  const handleLoadPreset = async (preset) => {
+    setRowsPerPage(preset.rowsPerPage || 50)
+    setFilterEnabled(preset.filterEnabled || false)
+    setContextBefore(preset.contextBefore || 0)
+    setContextAfter(preset.contextAfter || 0)
+    if (preset.visibleColumns) {
+      setVisibleColumns(preset.visibleColumns)
+    }
+    toast({ title: `Loaded: ${preset.name}`, status: 'info', duration: 2000 })
+  }
+
+  const handleDeletePreset = async (e, presetId) => {
+    e.stopPropagation()
+    await deleteAnalysisPreset(presetId)
+    await loadPresets()
+    toast({ title: 'Preset deleted', status: 'info', duration: 2000 })
+  }
+
+  const handleStartEditPreset = (e, preset) => {
+    e.stopPropagation()
+    setEditingPresetId(preset.id)
+    setEditingPresetName(preset.name)
+  }
+
+  const handleSavePresetName = async (e) => {
+    e.stopPropagation()
+    if (!editingPresetName.trim()) {
+      toast({ title: 'Enter a preset name', status: 'warning', duration: 2000 })
+      return
+    }
+    await updateAnalysisPreset(editingPresetId, { name: editingPresetName.trim() })
+    setEditingPresetId(null)
+    setEditingPresetName('')
+    await loadPresets()
+    toast({ title: 'Preset renamed', status: 'success', duration: 2000 })
+  }
+
+  const handleCancelEditPreset = (e) => {
+    e.stopPropagation()
+    setEditingPresetId(null)
+    setEditingPresetName('')
+  }
+
+  const toggleColumn = (colId) => {
+    if (!visibleColumns) return
+    setVisibleColumns(prev => ({ ...prev, [colId]: !prev[colId] }))
+  }
+
+  const toggleColumnGroup = (groupId) => {
+    if (!visibleColumns) return
+    const groupCols = COLUMNS.filter(c => c.group === groupId)
+    // Check if any column in the group is visible
+    const anyVisible = groupCols.some(c => visibleColumns[c.id] !== false)
+    // Toggle all: if any visible, hide all; otherwise show all
+    setVisibleColumns(prev => {
+      const newState = { ...prev }
+      groupCols.forEach(c => {
+        newState[c.id] = !anyVisible
+      })
+      return newState
+    })
+  }
+
+  const isGroupVisible = (groupId) => {
+    if (!visibleColumns) return true
+    const groupCols = COLUMNS.filter(c => c.group === groupId)
+    return groupCols.some(c => visibleColumns[c.id] !== false)
+  }
+
+  const isGroupPartiallyVisible = (groupId) => {
+    if (!visibleColumns) return false
+    const groupCols = COLUMNS.filter(c => c.group === groupId)
+    const visibleCount = groupCols.filter(c => visibleColumns[c.id] !== false).length
+    return visibleCount > 0 && visibleCount < groupCols.length
+  }
+
+  const isColumnVisible = (colId) => {
+    if (!visibleColumns) return true // Default to visible during loading
+    const col = COLUMNS.find(c => c.id === colId)
+    if (col?.dailyOnly && interval !== '1d') return false
+    return visibleColumns[colId] !== false
+  }
+
+  // Calculate visible column count for colSpan
+  const visibleColCount = useMemo(() => {
+    let count = 1 // expand button column
+    COLUMNS.forEach(col => {
+      if (isColumnVisible(col.id)) count++
+    })
+    return count
+  }, [visibleColumns, interval])
 
   useEffect(() => {
     loadRules()
   }, [])
+
+  // Load 5-minute data for calculating opening minutes changes
+  useEffect(() => {
+    const load5mData = async () => {
+      if (!symbol) {
+        setFiveMinData([])
+        return
+      }
+      const data5m = await fetchFromCache(symbol, '5m')
+      setFiveMinData(data5m || [])
+    }
+    load5mData()
+  }, [symbol])
+
+  // Calculate first X minutes change for a given day
+  const getOpeningMinutesChange = (dayTimestamp, minutes) => {
+    if (!fiveMinData || fiveMinData.length === 0) return null
+
+    // Get start of day
+    const dayStart = new Date(dayTimestamp)
+    dayStart.setHours(0, 0, 0, 0)
+    const dayEnd = new Date(dayTimestamp)
+    dayEnd.setHours(23, 59, 59, 999)
+
+    // Filter 5m bars for this day, sorted ascending
+    const dayBars = fiveMinData
+      .filter(bar => bar.timestamp >= dayStart.getTime() && bar.timestamp <= dayEnd.getTime())
+      .sort((a, b) => a.timestamp - b.timestamp)
+
+    if (dayBars.length === 0) return null
+
+    // Calculate how many 5-minute bars we need
+    const barsNeeded = Math.ceil(minutes / 5)
+    if (dayBars.length < barsNeeded) return null
+
+    // Get the open of first bar and close of the Nth bar
+    const openPrice = dayBars[0].open
+    const closePrice = dayBars[barsNeeded - 1].close
+
+    if (!openPrice || openPrice === 0) return null
+
+    const change = ((closePrice - openPrice) / openPrice) * 100
+    return change
+  }
+
+  // Check if a day has 5m data
+  const hasFiveMinData = (dayTimestamp) => {
+    if (!fiveMinData || fiveMinData.length === 0) return false
+    const dayStart = new Date(dayTimestamp)
+    dayStart.setHours(0, 0, 0, 0)
+    const dayEnd = new Date(dayTimestamp)
+    dayEnd.setHours(23, 59, 59, 999)
+    return fiveMinData.some(bar =>
+      bar.timestamp >= dayStart.getTime() && bar.timestamp <= dayEnd.getTime()
+    )
+  }
+
+  // Fetch 5m data for all visible rows that don't have data
+  const handleFetchOpeningMinsData = async () => {
+    if (!connectionState?.connected || !symbol) {
+      toast({ title: 'Not connected to IBKR', status: 'warning', duration: 3000 })
+      return
+    }
+
+    setLoadingOpeningMins(true)
+    try {
+      // Find rows that need data
+      const rowsNeedingData = paginatedData.filter(row => !hasFiveMinData(row.timestamp))
+
+      if (rowsNeedingData.length === 0) {
+        // Just reload from cache in case it was updated elsewhere
+        const data5m = await fetchFromCache(symbol, '5m')
+        setFiveMinData(data5m || [])
+        toast({ title: 'Data already loaded', status: 'info', duration: 2000 })
+        setLoadingOpeningMins(false)
+        return
+      }
+
+      // Find the date range we need to fetch
+      const timestamps = rowsNeedingData.map(r => r.timestamp)
+      const minTimestamp = Math.min(...timestamps)
+      const maxTimestamp = Math.max(...timestamps)
+
+      toast({ title: `Fetching 5m data for ${rowsNeedingData.length} days...`, status: 'info', duration: 2000 })
+
+      // Refresh callback - called after each chunk is saved
+      const refreshFromCache = async () => {
+        const data5m = await fetchFromCache(symbol, '5m')
+        setFiveMinData(data5m || [])
+      }
+
+      // Fetch data for the range with progress callback
+      await fetchIntradayForDay(symbol, minTimestamp, '5m', maxTimestamp, refreshFromCache)
+
+      // Final reload from cache
+      await refreshFromCache()
+      toast({ title: 'Data loaded', status: 'success', duration: 2000 })
+    } catch (err) {
+      console.error('Failed to fetch opening minutes data:', err)
+      toast({
+        title: 'Failed to fetch data',
+        description: err.response?.data?.error || err.message,
+        status: 'error',
+        duration: 5000
+      })
+    }
+    setLoadingOpeningMins(false)
+  }
 
   const loadRules = async () => {
     const rules = await getConditionalFormats()
@@ -457,6 +753,175 @@ function SecuritySpreadsheet({ data, symbol, interval, loading, connectionState 
               <option key={opt} value={opt}>{opt}</option>
             ))}
           </Select>
+          <Menu closeOnSelect={false}>
+            <MenuButton as={Button} size="sm" variant="outline" colorScheme="gray">
+              Columns
+            </MenuButton>
+            <MenuList bg="gray.700" minW="180px">
+              {/* Individual columns (not in a group) */}
+              {COLUMNS.filter(col => !col.group).map(col => (
+                (!col.dailyOnly || interval === '1d') && (
+                  <MenuItem
+                    key={col.id}
+                    bg="transparent"
+                    _hover={{ bg: 'gray.600' }}
+                  >
+                    <Checkbox
+                      isChecked={visibleColumns?.[col.id] !== false}
+                      onChange={() => toggleColumn(col.id)}
+                      colorScheme="blue"
+                      mr={2}
+                    >
+                      {col.label}
+                    </Checkbox>
+                  </MenuItem>
+                )
+              ))}
+              {/* Column groups */}
+              {COLUMN_GROUPS.map(group => (
+                (!group.dailyOnly || interval === '1d') && (
+                  <React.Fragment key={group.id}>
+                    <MenuDivider />
+                    <MenuItem
+                      bg="transparent"
+                      _hover={{ bg: 'gray.600' }}
+                    >
+                      <Checkbox
+                        isChecked={isGroupVisible(group.id)}
+                        isIndeterminate={isGroupPartiallyVisible(group.id)}
+                        onChange={() => toggleColumnGroup(group.id)}
+                        colorScheme="blue"
+                        mr={2}
+                      >
+                        <Text fontWeight="bold">{group.label}</Text>
+                      </Checkbox>
+                    </MenuItem>
+                    {/* Individual columns in the group */}
+                    {COLUMNS.filter(col => col.group === group.id).map(col => (
+                      <MenuItem
+                        key={col.id}
+                        bg="transparent"
+                        _hover={{ bg: 'gray.600' }}
+                        pl={8}
+                      >
+                        <Checkbox
+                          isChecked={visibleColumns?.[col.id] !== false}
+                          onChange={() => toggleColumn(col.id)}
+                          colorScheme="blue"
+                          mr={2}
+                          size="sm"
+                        >
+                          {col.label}
+                        </Checkbox>
+                      </MenuItem>
+                    ))}
+                  </React.Fragment>
+                )
+              ))}
+            </MenuList>
+          </Menu>
+          <Menu closeOnSelect={false}>
+            <MenuButton as={Button} size="sm" variant="outline" colorScheme="teal">
+              Presets
+            </MenuButton>
+            <MenuList bg="gray.700" minW="200px">
+              <Box px={3} py={2}>
+                <HStack>
+                  <Input
+                    size="sm"
+                    placeholder="Preset name"
+                    value={newPresetName}
+                    onChange={(e) => setNewPresetName(e.target.value)}
+                    bg="gray.600"
+                    onKeyDown={(e) => e.key === 'Enter' && handleSavePreset()}
+                  />
+                  <Button size="sm" colorScheme="green" onClick={handleSavePreset}>
+                    Save
+                  </Button>
+                </HStack>
+              </Box>
+              {presets.length > 0 && <MenuDivider />}
+              {presets.map(preset => (
+                <HStack
+                  key={preset.id}
+                  px={3}
+                  py={2}
+                  _hover={{ bg: 'gray.600' }}
+                  cursor="pointer"
+                  justify="space-between"
+                >
+                  {editingPresetId === preset.id ? (
+                    <>
+                      <Input
+                        size="sm"
+                        value={editingPresetName}
+                        onChange={(e) => setEditingPresetName(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSavePresetName(e)
+                          if (e.key === 'Escape') handleCancelEditPreset(e)
+                        }}
+                        bg="gray.600"
+                        autoFocus
+                        flex={1}
+                      />
+                      <HStack spacing={1}>
+                        <Box
+                          as="span"
+                          color="green.400"
+                          cursor="pointer"
+                          _hover={{ color: 'green.300' }}
+                          onClick={handleSavePresetName}
+                          p={1}
+                        >
+                          <CheckIcon boxSize={3} />
+                        </Box>
+                        <Box
+                          as="span"
+                          color="gray.400"
+                          cursor="pointer"
+                          _hover={{ color: 'gray.300' }}
+                          onClick={handleCancelEditPreset}
+                          p={1}
+                        >
+                          <CloseIcon boxSize={3} />
+                        </Box>
+                      </HStack>
+                    </>
+                  ) : (
+                    <>
+                      <Text onClick={() => handleLoadPreset(preset)} flex={1}>{preset.name}</Text>
+                      <HStack spacing={1}>
+                        <Box
+                          as="span"
+                          color="blue.400"
+                          cursor="pointer"
+                          _hover={{ color: 'blue.300' }}
+                          onClick={(e) => handleStartEditPreset(e, preset)}
+                          p={1}
+                        >
+                          <EditIcon boxSize={3} />
+                        </Box>
+                        <Box
+                          as="span"
+                          color="red.400"
+                          cursor="pointer"
+                          _hover={{ color: 'red.300' }}
+                          onClick={(e) => handleDeletePreset(e, preset.id)}
+                          p={1}
+                        >
+                          <DeleteIcon boxSize={3} />
+                        </Box>
+                      </HStack>
+                    </>
+                  )}
+                </HStack>
+              ))}
+              {presets.length === 0 && (
+                <MenuItem isDisabled>No presets saved</MenuItem>
+              )}
+            </MenuList>
+          </Menu>
         </HStack>
       </HStack>
 
@@ -466,12 +931,107 @@ function SecuritySpreadsheet({ data, symbol, interval, loading, connectionState 
           <Thead position="sticky" top={0} bg="gray.700" zIndex={1}>
             <Tr>
               <Th color="gray.300" w="40px"></Th>
-              <Th color="gray.300">Date/Time</Th>
-              <Th color="gray.300" isNumeric>Open</Th>
-              <Th color="gray.300" isNumeric>High</Th>
-              <Th color="gray.300" isNumeric>Low</Th>
-              <Th color="gray.300" isNumeric>Close</Th>
-              <Th color="gray.300" isNumeric>Volume</Th>
+              {isColumnVisible('date') && <Th color="gray.300">Date/Time</Th>}
+              {isColumnVisible('open') && <Th color="gray.300" isNumeric>Open</Th>}
+              {isColumnVisible('high') && <Th color="gray.300" isNumeric>High</Th>}
+              {isColumnVisible('low') && <Th color="gray.300" isNumeric>Low</Th>}
+              {isColumnVisible('close') && <Th color="gray.300" isNumeric>Close</Th>}
+              {isColumnVisible('volume') && <Th color="gray.300" isNumeric>Volume</Th>}
+              {isColumnVisible('5m') && (
+                <Th color="gray.300" isNumeric title="First 5 minutes">
+                  <HStack spacing={1} justify="flex-end">
+                    <Text>5m</Text>
+                    <Tooltip label="Load 5min data for visible rows">
+                      <IconButton
+                        aria-label="Load 5min data"
+                        icon={<RepeatIcon />}
+                        size="xs"
+                        variant="ghost"
+                        colorScheme="blue"
+                        isLoading={loadingOpeningMins}
+                        onClick={handleFetchOpeningMinsData}
+                        isDisabled={!connectionState?.connected}
+                      />
+                    </Tooltip>
+                  </HStack>
+                </Th>
+              )}
+              {isColumnVisible('10m') && (
+                <Th color="gray.300" isNumeric title="First 10 minutes">
+                  <HStack spacing={1} justify="flex-end">
+                    <Text>10m</Text>
+                    <Tooltip label="Load 5min data for visible rows">
+                      <IconButton
+                        aria-label="Load 5min data"
+                        icon={<RepeatIcon />}
+                        size="xs"
+                        variant="ghost"
+                        colorScheme="blue"
+                        isLoading={loadingOpeningMins}
+                        onClick={handleFetchOpeningMinsData}
+                        isDisabled={!connectionState?.connected}
+                      />
+                    </Tooltip>
+                  </HStack>
+                </Th>
+              )}
+              {isColumnVisible('15m') && (
+                <Th color="gray.300" isNumeric title="First 15 minutes">
+                  <HStack spacing={1} justify="flex-end">
+                    <Text>15m</Text>
+                    <Tooltip label="Load 5min data for visible rows">
+                      <IconButton
+                        aria-label="Load 5min data"
+                        icon={<RepeatIcon />}
+                        size="xs"
+                        variant="ghost"
+                        colorScheme="blue"
+                        isLoading={loadingOpeningMins}
+                        onClick={handleFetchOpeningMinsData}
+                        isDisabled={!connectionState?.connected}
+                      />
+                    </Tooltip>
+                  </HStack>
+                </Th>
+              )}
+              {isColumnVisible('30m') && (
+                <Th color="gray.300" isNumeric title="First 30 minutes">
+                  <HStack spacing={1} justify="flex-end">
+                    <Text>30m</Text>
+                    <Tooltip label="Load 5min data for visible rows">
+                      <IconButton
+                        aria-label="Load 5min data"
+                        icon={<RepeatIcon />}
+                        size="xs"
+                        variant="ghost"
+                        colorScheme="blue"
+                        isLoading={loadingOpeningMins}
+                        onClick={handleFetchOpeningMinsData}
+                        isDisabled={!connectionState?.connected}
+                      />
+                    </Tooltip>
+                  </HStack>
+                </Th>
+              )}
+              {isColumnVisible('1h') && (
+                <Th color="gray.300" isNumeric title="First 1 hour">
+                  <HStack spacing={1} justify="flex-end">
+                    <Text>1h</Text>
+                    <Tooltip label="Load 5min data for visible rows">
+                      <IconButton
+                        aria-label="Load 5min data"
+                        icon={<RepeatIcon />}
+                        size="xs"
+                        variant="ghost"
+                        colorScheme="blue"
+                        isLoading={loadingOpeningMins}
+                        onClick={handleFetchOpeningMinsData}
+                        isDisabled={!connectionState?.connected}
+                      />
+                    </Tooltip>
+                  </HStack>
+                </Th>
+              )}
             </Tr>
           </Thead>
           <Tbody>
@@ -490,7 +1050,7 @@ function SecuritySpreadsheet({ data, symbol, interval, loading, connectionState 
                 <React.Fragment key={row.id || index}>
                   {showGapIndicator && (
                     <Tr>
-                      <Td colSpan={7} py={1} bg="gray.700" borderY="1px dashed" borderColor="gray.500">
+                      <Td colSpan={visibleColCount} py={1} bg="gray.700" borderY="1px dashed" borderColor="gray.500">
                         <Text fontSize="xs" color="gray.400" textAlign="center">
                           ··· {hiddenCount} hidden row{hiddenCount > 1 ? 's' : ''} ···
                         </Text>
@@ -507,21 +1067,75 @@ function SecuritySpreadsheet({ data, symbol, interval, loading, connectionState 
                         onClick={() => handleToggleExpand(row)}
                       />
                     </Td>
-                    <Td color="gray.300">
-                      {isContextRow && <Text as="span" color="gray.500" mr={1}>•</Text>}
-                      {formatDate(row.timestamp)}
-                    </Td>
-                    <Td isNumeric {...getFormat(row, index, 'open')}>{formatPrice(row.open)}</Td>
-                    <Td isNumeric {...getFormat(row, index, 'high')}>{formatPrice(row.high)}</Td>
-                    <Td isNumeric {...getFormat(row, index, 'low')}>{formatPrice(row.low)}</Td>
-                    <Td isNumeric {...getFormat(row, index, 'close')}>{formatPrice(row.close)}</Td>
-                    <Td isNumeric {...getFormat(row, index, 'volume')}>
-                      {row.volume?.toLocaleString() || '-'}
-                    </Td>
+                    {isColumnVisible('date') && (
+                      <Td color="gray.300">
+                        {isContextRow && <Text as="span" color="gray.500" mr={1}>•</Text>}
+                        {formatDate(row.timestamp)}
+                      </Td>
+                    )}
+                    {isColumnVisible('open') && <Td isNumeric {...getFormat(row, index, 'open')}>{formatPrice(row.open)}</Td>}
+                    {isColumnVisible('high') && <Td isNumeric {...getFormat(row, index, 'high')}>{formatPrice(row.high)}</Td>}
+                    {isColumnVisible('low') && <Td isNumeric {...getFormat(row, index, 'low')}>{formatPrice(row.low)}</Td>}
+                    {isColumnVisible('close') && <Td isNumeric {...getFormat(row, index, 'close')}>{formatPrice(row.close)}</Td>}
+                    {isColumnVisible('volume') && (
+                      <Td isNumeric {...getFormat(row, index, 'volume')}>
+                        {row.volume?.toLocaleString() || '-'}
+                      </Td>
+                    )}
+                    {isColumnVisible('5m') && (
+                      <Td isNumeric>
+                        {(() => {
+                          const change = getOpeningMinutesChange(row.timestamp, 5)
+                          if (change === null) return '-'
+                          const color = change >= 0 ? 'green.400' : 'red.400'
+                          return <Text color={color}>{change >= 0 ? '+' : ''}{change.toFixed(2)}%</Text>
+                        })()}
+                      </Td>
+                    )}
+                    {isColumnVisible('10m') && (
+                      <Td isNumeric>
+                        {(() => {
+                          const change = getOpeningMinutesChange(row.timestamp, 10)
+                          if (change === null) return '-'
+                          const color = change >= 0 ? 'green.400' : 'red.400'
+                          return <Text color={color}>{change >= 0 ? '+' : ''}{change.toFixed(2)}%</Text>
+                        })()}
+                      </Td>
+                    )}
+                    {isColumnVisible('15m') && (
+                      <Td isNumeric>
+                        {(() => {
+                          const change = getOpeningMinutesChange(row.timestamp, 15)
+                          if (change === null) return '-'
+                          const color = change >= 0 ? 'green.400' : 'red.400'
+                          return <Text color={color}>{change >= 0 ? '+' : ''}{change.toFixed(2)}%</Text>
+                        })()}
+                      </Td>
+                    )}
+                    {isColumnVisible('30m') && (
+                      <Td isNumeric>
+                        {(() => {
+                          const change = getOpeningMinutesChange(row.timestamp, 30)
+                          if (change === null) return '-'
+                          const color = change >= 0 ? 'green.400' : 'red.400'
+                          return <Text color={color}>{change >= 0 ? '+' : ''}{change.toFixed(2)}%</Text>
+                        })()}
+                      </Td>
+                    )}
+                    {isColumnVisible('1h') && (
+                      <Td isNumeric>
+                        {(() => {
+                          const change = getOpeningMinutesChange(row.timestamp, 60)
+                          if (change === null) return '-'
+                          const color = change >= 0 ? 'green.400' : 'red.400'
+                          return <Text color={color}>{change >= 0 ? '+' : ''}{change.toFixed(2)}%</Text>
+                        })()}
+                      </Td>
+                    )}
                   </Tr>
                   {expandedRows[row.timestamp] && (
                     <Tr>
-                      <Td colSpan={7} bg="gray.900" p={4}>
+                      <Td colSpan={visibleColCount} bg="gray.900" p={4}>
                         <CandlestickChart
                           data={intradayData[row.timestamp]}
                           loading={loadingIntraday[row.timestamp]}

@@ -32,6 +32,16 @@ db.version(4).stores({
   formatGroups: '++id, name'
 })
 
+db.version(5).stores({
+  securities: 'symbol, name, exchange',
+  priceData: '++id, [symbol+interval+timestamp], symbol, interval, timestamp',
+  settings: 'key',
+  favorites: 'symbol',
+  conditionalFormats: '++id, name, enabled, groupId',
+  formatGroups: '++id, name',
+  analysisPresets: '++id, name'
+})
+
 // Helper functions
 
 export async function getSetting(key) {
@@ -166,6 +176,23 @@ export async function getFavorites() {
 export async function isFavorite(symbol) {
   const fav = await db.favorites.get(symbol.toUpperCase())
   return !!fav
+}
+
+// Analysis presets
+export async function getAnalysisPresets() {
+  return db.analysisPresets.toArray()
+}
+
+export async function addAnalysisPreset(preset) {
+  return db.analysisPresets.add(preset)
+}
+
+export async function updateAnalysisPreset(id, updates) {
+  return db.analysisPresets.update(id, updates)
+}
+
+export async function deleteAnalysisPreset(id) {
+  return db.analysisPresets.delete(id)
 }
 
 export default db
