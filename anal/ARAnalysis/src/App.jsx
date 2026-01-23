@@ -24,6 +24,7 @@ import IntervalPicker from './components/IntervalPicker'
 import ConnectionStatus from './components/ConnectionStatus'
 import DataStatus from './components/DataStatus'
 import ThresholdReport from './components/ThresholdReport'
+import Screener from './components/Screener'
 import DataManager from './modules/DataManager'
 import {
   getConnectionStatus,
@@ -269,6 +270,7 @@ function App() {
             <TabList>
               <Tab>Spreadsheet</Tab>
               <Tab>Threshold Report</Tab>
+              <Tab>Screener</Tab>
             </TabList>
             <TabPanels>
               <TabPanel px={0}>
@@ -285,6 +287,9 @@ function App() {
                   symbol={selectedSymbol}
                   data={priceData}
                 />
+              </TabPanel>
+              <TabPanel px={0}>
+                <Screener />
               </TabPanel>
             </TabPanels>
           </Tabs>
