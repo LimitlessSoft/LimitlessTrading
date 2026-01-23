@@ -26,13 +26,16 @@ import {
   Collapse,
   useDisclosure
 } from '@chakra-ui/react'
-import { AddIcon, DeleteIcon, SearchIcon, ChevronDownIcon, ChevronUpIcon } from '@chakra-ui/icons'
+import { AddIcon, DeleteIcon, SearchIcon, ChevronDownIcon, ChevronUpIcon, StarIcon } from '@chakra-ui/icons'
 import { fetchFromCache } from '../modules/dataService'
 import {
   getScreenerSymbols,
   addScreenerSymbol,
   addScreenerSymbols,
-  removeScreenerSymbol
+  removeScreenerSymbol,
+  getWatchgroups,
+  getActiveWatchgroup,
+  addToWatchgroup
 } from '../db/database'
 
 // Available columns for screening
@@ -165,17 +168,44 @@ function Screener() {
   const [progress, setProgress] = useState({ current: 0, total: 0 })
   const [sortColumn, setSortColumn] = useState('changePercent')
   const [sortAsc, setSortAsc] = useState(false)
+  const [watchgroups, setWatchgroups] = useState([])
+  const [activeGroupId, setActiveGroupId] = useState(null)
+  const [addingToWatchlist, setAddingToWatchlist] = useState(false)
   const { isOpen: isSymbolsOpen, onToggle: onSymbolsToggle } = useDisclosure()
 
-  // Load symbols on mount
+  // Load symbols and watchgroups on mount
   useEffect(() => {
     loadSymbols()
+    loadWatchgroups()
   }, [])
 
   const loadSymbols = async () => {
     const syms = await getScreenerSymbols()
     setSymbols(syms)
   }
+
+  const loadWatchgroups = async () => {
+    const groups = await getWatchgroups()
+    setWatchgroups(groups)
+    const activeId = await getActiveWatchgroup()
+    if (activeId && groups.some(g => g.id === activeId)) {
+      setActiveGroupId(activeId)
+    } else if (groups.length > 0) {
+      setActiveGroupId(groups[0].id)
+    }
+  }
+
+  const handleAddResultsToWatchlist = async () => {
+    if (!results || results.length === 0 || !activeGroupId) return
+
+    setAddingToWatchlist(true)
+    for (const item of results) {
+      await addToWatchgroup(activeGroupId, item.symbol)
+    }
+    setAddingToWatchlist(false)
+  }
+
+  const activeGroup = watchgroups.find(g => g.id === activeGroupId)
 
   const handleAddSymbol = async () => {
     const toAdd = newSymbol.toUpperCase().trim()
@@ -429,9 +459,23 @@ function Screener() {
         {results && !loading && (
           <>
             <Divider borderColor="gray.600" />
-            <Text color="gray.300" fontWeight="bold">
-              Results: {results.length} matches out of {symbols.length} screened
-            </Text>
+            <HStack justify="space-between">
+              <Text color="gray.300" fontWeight="bold">
+                Results: {results.length} matches out of {symbols.length} screened
+              </Text>
+              {results.length > 0 && activeGroup && (
+                <Button
+                  size="sm"
+                  leftIcon={<StarIcon />}
+                  colorScheme="yellow"
+                  variant="outline"
+                  onClick={handleAddResultsToWatchlist}
+                  isLoading={addingToWatchlist}
+                >
+                  Add {results.length} to "{activeGroup.name}"
+                </Button>
+              )}
+            </HStack>
 
             {results.length === 0 ? (
               <Text color="gray.500">No symbols matched your criteria</Text>
