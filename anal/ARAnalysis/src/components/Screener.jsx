@@ -16,37 +16,24 @@ import {
   Select,
   Input,
   IconButton,
-  Spinner,
   Divider,
   Progress,
-  Textarea
+  Wrap,
+  WrapItem,
+  Tag,
+  TagLabel,
+  TagCloseButton,
+  Collapse,
+  useDisclosure
 } from '@chakra-ui/react'
-import { AddIcon, DeleteIcon, SearchIcon } from '@chakra-ui/icons'
+import { AddIcon, DeleteIcon, SearchIcon, ChevronDownIcon, ChevronUpIcon } from '@chakra-ui/icons'
 import { fetchFromCache } from '../modules/dataService'
-
-// Predefined symbol lists
-const SYMBOL_LISTS = {
-  'sp500': {
-    name: 'S&P 500',
-    symbols: ['AAPL', 'MSFT', 'AMZN', 'NVDA', 'GOOGL', 'GOOG', 'META', 'BRK.B', 'UNH', 'XOM', 'LLY', 'JPM', 'JNJ', 'V', 'PG', 'MA', 'AVGO', 'HD', 'CVX', 'MRK', 'ABBV', 'COST', 'PEP', 'ADBE', 'WMT', 'KO', 'MCD', 'CSCO', 'CRM', 'BAC', 'PFE', 'TMO', 'ACN', 'NFLX', 'AMD', 'LIN', 'ABT', 'DIS', 'DHR', 'ORCL', 'CMCSA', 'VZ', 'INTC', 'WFC', 'PM', 'TXN', 'INTU', 'COP', 'QCOM', 'NKE', 'UNP', 'IBM', 'CAT', 'NOW', 'SPGI', 'HON', 'LOW', 'AMGN', 'UPS', 'GE', 'BA', 'RTX', 'ISRG', 'DE', 'AMAT', 'ELV', 'PLD', 'GS', 'BKNG', 'SYK', 'BLK', 'MDLZ', 'AXP', 'SBUX', 'GILD', 'LMT', 'ADI', 'TJX', 'MMC', 'VRTX', 'ADP', 'REGN', 'CVS', 'ETN', 'C', 'SCHW', 'LRCX', 'CI', 'MU', 'PANW', 'ZTS', 'TMUS', 'BSX', 'FI', 'MO', 'CB', 'SO', 'SLB']
-  },
-  'nasdaq100': {
-    name: 'NASDAQ 100',
-    symbols: ['AAPL', 'MSFT', 'AMZN', 'NVDA', 'GOOGL', 'GOOG', 'META', 'AVGO', 'COST', 'TSLA', 'ADBE', 'PEP', 'CSCO', 'NFLX', 'AMD', 'CMCSA', 'INTC', 'TMUS', 'INTU', 'TXN', 'QCOM', 'AMGN', 'HON', 'AMAT', 'ISRG', 'BKNG', 'SBUX', 'GILD', 'ADI', 'VRTX', 'MDLZ', 'ADP', 'REGN', 'LRCX', 'PANW', 'MU', 'PYPL', 'CSX', 'SNPS', 'KLAC', 'CDNS', 'MELI', 'MAR', 'ORLY', 'MNST', 'CTAS', 'NXPI', 'FTNT', 'WDAY', 'MRVL', 'ADSK', 'ABNB', 'DXCM', 'KDP', 'PCAR', 'AEP', 'MCHP', 'CPRT', 'ODFL', 'KHC', 'PAYX', 'LULU', 'EXC', 'AZN', 'IDXX', 'ROST', 'FAST', 'CSGP', 'VRSK', 'EA', 'CTSH', 'GEHC', 'XEL', 'BKR', 'DDOG', 'BIIB', 'FANG', 'TEAM', 'ANSS', 'DLTR', 'WBD', 'ZS', 'ILMN', 'ALGN', 'EBAY', 'WBA', 'ENPH', 'SIRI', 'JD', 'LCID', 'RIVN']
-  },
-  'dow30': {
-    name: 'Dow 30',
-    symbols: ['AAPL', 'AMGN', 'AXP', 'BA', 'CAT', 'CRM', 'CSCO', 'CVX', 'DIS', 'DOW', 'GS', 'HD', 'HON', 'IBM', 'INTC', 'JNJ', 'JPM', 'KO', 'MCD', 'MMM', 'MRK', 'MSFT', 'NKE', 'PG', 'TRV', 'UNH', 'V', 'VZ', 'WBA', 'WMT']
-  },
-  'mega_tech': {
-    name: 'Mega Tech',
-    symbols: ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA', 'TSLA', 'NFLX', 'AMD', 'INTC', 'CRM', 'ORCL', 'ADBE', 'PYPL', 'SQ', 'SHOP', 'SNOW', 'PLTR', 'UBER', 'ABNB']
-  },
-  'custom': {
-    name: 'Custom List',
-    symbols: []
-  }
-}
+import {
+  getScreenerSymbols,
+  addScreenerSymbol,
+  addScreenerSymbols,
+  removeScreenerSymbol
+} from '../db/database'
 
 // Available columns for screening
 const COLUMNS = [
@@ -171,23 +158,43 @@ function formatValue(value, format) {
 
 function Screener() {
   const [conditions, setConditions] = useState([{ ...DEFAULT_CONDITION }])
-  const [selectedList, setSelectedList] = useState('nasdaq100')
-  const [customSymbols, setCustomSymbols] = useState('')
+  const [symbols, setSymbols] = useState([])
+  const [newSymbol, setNewSymbol] = useState('')
   const [results, setResults] = useState(null)
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState({ current: 0, total: 0 })
   const [sortColumn, setSortColumn] = useState('changePercent')
   const [sortAsc, setSortAsc] = useState(false)
+  const { isOpen: isSymbolsOpen, onToggle: onSymbolsToggle } = useDisclosure()
 
-  const getSymbolsToScreen = () => {
-    if (selectedList === 'custom') {
-      return customSymbols
-        .toUpperCase()
-        .split(/[\s,]+/)
-        .map(s => s.trim())
-        .filter(s => s.length > 0)
+  // Load symbols on mount
+  useEffect(() => {
+    loadSymbols()
+  }, [])
+
+  const loadSymbols = async () => {
+    const syms = await getScreenerSymbols()
+    setSymbols(syms)
+  }
+
+  const handleAddSymbol = async () => {
+    const toAdd = newSymbol.toUpperCase().trim()
+    if (!toAdd) return
+
+    // Support comma/space separated input
+    const symbolsToAdd = toAdd.split(/[\s,]+/).filter(s => s.length > 0)
+    if (symbolsToAdd.length > 1) {
+      await addScreenerSymbols(symbolsToAdd)
+    } else {
+      await addScreenerSymbol(toAdd)
     }
-    return SYMBOL_LISTS[selectedList]?.symbols || []
+    setNewSymbol('')
+    await loadSymbols()
+  }
+
+  const handleRemoveSymbol = async (symbol) => {
+    await removeScreenerSymbol(symbol)
+    await loadSymbols()
   }
 
   const handleAddCondition = () => {
@@ -207,7 +214,6 @@ function Screener() {
   }
 
   const runScreener = async () => {
-    const symbols = getSymbolsToScreen()
     if (symbols.length === 0) return
 
     setLoading(true)
@@ -259,8 +265,6 @@ function Screener() {
     })
   }, [results, sortColumn, sortAsc])
 
-  const symbolCount = getSymbolsToScreen().length
-
   // Display columns in results table
   const displayColumns = ['close', 'changePercent', 'gap', 'volume', 'relativeVolume', 'atrPercent']
 
@@ -271,43 +275,55 @@ function Screener() {
       </Heading>
 
       <VStack spacing={4} align="stretch">
-        {/* Symbol list selector */}
-        <HStack spacing={4} align="flex-start">
-          <VStack align="stretch" spacing={2}>
-            <Text fontSize="sm" color="gray.400">Symbol List:</Text>
-            <Select
-              size="sm"
-              w="180px"
-              value={selectedList}
-              onChange={(e) => {
-                setSelectedList(e.target.value)
-                setResults(null)
-              }}
+        {/* Symbol list management */}
+        <Box p={3} bg="gray.700" borderRadius="md">
+          <HStack justify="space-between" mb={2}>
+            <HStack>
+              <Text color="gray.300" fontWeight="bold">Symbols</Text>
+              <Badge colorScheme="blue">{symbols.length}</Badge>
+            </HStack>
+            <Button
+              size="xs"
+              variant="ghost"
+              rightIcon={isSymbolsOpen ? <ChevronUpIcon /> : <ChevronDownIcon />}
+              onClick={onSymbolsToggle}
             >
-              {Object.entries(SYMBOL_LISTS).map(([key, list]) => (
-                <option key={key} value={key}>{list.name}</option>
-              ))}
-            </Select>
-          </VStack>
+              {isSymbolsOpen ? 'Hide' : 'Show'}
+            </Button>
+          </HStack>
 
-          {selectedList === 'custom' && (
-            <VStack align="stretch" spacing={2} flex={1}>
-              <Text fontSize="sm" color="gray.400">Enter symbols (comma or space separated):</Text>
-              <Textarea
-                size="sm"
-                value={customSymbols}
-                onChange={(e) => setCustomSymbols(e.target.value)}
-                placeholder="AAPL, MSFT, GOOGL, AMZN..."
-                bg="gray.700"
-                rows={2}
-              />
-            </VStack>
-          )}
+          <HStack mb={2}>
+            <Input
+              size="sm"
+              placeholder="Add symbol(s) - e.g. AAPL, TSLA, MSFT"
+              value={newSymbol}
+              onChange={(e) => setNewSymbol(e.target.value.toUpperCase())}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddSymbol()}
+              bg="gray.600"
+              flex={1}
+            />
+            <Button size="sm" colorScheme="blue" leftIcon={<AddIcon />} onClick={handleAddSymbol}>
+              Add
+            </Button>
+          </HStack>
 
-          <Text fontSize="sm" color="gray.500" alignSelf="flex-end" pb={2}>
-            ({symbolCount} symbols)
-          </Text>
-        </HStack>
+          <Collapse in={isSymbolsOpen}>
+            {symbols.length === 0 ? (
+              <Text color="gray.500" fontSize="sm">No symbols added yet</Text>
+            ) : (
+              <Wrap spacing={1} maxH="200px" overflowY="auto">
+                {symbols.map(symbol => (
+                  <WrapItem key={symbol}>
+                    <Tag size="sm" colorScheme="blue" borderRadius="full">
+                      <TagLabel>{symbol}</TagLabel>
+                      <TagCloseButton onClick={() => handleRemoveSymbol(symbol)} />
+                    </Tag>
+                  </WrapItem>
+                ))}
+              </Wrap>
+            )}
+          </Collapse>
+        </Box>
 
         {/* Conditions */}
         <Box p={3} bg="gray.700" borderRadius="md">
@@ -388,9 +404,9 @@ function Screener() {
           colorScheme="blue"
           onClick={runScreener}
           isLoading={loading}
-          isDisabled={symbolCount === 0}
+          isDisabled={symbols.length === 0}
         >
-          Screen {SYMBOL_LISTS[selectedList]?.name || 'Custom List'}
+          Screen {symbols.length} Symbols
         </Button>
 
         {/* Progress */}
@@ -414,7 +430,7 @@ function Screener() {
           <>
             <Divider borderColor="gray.600" />
             <Text color="gray.300" fontWeight="bold">
-              Results: {results.length} matches out of {symbolCount} screened
+              Results: {results.length} matches out of {symbols.length} screened
             </Text>
 
             {results.length === 0 ? (

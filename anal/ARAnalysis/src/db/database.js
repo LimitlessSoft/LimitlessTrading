@@ -62,6 +62,42 @@ db.version(6).stores({
   }
 })
 
+// Default screener symbols (combined from major indices)
+const DEFAULT_SCREENER_SYMBOLS = [
+  'AAPL', 'MSFT', 'AMZN', 'NVDA', 'GOOGL', 'GOOG', 'META', 'BRK.B', 'UNH', 'XOM',
+  'LLY', 'JPM', 'JNJ', 'V', 'PG', 'MA', 'AVGO', 'HD', 'CVX', 'MRK', 'ABBV', 'COST',
+  'PEP', 'ADBE', 'WMT', 'KO', 'MCD', 'CSCO', 'CRM', 'BAC', 'PFE', 'TMO', 'ACN',
+  'NFLX', 'AMD', 'LIN', 'ABT', 'DIS', 'DHR', 'ORCL', 'CMCSA', 'VZ', 'INTC', 'WFC',
+  'PM', 'TXN', 'INTU', 'COP', 'QCOM', 'NKE', 'UNP', 'IBM', 'CAT', 'NOW', 'SPGI',
+  'HON', 'LOW', 'AMGN', 'UPS', 'GE', 'BA', 'RTX', 'ISRG', 'DE', 'AMAT', 'ELV',
+  'PLD', 'GS', 'BKNG', 'SYK', 'BLK', 'MDLZ', 'AXP', 'SBUX', 'GILD', 'LMT', 'ADI',
+  'TJX', 'MMC', 'VRTX', 'ADP', 'REGN', 'CVS', 'ETN', 'C', 'SCHW', 'LRCX', 'CI',
+  'MU', 'PANW', 'ZTS', 'TMUS', 'BSX', 'FI', 'MO', 'CB', 'SO', 'SLB', 'TSLA',
+  'PYPL', 'CSX', 'SNPS', 'KLAC', 'CDNS', 'MELI', 'MAR', 'ORLY', 'MNST', 'CTAS',
+  'NXPI', 'FTNT', 'WDAY', 'MRVL', 'ADSK', 'ABNB', 'DXCM', 'KDP', 'PCAR', 'AEP',
+  'MCHP', 'CPRT', 'ODFL', 'KHC', 'PAYX', 'LULU', 'EXC', 'AZN', 'IDXX', 'ROST',
+  'FAST', 'CSGP', 'VRSK', 'EA', 'CTSH', 'GEHC', 'XEL', 'BKR', 'DDOG', 'BIIB',
+  'FANG', 'TEAM', 'ANSS', 'DLTR', 'WBD', 'ZS', 'ILMN', 'ALGN', 'EBAY', 'WBA',
+  'ENPH', 'DOW', 'MMM', 'TRV', 'SQ', 'SHOP', 'SNOW', 'PLTR', 'UBER'
+]
+
+db.version(7).stores({
+  securities: 'symbol, name, exchange',
+  priceData: '++id, [symbol+interval+timestamp], symbol, interval, timestamp',
+  settings: 'key',
+  favorites: 'symbol',
+  conditionalFormats: '++id, name, enabled, groupId',
+  formatGroups: '++id, name',
+  analysisPresets: '++id, name',
+  watchgroups: '++id, name',
+  watchgroupMembers: '++id, [groupId+symbol], groupId, symbol',
+  screenerSymbols: 'symbol'
+}).upgrade(async tx => {
+  // Initialize screener symbols with defaults
+  const symbols = DEFAULT_SCREENER_SYMBOLS.map(s => ({ symbol: s }))
+  await tx.table('screenerSymbols').bulkAdd(symbols)
+})
+
 // Helper functions
 
 export async function getSetting(key) {
@@ -271,6 +307,37 @@ export async function getActiveWatchgroup() {
 
 export async function setActiveWatchgroup(groupId) {
   return setSetting('activeWatchgroup', groupId)
+}
+
+// Screener symbols management
+export async function getScreenerSymbols() {
+  const symbols = await db.screenerSymbols.toArray()
+  return symbols.map(s => s.symbol).sort()
+}
+
+export async function addScreenerSymbol(symbol) {
+  const upperSymbol = symbol.toUpperCase().trim()
+  if (!upperSymbol) return
+  const existing = await db.screenerSymbols.get(upperSymbol)
+  if (!existing) {
+    await db.screenerSymbols.add({ symbol: upperSymbol })
+  }
+}
+
+export async function addScreenerSymbols(symbols) {
+  const records = symbols
+    .map(s => s.toUpperCase().trim())
+    .filter(s => s.length > 0)
+    .map(s => ({ symbol: s }))
+  await db.screenerSymbols.bulkPut(records)
+}
+
+export async function removeScreenerSymbol(symbol) {
+  await db.screenerSymbols.delete(symbol.toUpperCase())
+}
+
+export async function clearScreenerSymbols() {
+  await db.screenerSymbols.clear()
 }
 
 export default db
