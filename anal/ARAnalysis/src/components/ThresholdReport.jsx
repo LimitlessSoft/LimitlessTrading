@@ -516,7 +516,7 @@ function ThresholdReport({ symbol, data }) {
     <Box bg="gray.800" borderRadius="md" p={4}>
       <HStack justify="space-between" mb={4}>
         <Heading size="md" color="blue.300">
-          Threshold Report
+          High Over Previous Close
         </Heading>
         <HStack>
           <Button
@@ -539,7 +539,7 @@ function ThresholdReport({ symbol, data }) {
       </HStack>
 
       <Text fontSize="sm" color="gray.400" mb={4}>
-          Counts how many times price raised for X% <b>compared to previous day close (high > prev day close)</b>. <br />
+          Counts how many times price raised for X% <b>compared to previous day close (high &gt; prev day close)</b>. <br />
         LONG at CLOSE @ X DAYS DTE (or stocks at leverage)  <br />
         Data in cells are % for period (header) analysis is made from. <br />
         If it says 80, that means 80% of column it is in (50D) which is 40/50 days

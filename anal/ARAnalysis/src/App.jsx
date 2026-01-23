@@ -24,6 +24,7 @@ import IntervalPicker from './components/IntervalPicker'
 import ConnectionStatus from './components/ConnectionStatus'
 import DataStatus from './components/DataStatus'
 import ThresholdReport from './components/ThresholdReport'
+import TwoUpThenBigMove from './components/TwoUpThenBigMove'
 import Screener from './components/Screener'
 import DataManager from './modules/DataManager'
 import {
@@ -269,7 +270,18 @@ function App() {
           <Tabs colorScheme="blue" variant="enclosed">
             <TabList>
               <Tab>Spreadsheet</Tab>
-              <Tab>Threshold Report</Tab>
+              <Tab
+                _selected={{ color: 'orange.300', borderColor: 'orange.300', borderBottomColor: 'gray.800' }}
+                color="orange.400"
+              >
+                High Over Prev Close
+              </Tab>
+              <Tab
+                _selected={{ color: 'orange.300', borderColor: 'orange.300', borderBottomColor: 'gray.800' }}
+                color="orange.400"
+              >
+                Two Up + Big Move
+              </Tab>
               <Tab>Screener</Tab>
             </TabList>
             <TabPanels>
@@ -284,6 +296,12 @@ function App() {
               </TabPanel>
               <TabPanel px={0}>
                 <ThresholdReport
+                  symbol={selectedSymbol}
+                  data={priceData}
+                />
+              </TabPanel>
+              <TabPanel px={0}>
+                <TwoUpThenBigMove
                   symbol={selectedSymbol}
                   data={priceData}
                 />
