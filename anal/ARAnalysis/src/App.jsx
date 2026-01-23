@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Box,
-  Container,
   Heading,
   HStack,
   VStack,
@@ -191,7 +190,7 @@ function App() {
 
   return (
     <Box minH="100vh" bg="gray.900">
-      <Container maxW="container.xl" py={4}>
+      <Box px={4} py={4}>
         <VStack spacing={4} align="stretch">
           {/* Header */}
           <Flex align="center" wrap="wrap" gap={4}>
@@ -291,7 +290,7 @@ function App() {
             </TabPanels>
           </Tabs>
         </VStack>
-      </Container>
+      </Box>
     </Box>
   )
 }

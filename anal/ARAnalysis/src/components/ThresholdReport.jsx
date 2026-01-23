@@ -173,7 +173,7 @@ function MultiSymbolReport({ securities }) {
   const [allResults, setAllResults] = useState(null)
   const [loading, setLoading] = useState(false)
   const [selectedThreshold, setSelectedThreshold] = useState(0.5)
-  const [selectedPeriod, setSelectedPeriod] = useState('1yr')
+  const [selectedPeriod, setSelectedPeriod] = useState('100d')
 
   const loadAllData = async () => {
     if (!securities || securities.length === 0) return
@@ -189,10 +189,14 @@ function MultiSymbolReport({ securities }) {
           TIME_PERIODS.forEach(period => {
             periodResults[period.label] = analyzeThresholds(data, period.days)
           })
+          // Get current price (latest bar's close)
+          const latestBar = data[0]
+          const currentPrice = latestBar?.close || null
           results.push({
             symbol: security.symbol,
             results: periodResults,
-            dataLength: data.length
+            dataLength: data.length,
+            currentPrice
           })
         }
       } catch (err) {
@@ -283,6 +287,16 @@ function MultiSymbolReport({ securities }) {
               <Tr>
                 <Th color="gray.400" borderColor="gray.600" rowSpan={2}>#</Th>
                 <Th color="gray.400" borderColor="gray.600" rowSpan={2}>Symbol</Th>
+                <Th color="gray.400" borderColor="gray.600" rowSpan={2} textAlign="right">Price</Th>
+                <Th
+                  color="purple.300"
+                  bg="purple.900"
+                  borderColor="gray.500"
+                  textAlign="center"
+                  colSpan={THRESHOLDS.length}
+                >
+                  Target Price
+                </Th>
                 {TIME_PERIODS.map((period, periodIdx) => (
                   <Th
                     key={period.label}
@@ -297,6 +311,19 @@ function MultiSymbolReport({ securities }) {
                 ))}
               </Tr>
               <Tr>
+                {THRESHOLDS.map(t => (
+                  <Th
+                    key={`target-${t}`}
+                    color="purple.300"
+                    bg="purple.900"
+                    borderColor="gray.500"
+                    textAlign="center"
+                    fontSize="xs"
+                    px={1}
+                  >
+                    +{t}%
+                  </Th>
+                ))}
                 {TIME_PERIODS.map((period, periodIdx) => (
                   THRESHOLDS.map(t => (
                     <Th
@@ -324,6 +351,16 @@ function MultiSymbolReport({ securities }) {
                     <Td borderColor="gray.600" fontWeight="medium" color="gray.200">
                       {item.symbol}
                     </Td>
+                    <Td borderColor="gray.600" color="gray.300" textAlign="right" fontSize="sm">
+                      {item.currentPrice ? `$${item.currentPrice.toFixed(2)}` : '-'}
+                    </Td>
+                    {THRESHOLDS.map(t => (
+                      <Td key={`target-${t}`} bg="purple.900" borderColor="gray.600" textAlign="center" px={1}>
+                        <Text color="purple.200" fontSize="xs">
+                          {item.currentPrice ? `$${(item.currentPrice * (1 + t / 100)).toFixed(2)}` : '-'}
+                        </Text>
+                      </Td>
+                    ))}
                     {TIME_PERIODS.map((period, periodIdx) => {
                       const result = item.results?.[period.label]
                       const validDays = result?.validDays || 0
@@ -395,7 +432,8 @@ function ThresholdReport({ symbol, data, securities }) {
       <Text fontSize="sm" color="gray.400" mb={4}>
         Counts how many times price raised for X% compared to previous day close. <br />
         LONG the CLOSE @ X DAYS DTE (or stocks at leverage)  <br />
-          Data in cells are % for period (header) analysis is made from
+        Data in cells are % for period (header) analysis is made from. <br />
+        If it says 80, that means 80% of column it is in (50D) which is 40/50 days
       </Text>
 
       {mode === 'single' ? (
