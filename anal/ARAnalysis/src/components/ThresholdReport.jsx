@@ -320,6 +320,8 @@ function OptionsChainTable({ chain, currentPrice }) {
   )
 }
 
+const PAGE_SIZE = 20
+
 // Multi-symbol ranking report
 function MultiSymbolReport() {
   const [allResults, setAllResults] = useState(null)
@@ -332,6 +334,7 @@ function MultiSymbolReport() {
   const [expandedRows, setExpandedRows] = useState({}) // symbol -> true/false
   const [optionsData, setOptionsData] = useState({}) // symbol -> options chain data
   const [loadingOptions, setLoadingOptions] = useState({}) // symbol -> true/false
+  const [currentPage, setCurrentPage] = useState(1)
 
   // Load watchgroups on mount
   useEffect(() => {
@@ -439,6 +442,19 @@ function MultiSymbolReport() {
     })
   }, [allResults, selectedThreshold, selectedPeriod])
 
+  // Pagination
+  const totalPages = sortedResults ? Math.ceil(sortedResults.length / PAGE_SIZE) : 0
+  const paginatedResults = useMemo(() => {
+    if (!sortedResults) return null
+    const startIdx = (currentPage - 1) * PAGE_SIZE
+    return sortedResults.slice(startIdx, startIdx + PAGE_SIZE)
+  }, [sortedResults, currentPage])
+
+  // Reset to page 1 when results change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [allResults, selectedThreshold, selectedPeriod])
+
   const selectedGroup = watchgroups.find(g => g.id === selectedGroupId)
 
   if (watchgroups.length === 0) {
@@ -514,7 +530,7 @@ function MultiSymbolReport() {
         </HStack>
       )}
 
-      {sortedResults && (
+      {paginatedResults && (
         <Box overflowX="auto">
           <Table variant="simple" size="sm">
             <Thead>
@@ -522,7 +538,7 @@ function MultiSymbolReport() {
                 <Th color="gray.400" borderColor="gray.600" rowSpan={2}></Th>
                 <Th color="gray.400" borderColor="gray.600" rowSpan={2}>#</Th>
                 <Th color="gray.400" borderColor="gray.600" rowSpan={2}>Symbol</Th>
-                <Th color="gray.400" borderColor="gray.600" rowSpan={2} textAlign="right">Price</Th>
+                <Th color="gray.400" borderColor="gray.600" rowSpan={2} textAlign="right">Last Day Close</Th>
                 <Th
                   color="cyan.300"
                   bg="cyan.900"
@@ -599,11 +615,12 @@ function MultiSymbolReport() {
               </Tr>
             </Thead>
             <Tbody>
-              {sortedResults.map((item, idx) => {
+              {paginatedResults.map((item, idx) => {
                 const isExpanded = expandedRows[item.symbol]
                 const chainData = optionsData[item.symbol]
                 const isLoadingChain = loadingOptions[item.symbol]
                 const totalCols = 4 + CHANGE_PERIODS.length + THRESHOLDS.length + (TIME_PERIODS.length * THRESHOLDS.length)
+                const globalIdx = (currentPage - 1) * PAGE_SIZE + idx + 1
 
                 return (
                   <Fragment key={item.symbol}>
@@ -618,7 +635,7 @@ function MultiSymbolReport() {
                         />
                       </Td>
                       <Td borderColor="gray.600" color="gray.500" fontSize="xs">
-                        {idx + 1}
+                        {globalIdx}
                       </Td>
                       <Td borderColor="gray.600" fontWeight="medium" color="gray.200">
                         {item.symbol}
@@ -701,6 +718,29 @@ function MultiSymbolReport() {
               })}
             </Tbody>
           </Table>
+
+          {/* Pagination controls */}
+          {totalPages > 1 && (
+            <HStack justify="center" mt={4} spacing={4}>
+              <Button
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                isDisabled={currentPage === 1}
+              >
+                Previous
+              </Button>
+              <Text color="gray.300" fontSize="sm">
+                Page {currentPage} of {totalPages} ({sortedResults.length} tickers)
+              </Text>
+              <Button
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                isDisabled={currentPage === totalPages}
+              >
+                Next
+              </Button>
+            </HStack>
+          )}
         </Box>
       )}
     </Box>
