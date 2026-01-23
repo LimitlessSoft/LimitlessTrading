@@ -42,6 +42,26 @@ db.version(5).stores({
   analysisPresets: '++id, name'
 })
 
+db.version(6).stores({
+  securities: 'symbol, name, exchange',
+  priceData: '++id, [symbol+interval+timestamp], symbol, interval, timestamp',
+  settings: 'key',
+  favorites: 'symbol',
+  conditionalFormats: '++id, name, enabled, groupId',
+  formatGroups: '++id, name',
+  analysisPresets: '++id, name',
+  watchgroups: '++id, name',
+  watchgroupMembers: '++id, [groupId+symbol], groupId, symbol'
+}).upgrade(async tx => {
+  // Migrate existing favorites to a "Favorites" watchgroup
+  const favorites = await tx.table('favorites').toArray()
+  if (favorites.length > 0) {
+    const groupId = await tx.table('watchgroups').add({ name: 'Favorites' })
+    const members = favorites.map(f => ({ groupId, symbol: f.symbol }))
+    await tx.table('watchgroupMembers').bulkAdd(members)
+  }
+})
+
 // Helper functions
 
 export async function getSetting(key) {
@@ -193,6 +213,64 @@ export async function updateAnalysisPreset(id, updates) {
 
 export async function deleteAnalysisPreset(id) {
   return db.analysisPresets.delete(id)
+}
+
+// Watchgroups management
+export async function getWatchgroups() {
+  return db.watchgroups.toArray()
+}
+
+export async function createWatchgroup(name) {
+  return db.watchgroups.add({ name })
+}
+
+export async function renameWatchgroup(id, name) {
+  return db.watchgroups.update(id, { name })
+}
+
+export async function deleteWatchgroup(id) {
+  // Delete all members in this group
+  await db.watchgroupMembers.where({ groupId: id }).delete()
+  return db.watchgroups.delete(id)
+}
+
+export async function getWatchgroupSymbols(groupId) {
+  const members = await db.watchgroupMembers.where({ groupId }).toArray()
+  return members.map(m => m.symbol)
+}
+
+export async function addToWatchgroup(groupId, symbol) {
+  const upperSymbol = symbol.toUpperCase()
+  // Check if already exists
+  const existing = await db.watchgroupMembers
+    .where({ groupId, symbol: upperSymbol })
+    .first()
+  if (!existing) {
+    await db.watchgroupMembers.add({ groupId, symbol: upperSymbol })
+  }
+}
+
+export async function removeFromWatchgroup(groupId, symbol) {
+  const upperSymbol = symbol.toUpperCase()
+  await db.watchgroupMembers
+    .where({ groupId, symbol: upperSymbol })
+    .delete()
+}
+
+export async function getSymbolWatchgroups(symbol) {
+  const upperSymbol = symbol.toUpperCase()
+  const members = await db.watchgroupMembers.where({ symbol: upperSymbol }).toArray()
+  const groupIds = members.map(m => m.groupId)
+  if (groupIds.length === 0) return []
+  return db.watchgroups.where('id').anyOf(groupIds).toArray()
+}
+
+export async function getActiveWatchgroup() {
+  return getSetting('activeWatchgroup')
+}
+
+export async function setActiveWatchgroup(groupId) {
+  return setSetting('activeWatchgroup', groupId)
 }
 
 export default db

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Input,
   Select,
@@ -6,34 +6,79 @@ import {
   InputLeftAddon,
   HStack,
   IconButton,
-  Tooltip
+  Tooltip,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  Button,
+  Box
 } from '@chakra-ui/react'
-import { StarIcon } from '@chakra-ui/icons'
-import { getFavorites, addFavorite, removeFavorite, isFavorite } from '../db/database'
+import { StarIcon, EditIcon, ChevronDownIcon } from '@chakra-ui/icons'
+import {
+  getWatchgroups,
+  getWatchgroupSymbols,
+  addToWatchgroup,
+  removeFromWatchgroup,
+  getSymbolWatchgroups,
+  getActiveWatchgroup,
+  setActiveWatchgroup
+} from '../db/database'
+import WatchgroupManager from './WatchgroupManager'
 
 function SecurityPicker({ value, onChange, securities }) {
   const [inputValue, setInputValue] = useState(value)
-  const [favorites, setFavorites] = useState([])
-  const [isCurrentFavorite, setIsCurrentFavorite] = useState(false)
+  const [isInActiveGroup, setIsInActiveGroup] = useState(false)
+  const [activeGroupId, setActiveGroupId] = useState(null)
+  const [activeGroupSymbols, setActiveGroupSymbols] = useState([])
+  const [watchgroups, setWatchgroups] = useState([])
+  const [refreshKey, setRefreshKey] = useState(0)
+  const managerRef = useRef(null)
 
-  // Load favorites on mount
+  // Load watchgroups and active group on mount
   useEffect(() => {
-    loadFavorites()
-  }, [])
+    loadWatchgroups()
+  }, [refreshKey])
 
-  // Check if current symbol is favorite when value changes
-  useEffect(() => {
-    if (value) {
-      isFavorite(value).then(setIsCurrentFavorite)
+  const loadWatchgroups = async () => {
+    const groups = await getWatchgroups()
+    setWatchgroups(groups)
+
+    const savedActiveGroup = await getActiveWatchgroup()
+    if (savedActiveGroup && groups.some(g => g.id === savedActiveGroup)) {
+      setActiveGroupId(savedActiveGroup)
+    } else if (groups.length > 0) {
+      setActiveGroupId(groups[0].id)
+      await setActiveWatchgroup(groups[0].id)
     } else {
-      setIsCurrentFavorite(false)
+      setActiveGroupId(null)
     }
+  }
+
+  // Sync input when value prop changes
+  useEffect(() => {
+    setInputValue(value)
   }, [value])
 
-  const loadFavorites = async () => {
-    const favs = await getFavorites()
-    setFavorites(favs)
-  }
+  // Check if current symbol is in the active watchgroup
+  useEffect(() => {
+    if (value && activeGroupId) {
+      getSymbolWatchgroups(value).then(groups => {
+        setIsInActiveGroup(groups.some(g => g.id === activeGroupId))
+      })
+    } else {
+      setIsInActiveGroup(false)
+    }
+  }, [value, activeGroupId, refreshKey])
+
+  // Load symbols in the active watchgroup
+  useEffect(() => {
+    if (activeGroupId) {
+      getWatchgroupSymbols(activeGroupId).then(setActiveGroupSymbols)
+    } else {
+      setActiveGroupSymbols([])
+    }
+  }, [activeGroupId, refreshKey])
 
   const handleInputChange = (e) => {
     setInputValue(e.target.value.toUpperCase())
@@ -51,26 +96,38 @@ function SecurityPicker({ value, onChange, securities }) {
     }
   }
 
-  const handleSelectChange = (e) => {
-    const symbol = e.target.value
-    if (symbol) {
-      setInputValue(symbol)
-      onChange(symbol)
-    }
+  const handleSymbolSelect = (symbol) => {
+    setInputValue(symbol)
+    onChange(symbol)
   }
 
-  const handleToggleFavorite = async () => {
-    if (!value) return
+  const handleToggleWatchgroup = async () => {
+    if (!value || !activeGroupId) return
 
-    if (isCurrentFavorite) {
-      await removeFavorite(value)
-      setIsCurrentFavorite(false)
+    if (isInActiveGroup) {
+      await removeFromWatchgroup(activeGroupId, value)
+      setIsInActiveGroup(false)
+      setActiveGroupSymbols(prev => prev.filter(s => s !== value.toUpperCase()))
     } else {
-      await addFavorite(value)
-      setIsCurrentFavorite(true)
+      await addToWatchgroup(activeGroupId, value)
+      setIsInActiveGroup(true)
+      setActiveGroupSymbols(prev => [...prev, value.toUpperCase()])
     }
-    loadFavorites()
   }
+
+  const handleActiveGroupChange = (groupId) => {
+    setActiveGroupId(groupId)
+  }
+
+  const handleGroupsChange = () => {
+    setRefreshKey(k => k + 1)
+  }
+
+  const handleOpenManager = () => {
+    managerRef.current?.open()
+  }
+
+  const activeGroup = watchgroups.find(g => g.id === activeGroupId)
 
   return (
     <HStack spacing={2}>
@@ -97,42 +154,75 @@ function SecurityPicker({ value, onChange, securities }) {
         />
       </InputGroup>
 
-      <Tooltip label={isCurrentFavorite ? 'Remove from favorites' : 'Add to favorites'}>
+      <Tooltip label={
+        !activeGroupId
+          ? 'Select a watchgroup first'
+          : isInActiveGroup
+            ? 'Remove from watchgroup'
+            : 'Add to watchgroup'
+      }>
         <IconButton
-          aria-label="Toggle favorite"
+          aria-label="Toggle watchgroup"
           icon={<StarIcon />}
           size="md"
           variant="outline"
-          colorScheme={isCurrentFavorite ? 'yellow' : 'gray'}
-          color={isCurrentFavorite ? 'yellow.400' : 'gray.500'}
-          borderColor={isCurrentFavorite ? 'yellow.400' : 'gray.600'}
-          onClick={handleToggleFavorite}
-          isDisabled={!value}
+          colorScheme={isInActiveGroup ? 'yellow' : 'gray'}
+          color={isInActiveGroup ? 'yellow.400' : 'gray.500'}
+          borderColor={isInActiveGroup ? 'yellow.400' : 'gray.600'}
+          onClick={handleToggleWatchgroup}
+          isDisabled={!value || !activeGroupId}
           _hover={{
-            borderColor: isCurrentFavorite ? 'yellow.300' : 'gray.500',
-            color: isCurrentFavorite ? 'yellow.300' : 'gray.400'
+            borderColor: isInActiveGroup ? 'yellow.300' : 'gray.500',
+            color: isInActiveGroup ? 'yellow.300' : 'gray.400'
           }}
         />
       </Tooltip>
 
-      {favorites.length > 0 && (
-        <Select
-          placeholder="Favorites"
-          size="md"
-          w="140px"
-          value=""
-          onChange={handleSelectChange}
-          bg="gray.800"
-          borderColor="gray.600"
-          _hover={{ borderColor: 'gray.500' }}
-        >
-          {favorites.map(symbol => (
-            <option key={symbol} value={symbol}>
-              {symbol}
-            </option>
-          ))}
-        </Select>
-      )}
+      <HStack spacing={0}>
+        <Menu>
+          <MenuButton
+            as={Button}
+            size="md"
+            variant="outline"
+            colorScheme={activeGroupId ? 'yellow' : 'gray'}
+            rightIcon={<ChevronDownIcon />}
+            borderRightRadius={0}
+            minW="130px"
+          >
+            {activeGroup?.name || 'No Group'}
+          </MenuButton>
+          <MenuList bg="gray.700" maxH="300px" overflowY="auto">
+            {activeGroupSymbols.length > 0 ? (
+              activeGroupSymbols.map(symbol => (
+                <MenuItem
+                  key={symbol}
+                  bg="transparent"
+                  _hover={{ bg: 'gray.600' }}
+                  onClick={() => handleSymbolSelect(symbol)}
+                >
+                  {symbol}
+                </MenuItem>
+              ))
+            ) : (
+              <MenuItem isDisabled bg="transparent">
+                {activeGroupId ? 'No symbols in group' : 'Select a watchgroup'}
+              </MenuItem>
+            )}
+          </MenuList>
+        </Menu>
+        <Tooltip label="Manage watchgroups">
+          <IconButton
+            aria-label="Manage watchgroups"
+            icon={<EditIcon />}
+            size="md"
+            variant="outline"
+            colorScheme="yellow"
+            borderLeftRadius={0}
+            borderLeft="none"
+            onClick={handleOpenManager}
+          />
+        </Tooltip>
+      </HStack>
 
       {securities.length > 0 && (
         <Select
@@ -140,7 +230,7 @@ function SecurityPicker({ value, onChange, securities }) {
           size="md"
           w="120px"
           value=""
-          onChange={handleSelectChange}
+          onChange={(e) => handleSymbolSelect(e.target.value)}
           bg="gray.800"
           borderColor="gray.600"
           _hover={{ borderColor: 'gray.500' }}
@@ -152,6 +242,12 @@ function SecurityPicker({ value, onChange, securities }) {
           ))}
         </Select>
       )}
+
+      <WatchgroupManager
+        ref={managerRef}
+        onActiveGroupChange={handleActiveGroupChange}
+        onGroupsChange={handleGroupsChange}
+      />
     </HStack>
   )
 }
