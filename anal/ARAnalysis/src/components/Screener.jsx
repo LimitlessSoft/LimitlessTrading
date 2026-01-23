@@ -251,33 +251,50 @@ function Screener() {
     setLoading(true)
     setResults(null)
     setProgress({ current: 0, total: validSymbols.length, failed: 0 })
+
     const matches = []
+    let completedCount = 0
     let failedCount = 0
+    const BATCH_SIZE = 10 // Parallel requests per batch
 
-    for (let i = 0; i < validSymbols.length; i++) {
-      const symbol = validSymbols[i]
+    // Process symbols in parallel batches
+    for (let batchStart = 0; batchStart < validSymbols.length; batchStart += BATCH_SIZE) {
+      const batchEnd = Math.min(batchStart + BATCH_SIZE, validSymbols.length)
+      const batch = validSymbols.slice(batchStart, batchEnd)
 
-      try {
-        const data = await fetchForScreener(symbol)
-        if (data && data.length >= 2) {
-          const metrics = calculateMetrics(data)
-          if (metrics) {
-            metrics.symbol = symbol
-            // Check all conditions (AND logic)
-            const passesAll = conditions.every(cond => passesCondition(metrics, cond))
-            if (passesAll) {
-              matches.push(metrics)
+      // Fetch all symbols in batch in parallel
+      const batchResults = await Promise.all(
+        batch.map(async (symbol) => {
+          try {
+            const data = await fetchForScreener(symbol)
+            if (data && data.length >= 2) {
+              const metrics = calculateMetrics(data)
+              if (metrics) {
+                metrics.symbol = symbol
+                // Check all conditions (AND logic)
+                const passesAll = conditions.every(cond => passesCondition(metrics, cond))
+                return { success: true, match: passesAll ? metrics : null }
+              }
             }
+            return { success: false }
+          } catch (err) {
+            console.error(`Failed to screen ${symbol}:`, err.message)
+            return { success: false }
           }
-        } else {
+        })
+      )
+
+      // Process batch results
+      for (const result of batchResults) {
+        completedCount++
+        if (!result.success) {
           failedCount++
+        } else if (result.match) {
+          matches.push(result.match)
         }
-      } catch (err) {
-        console.error(`Failed to screen ${symbol}:`, err.message)
-        failedCount++
       }
 
-      setProgress({ current: i + 1, total: validSymbols.length, failed: failedCount })
+      setProgress({ current: completedCount, total: validSymbols.length, failed: failedCount })
     }
 
     setResults(matches)
