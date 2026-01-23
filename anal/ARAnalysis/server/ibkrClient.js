@@ -1,6 +1,14 @@
 import pkg from '@stoqey/ib'
 const { IBApi, EventName, SecType } = pkg
 
+// Index symbols that need special contract handling
+const INDEX_SYMBOLS = {
+  'VIX': { exchange: 'CBOE', whatToShow: 'TRADES' },
+  'SPX': { exchange: 'CBOE', whatToShow: 'TRADES' },
+  'NDX': { exchange: 'NASDAQ', whatToShow: 'TRADES' },
+  'DJX': { exchange: 'CBOE', whatToShow: 'TRADES' }
+}
+
 let ib = null
 let connectionState = {
   connected: false,
@@ -93,14 +101,22 @@ export async function getHistoricalData(symbol, barSize = '1 day', duration = '1
     const reqId = nextRequestId++
     const bars = []
 
-    const contract = {
+    // Check if symbol is an index
+    const indexConfig = INDEX_SYMBOLS[symbol.toUpperCase()]
+    const contract = indexConfig ? {
+      symbol,
+      secType: SecType.IND,
+      exchange: indexConfig.exchange,
+      currency: 'USD'
+    } : {
       symbol,
       secType: SecType.STK,
       exchange: 'SMART',
       currency: 'USD'
     }
 
-    const whatToShow = 'TRADES'
+    // Indices may need different data type
+    const whatToShow = indexConfig?.whatToShow || 'TRADES'
     const useRTH = 1 // Regular trading hours only
     const formatDate = 1 // 1 = yyyyMMdd HH:mm:ss format
 

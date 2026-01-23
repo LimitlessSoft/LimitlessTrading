@@ -54,7 +54,19 @@ const COLUMNS = [
   { value: 'close', label: 'Close' },
   { value: 'volume', label: 'Volume' },
   { value: 'change', label: 'Change (Close - Open)' },
-  { value: 'changePercent', label: 'Change %' }
+  { value: 'changePercent', label: 'Change %' },
+  { value: 'gap', label: 'Gap %' },
+  { value: 'highVsPrevClose', label: 'High vs Prev Close %' },
+  { value: 'lowVsPrevClose', label: 'Low vs Prev Close %' },
+  { value: 'first5m', label: 'First 5min %' },
+  { value: 'first10m', label: 'First 10min %' },
+  { value: 'first15m', label: 'First 15min %' },
+  { value: 'first30m', label: 'First 30min %' },
+  { value: 'first1h', label: 'First 1hr %' },
+  { value: 'vixOpen', label: 'VIX Open' },
+  { value: 'vixClose', label: 'VIX Close' },
+  { value: 'prevVixOpen', label: 'Prev VIX Open' },
+  { value: 'prevVixClose', label: 'Prev VIX Close' }
 ]
 
 const OPERATORS = [
@@ -78,11 +90,31 @@ const COMPARE_OPTIONS = [
   { value: 'low', label: 'Low' },
   { value: 'close', label: 'Close' },
   { value: 'volume', label: 'Volume' },
+  { value: 'gap', label: 'Gap %' },
+  { value: 'highVsPrevClose', label: 'High vs Prev Close %' },
+  { value: 'lowVsPrevClose', label: 'Low vs Prev Close %' },
+  { value: 'first5m', label: 'First 5min %' },
+  { value: 'first10m', label: 'First 10min %' },
+  { value: 'first15m', label: 'First 15min %' },
+  { value: 'first30m', label: 'First 30min %' },
+  { value: 'first1h', label: 'First 1hr %' },
+  { value: 'vixOpen', label: 'VIX Open' },
+  { value: 'vixClose', label: 'VIX Close' },
   { value: 'prevOpen', label: 'Prev Open' },
   { value: 'prevHigh', label: 'Prev High' },
   { value: 'prevLow', label: 'Prev Low' },
   { value: 'prevClose', label: 'Prev Close' },
-  { value: 'prevVolume', label: 'Prev Volume' }
+  { value: 'prevVolume', label: 'Prev Volume' },
+  { value: 'prevGap', label: 'Prev Gap %' },
+  { value: 'prevHighVsPrevClose', label: 'Prev High vs Prev Close %' },
+  { value: 'prevLowVsPrevClose', label: 'Prev Low vs Prev Close %' },
+  { value: 'prevFirst5m', label: 'Prev First 5min %' },
+  { value: 'prevFirst10m', label: 'Prev First 10min %' },
+  { value: 'prevFirst15m', label: 'Prev First 15min %' },
+  { value: 'prevFirst30m', label: 'Prev First 30min %' },
+  { value: 'prevFirst1h', label: 'Prev First 1hr %' },
+  { value: 'prevVixOpen', label: 'Prev VIX Open' },
+  { value: 'prevVixClose', label: 'Prev VIX Close' }
 ]
 
 const PRESET_COLORS = [
@@ -114,7 +146,7 @@ const DEFAULT_RULE = {
   }
 }
 
-function ConditionalFormatManager({ onRulesChange }) {
+function ConditionalFormatManager({ onRulesChange, clearRef }) {
   const { isOpen, onOpen, onClose } = useDisclosure()
   const [rules, setRules] = useState([])
   const [groups, setGroups] = useState([])
@@ -131,10 +163,22 @@ function ConditionalFormatManager({ onRulesChange }) {
   }, [])
 
   useEffect(() => {
-    if (activeGroupId !== null) {
-      loadRules()
-    }
+    loadRules()
   }, [activeGroupId])
+
+  // Expose clear function to parent via ref
+  useEffect(() => {
+    if (clearRef) {
+      clearRef.current = {
+        clearSelection: () => {
+          setActiveGroupId(null)
+          setActiveFormatGroup(null)
+          setRules([])
+          onRulesChange?.([])
+        }
+      }
+    }
+  }, [clearRef, onRulesChange])
 
   const loadGroups = async () => {
     const loadedGroups = await getFormatGroups()
@@ -143,10 +187,8 @@ function ConditionalFormatManager({ onRulesChange }) {
     const savedActiveGroup = await getActiveFormatGroup()
     if (savedActiveGroup && loadedGroups.some(g => g.id === savedActiveGroup)) {
       setActiveGroupId(savedActiveGroup)
-    } else if (loadedGroups.length > 0) {
-      setActiveGroupId(loadedGroups[0].id)
-      await setActiveFormatGroup(loadedGroups[0].id)
     } else {
+      // Default to None (no formatting)
       setActiveGroupId(null)
       onRulesChange?.([])
     }
