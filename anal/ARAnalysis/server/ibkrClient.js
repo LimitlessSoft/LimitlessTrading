@@ -418,6 +418,110 @@ function parseIBKRDate(dateStr) {
   }
 }
 
+// Get current/last price for a symbol (single attempt)
+async function getCurrentPriceOnce(symbol) {
+  if (!ib || !connectionState.connected) {
+    throw new Error('Not connected to IBKR')
+  }
+
+  return new Promise((resolve) => {
+    const reqId = nextRequestId++
+
+    // Check if symbol is an index
+    const indexConfig = INDEX_SYMBOLS[symbol.toUpperCase()]
+    const contract = indexConfig ? {
+      symbol,
+      secType: SecType.IND,
+      exchange: indexConfig.exchange,
+      currency: 'USD'
+    } : {
+      symbol,
+      secType: SecType.STK,
+      exchange: 'SMART',
+      currency: 'USD'
+    }
+
+    let lastPrice = null
+    let resolved = false
+
+    const onTickPrice = (rId, tickType, price) => {
+      if (rId !== reqId) return
+      // tickType 4 = last price, 9 = close price
+      if (tickType === 4 && price > 0) {
+        lastPrice = price
+      } else if (tickType === 9 && price > 0 && lastPrice === null) {
+        lastPrice = price // Use close if no last price yet
+      }
+    }
+
+    const cleanup = () => {
+      if (resolved) return
+      resolved = true
+      try { ib.off(EventName.tickPrice, onTickPrice) } catch (e) {}
+      pendingRequests.delete(reqId)
+      try { ib.cancelMktData(reqId) } catch (e) {}
+    }
+
+    pendingRequests.set(reqId, { resolve })
+    ib.on(EventName.tickPrice, onTickPrice)
+
+    // Wait 1.5 seconds for price data then return
+    setTimeout(() => {
+      if (!resolved) {
+        cleanup()
+        resolve(lastPrice)
+      }
+    }, 1500)
+
+    try {
+      ib.reqMktData(reqId, contract, '', false, false, [])
+    } catch (err) {
+      cleanup()
+      resolve(null)
+    }
+  })
+}
+
+// Get current/last price for a symbol with retry
+export async function getCurrentPrice(symbol, maxRetries = 2) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const price = await getCurrentPriceOnce(symbol)
+    if (price !== null) {
+      return price
+    }
+    if (attempt < maxRetries) {
+      await sleep(300) // Small delay before retry
+    }
+  }
+  return null
+}
+
+// Get current prices for multiple symbols in parallel
+export async function getCurrentPrices(symbols) {
+  const BATCH_SIZE = 10
+  const results = {}
+
+  for (let i = 0; i < symbols.length; i += BATCH_SIZE) {
+    const batch = symbols.slice(i, i + BATCH_SIZE)
+    const batchPromises = batch.map(async (symbol) => {
+      const price = await getCurrentPrice(symbol)
+      return { symbol, price }
+    })
+
+    const batchResults = await Promise.all(batchPromises)
+    batchResults.forEach(({ symbol, price }) => {
+      results[symbol] = price
+    })
+
+    // Small delay between batches
+    if (i + BATCH_SIZE < symbols.length) {
+      await sleep(200)
+    }
+  }
+
+  return results
+}
+
 // Get options chain for a symbol
 export async function getOptionsChain(symbol, currentPrice) {
   if (!ib || !connectionState.connected) {

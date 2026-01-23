@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { connect, disconnect, getHistoricalData, getConnectionStatus, getOptionsChain } from '../ibkrClient.js'
+import { connect, disconnect, getHistoricalData, getConnectionStatus, getOptionsChain, getCurrentPrices } from '../ibkrClient.js'
 
 const router = Router()
 
@@ -105,6 +105,23 @@ router.get('/historical/:symbol/chunk', async (req, res) => {
       daysPerChunk: parseDurationToDays(config.duration)
     })
   } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Get current prices for multiple symbols
+router.post('/current-prices', async (req, res) => {
+  const { symbols } = req.body
+
+  if (!symbols || !Array.isArray(symbols) || symbols.length === 0) {
+    return res.status(400).json({ error: 'Symbols array is required' })
+  }
+
+  try {
+    const prices = await getCurrentPrices(symbols.map(s => s.toUpperCase()))
+    res.json(prices)
+  } catch (error) {
+    console.error('Current prices error:', error)
     res.status(500).json({ error: error.message })
   }
 })

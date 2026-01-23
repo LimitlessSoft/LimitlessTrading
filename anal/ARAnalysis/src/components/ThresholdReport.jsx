@@ -16,10 +16,11 @@ import {
   Spinner,
   VStack,
   IconButton,
-  Collapse
+  Collapse,
+  Tooltip
 } from '@chakra-ui/react'
-import { ChevronDownIcon, ChevronRightIcon } from '@chakra-ui/icons'
-import { fetchFromCache, fetchOptionsChain } from '../modules/dataService'
+import { ChevronDownIcon, ChevronRightIcon, WarningIcon } from '@chakra-ui/icons'
+import { fetchFromCache, fetchOptionsChain, fetchCurrentPrices } from '../modules/dataService'
 import { getWatchgroups, getWatchgroupSymbols, getActiveWatchgroup } from '../db/database'
 
 // Time periods in trading days
@@ -335,6 +336,8 @@ function MultiSymbolReport() {
   const [optionsData, setOptionsData] = useState({}) // symbol -> options chain data
   const [loadingOptions, setLoadingOptions] = useState({}) // symbol -> true/false
   const [currentPage, setCurrentPage] = useState(1)
+  const [currentPrices, setCurrentPrices] = useState({}) // symbol -> { price, fetchedAt }
+  const [loadingPrices, setLoadingPrices] = useState(false)
 
   // Load watchgroups on mount
   useEffect(() => {
@@ -398,6 +401,27 @@ function MultiSymbolReport() {
 
     setAllResults(results)
     setLoading(false)
+  }
+
+  // Fetch current/live prices for visible (paginated) symbols only
+  const fetchLivePrices = async () => {
+    if (!paginatedResults || paginatedResults.length === 0) return
+
+    setLoadingPrices(true)
+    try {
+      const symbols = paginatedResults.map(r => r.symbol)
+      const prices = await fetchCurrentPrices(symbols)
+      const now = Date.now()
+      // Store prices with timestamp
+      const pricesWithTime = {}
+      Object.entries(prices).forEach(([symbol, price]) => {
+        pricesWithTime[symbol] = { price, fetchedAt: now }
+      })
+      setCurrentPrices(prev => ({ ...prev, ...pricesWithTime }))
+    } catch (err) {
+      console.error('Failed to fetch live prices:', err)
+    }
+    setLoadingPrices(false)
   }
 
   // Toggle row expansion and fetch options chain
@@ -497,6 +521,15 @@ function MultiSymbolReport() {
 
         {allResults && (
           <HStack>
+            <Button
+              colorScheme="green"
+              size="sm"
+              onClick={fetchLivePrices}
+              isLoading={loadingPrices}
+              isDisabled={!paginatedResults || paginatedResults.length === 0}
+            >
+              Refresh Prices ({paginatedResults?.length || 0})
+            </Button>
             <Text fontSize="sm" color="gray.400">Threshold:</Text>
             <Select
               size="sm"
@@ -546,7 +579,16 @@ function MultiSymbolReport() {
                   textAlign="center"
                   colSpan={CHANGE_PERIODS.length}
                 >
-                  Change %
+                  Last Day Change %
+                </Th>
+                <Th
+                  color="green.300"
+                  bg="green.900"
+                  borderColor="gray.500"
+                  textAlign="center"
+                  rowSpan={2}
+                >
+                  Current Price
                 </Th>
                 <Th
                   color="purple.300"
@@ -619,7 +661,7 @@ function MultiSymbolReport() {
                 const isExpanded = expandedRows[item.symbol]
                 const chainData = optionsData[item.symbol]
                 const isLoadingChain = loadingOptions[item.symbol]
-                const totalCols = 4 + CHANGE_PERIODS.length + THRESHOLDS.length + (TIME_PERIODS.length * THRESHOLDS.length)
+                const totalCols = 4 + CHANGE_PERIODS.length + 1 + THRESHOLDS.length + (TIME_PERIODS.length * THRESHOLDS.length) // +1 for Current Price
                 const globalIdx = (currentPage - 1) * PAGE_SIZE + idx + 1
 
                 return (
@@ -654,13 +696,38 @@ function MultiSymbolReport() {
                           </Td>
                         )
                       })}
-                      {THRESHOLDS.map(t => (
-                        <Td key={`target-${t}`} bg="purple.900" borderColor="gray.600" textAlign="center" px={1}>
-                          <Text color="purple.200" fontSize="xs">
-                            {item.currentPrice ? `$${(item.currentPrice * (1 + t / 100)).toFixed(2)}` : '-'}
-                          </Text>
-                        </Td>
-                      ))}
+                      {/* Current Price */}
+                      {(() => {
+                        const priceData = currentPrices[item.symbol]
+                        const livePrice = priceData?.price
+                        const isStale = priceData?.fetchedAt && (Date.now() - priceData.fetchedAt > 5 * 60 * 1000)
+                        return (
+                          <Td bg="green.900" borderColor="gray.600" textAlign="right" px={2}>
+                            <HStack spacing={1} justify="flex-end">
+                              {isStale && (
+                                <Tooltip label="Price older than 5 min" fontSize="xs">
+                                  <WarningIcon color="yellow.400" boxSize={3} />
+                                </Tooltip>
+                              )}
+                              <Text color="green.200" fontSize="sm" fontWeight="medium">
+                                {livePrice ? `$${livePrice.toFixed(2)}` : '-'}
+                              </Text>
+                            </HStack>
+                          </Td>
+                        )
+                      })()}
+                      {/* Target Prices - use current price if available, otherwise last day close */}
+                      {THRESHOLDS.map(t => {
+                        const livePrice = currentPrices[item.symbol]?.price
+                        const basePrice = livePrice || item.currentPrice
+                        return (
+                          <Td key={`target-${t}`} bg="purple.900" borderColor="gray.600" textAlign="center" px={1}>
+                            <Text color="purple.200" fontSize="xs">
+                              {basePrice ? `$${(basePrice * (1 + t / 100)).toFixed(2)}` : '-'}
+                            </Text>
+                          </Td>
+                        )
+                      })}
                       {TIME_PERIODS.map((period, periodIdx) => {
                         const result = item.results?.[period.label]
                         const validDays = result?.validDays || 0
@@ -780,7 +847,9 @@ function ThresholdReport({ symbol, data }) {
           Counts how many times price raised for X% <b>compared to previous day close (high &gt; prev day close)</b>. <br />
         LONG at CLOSE @ X DAYS DTE (or stocks at leverage)  <br />
         Data in cells are % for period (header) analysis is made from. <br />
-        If it says 80, that means 80% of column it is in (50D) which is 40/50 days
+        If it says 80, that means 80% of column it is in (50D) which is 40/50 days. <br />
+        Before entering, make sure options have volume close to the price. <br />
+        If volume too low, bad to enter as hard to sell tomorrow.
       </Text>
 
       {mode === 'single' ? (

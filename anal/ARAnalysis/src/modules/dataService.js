@@ -520,6 +520,21 @@ export async function fetchOptionsChain(symbol, currentPrice) {
   }
 }
 
+// Fetch current prices for multiple symbols
+export async function fetchCurrentPrices(symbols) {
+  if (!symbols || !Array.isArray(symbols) || symbols.length === 0) {
+    return {}
+  }
+
+  try {
+    const response = await api.post('/current-prices', { symbols })
+    return response.data
+  } catch (err) {
+    console.error('Failed to fetch current prices:', err.message)
+    return {}
+  }
+}
+
 // Check for missing bars in the data
 // Data is sorted descending (newest first)
 
