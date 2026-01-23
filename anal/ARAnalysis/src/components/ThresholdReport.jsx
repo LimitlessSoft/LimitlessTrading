@@ -29,8 +29,29 @@ const TIME_PERIODS = [
   { label: '3yr', days: 756 }
 ]
 
+// Change periods in trading days
+const CHANGE_PERIODS = [
+  { label: '1d', days: 1 },
+  { label: '2d', days: 2 },
+  { label: '3d', days: 3 },
+  { label: '5d', days: 5 },
+  { label: '1mo', days: 21 }
+]
+
 // Thresholds to check (upside only)
 const THRESHOLDS = [0.3, 0.5, 0.8, 1.0]
+
+// Calculate percentage change from N trading days ago
+function calculateChange(data, tradingDays) {
+  if (!data || data.length <= tradingDays) return null
+
+  const currentClose = data[0]?.close
+  const pastClose = data[tradingDays]?.close
+
+  if (!currentClose || !pastClose || pastClose === 0) return null
+
+  return ((currentClose - pastClose) / pastClose) * 100
+}
 
 // Analyze how many times price hit thresholds within a given period
 function analyzeThresholds(data, numDays) {
@@ -218,12 +239,18 @@ function MultiSymbolReport() {
           TIME_PERIODS.forEach(period => {
             periodResults[period.label] = analyzeThresholds(data, period.days)
           })
+          // Calculate changes for each period
+          const changes = {}
+          CHANGE_PERIODS.forEach(period => {
+            changes[period.label] = calculateChange(data, period.days)
+          })
           // Get current price (latest bar's close)
           const latestBar = data[0]
           const currentPrice = latestBar?.close || null
           results.push({
             symbol: symbol,
             results: periodResults,
+            changes,
             dataLength: data.length,
             currentPrice
           })
@@ -338,6 +365,15 @@ function MultiSymbolReport() {
                 <Th color="gray.400" borderColor="gray.600" rowSpan={2}>Symbol</Th>
                 <Th color="gray.400" borderColor="gray.600" rowSpan={2} textAlign="right">Price</Th>
                 <Th
+                  color="cyan.300"
+                  bg="cyan.900"
+                  borderColor="gray.500"
+                  textAlign="center"
+                  colSpan={CHANGE_PERIODS.length}
+                >
+                  Change %
+                </Th>
+                <Th
                   color="purple.300"
                   bg="purple.900"
                   borderColor="gray.500"
@@ -360,6 +396,19 @@ function MultiSymbolReport() {
                 ))}
               </Tr>
               <Tr>
+                {CHANGE_PERIODS.map(p => (
+                  <Th
+                    key={`change-${p.label}`}
+                    color="cyan.300"
+                    bg="cyan.900"
+                    borderColor="gray.500"
+                    textAlign="center"
+                    fontSize="xs"
+                    px={1}
+                  >
+                    {p.label}
+                  </Th>
+                ))}
                 {THRESHOLDS.map(t => (
                   <Th
                     key={`target-${t}`}
@@ -403,6 +452,17 @@ function MultiSymbolReport() {
                     <Td borderColor="gray.600" color="gray.300" textAlign="right" fontSize="sm">
                       {item.currentPrice ? `$${item.currentPrice.toFixed(2)}` : '-'}
                     </Td>
+                    {CHANGE_PERIODS.map(p => {
+                      const change = item.changes?.[p.label]
+                      const color = change === null ? 'gray.500' : change >= 0 ? 'green.300' : 'red.300'
+                      return (
+                        <Td key={`change-${p.label}`} bg="cyan.900" borderColor="gray.600" textAlign="center" px={1}>
+                          <Text color={color} fontSize="xs" fontWeight="medium">
+                            {change !== null ? `${change >= 0 ? '+' : ''}${change.toFixed(1)}%` : '-'}
+                          </Text>
+                        </Td>
+                      )
+                    })}
                     {THRESHOLDS.map(t => (
                       <Td key={`target-${t}`} bg="purple.900" borderColor="gray.600" textAlign="center" px={1}>
                         <Text color="purple.200" fontSize="xs">
@@ -479,8 +539,8 @@ function ThresholdReport({ symbol, data }) {
       </HStack>
 
       <Text fontSize="sm" color="gray.400" mb={4}>
-        Counts how many times price raised for X% compared to previous day close. <br />
-        LONG the CLOSE @ X DAYS DTE (or stocks at leverage)  <br />
+          Counts how many times price raised for X% <b>compared to previous day close (high > prev day close)</b>. <br />
+        LONG at CLOSE @ X DAYS DTE (or stocks at leverage)  <br />
         Data in cells are % for period (header) analysis is made from. <br />
         If it says 80, that means 80% of column it is in (50D) which is 40/50 days
       </Text>
