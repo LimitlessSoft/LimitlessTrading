@@ -193,7 +193,7 @@ function App() {
 
   return (
     <Box minH="100vh" bg="gray.900">
-      <FedCountdown />
+      <FedCountdown isConnected={connectionState.connected} />
       <Box px={4} py={4} pt="52px">
         <VStack spacing={4} align="stretch">
           {/* Header */}

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Box, HStack, Text, Badge } from '@chakra-ui/react'
+import { Box, HStack, Flex, Spacer, Text, Badge } from '@chakra-ui/react'
 import { getNextFomcDecision, formatFomcLabel, calculateCountdown } from '../modules/fomcService'
+import VixDisplay from './VixDisplay'
 
-function FedCountdown() {
+function FedCountdown({ isConnected }) {
   const [nextDecision, setNextDecision] = useState(null)
   const [countdown, setCountdown] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -36,23 +37,10 @@ function FedCountdown() {
     return () => clearInterval(interval)
   }, [nextDecision])
 
-  if (loading || !nextDecision || !countdown) {
-    return null
-  }
+  // Determine if we have a valid FOMC countdown to show
+  const showFomc = !loading && nextDecision && countdown && countdown.totalMs > 0
 
-  const isPast = countdown.totalMs <= 0
-  if (isPast) {
-    return null
-  }
-
-  // Urgency levels based on days remaining
-  const daysRemaining = countdown.totalMs / (24 * 60 * 60 * 1000)
-  const urgencyLevel =
-    daysRemaining < 1 ? 'critical' :    // < 24 hours - red
-    daysRemaining < 5 ? 'high' :        // < 5 days - orange
-    daysRemaining < 10 ? 'medium' :     // < 10 days - yellow
-    'normal'                            // 10+ days - blue
-
+  // Urgency levels based on days remaining (only calculated if showing FOMC)
   const styles = {
     critical: {
       bg: 'red.900',
@@ -80,7 +68,19 @@ function FedCountdown() {
     },
   }
 
-  const style = styles[urgencyLevel]
+  let style = styles.normal
+  let urgencyLevel = 'normal'
+
+  if (showFomc) {
+    const daysRemaining = countdown.totalMs / (24 * 60 * 60 * 1000)
+    urgencyLevel =
+      daysRemaining < 1 ? 'critical' :    // < 24 hours - red
+      daysRemaining < 5 ? 'high' :        // < 5 days - orange
+      daysRemaining < 10 ? 'medium' :     // < 10 days - yellow
+      'normal'                            // 10+ days - blue
+    style = styles[urgencyLevel]
+  }
+
   const formatNumber = (n) => String(n).padStart(2, '0')
 
   return (
@@ -96,27 +96,35 @@ function FedCountdown() {
       px={4}
       py={2}
     >
-      <HStack justify="center" spacing={3}>
-        <Badge
-          colorScheme={style.badgeScheme}
-          variant="solid"
-          px={3}
-          py={1}
-          borderRadius="md"
-          fontSize="sm"
-        >
-          {formatFomcLabel(nextDecision)}
-        </Badge>
-        <Text
-          color={style.textColor}
-          fontFamily="mono"
-          fontSize="md"
-          fontWeight="semibold"
-        >
-          {countdown.days > 0 && `${countdown.days}d `}
-          {formatNumber(countdown.hours)}h {formatNumber(countdown.minutes)}m {formatNumber(countdown.seconds)}s
-        </Text>
-      </HStack>
+      <Flex align="center">
+        {showFomc ? (
+          <HStack spacing={3}>
+            <Badge
+              colorScheme={style.badgeScheme}
+              variant="solid"
+              px={3}
+              py={1}
+              borderRadius="md"
+              fontSize="sm"
+            >
+              {formatFomcLabel(nextDecision)}
+            </Badge>
+            <Text
+              color={style.textColor}
+              fontFamily="mono"
+              fontSize="md"
+              fontWeight="semibold"
+            >
+              {countdown.days > 0 && `${countdown.days}d `}
+              {formatNumber(countdown.hours)}h {formatNumber(countdown.minutes)}m {formatNumber(countdown.seconds)}s
+            </Text>
+          </HStack>
+        ) : (
+          <Box />
+        )}
+        <Spacer />
+        <VixDisplay isConnected={isConnected} />
+      </Flex>
     </Box>
   )
 }
