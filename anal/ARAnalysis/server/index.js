@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import marketRoutes from './routes/market.js'
 import fomcRoutes from './routes/fomc.js'
+import treasuryRoutes from './routes/treasury.js'
 import { getConnectionStatus } from './ibkrClient.js'
 
 const app = express()
@@ -13,6 +14,7 @@ app.use(express.json())
 // API Routes
 app.use('/api', marketRoutes)
 app.use('/api/fomc', fomcRoutes)
+app.use('/api/treasury', treasuryRoutes)
 
 // Health check
 app.get('/health', (req, res) => {
