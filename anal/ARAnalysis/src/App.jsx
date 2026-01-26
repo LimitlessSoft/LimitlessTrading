@@ -30,11 +30,14 @@ import FedCountdown from './components/FedCountdown'
 import DataManager from './modules/DataManager'
 import {
   getConnectionStatus,
+  connectToIBKR,
+  getLastPort,
   fetchFromCache,
   loadHistoricalData,
   getCachedSecurities,
   INTERVALS
 } from './modules/dataService'
+import ConnectionDialog from './components/ConnectionDialog'
 
 function App() {
   const [selectedSymbol, setSelectedSymbol] = useState('')
@@ -44,6 +47,10 @@ function App() {
   const [loadProgress, setLoadProgress] = useState(0)
   const [connectionState, setConnectionState] = useState({ connected: false })
   const [securities, setSecurities] = useState([])
+  const [showConnectionDialog, setShowConnectionDialog] = useState(false)
+  const [connectionError, setConnectionError] = useState(null)
+  const [lastUsedPort, setLastUsedPort] = useState(7497)
+  const [initialConnectionAttempted, setInitialConnectionAttempted] = useState(false)
   const cancelRef = useRef(null)
   const toast = useToast()
 
@@ -137,13 +144,41 @@ function App() {
     cancelRef.current = cancel
   }, [connectionState.connected, cancelLoad, loadSecurities, toast])
 
-  // Initial load and connection status polling
+  // Auto-connect on startup
   useEffect(() => {
-    refreshConnectionStatus()
+    const autoConnect = async () => {
+      if (initialConnectionAttempted) return
+      setInitialConnectionAttempted(true)
+
+      // Get last used port from storage
+      const savedPort = await getLastPort()
+      const port = savedPort || 7497
+      setLastUsedPort(port)
+
+      try {
+        const status = await connectToIBKR(port)
+        setConnectionState(status)
+        if (!status.connected) {
+          setConnectionError(status.error || 'Connection failed')
+          setShowConnectionDialog(true)
+        }
+      } catch (error) {
+        setConnectionError(error.message)
+        setShowConnectionDialog(true)
+        setConnectionState({ connected: false, error: error.message })
+      }
+    }
+
+    autoConnect()
     loadSecurities()
+  }, [initialConnectionAttempted, loadSecurities])
+
+  // Connection status polling (only after initial connection attempt)
+  useEffect(() => {
+    if (!initialConnectionAttempted) return
     const interval = setInterval(refreshConnectionStatus, 5000)
     return () => clearInterval(interval)
-  }, [refreshConnectionStatus, loadSecurities])
+  }, [refreshConnectionStatus, initialConnectionAttempted])
 
   // Load from cache when symbol/interval changes
   useEffect(() => {
@@ -191,8 +226,48 @@ function App() {
     })
   }
 
+  const handleConnectionRetry = async (port) => {
+    setLastUsedPort(port)
+    try {
+      const status = await connectToIBKR(port)
+      setConnectionState(status)
+      if (status.connected) {
+        setShowConnectionDialog(false)
+        setConnectionError(null)
+        toast({
+          title: 'Connected',
+          description: `Connected to IBKR on port ${port}`,
+          status: 'success',
+          duration: 3000
+        })
+        loadSecurities()
+      } else {
+        setConnectionError(status.error || 'Connection failed')
+      }
+    } catch (error) {
+      setConnectionError(error.message)
+    }
+  }
+
+  const handleGoOffline = () => {
+    setShowConnectionDialog(false)
+    toast({
+      title: 'Offline Mode',
+      description: 'Using cached data only',
+      status: 'info',
+      duration: 3000
+    })
+  }
+
   return (
     <Box minH="100vh" bg="gray.900">
+      <ConnectionDialog
+        isOpen={showConnectionDialog}
+        error={connectionError}
+        lastPort={lastUsedPort}
+        onRetry={handleConnectionRetry}
+        onOffline={handleGoOffline}
+      />
       <FedCountdown isConnected={connectionState.connected} />
       <Box px={4} py={4} pt="52px">
         <VStack spacing={4} align="stretch">
