@@ -1319,7 +1319,7 @@ function ThresholdReport({ symbol, data }) {
 
       <Text fontSize="sm" color="gray.400" mb={4}>
           Counts how many times price raised for X% <b>compared to previous day close (high &gt; prev day close)</b>. <br />
-        LONG at CLOSE @ X DAYS DTE (or stocks at leverage)  <br />
+        LONG at CLOSE week+ DTE (or stocks at leverage)  <br />
         Data in cells are % for period (header) analysis is made from. <br />
         If it says 80, that means 80% of column it is in (50D) which is 40/50 days. <br />
         Before entering, make sure options have volume close to the price. <br />
