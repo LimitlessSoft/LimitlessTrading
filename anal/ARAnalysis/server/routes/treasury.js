@@ -114,7 +114,6 @@ function parseYieldsFromXml(xml) {
     return null
   }
 
-  console.log('Treasury yields fetched:', yields)
   return yields
 }
 
