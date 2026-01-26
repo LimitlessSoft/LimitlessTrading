@@ -26,6 +26,7 @@ import DataStatus from './components/DataStatus'
 import ThresholdReport from './components/ThresholdReport'
 import TwoUpThenBigMove from './components/TwoUpThenBigMove'
 import Screener from './components/Screener'
+import FedCountdown from './components/FedCountdown'
 import DataManager from './modules/DataManager'
 import {
   getConnectionStatus,
@@ -192,7 +193,8 @@ function App() {
 
   return (
     <Box minH="100vh" bg="gray.900">
-      <Box px={4} py={4}>
+      <FedCountdown />
+      <Box px={4} py={4} pt="52px">
         <VStack spacing={4} align="stretch">
           {/* Header */}
           <Flex align="center" wrap="wrap" gap={4}>
