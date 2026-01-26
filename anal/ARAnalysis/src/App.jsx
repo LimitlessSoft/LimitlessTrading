@@ -20,7 +20,6 @@ import {
 import { RepeatIcon, CloseIcon } from '@chakra-ui/icons'
 import SecuritySpreadsheet from './components/SecuritySpreadsheet'
 import SecurityPicker from './components/SecurityPicker'
-import IntervalPicker from './components/IntervalPicker'
 import ConnectionStatus from './components/ConnectionStatus'
 import DataStatus from './components/DataStatus'
 import ThresholdReport from './components/ThresholdReport'
@@ -35,13 +34,13 @@ import {
   fetchFromCache,
   loadHistoricalData,
   getCachedSecurities,
-  INTERVALS
+  updateSecurityAccess
 } from './modules/dataService'
 import ConnectionDialog from './components/ConnectionDialog'
 
 function App() {
   const [selectedSymbol, setSelectedSymbol] = useState('')
-  const [selectedInterval, setSelectedInterval] = useState('1d')
+  const selectedInterval = '1d'
   const [priceData, setPriceData] = useState([])
   const [loading, setLoading] = useState(false)
   const [loadProgress, setLoadProgress] = useState(0)
@@ -189,12 +188,12 @@ function App() {
     }
   }, [selectedSymbol, selectedInterval, loadFromCache, cancelLoad])
 
-  const handleSymbolChange = (symbol) => {
+  const handleSymbolChange = async (symbol) => {
     setSelectedSymbol(symbol)
-  }
-
-  const handleIntervalChange = (interval) => {
-    setSelectedInterval(interval)
+    if (symbol) {
+      await updateSecurityAccess(symbol)
+      loadSecurities() // Refresh recent list
+    }
   }
 
   const handleConnectionChange = (status) => {
@@ -289,11 +288,6 @@ function App() {
               value={selectedSymbol}
               onChange={handleSymbolChange}
               securities={securities}
-            />
-            <IntervalPicker
-              value={selectedInterval}
-              onChange={handleIntervalChange}
-              intervals={INTERVALS}
             />
             <Tooltip label={loading ? "Loading..." : "Load data from IBKR"}>
               <IconButton

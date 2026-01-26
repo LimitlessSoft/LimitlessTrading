@@ -3,7 +3,8 @@ import {
   addPriceData,
   getPriceData,
   addSecurity,
-  getSecurities,
+  getRecentSecurities,
+  updateSecurityAccess,
   getSetting,
   setSetting,
   clearPriceData,
@@ -237,8 +238,10 @@ function deduplicateAndSort(bars) {
 }
 
 export async function getCachedSecurities() {
-  return getSecurities()
+  return getRecentSecurities()
 }
+
+export { updateSecurityAccess }
 
 export async function getLastPort() {
   return getSetting('lastPort')

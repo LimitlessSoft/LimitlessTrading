@@ -111,11 +111,34 @@ export async function setSetting(key, value) {
 }
 
 export async function addSecurity(symbol, name = '', exchange = 'SMART') {
-  await db.securities.put({ symbol, name, exchange })
+  const existing = await db.securities.get(symbol)
+  await db.securities.put({
+    symbol,
+    name: name || existing?.name || '',
+    exchange: exchange || existing?.exchange || 'SMART',
+    lastAccessed: Date.now()
+  })
+}
+
+export async function updateSecurityAccess(symbol) {
+  const existing = await db.securities.get(symbol)
+  if (existing) {
+    await db.securities.update(symbol, { lastAccessed: Date.now() })
+  } else {
+    await addSecurity(symbol)
+  }
 }
 
 export async function getSecurities() {
   return db.securities.toArray()
+}
+
+export async function getRecentSecurities(limit = 15) {
+  const all = await db.securities.toArray()
+  return all
+    .filter(s => s.lastAccessed)
+    .sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))
+    .slice(0, limit)
 }
 
 export async function addPriceData(symbol, interval, data) {

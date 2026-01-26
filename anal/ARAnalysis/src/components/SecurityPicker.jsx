@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   Input,
-  Select,
   InputGroup,
   InputLeftAddon,
+  InputRightElement,
   HStack,
   IconButton,
   Tooltip,
@@ -11,10 +11,12 @@ import {
   MenuButton,
   MenuList,
   MenuItem,
+  MenuDivider,
   Button,
-  Box
+  Text,
+  Portal
 } from '@chakra-ui/react'
-import { StarIcon, EditIcon, ChevronDownIcon } from '@chakra-ui/icons'
+import { StarIcon, EditIcon, ChevronDownIcon, TimeIcon } from '@chakra-ui/icons'
 import {
   getWatchgroups,
   getWatchgroupSymbols,
@@ -131,7 +133,7 @@ function SecurityPicker({ value, onChange, securities }) {
 
   return (
     <HStack spacing={2}>
-      <InputGroup size="md" w="200px">
+      <InputGroup size="md" w="240px">
         <InputLeftAddon
           bg="gray.700"
           color="gray.300"
@@ -149,9 +151,41 @@ function SecurityPicker({ value, onChange, securities }) {
           bg="gray.800"
           borderColor="gray.600"
           borderLeftRadius={0}
+          pr="40px"
           _hover={{ borderColor: 'gray.500' }}
           _focus={{ borderColor: 'blue.400', boxShadow: 'none' }}
         />
+        {securities.length > 0 && (
+          <InputRightElement>
+            <Menu>
+              <MenuButton
+                as={IconButton}
+                icon={<TimeIcon />}
+                size="xs"
+                variant="ghost"
+                color="gray.400"
+                _hover={{ color: 'gray.200' }}
+                aria-label="Recent symbols"
+              />
+              <Portal>
+                <MenuList bg="gray.700" maxH="300px" overflowY="auto" minW="120px" zIndex={1400}>
+                  <Text px={3} py={1} fontSize="xs" color="gray.400">Recent</Text>
+                  <MenuDivider borderColor="gray.600" />
+                  {securities.map(sec => (
+                    <MenuItem
+                      key={sec.symbol}
+                      bg="transparent"
+                      _hover={{ bg: 'gray.600' }}
+                      onClick={() => handleSymbolSelect(sec.symbol)}
+                    >
+                      {sec.symbol}
+                    </MenuItem>
+                  ))}
+                </MenuList>
+              </Portal>
+            </Menu>
+          </InputRightElement>
+        )}
       </InputGroup>
 
       <Tooltip label={
@@ -223,25 +257,6 @@ function SecurityPicker({ value, onChange, securities }) {
           />
         </Tooltip>
       </HStack>
-
-      {securities.length > 0 && (
-        <Select
-          placeholder="Recent"
-          size="md"
-          w="120px"
-          value=""
-          onChange={(e) => handleSymbolSelect(e.target.value)}
-          bg="gray.800"
-          borderColor="gray.600"
-          _hover={{ borderColor: 'gray.500' }}
-        >
-          {securities.map(sec => (
-            <option key={sec.symbol} value={sec.symbol}>
-              {sec.symbol}
-            </option>
-          ))}
-        </Select>
-      )}
 
       <WatchgroupManager
         ref={managerRef}
