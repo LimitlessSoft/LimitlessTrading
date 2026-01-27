@@ -144,12 +144,18 @@ The template for all custom/dynamic pages. This is a key component for extensibi
 **Current structure:**
 ```jsx
 <Box minH="100vh" bg="gray.900">
-  <PageNavMenu />
+  <PageNavMenu>
+    <IconButton icon={<EditIcon />} />  {/* Toggle edit mode */}
+    <IconButton icon={<AddIcon />} />   {/* Add control modal */}
+  </PageNavMenu>
   <Box p={8}>
     {pageInfo ? (
       <>
         <Heading>{pageInfo.name}</Heading>
         <Text>{pageInfo.path}</Text>
+        <Box ref={containerRef} position="relative">
+          {/* Controls rendered here with absolute positioning */}
+        </Box>
       </>
     ) : (
       <Text>{location.pathname}</Text>
@@ -176,6 +182,20 @@ Template pages support editable controls that persist to the backend via `route.
 - `label` - Text display with styling (default if no type specified)
 - `panel` - Container that holds child controls
 
+### Control Positioning
+
+Controls use **absolute positioning** with automatic vertical stacking:
+- **x**: Horizontal position in segments (0-19), snaps to grid
+- **y**: Order hint for layout calculation (not absolute position)
+- **Width**: Calculated as `calc(segments% - 8px)` to maintain 8px horizontal gap
+- **Vertical layout**: Auto-calculated to prevent overlap
+  - Controls that overlap horizontally stack vertically
+  - Consistent 8px gap between stacked controls
+  - No arbitrary gaps or overlapping allowed
+- In edit mode, drag to move:
+  - Horizontal movement changes x (snaps to segments)
+  - Vertical movement changes order (y hint), layout recalculates positions
+
 ### Control Data Structure
 
 **Label:**
@@ -186,6 +206,8 @@ Template pages support editable controls that persist to the backend via `route.
   text: "Label content",
   width: 4,             // 1-20 segments (5% increments)
   height: 60,           // pixels (min 40px)
+  x: 0,                 // horizontal position (segments 0-19)
+  y: 0,                 // order hint for vertical stacking (lower = higher priority)
   createdAt: timestamp,
   style: {
     bgColor: "#4A5568",
@@ -206,6 +228,8 @@ Template pages support editable controls that persist to the backend via `route.
   type: "panel",
   width: 8,             // default 8 segments
   height: 120,          // pixels (min 58px)
+  x: 0,                 // horizontal position (segments 0-19)
+  y: 0,                 // order hint for vertical stacking (lower = higher priority)
   createdAt: timestamp,
   children: [],         // nested controls (labels or panels)
   style: {
@@ -219,30 +243,38 @@ Template pages support editable controls that persist to the backend via `route.
 ### TemplatePageLabel Component
 **Location:** `src/components/TemplatePageLabel.jsx`
 
-A resizable, styleable text label control for template pages.
+A resizable, moveable, styleable text label control for template pages.
 
 **Props:**
 - `label` - Label data object (see structure above)
+- `layoutY` - Calculated y position from parent's layout algorithm
 - `onDelete(id)` - Callback when delete button clicked
-- `onResize(id, { width?, height? })` - Callback when resized
-- `onUpdate(id, changes)` - Callback for any property updates (including style)
+- `onUpdate(id, changes)` - Callback for any property updates (position, size, style)
 - `isEditing` - Whether edit mode is active
+- `containerRef` - Ref to parent container for position calculations
 
 **Features:**
+- **Absolute positioning**: Uses x (segments) and layoutY (calculated pixels) for placement
 - **20-segment grid width**: Page divided into 20 equal segments, labels snap to boundaries
+- **Auto-stacking**: Vertical position calculated by parent to prevent overlap
 - **Pixel height**: Free vertical sizing with 40px minimum
+- **Drag to move** (edit mode): Click anywhere on label to drag
+  - Horizontal: x snaps to grid segments
+  - Vertical: changes y order hint, parent recalculates layout
 - **Three resize handles** (edit mode only):
   - Right edge: horizontal resize (ew-resize cursor)
   - Bottom edge: vertical resize (ns-resize cursor)
   - Corner: both directions (nwse-resize cursor)
 - **Style dialog**: Settings button opens modal for colors, borders, font
-- **Smooth transitions**: Width/height animate except during drag
+- **Smooth transitions**: Position/size animate except during drag
 
-**Resize Implementation:**
-- Gets container width from parent via `getBoundingClientRect()` at drag start
+**Position/Resize Implementation:**
+- Gets container width from parent via `containerRef.current.getBoundingClientRect()` at drag start
 - Calculates segment size: `containerWidth / 20`
-- Preview state during drag, persists on mouseup
+- Preview state during drag (previewPos for x, previewSize for dimensions)
 - Uses `useEffect` to clear preview when label data catches up (prevents flicker)
+- X position snaps to segment boundaries
+- Y position comes from `layoutY` prop (calculated by parent)
 
 ### TemplatePagePanel Component
 **Location:** `src/components/TemplatePagePanel.jsx`
@@ -251,25 +283,31 @@ A container control that holds nested child controls.
 
 **Props:**
 - `label` - Panel data object (see structure above)
+- `layoutY` - Calculated y position from parent's layout algorithm
 - `onDelete(id)` - Callback when delete button clicked
-- `onResize(id, { width?, height? })` - Callback when resized
-- `onUpdate(id, changes)` - Callback for any property updates
+- `onUpdate(id, changes)` - Callback for any property updates (position, size, children)
 - `isEditing` - Whether edit mode is active
+- `containerRef` - Ref to parent container for position calculations
 
 **Features:**
+- **Absolute positioning**: Uses x (segments) and layoutY (calculated pixels) for placement
+- **Auto-stacking**: Vertical position calculated by parent to prevent overlap
 - **Container for children**: Holds nested labels or panels in `children` array
+- **Child layout calculation**: Panel calculates layout positions for its children using same algorithm
 - **Recursive rendering**: Panels can contain panels (unlimited nesting)
-- **Header controls** (edit mode): Add (+), Settings (gear), Delete (X) buttons
+- **Header area** (edit mode): Drag here to move panel; contains Add (+), Settings (gear), Delete (X) buttons
 - **Add child modal**: Select Label or Panel type when adding children
-- **Flex-wrap layout**: Children flow and wrap within panel bounds
+- **Children container**: Relative-positioned area where children auto-stack
 - **Overflow scroll**: Content scrolls when exceeding panel height
 
 **Child Management:**
 - Children stored in `label.children` array
-- `handleAddChild()` - Creates new child, appends to children array
+- `calculateChildLayout()` - Computes y positions for children based on horizontal overlap
+- `handleAddChild()` - Creates new child with x:0, y:0, appends to children array
 - `handleDeleteChild(childId)` - Filters child from array
 - `handleUpdateChild(childId, changes)` - Maps and updates specific child
 - All child operations trigger `onUpdate()` with updated children array
+- Children receive `layoutY` and `childContainerRef` for positioning
 
 **Style Options:**
 - `bgColor` - Background color (default: #2D3748)
@@ -281,34 +319,62 @@ A container control that holds nested child controls.
 Follow this pattern for new control types:
 
 1. **Component file**: `src/components/Template[ControlName].jsx`
-2. **Props interface**: Accept `label`, `onDelete`, `onResize`, `onUpdate`, `isEditing`
-3. **Width calculation**: `width={${(displayWidth / 20) * 100}%}`
-4. **Edit mode guards**: Only show edit UI when `isEditing` is true
-5. **Resize handlers**: Use parent container width, snap to segments
-6. **Style storage**: Use `label.style` object for visual customization
-7. **Preview state**: Keep preview until backend update completes
+2. **Props interface**: Accept `label`, `layoutY`, `onDelete`, `onUpdate`, `isEditing`, `containerRef`
+3. **Absolute positioning**: `position="absolute"`, `left={${(x / 20) * 100}%}`, `top={${layoutY}px}`
+4. **Width calculation**: `width={calc(${(displayWidth / 20) * 100}% - 8px)}` (8px gap)
+5. **Edit mode guards**: Only show edit UI when `isEditing` is true
+6. **Move handler**: Drag to reposition - x snaps to segments, y updates order hint
+7. **Resize handlers**: Use parent container width, snap to segments
+8. **Style storage**: Use `label.style` object for visual customization
+9. **Preview state**: Keep preview (previewPos for x, previewSize) until backend update completes
+
+**Layout calculation (in parent):**
+```jsx
+const calculateLayout = (controls, gap = 8) => {
+  const sorted = [...controls].sort((a, b) => (a.y || 0) - (b.y || 0))
+  const positions = new Map()
+  const placed = []
+
+  for (const control of sorted) {
+    let y = 0
+    for (const p of placed) {
+      // If horizontal overlap, stack below
+      if (control.x < p.x + p.width && control.x + control.width > p.x) {
+        y = Math.max(y, p.y + p.height + gap)
+      }
+    }
+    positions.set(control.id, y)
+    placed.push({ ...control, y })
+  }
+  return positions
+}
+```
 
 **Add to TemplatePage.jsx:**
 ```jsx
-// In the Flex container that renders controls:
+const layoutPositions = calculateLayout(labels)
+
+// In the relative-positioned container that renders controls:
 {labels.map(label => (
   label.type === 'panel' ? (
     <TemplatePagePanel
       key={label.id}
       label={label}
+      layoutY={layoutPositions.get(label.id)}
       onDelete={handleDeleteLabel}
-      onResize={handleUpdateLabel}
       onUpdate={handleUpdateLabel}
       isEditing={isEditing}
+      containerRef={containerRef}
     />
   ) : (
     <TemplatePageLabel
       key={label.id}
       label={label}
+      layoutY={layoutPositions.get(label.id)}
       onDelete={handleDeleteLabel}
-      onResize={handleUpdateLabel}
       onUpdate={handleUpdateLabel}
       isEditing={isEditing}
+      containerRef={containerRef}
     />
   )
 ))}

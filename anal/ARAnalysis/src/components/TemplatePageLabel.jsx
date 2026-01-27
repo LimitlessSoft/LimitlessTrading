@@ -36,29 +36,50 @@ const DEFAULT_STYLE = {
   fontSize: 1
 }
 
-function TemplatePageLabel({ label, onDelete, onResize, onUpdate, isEditing }) {
-  const [isDragging, setIsDragging] = useState(false)
-  const [previewWidth, setPreviewWidth] = useState(null)
-  const [previewHeight, setPreviewHeight] = useState(null)
+function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, isEditing, containerRef }) {
+  const [isResizing, setIsResizing] = useState(false)
+  const [isMoving, setIsMoving] = useState(false)
+  const [previewPos, setPreviewPos] = useState(null)
+  const [previewSize, setPreviewSize] = useState(null)
   const [editStyle, setEditStyle] = useState(null)
   const boxRef = useRef(null)
   const { isOpen, onOpen, onClose } = useDisclosure()
 
   const width = label.width || 4
   const height = label.height || DEFAULT_HEIGHT
+  const x = label.x || 0
+  const y = label.y || 0  // Used as order hint for layout calculation
   const style = { ...DEFAULT_STYLE, ...label.style }
-  const displayWidth = previewWidth !== null ? previewWidth : width
-  const displayHeight = previewHeight !== null ? previewHeight : height
 
-  // Clear preview once the label dimensions catch up
+  const displayWidth = previewSize?.width ?? width
+  const displayHeight = previewSize?.height ?? height
+  const displayX = previewPos?.x ?? x
+  const displayY = previewPos?.y ?? layoutY ?? 0  // Show preview during drag, otherwise use calculated layout
+
+  // Clear preview once the label catches up
   useEffect(() => {
-    if (previewWidth !== null && label.width === previewWidth) {
-      setPreviewWidth(null)
+    if (previewSize && label.width === previewSize.width && label.height === previewSize.height) {
+      setPreviewSize(null)
     }
-    if (previewHeight !== null && label.height === previewHeight) {
-      setPreviewHeight(null)
+  }, [label.width, label.height, previewSize])
+
+  // Clear position preview when label catches up (but not during active move)
+  useEffect(() => {
+    if (previewPos && !isMoving) {
+      // Clear when x has caught up (y is order hint, will be recalculated by layout)
+      if (label.x === previewPos.x) {
+        setPreviewPos(null)
+        onDragPreview?.(null)
+      }
     }
-  }, [label.width, label.height, previewWidth, previewHeight])
+  }, [label.x, previewPos, isMoving, onDragPreview])
+
+  const getContainerInfo = () => {
+    const container = containerRef?.current || boxRef.current?.parentElement
+    if (!container) return null
+    const rect = container.getBoundingClientRect()
+    return { width: rect.width, segmentSize: rect.width / TOTAL_SEGMENTS, rect }
+  }
 
   const handleOpenEdit = () => {
     setEditStyle({ ...DEFAULT_STYLE, ...label.style })
@@ -70,39 +91,89 @@ function TemplatePageLabel({ label, onDelete, onResize, onUpdate, isEditing }) {
     onClose()
   }
 
-  const handleHorizontalResize = (e) => {
-    if (!isEditing || !boxRef.current) return
+  // Move handler (drag to reposition)
+  const handleMoveStart = (e) => {
+    if (!isEditing) return
     e.preventDefault()
+    e.stopPropagation()
 
-    const container = boxRef.current.parentElement
-    if (!container) return
-    const containerWidth = container.getBoundingClientRect().width
-    if (!containerWidth) return
+    const info = getContainerInfo()
+    if (!info) return
 
-    const segmentSize = containerWidth / TOTAL_SEGMENTS
-    const startX = e.clientX
-    const startWidth = width
-    let currentWidth = width
+    const startMouseX = e.clientX
+    const startMouseY = e.clientY
+    const startX = x
+    const startVisualY = layoutY ?? 0  // Start from visual position
+    let currentX = x
+    let currentY = y
 
-    setIsDragging(true)
+    setIsMoving(true)
 
     const handleMouseMove = (moveEvent) => {
-      const deltaX = moveEvent.clientX - startX
-      const deltaSegments = Math.round(deltaX / segmentSize)
-      const newWidth = Math.max(MIN_SEGMENTS, Math.min(TOTAL_SEGMENTS, startWidth + deltaSegments))
-      currentWidth = newWidth
-      setPreviewWidth(newWidth)
+      const deltaX = moveEvent.clientX - startMouseX
+      const deltaY = moveEvent.clientY - startMouseY
+
+      // Snap X to segments
+      const deltaSegments = Math.round(deltaX / info.segmentSize)
+      const newX = Math.max(0, Math.min(TOTAL_SEGMENTS - width, startX + deltaSegments))
+      // Visual Y follows mouse, order hint updated proportionally
+      const newVisualY = Math.max(0, startVisualY + deltaY)
+
+      currentX = newX
+      currentY = newVisualY  // Use visual position as new order hint
+      setPreviewPos({ x: newX, y: newVisualY })
+      onDragPreview?.({ x: newX, y: newVisualY })
     }
 
     const handleMouseUp = () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
-      setIsDragging(false)
-      if (currentWidth !== width) {
-        onResize(label.id, { width: currentWidth })
+      setIsMoving(false)
+      // Don't clear previews here - let useEffect clear them when data catches up
+
+      if (currentX !== x || currentY !== y) {
+        onUpdate(label.id, { x: currentX, y: currentY })
       } else {
-        setPreviewWidth(null)
+        // No change, clear previews immediately
+        setPreviewPos(null)
+        onDragPreview?.(null)
       }
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }
+
+  const handleHorizontalResize = (e) => {
+    if (!isEditing) return
+    e.preventDefault()
+    e.stopPropagation()
+
+    const info = getContainerInfo()
+    if (!info) return
+
+    const startX = e.clientX
+    const startWidth = width
+    let currentWidth = width
+
+    setIsResizing(true)
+
+    const handleMouseMove = (moveEvent) => {
+      const deltaX = moveEvent.clientX - startX
+      const deltaSegments = Math.round(deltaX / info.segmentSize)
+      const newWidth = Math.max(MIN_SEGMENTS, Math.min(TOTAL_SEGMENTS - x, startWidth + deltaSegments))
+      currentWidth = newWidth
+      setPreviewSize({ width: newWidth, height })
+    }
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      setIsResizing(false)
+      if (currentWidth !== width) {
+        onUpdate(label.id, { width: currentWidth })
+      }
+      setPreviewSize(null)
     }
 
     document.addEventListener('mousemove', handleMouseMove)
@@ -110,31 +181,31 @@ function TemplatePageLabel({ label, onDelete, onResize, onUpdate, isEditing }) {
   }
 
   const handleVerticalResize = (e) => {
-    if (!isEditing || !boxRef.current) return
+    if (!isEditing) return
     e.preventDefault()
+    e.stopPropagation()
 
     const startY = e.clientY
     const startHeight = height
     let currentHeight = height
 
-    setIsDragging(true)
+    setIsResizing(true)
 
     const handleMouseMove = (moveEvent) => {
       const deltaY = moveEvent.clientY - startY
       const newHeight = Math.max(MIN_HEIGHT, startHeight + deltaY)
       currentHeight = newHeight
-      setPreviewHeight(newHeight)
+      setPreviewSize({ width, height: newHeight })
     }
 
     const handleMouseUp = () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
-      setIsDragging(false)
+      setIsResizing(false)
       if (currentHeight !== height) {
-        onResize(label.id, { height: currentHeight })
-      } else {
-        setPreviewHeight(null)
+        onUpdate(label.id, { height: currentHeight })
       }
+      setPreviewSize(null)
     }
 
     document.addEventListener('mousemove', handleMouseMove)
@@ -142,49 +213,44 @@ function TemplatePageLabel({ label, onDelete, onResize, onUpdate, isEditing }) {
   }
 
   const handleCornerResize = (e) => {
-    if (!isEditing || !boxRef.current) return
+    if (!isEditing) return
     e.preventDefault()
+    e.stopPropagation()
 
-    const container = boxRef.current.parentElement
-    if (!container) return
-    const containerWidth = container.getBoundingClientRect().width
-    if (!containerWidth) return
+    const info = getContainerInfo()
+    if (!info) return
 
-    const segmentSize = containerWidth / TOTAL_SEGMENTS
-    const startX = e.clientX
-    const startY = e.clientY
+    const startMouseX = e.clientX
+    const startMouseY = e.clientY
     const startWidth = width
     const startHeight = height
     let currentWidth = width
     let currentHeight = height
 
-    setIsDragging(true)
+    setIsResizing(true)
 
     const handleMouseMove = (moveEvent) => {
-      const deltaX = moveEvent.clientX - startX
-      const deltaY = moveEvent.clientY - startY
-      const deltaSegments = Math.round(deltaX / segmentSize)
-      const newWidth = Math.max(MIN_SEGMENTS, Math.min(TOTAL_SEGMENTS, startWidth + deltaSegments))
+      const deltaX = moveEvent.clientX - startMouseX
+      const deltaY = moveEvent.clientY - startMouseY
+      const deltaSegments = Math.round(deltaX / info.segmentSize)
+      const newWidth = Math.max(MIN_SEGMENTS, Math.min(TOTAL_SEGMENTS - x, startWidth + deltaSegments))
       const newHeight = Math.max(MIN_HEIGHT, startHeight + deltaY)
       currentWidth = newWidth
       currentHeight = newHeight
-      setPreviewWidth(newWidth)
-      setPreviewHeight(newHeight)
+      setPreviewSize({ width: newWidth, height: newHeight })
     }
 
     const handleMouseUp = () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
-      setIsDragging(false)
+      setIsResizing(false)
       const changes = {}
       if (currentWidth !== width) changes.width = currentWidth
       if (currentHeight !== height) changes.height = currentHeight
       if (Object.keys(changes).length > 0) {
-        onResize(label.id, changes)
-      } else {
-        setPreviewWidth(null)
-        setPreviewHeight(null)
+        onUpdate(label.id, changes)
       }
+      setPreviewSize(null)
     }
 
     document.addEventListener('mousemove', handleMouseMove)
@@ -195,6 +261,11 @@ function TemplatePageLabel({ label, onDelete, onResize, onUpdate, isEditing }) {
     <>
       <Box
         ref={boxRef}
+        position="absolute"
+        left={`${(displayX / TOTAL_SEGMENTS) * 100}%`}
+        top={`${displayY}px`}
+        width={`calc(${(displayWidth / TOTAL_SEGMENTS) * 100}% - 8px)`}
+        height={`${displayHeight}px`}
         bg={style.bgColor}
         px={4}
         py={2}
@@ -202,15 +273,15 @@ function TemplatePageLabel({ label, onDelete, onResize, onUpdate, isEditing }) {
         display="flex"
         alignItems="flex-start"
         justifyContent="space-between"
-        position="relative"
-        width={`${(displayWidth / TOTAL_SEGMENTS) * 100}%`}
-        height={`${displayHeight}px`}
         overflow="auto"
-        transition={isDragging ? 'none' : 'width 0.15s ease, height 0.15s ease'}
-        borderWidth={isEditing ? '1px' : `${style.borderWidth}px`}
-        borderColor={isEditing ? (isDragging ? 'blue.400' : 'gray.600') : style.borderColor}
+        transition={isResizing || isMoving ? 'none' : 'all 0.15s ease'}
+        borderWidth={isEditing ? '2px' : `${style.borderWidth}px`}
+        borderColor={isEditing ? (isResizing || isMoving ? 'blue.400' : 'gray.600') : style.borderColor}
         borderStyle={isEditing ? 'dashed' : 'solid'}
-        flexShrink={0}
+        opacity={isMoving ? 0.7 : 1}
+        cursor={isEditing ? 'move' : 'default'}
+        onMouseDown={isEditing ? handleMoveStart : undefined}
+        zIndex={isMoving ? 100 : 1}
       >
         <Text
           flex={1}
@@ -219,6 +290,8 @@ function TemplatePageLabel({ label, onDelete, onResize, onUpdate, isEditing }) {
           fontWeight={style.fontWeight}
           fontStyle={style.fontStyle}
           fontSize={`${style.fontSize}rem`}
+          pointerEvents="none"
+          userSelect="none"
         >
           {label.text}
         </Text>
@@ -229,7 +302,8 @@ function TemplatePageLabel({ label, onDelete, onResize, onUpdate, isEditing }) {
               size="xs"
               variant="ghost"
               aria-label="Edit label style"
-              onClick={handleOpenEdit}
+              onClick={(e) => { e.stopPropagation(); handleOpenEdit() }}
+              onMouseDown={(e) => e.stopPropagation()}
               ml={2}
               flexShrink={0}
             />
@@ -238,7 +312,8 @@ function TemplatePageLabel({ label, onDelete, onResize, onUpdate, isEditing }) {
               size="xs"
               variant="ghost"
               aria-label="Delete label"
-              onClick={() => onDelete(label.id)}
+              onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+              onMouseDown={(e) => e.stopPropagation()}
               ml={1}
               flexShrink={0}
             />

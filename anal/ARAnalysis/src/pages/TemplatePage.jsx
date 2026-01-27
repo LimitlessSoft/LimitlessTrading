@@ -1,11 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import {
   Box,
   Heading,
   Text,
   IconButton,
-  Flex,
   Modal,
   ModalOverlay,
   ModalContent,
@@ -37,6 +36,8 @@ function TemplatePage() {
   const [isEditing, setIsEditing] = useState(false)
   const { isOpen, onOpen, onClose } = useDisclosure()
   const toast = useToast()
+  const containerRef = useRef(null)
+  const [dragPreview, setDragPreview] = useState(null)  // { id, x, y } during drag
 
   useEffect(() => {
     const loadPageInfo = async () => {
@@ -64,6 +65,8 @@ function TemplatePage() {
         text: controlType === 'label' ? labelText.trim() : '',
         width: controlType === 'panel' ? 8 : 4,
         height: controlType === 'panel' ? 120 : 60,
+        x: 0,
+        y: 0,
         createdAt: Date.now(),
         children: controlType === 'panel' ? [] : undefined
       }
@@ -147,6 +150,47 @@ function TemplatePage() {
 
   const labels = pageInfo?.config?.labels || []
 
+  // Calculate layout positions - prevents overlap, maintains consistent gaps
+  const calculateLayout = (controls, preview, gap = 8) => {
+    if (!controls.length) return new Map()
+
+    // Apply preview position if dragging
+    const withPreview = controls.map(c => {
+      if (preview && c.id === preview.id) {
+        return { ...c, x: preview.x, y: preview.y }
+      }
+      return c
+    })
+
+    // Sort by y (order hint), then by x
+    const sorted = [...withPreview].sort((a, b) => (a.y || 0) - (b.y || 0) || (a.x || 0) - (b.x || 0))
+
+    const positions = new Map()
+    const placed = [] // {x, width, y, height}
+
+    for (const control of sorted) {
+      const x = control.x || 0
+      const width = control.width || (control.type === 'panel' ? 8 : 4)
+      const height = control.height || (control.type === 'panel' ? 120 : 60)
+
+      // Find y position - must be below any horizontally overlapping controls
+      let y = 0
+      for (const p of placed) {
+        // Check horizontal overlap (controls overlap if their x ranges intersect)
+        if (x < p.x + p.width && x + width > p.x) {
+          y = Math.max(y, p.y + p.height + gap)
+        }
+      }
+
+      positions.set(control.id, y)
+      placed.push({ x, width, y, height })
+    }
+
+    return positions
+  }
+
+  const layoutPositions = calculateLayout(labels, dragPreview)
+
   return (
     <Box minH="100vh" bg="gray.900">
       <PageNavMenu>
@@ -177,29 +221,38 @@ function TemplatePage() {
           <>
             <Heading size="lg" mb={2}>{pageInfo.name}</Heading>
             <Text color="gray.500" mb={6}>{pageInfo.path}</Text>
-            <Flex wrap="wrap" gap={2} width="100%">
-              {labels.map(label => (
+            <Box
+              ref={containerRef}
+              position="relative"
+              width="100%"
+              minH={isEditing ? '200px' : '100px'}
+            >
+              {labels.map((label) => (
                 label.type === 'panel' ? (
                   <TemplatePagePanel
                     key={label.id}
                     label={label}
+                    layoutY={layoutPositions.get(label.id)}
                     onDelete={handleDeleteLabel}
-                    onResize={handleUpdateLabel}
                     onUpdate={handleUpdateLabel}
+                    onDragPreview={(pos) => setDragPreview(pos ? { id: label.id, ...pos } : null)}
                     isEditing={isEditing}
+                    containerRef={containerRef}
                   />
                 ) : (
                   <TemplatePageLabel
                     key={label.id}
                     label={label}
+                    layoutY={layoutPositions.get(label.id)}
                     onDelete={handleDeleteLabel}
-                    onResize={handleUpdateLabel}
                     onUpdate={handleUpdateLabel}
+                    onDragPreview={(pos) => setDragPreview(pos ? { id: label.id, ...pos } : null)}
                     isEditing={isEditing}
+                    containerRef={containerRef}
                   />
                 )
               ))}
-            </Flex>
+            </Box>
           </>
         ) : (
           <Text color="gray.500">{location.pathname}</Text>
