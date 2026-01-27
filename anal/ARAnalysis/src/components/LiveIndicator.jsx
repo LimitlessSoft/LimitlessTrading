@@ -1,33 +1,36 @@
 import { useState, useEffect } from 'react'
 import { HStack, Box, Text } from '@chakra-ui/react'
+import { keyframes } from '@emotion/react'
+
+const pulse = keyframes`
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+`
 
 /**
- * LiveIndicator - Shows a glowing dot and countdown timer for live data refresh
+ * LiveIndicator - Shows a glowing dot for real-time streaming status
  *
  * @param {boolean} isConnected - Whether connected to data source
- * @param {boolean} isLoading - Whether currently fetching data
- * @param {number} lastFetchTime - Timestamp of last successful fetch (Date.now())
- * @param {number} refreshInterval - Refresh interval in seconds (default: 15)
+ * @param {boolean} isLoading - Whether currently fetching initial data
+ * @param {boolean} isStreaming - Whether SSE stream is active
+ * @param {number} lastFetchTime - Timestamp of last update (Date.now())
+ * @param {number} refreshInterval - Not used in streaming mode, kept for compatibility
  */
-function LiveIndicator({ isConnected, isLoading, lastFetchTime, refreshInterval = 15 }) {
-  const [nextRefreshIn, setNextRefreshIn] = useState(refreshInterval)
+function LiveIndicator({ isConnected, isLoading, isStreaming, lastFetchTime, refreshInterval = 15 }) {
+  const [timeSinceUpdate, setTimeSinceUpdate] = useState(0)
 
   useEffect(() => {
-    if (!isConnected || !lastFetchTime) {
-      setNextRefreshIn(refreshInterval)
-      return
-    }
+    if (!lastFetchTime) return
 
     const tick = () => {
       const elapsed = Math.floor((Date.now() - lastFetchTime) / 1000)
-      const remaining = Math.max(0, refreshInterval - elapsed)
-      setNextRefreshIn(remaining)
+      setTimeSinceUpdate(elapsed)
     }
 
     tick()
     const timer = setInterval(tick, 1000)
     return () => clearInterval(timer)
-  }, [isConnected, lastFetchTime, refreshInterval])
+  }, [lastFetchTime])
 
   if (!isConnected) {
     return (
@@ -45,7 +48,31 @@ function LiveIndicator({ isConnected, isLoading, lastFetchTime, refreshInterval 
     )
   }
 
-  const showLabel = refreshInterval >= 5
+  // Determine status based on streaming state and time since last update
+  let status, color, showPulse
+  if (isLoading) {
+    status = 'connecting'
+    color = 'blue.400'
+    showPulse = true
+  } else if (isStreaming) {
+    if (timeSinceUpdate < 5) {
+      status = 'live'
+      color = 'green.400'
+      showPulse = true
+    } else if (timeSinceUpdate < 30) {
+      status = 'live'
+      color = 'green.400'
+      showPulse = false
+    } else {
+      status = 'stale'
+      color = 'yellow.400'
+      showPulse = false
+    }
+  } else {
+    status = 'disconnected'
+    color = 'orange.400'
+    showPulse = false
+  }
 
   return (
     <HStack spacing={1}>
@@ -53,15 +80,14 @@ function LiveIndicator({ isConnected, isLoading, lastFetchTime, refreshInterval 
         w="6px"
         h="6px"
         borderRadius="full"
-        bg={isLoading ? 'blue.400' : 'green.400'}
-        boxShadow={isLoading ? '0 0 6px var(--chakra-colors-blue-400)' : '0 0 6px var(--chakra-colors-green-400)'}
+        bg={color}
+        boxShadow={`0 0 6px var(--chakra-colors-${color.replace('.', '-')})`}
+        animation={showPulse ? `${pulse} 1.5s ease-in-out infinite` : undefined}
         transition="all 0.2s"
       />
-      {showLabel && (
-        <Text color="gray.500" fontSize="xs" fontFamily="mono">
-          {isLoading ? 'updating' : `${nextRefreshIn}s`}
-        </Text>
-      )}
+      <Text color="gray.500" fontSize="xs" fontFamily="mono">
+        {status}
+      </Text>
     </HStack>
   )
 }

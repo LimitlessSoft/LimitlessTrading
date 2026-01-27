@@ -20,6 +20,43 @@ let connectionState = {
 const pendingRequests = new Map()
 let nextRequestId = 1
 
+// Subscription management for real-time streaming
+const activeSubscriptions = new Map() // reqId -> { symbol, listeners: Set<callback> }
+const symbolToReqId = new Map() // symbol -> reqId
+const latestQuotes = new Map() // symbol -> quote data
+
+// Event emitter for quote updates
+const quoteListeners = new Set() // Set<(symbol, quote) => void>
+
+export function subscribeToQuotes(callback) {
+  quoteListeners.add(callback)
+  return () => quoteListeners.delete(callback)
+}
+
+export function getLatestQuote(symbol) {
+  return latestQuotes.get(symbol.toUpperCase()) || null
+}
+
+export function getLatestQuotes(symbols) {
+  const result = {}
+  for (const symbol of symbols) {
+    const quote = latestQuotes.get(symbol.toUpperCase())
+    if (quote) result[symbol] = quote
+  }
+  return result
+}
+
+function emitQuoteUpdate(symbol, quote) {
+  latestQuotes.set(symbol.toUpperCase(), quote)
+  for (const listener of quoteListeners) {
+    try {
+      listener(symbol, quote)
+    } catch (e) {
+      console.error('Quote listener error:', e)
+    }
+  }
+}
+
 export function getConnectionStatus() {
   return { ...connectionState }
 }
@@ -1149,6 +1186,182 @@ async function getOptionData(symbol, expiration, strike, right, exchange, multip
       resolve(null)
     }
   })
+}
+
+// Subscribe to real-time market data for a symbol (persistent subscription)
+export function subscribeMarketData(symbol) {
+  if (!ib || !connectionState.connected) {
+    console.log(`Cannot subscribe to ${symbol}: not connected`)
+    return null
+  }
+
+  const upperSymbol = symbol.toUpperCase()
+
+  // Already subscribed?
+  if (symbolToReqId.has(upperSymbol)) {
+    console.log(`Already subscribed to ${upperSymbol}`)
+    return symbolToReqId.get(upperSymbol)
+  }
+
+  const reqId = nextRequestId++
+
+  const indexConfig = INDEX_SYMBOLS[upperSymbol]
+  const contract = indexConfig ? {
+    symbol: upperSymbol,
+    secType: SecType.IND,
+    exchange: indexConfig.exchange,
+    currency: 'USD'
+  } : {
+    symbol: upperSymbol,
+    secType: SecType.STK,
+    exchange: 'SMART',
+    currency: 'USD'
+  }
+
+  // Initialize quote data
+  const quote = {
+    symbol: upperSymbol,
+    last: null,
+    open: null,
+    high: null,
+    low: null,
+    prevClose: null,
+    vwap: null,
+    bid: null,
+    ask: null,
+    bidSize: null,
+    askSize: null,
+    volume: null,
+    avgVolume: null,
+    marketCap: null,
+    week52High: null,
+    week52Low: null,
+    lastUpdate: null
+  }
+
+  activeSubscriptions.set(reqId, { symbol: upperSymbol, quote })
+  symbolToReqId.set(upperSymbol, reqId)
+
+  // Set up tick handlers (these are shared, filter by reqId)
+  const onTickPrice = (rId, tickType, price) => {
+    if (rId !== reqId || price <= 0) return
+    const sub = activeSubscriptions.get(reqId)
+    if (!sub) return
+
+    let changed = false
+    switch (tickType) {
+      case 1: if (sub.quote.bid !== price) { sub.quote.bid = price; changed = true } break
+      case 2: if (sub.quote.ask !== price) { sub.quote.ask = price; changed = true } break
+      case 4: if (sub.quote.last !== price) { sub.quote.last = price; changed = true } break
+      case 6: if (sub.quote.high !== price) { sub.quote.high = price; changed = true } break
+      case 7: if (sub.quote.low !== price) { sub.quote.low = price; changed = true } break
+      case 9: if (sub.quote.prevClose !== price) { sub.quote.prevClose = price; changed = true } break
+      case 14: if (sub.quote.open !== price) { sub.quote.open = price; changed = true } break
+      case 15: if (sub.quote.week52Low !== price) { sub.quote.week52Low = price; changed = true } break
+      case 16: if (sub.quote.week52High !== price) { sub.quote.week52High = price; changed = true } break
+    }
+    if (changed) {
+      sub.quote.lastUpdate = Date.now()
+      emitQuoteUpdate(upperSymbol, { ...sub.quote })
+    }
+  }
+
+  const onTickSize = (rId, tickType, size) => {
+    if (rId !== reqId) return
+    const sub = activeSubscriptions.get(reqId)
+    if (!sub) return
+
+    let changed = false
+    switch (tickType) {
+      case 0: if (sub.quote.bidSize !== size) { sub.quote.bidSize = size; changed = true } break
+      case 3: if (sub.quote.askSize !== size) { sub.quote.askSize = size; changed = true } break
+      case 8: if (sub.quote.volume !== size) { sub.quote.volume = size; changed = true } break
+      case 21: if (sub.quote.avgVolume !== size) { sub.quote.avgVolume = size; changed = true } break
+    }
+    if (changed) {
+      sub.quote.lastUpdate = Date.now()
+      emitQuoteUpdate(upperSymbol, { ...sub.quote })
+    }
+  }
+
+  const onTickGeneric = (rId, tickType, value) => {
+    if (rId !== reqId) return
+    const sub = activeSubscriptions.get(reqId)
+    if (!sub) return
+
+    if (tickType === 81 && value > 0 && sub.quote.vwap !== value) {
+      sub.quote.vwap = value
+      sub.quote.lastUpdate = Date.now()
+      emitQuoteUpdate(upperSymbol, { ...sub.quote })
+    }
+  }
+
+  // Store handlers for cleanup
+  activeSubscriptions.get(reqId).handlers = { onTickPrice, onTickSize, onTickGeneric }
+
+  ib.on(EventName.tickPrice, onTickPrice)
+  ib.on(EventName.tickSize, onTickSize)
+  ib.on(EventName.tickGeneric, onTickGeneric)
+
+  try {
+    // Request streaming market data with generic ticks for VWAP, avg volume
+    ib.reqMktData(reqId, contract, '233,165', false, false, [])
+    console.log(`Subscribed to market data for ${upperSymbol} (reqId: ${reqId})`)
+    return reqId
+  } catch (err) {
+    console.error(`Failed to subscribe to ${upperSymbol}:`, err)
+    activeSubscriptions.delete(reqId)
+    symbolToReqId.delete(upperSymbol)
+    ib.off(EventName.tickPrice, onTickPrice)
+    ib.off(EventName.tickSize, onTickSize)
+    ib.off(EventName.tickGeneric, onTickGeneric)
+    return null
+  }
+}
+
+// Unsubscribe from market data for a symbol
+export function unsubscribeMarketData(symbol) {
+  const upperSymbol = symbol.toUpperCase()
+  const reqId = symbolToReqId.get(upperSymbol)
+
+  if (!reqId) {
+    console.log(`Not subscribed to ${upperSymbol}`)
+    return false
+  }
+
+  const sub = activeSubscriptions.get(reqId)
+  if (sub && sub.handlers) {
+    try { ib.off(EventName.tickPrice, sub.handlers.onTickPrice) } catch (e) {}
+    try { ib.off(EventName.tickSize, sub.handlers.onTickSize) } catch (e) {}
+    try { ib.off(EventName.tickGeneric, sub.handlers.onTickGeneric) } catch (e) {}
+  }
+
+  try {
+    if (ib && connectionState.connected) {
+      ib.cancelMktData(reqId)
+    }
+  } catch (e) {
+    console.error(`Error canceling market data for ${upperSymbol}:`, e)
+  }
+
+  activeSubscriptions.delete(reqId)
+  symbolToReqId.delete(upperSymbol)
+  latestQuotes.delete(upperSymbol)
+
+  console.log(`Unsubscribed from market data for ${upperSymbol}`)
+  return true
+}
+
+// Get list of actively subscribed symbols
+export function getSubscribedSymbols() {
+  return Array.from(symbolToReqId.keys())
+}
+
+// Unsubscribe from all market data
+export function unsubscribeAllMarketData() {
+  for (const symbol of symbolToReqId.keys()) {
+    unsubscribeMarketData(symbol)
+  }
 }
 
 export { ib }

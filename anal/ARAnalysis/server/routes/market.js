@@ -1,5 +1,20 @@
 import { Router } from 'express'
-import { connect, disconnect, getHistoricalData, getConnectionStatus, getOptionsChain, getCurrentPrices, getOptionHistoricalData, getDetailedQuotes } from '../ibkrClient.js'
+import {
+  connect,
+  disconnect,
+  getHistoricalData,
+  getConnectionStatus,
+  getOptionsChain,
+  getCurrentPrices,
+  getOptionHistoricalData,
+  getDetailedQuotes,
+  subscribeMarketData,
+  unsubscribeMarketData,
+  subscribeToQuotes,
+  getLatestQuotes,
+  getSubscribedSymbols,
+  unsubscribeAllMarketData
+} from '../ibkrClient.js'
 
 const router = Router()
 
@@ -127,6 +142,7 @@ router.post('/current-prices', async (req, res) => {
 })
 
 // Get detailed quotes for multiple symbols (prev close, open, last, vwap, etc.)
+// This is the legacy polling endpoint - prefer /stream-quotes for real-time
 router.post('/live-quotes', async (req, res) => {
   const { symbols } = req.body
 
@@ -141,6 +157,93 @@ router.post('/live-quotes', async (req, res) => {
     console.error('Live quotes error:', error)
     res.status(500).json({ error: error.message })
   }
+})
+
+// Subscribe to real-time market data for symbols
+router.post('/subscribe', async (req, res) => {
+  const { symbols } = req.body
+
+  if (!symbols || !Array.isArray(symbols) || symbols.length === 0) {
+    return res.status(400).json({ error: 'Symbols array is required' })
+  }
+
+  const results = {}
+  for (const symbol of symbols) {
+    const reqId = subscribeMarketData(symbol.toUpperCase())
+    results[symbol.toUpperCase()] = reqId !== null
+  }
+
+  res.json({ subscribed: results, activeSymbols: getSubscribedSymbols() })
+})
+
+// Unsubscribe from market data for symbols
+router.post('/unsubscribe', async (req, res) => {
+  const { symbols } = req.body
+
+  if (!symbols || !Array.isArray(symbols) || symbols.length === 0) {
+    return res.status(400).json({ error: 'Symbols array is required' })
+  }
+
+  const results = {}
+  for (const symbol of symbols) {
+    results[symbol.toUpperCase()] = unsubscribeMarketData(symbol.toUpperCase())
+  }
+
+  res.json({ unsubscribed: results, activeSymbols: getSubscribedSymbols() })
+})
+
+// Unsubscribe from all market data
+router.post('/unsubscribe-all', async (req, res) => {
+  unsubscribeAllMarketData()
+  res.json({ success: true, activeSymbols: [] })
+})
+
+// Get currently subscribed symbols
+router.get('/subscriptions', (req, res) => {
+  res.json({ symbols: getSubscribedSymbols() })
+})
+
+// SSE endpoint for streaming real-time quotes
+router.get('/stream-quotes', (req, res) => {
+  // Set up SSE headers
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.flushHeaders()
+
+  console.log('SSE client connected for quote streaming')
+
+  // Send initial data for all subscribed symbols
+  const initialQuotes = getLatestQuotes(getSubscribedSymbols())
+  if (Object.keys(initialQuotes).length > 0) {
+    res.write(`data: ${JSON.stringify({ type: 'snapshot', quotes: initialQuotes })}\n\n`)
+  }
+
+  // Subscribe to quote updates
+  const unsubscribe = subscribeToQuotes((symbol, quote) => {
+    try {
+      res.write(`data: ${JSON.stringify({ type: 'update', symbol, quote })}\n\n`)
+    } catch (e) {
+      // Client disconnected
+    }
+  })
+
+  // Send heartbeat every 30 seconds to keep connection alive
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(`: heartbeat\n\n`)
+    } catch (e) {
+      // Client disconnected
+    }
+  }, 30000)
+
+  // Clean up on client disconnect
+  req.on('close', () => {
+    console.log('SSE client disconnected')
+    unsubscribe()
+    clearInterval(heartbeat)
+  })
 })
 
 // Get options chain for a symbol

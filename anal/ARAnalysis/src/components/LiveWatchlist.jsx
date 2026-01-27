@@ -410,11 +410,11 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
   const [intradayData, setIntradayData] = useState({}) // { symbol: data[] }
   const [intradayLoading, setIntradayLoading] = useState({}) // { symbol: boolean }
   const [refreshInterval, setRefreshInterval] = useState(propRefreshInterval || DEFAULT_REFRESH_INTERVAL)
+  const [isStreaming, setIsStreaming] = useState(false)
   const toast = useToast()
 
   // Refs for request management
-  const abortControllerRef = useRef(null)
-  const isFetchingRef = useRef(false)
+  const eventSourceRef = useRef(null)
   const symbolsRef = useRef(symbols)
   const expandedSymbolsRef = useRef(expandedSymbols)
 
@@ -510,98 +510,142 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
     loadSymbols()
   }, [loadSymbols])
 
-  const fetchQuotes = useCallback(async () => {
-    // Use refs to avoid dependency on symbols/expandedSymbols state
-    const currentSymbols = symbolsRef.current
-    const currentExpanded = expandedSymbolsRef.current
+  // Subscribe to symbols on the backend
+  const subscribeSymbols = useCallback(async (symbolList) => {
+    if (!isConnected || symbolList.length === 0) return
 
-    if (!isConnected || currentSymbols.length === 0) return
-
-    // Skip if already fetching (prevent overlapping requests)
-    if (isFetchingRef.current) return
-    isFetchingRef.current = true
-
-    // Cancel any in-flight requests
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
+    try {
+      await fetch(`${API_BASE}/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbols: symbolList })
+      })
+    } catch (err) {
+      console.error('Failed to subscribe to symbols:', err)
     }
-    abortControllerRef.current = new AbortController()
-
-    setLoading(true)
-    setLastFetchTime(Date.now()) // Set at start so timer aligns with interval
-
-    // Fetch each symbol individually and update UI as each returns
-    const fetchPromises = currentSymbols.map(async (symbol) => {
-      try {
-        const response = await fetch(`${API_BASE}/live-quotes`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbols: [symbol] }),
-          signal: abortControllerRef.current.signal
-        })
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch quote for ${symbol}`)
-        }
-
-        const data = await response.json()
-        // Update state immediately as this symbol's data arrives
-        setQuotes(prev => ({ ...prev, ...data }))
-
-        // If this symbol is expanded, also fetch intraday data
-        if (currentExpanded.has(symbol)) {
-          const today = new Date()
-          today.setHours(0, 0, 0, 0)
-          const startTimestamp = today.getTime()
-          try {
-            const intradayResult = await fetchIntradayForDay(symbol, startTimestamp, '5m')
-            setIntradayData(prev => ({ ...prev, [symbol]: intradayResult || [] }))
-          } catch (err) {
-            console.error(`Failed to refresh intraday for ${symbol}:`, err)
-          }
-        }
-      } catch (err) {
-        if (err.name === 'AbortError') return
-        console.error(`Failed to fetch quote for ${symbol}:`, err)
-      }
-    })
-
-    // Wait for all to complete before clearing loading state
-    await Promise.all(fetchPromises)
-    setLoading(false)
-    isFetchingRef.current = false
   }, [isConnected])
 
-  // Set up interval for fetching - uses refs so doesn't need symbols/expandedSymbols deps
-  useEffect(() => {
-    if (!isConnected) return
+  // Unsubscribe from symbols on the backend
+  const unsubscribeSymbols = useCallback(async (symbolList) => {
+    try {
+      await fetch(`${API_BASE}/unsubscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbols: symbolList })
+      })
+    } catch (err) {
+      console.error('Failed to unsubscribe from symbols:', err)
+    }
+  }, [])
 
-    // Initial fetch if we have symbols
-    if (symbolsRef.current.length > 0) {
-      fetchQuotes()
+  // Set up SSE streaming for real-time quotes
+  useEffect(() => {
+    if (!isConnected || symbols.length === 0) {
+      // Close existing connection if no symbols or disconnected
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+        eventSourceRef.current = null
+        setIsStreaming(false)
+      }
+      return
     }
 
-    const interval = setInterval(() => {
-      if (symbolsRef.current.length > 0) {
-        fetchQuotes()
+    // Subscribe to all current symbols
+    subscribeSymbols(symbols)
+
+    // Set up SSE connection
+    if (!eventSourceRef.current) {
+      const eventSource = new EventSource(`${API_BASE}/stream-quotes`)
+
+      eventSource.onopen = () => {
+        console.log('SSE connection opened')
+        setIsStreaming(true)
+        setLastFetchTime(Date.now())
       }
-    }, refreshInterval * 1000)
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+
+          if (data.type === 'snapshot') {
+            // Initial snapshot of all subscribed quotes
+            setQuotes(prev => ({ ...prev, ...data.quotes }))
+            setLoading(false)
+          } else if (data.type === 'update') {
+            // Real-time update for a single symbol
+            setQuotes(prev => ({ ...prev, [data.symbol]: data.quote }))
+            setLastFetchTime(Date.now())
+          }
+        } catch (err) {
+          console.error('Failed to parse SSE message:', err)
+        }
+      }
+
+      eventSource.onerror = (err) => {
+        console.error('SSE error:', err)
+        setIsStreaming(false)
+        // EventSource will automatically reconnect
+      }
+
+      eventSourceRef.current = eventSource
+      setLoading(true)
+    }
 
     return () => {
-      clearInterval(interval)
-      // Cancel any in-flight request on unmount
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
+      // Don't close on every re-render, only on unmount
+    }
+  }, [isConnected, symbols, subscribeSymbols])
+
+  // Clean up SSE on unmount
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+        eventSourceRef.current = null
       }
     }
-  }, [isConnected, fetchQuotes, refreshInterval])
+  }, [])
 
-  // Fetch immediately when symbols are added (separate effect)
+  // Refresh intraday data periodically for expanded symbols
   useEffect(() => {
-    if (isConnected && symbols.length > 0 && !isFetchingRef.current) {
-      fetchQuotes()
+    if (!isConnected || expandedSymbols.size === 0) return
+
+    const refreshIntraday = async () => {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const startTimestamp = today.getTime()
+
+      for (const symbol of expandedSymbols) {
+        try {
+          const intradayResult = await fetchIntradayForDay(symbol, startTimestamp, '5m')
+          setIntradayData(prev => ({ ...prev, [symbol]: intradayResult || [] }))
+        } catch (err) {
+          console.error(`Failed to refresh intraday for ${symbol}:`, err)
+        }
+      }
     }
-  }, [symbols.length, isConnected, fetchQuotes])
+
+    // Initial fetch
+    refreshIntraday()
+
+    // Refresh intraday every 60 seconds (charts don't need real-time updates)
+    const interval = setInterval(refreshIntraday, 60000)
+
+    return () => clearInterval(interval)
+  }, [isConnected, expandedSymbols])
+
+  // Manual refresh function (for refresh button)
+  const manualRefresh = useCallback(async () => {
+    if (!isConnected || symbols.length === 0) return
+
+    setLoading(true)
+    try {
+      // Re-subscribe to all symbols to force refresh
+      await subscribeSymbols(symbols)
+    } finally {
+      setLoading(false)
+    }
+  }, [isConnected, symbols, subscribeSymbols])
 
   const handleAddSymbol = async () => {
     const symbol = newSymbol.trim().toUpperCase()
@@ -622,26 +666,19 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
     setNewSymbol('')
     setIsAdding(false)
 
+    // Subscribe to the new symbol for real-time updates
     if (isConnected) {
-      try {
-        const response = await fetch(`${API_BASE}/live-quotes`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbols: [symbol] })
-        })
-        if (response.ok) {
-          const data = await response.json()
-          setQuotes(prev => ({ ...prev, ...data }))
-        }
-      } catch (err) {
-        console.error('Failed to fetch quote for new symbol:', err)
-      }
+      subscribeSymbols([symbol])
     }
   }
 
   const handleRemoveSymbol = async (symbol) => {
     await removeFromLiveWatchlist(symbol)
     setSymbols(symbols.filter(s => s !== symbol))
+
+    // Unsubscribe from removed symbol
+    unsubscribeSymbols([symbol])
+
     setQuotes(prev => {
       const next = { ...prev }
       delete next[symbol]
@@ -715,6 +752,7 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
             <LiveIndicator
               isConnected={isConnected}
               isLoading={loading}
+              isStreaming={isStreaming}
               lastFetchTime={lastFetchTime}
               refreshInterval={refreshInterval}
             />
@@ -780,7 +818,7 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
               size="xs"
               variant="ghost"
               colorScheme="blue"
-              onClick={fetchQuotes}
+              onClick={manualRefresh}
               isDisabled={!isConnected || symbols.length === 0}
               aria-label="Refresh"
             />
