@@ -254,38 +254,25 @@ function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, c
         {formatPct(changePctFromClose)}
       </Text>
 
-      {/* Compact details */}
+      {/* Compact details - sorted by value (highest first) */}
       <VStack align="stretch" spacing={0} fontSize="10px" color="gray.500">
-        <HStack justify="space-between">
-          <Tooltip label="Open" placement="left" fontSize="xs">
-            <Text cursor="help">O</Text>
-          </Tooltip>
-          <Text fontFamily="mono" color="gray.400">{formatPrice(open)}</Text>
-        </HStack>
-        <HStack justify="space-between">
-          <Tooltip label="High" placement="left" fontSize="xs">
-            <Text cursor="help">H</Text>
-          </Tooltip>
-          <Text fontFamily="mono" color="gray.400">{formatPrice(high)}</Text>
-        </HStack>
-        <HStack justify="space-between">
-          <Tooltip label="Low" placement="left" fontSize="xs">
-            <Text cursor="help">L</Text>
-          </Tooltip>
-          <Text fontFamily="mono" color="gray.400">{formatPrice(low)}</Text>
-        </HStack>
-        <HStack justify="space-between">
-          <Tooltip label="Previous Close" placement="left" fontSize="xs">
-            <Text cursor="help">PC</Text>
-          </Tooltip>
-          <Text fontFamily="mono" color="gray.400">{formatPrice(prevClose)}</Text>
-        </HStack>
-        <HStack justify="space-between">
-          <Tooltip label="VWAP (Volume Weighted Avg Price)" placement="left" fontSize="xs">
-            <Text cursor="help">VW</Text>
-          </Tooltip>
-          <Text fontFamily="mono" color="gray.400">{formatPrice(vwap)}</Text>
-        </HStack>
+        {[
+          { key: 'O', label: 'Open', value: open },
+          { key: 'H', label: 'High', value: high },
+          { key: 'L', label: 'Low', value: low },
+          { key: 'PC', label: 'Previous Close', value: prevClose },
+          { key: 'VW', label: 'VWAP (Volume Weighted Avg Price)', value: vwap }
+        ]
+          .filter(item => item.value != null)
+          .sort((a, b) => (b.value || 0) - (a.value || 0))
+          .map(item => (
+            <HStack key={item.key} justify="space-between">
+              <Tooltip label={item.label} placement="left" fontSize="xs">
+                <Text cursor="help">{item.key}</Text>
+              </Tooltip>
+              <Text fontFamily="mono" color="gray.400">{formatPrice(item.value)}</Text>
+            </HStack>
+          ))}
         <HStack justify="space-between">
           <Tooltip label="Today's Trading Volume" placement="left" fontSize="xs">
             <Text cursor="help">Vol</Text>
