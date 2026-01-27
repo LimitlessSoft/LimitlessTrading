@@ -31,7 +31,8 @@ const DEFAULT_HEIGHT = 120
 const DEFAULT_STYLE = {
   bgColor: '#2D3748',
   borderColor: '#4A5568',
-  borderWidth: 1
+  borderWidth: 1,
+  verticalAlign: 'top'
 }
 
 function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, onDragStateChange, onMoveControl, activeDrag, parentPanelId, isEditing, containerRef }) {
@@ -54,9 +55,9 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
   const style = { ...DEFAULT_STYLE, ...label.style }
   const children = label.children || []
 
-  // Calculate layout positions for children
+  // Calculate layout positions for children and total content height
   const calculateChildLayout = (controls, gap = 8) => {
-    if (!controls.length) return new Map()
+    if (!controls.length) return { positions: new Map(), contentHeight: 0 }
 
     const sorted = [...controls].sort((a, b) => (a.y || 0) - (b.y || 0) || (a.x || 0) - (b.x || 0))
     const positions = new Map()
@@ -78,10 +79,48 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
       placed.push({ x: cx, width: cwidth, y: cy, height: cheight })
     }
 
-    return positions
+    // Calculate total content height
+    let contentHeight = 0
+    for (const p of placed) {
+      contentHeight = Math.max(contentHeight, p.y + p.height)
+    }
+
+    return { positions, contentHeight }
   }
 
-  const childLayoutPositions = calculateChildLayout(children)
+  const { positions: childLayoutPositions, contentHeight } = calculateChildLayout(children)
+
+  // Calculate vertical offset based on alignment
+  const getVerticalOffset = () => {
+    if (!childContainerRef.current || children.length === 0) return 0
+    const containerHeight = childContainerRef.current.clientHeight - 16 // minus padding
+    if (contentHeight >= containerHeight) return 0
+
+    switch (style.verticalAlign) {
+      case 'middle':
+        return (containerHeight - contentHeight) / 2
+      case 'bottom':
+        return containerHeight - contentHeight
+      default:
+        return 0
+    }
+  }
+
+  const [verticalOffset, setVerticalOffset] = useState(0)
+
+  // Recalculate offset when relevant values change
+  useEffect(() => {
+    const updateOffset = () => {
+      setVerticalOffset(getVerticalOffset())
+    }
+    updateOffset()
+    // Also update on resize
+    const observer = new ResizeObserver(updateOffset)
+    if (childContainerRef.current) {
+      observer.observe(childContainerRef.current)
+    }
+    return () => observer.disconnect()
+  }, [children, style.verticalAlign, height, contentHeight])
 
   const displayWidth = previewSize?.width ?? width
   const displayHeight = previewSize?.height ?? height
@@ -383,7 +422,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     const childCommonProps = {
       key: child.id,
       label: child,
-      layoutY: childLayoutPositions.get(child.id),
+      layoutY: (childLayoutPositions.get(child.id) || 0) + verticalOffset,
       onDelete: handleDeleteChild,
       onUpdate: handleUpdateChild,
       onDragStateChange: onDragStateChange,
@@ -574,16 +613,29 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
                     />
                   </FormControl>
                 </HStack>
-                <FormControl>
-                  <FormLabel fontSize="sm">Border Width (px)</FormLabel>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={10}
-                    value={editStyle.borderWidth}
-                    onChange={(e) => setEditStyle({ ...editStyle, borderWidth: parseInt(e.target.value) || 0 })}
-                  />
-                </FormControl>
+                <HStack width="100%" spacing={4}>
+                  <FormControl>
+                    <FormLabel fontSize="sm">Border Width (px)</FormLabel>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={10}
+                      value={editStyle.borderWidth}
+                      onChange={(e) => setEditStyle({ ...editStyle, borderWidth: parseInt(e.target.value) || 0 })}
+                    />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel fontSize="sm">Vertical Align</FormLabel>
+                    <Select
+                      value={editStyle.verticalAlign || 'top'}
+                      onChange={(e) => setEditStyle({ ...editStyle, verticalAlign: e.target.value })}
+                    >
+                      <option value="top">Top</option>
+                      <option value="middle">Middle</option>
+                      <option value="bottom">Bottom</option>
+                    </Select>
+                  </FormControl>
+                </HStack>
               </VStack>
             )}
           </ModalBody>
