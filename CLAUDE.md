@@ -181,6 +181,7 @@ Template pages support editable controls that persist to the backend via `route.
 ### Control Types
 - `label` - Text display with styling (default if no type specified)
 - `panel` - Container that holds child controls
+- `badge` - Colored circle indicator based on placeholder value
 
 ### Control Positioning
 
@@ -236,6 +237,29 @@ Controls use **absolute positioning** with automatic vertical stacking:
     bgColor: "#2D3748",
     borderColor: "#4A5568",
     borderWidth: 1
+  }
+}
+```
+
+**Badge:**
+```js
+{
+  id: "uuid",
+  type: "badge",
+  width: 2,             // default 2 segments
+  height: 40,           // pixels (min 20px)
+  x: 0,                 // horizontal position (segments 0-19)
+  y: 0,                 // order hint for vertical stacking
+  placeholder: "${tws_connection_status:5}",  // data source with refresh interval
+  colorMappings: [      // value-to-color mappings
+    { value: "Connected", color: "#48BB78", contains: true },
+    { value: "Disconnected", color: "#F56565", contains: false }
+  ],
+  defaultColor: "#718096",  // fallback color if no mapping matches
+  style: {
+    bgColor: "transparent",
+    borderColor: "#718096",
+    borderWidth: 0
   }
 }
 ```
@@ -321,6 +345,37 @@ A container control that holds nested child controls.
 - `bgColor` - Background color (default: #2D3748)
 - `borderColor` - Border color (default: #4A5568)
 - `borderWidth` - Border width in px (default: 1)
+
+### TemplatePageBadge Component
+**Location:** `src/components/TemplatePageBadge.jsx`
+
+A colored circle indicator that changes color based on placeholder values.
+
+**Props:**
+- `label` - Badge data object (see structure above)
+- `layoutY` - Calculated y position from parent's layout algorithm
+- `onDelete(id)` - Callback when delete button clicked
+- `onUpdate(id, changes)` - Callback for any property updates
+- `isEditing` - Whether edit mode is active
+- `containerRef` - Ref to parent container for position calculations
+
+**Features:**
+- **Colored circle**: Displays a colored dot based on current placeholder value
+- **Value-to-color mapping**: Configure which values map to which colors
+- **Contains matching**: Option to match if value contains string vs exact match
+- **Tooltip**: Shows current value on hover
+- **Configurable refresh**: Placeholder format `${name:seconds}` controls polling interval
+
+**Color Mapping:**
+```js
+colorMappings: [
+  { value: "Connected", color: "#48BB78", contains: true },   // green if contains "Connected"
+  { value: "Disconnected", color: "#F56565", contains: false } // red if exactly "Disconnected"
+]
+```
+- `value` - String to match against placeholder result
+- `color` - Hex color to display when matched
+- `contains` - If true, checks if value contains string; if false, exact match
 
 ### Creating New Template Controls
 

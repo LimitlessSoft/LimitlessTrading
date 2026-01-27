@@ -26,6 +26,7 @@ import { fetchRoutes, updateRoute } from '../modules/routesService'
 import PageNavMenu from '../components/PageNavMenu'
 import TemplatePageLabel from '../components/TemplatePageLabel'
 import TemplatePagePanel from '../components/TemplatePagePanel'
+import TemplatePageBadge from '../components/TemplatePageBadge'
 
 function TemplatePage() {
   const location = useLocation()
@@ -62,13 +63,20 @@ function TemplatePage() {
       const newControl = {
         id: crypto.randomUUID(),
         type: controlType,
-        text: controlType === 'label' ? labelText.trim() : '',
-        width: controlType === 'panel' ? 8 : 4,
-        height: controlType === 'panel' ? 120 : 60,
+        text: controlType === 'label' ? labelText.trim() : undefined,
+        width: controlType === 'panel' ? 8 : controlType === 'badge' ? 2 : 4,
+        height: controlType === 'panel' ? 120 : controlType === 'badge' ? 40 : 60,
         x: 0,
         y: 0,
         createdAt: Date.now(),
-        children: controlType === 'panel' ? [] : undefined
+        children: controlType === 'panel' ? [] : undefined,
+        // Badge-specific defaults
+        placeholder: controlType === 'badge' ? '${tws_connection_status:5}' : undefined,
+        colorMappings: controlType === 'badge' ? [
+          { value: 'Connected', color: '#48BB78', contains: true },
+          { value: 'Disconnected', color: '#F56565', contains: false }
+        ] : undefined,
+        defaultColor: controlType === 'badge' ? '#718096' : undefined
       }
       const currentLabels = pageInfo.config?.labels || []
       const updatedConfig = {
@@ -81,7 +89,7 @@ function TemplatePage() {
       setControlType('label')
       onClose()
       toast({
-        title: `${controlType === 'panel' ? 'Panel' : 'Label'} added`,
+        title: `${controlType.charAt(0).toUpperCase() + controlType.slice(1)} added`,
         status: 'success',
         duration: 2000
       })
@@ -227,31 +235,26 @@ function TemplatePage() {
               width="100%"
               minH={isEditing ? '200px' : '100px'}
             >
-              {labels.map((label) => (
-                label.type === 'panel' ? (
-                  <TemplatePagePanel
-                    key={label.id}
-                    label={label}
-                    layoutY={layoutPositions.get(label.id)}
-                    onDelete={handleDeleteLabel}
-                    onUpdate={handleUpdateLabel}
-                    onDragPreview={(pos) => setDragPreview(pos ? { id: label.id, ...pos } : null)}
-                    isEditing={isEditing}
-                    containerRef={containerRef}
-                  />
-                ) : (
-                  <TemplatePageLabel
-                    key={label.id}
-                    label={label}
-                    layoutY={layoutPositions.get(label.id)}
-                    onDelete={handleDeleteLabel}
-                    onUpdate={handleUpdateLabel}
-                    onDragPreview={(pos) => setDragPreview(pos ? { id: label.id, ...pos } : null)}
-                    isEditing={isEditing}
-                    containerRef={containerRef}
-                  />
-                )
-              ))}
+              {labels.map((label) => {
+                const commonProps = {
+                  key: label.id,
+                  label: label,
+                  layoutY: layoutPositions.get(label.id),
+                  onDelete: handleDeleteLabel,
+                  onUpdate: handleUpdateLabel,
+                  onDragPreview: (pos) => setDragPreview(pos ? { id: label.id, ...pos } : null),
+                  isEditing: isEditing,
+                  containerRef: containerRef
+                }
+
+                if (label.type === 'panel') {
+                  return <TemplatePagePanel {...commonProps} />
+                } else if (label.type === 'badge') {
+                  return <TemplatePageBadge {...commonProps} />
+                } else {
+                  return <TemplatePageLabel {...commonProps} />
+                }
+              })}
             </Box>
           </>
         ) : (
@@ -274,6 +277,7 @@ function TemplatePage() {
                 >
                   <option value="label">Label</option>
                   <option value="panel">Panel</option>
+                  <option value="badge">Badge</option>
                 </Select>
               </FormControl>
               {controlType === 'label' && (
