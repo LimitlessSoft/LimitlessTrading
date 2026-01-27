@@ -357,9 +357,12 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
         flexDirection="column"
         overflow="hidden"
         transition={isResizing || isMoving ? 'none' : 'all 0.15s ease'}
-        borderWidth={isEditing ? '2px' : `${style.borderWidth}px`}
-        borderColor={isEditing ? (isResizing || isMoving ? 'blue.400' : 'gray.500') : style.borderColor}
-        borderStyle={isEditing ? 'dashed' : 'solid'}
+        borderWidth={`${style.borderWidth}px`}
+        borderColor={style.borderColor}
+        borderStyle="solid"
+        outline={isEditing ? '2px dashed' : 'none'}
+        outlineColor={isEditing ? (isResizing || isMoving ? 'blue.400' : 'gray.500') : undefined}
+        outlineOffset="-2px"
         opacity={isMoving ? 0.7 : 1}
         zIndex={isMoving ? 100 : 1}
       >
