@@ -3,6 +3,7 @@ import { Box, HStack, Flex, Spacer, Text, Badge } from '@chakra-ui/react'
 import { getNextFomcDecision, formatFomcLabel, calculateCountdown } from '../modules/fomcService'
 import VixDisplay from './VixDisplay'
 import TreasuryYields from './TreasuryYields'
+import FearGreedGauge from './FearGreedGauge'
 
 function FedCountdown({ isConnected }) {
   const [nextDecision, setNextDecision] = useState(null)
@@ -123,6 +124,7 @@ function FedCountdown({ isConnected }) {
         )}
         <Spacer />
         <HStack spacing={6}>
+          <FearGreedGauge isConnected={isConnected} />
           <TreasuryYields />
           <VixDisplay isConnected={isConnected} />
         </HStack>
