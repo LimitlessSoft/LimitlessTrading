@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Flex,
+  Spacer,
   IconButton,
   Menu,
   MenuButton,
@@ -165,13 +166,14 @@ function PageNavMenu({
               </MenuItem>
             </MenuList>
           </Menu>
-          {/* Header controls drop zone */}
+          {children}
+          <Spacer />
+          {/* Header controls - right side */}
           {headerControls.length > 0 && onRenderControl && (
-            <Flex align="center" ml={2} gap={2} flex={1}>
+            <Flex align="center" gap={2}>
               {headerControls.map(control => onRenderControl(control))}
             </Flex>
           )}
-          {children}
         </Flex>
       </Box>
 
