@@ -24,6 +24,51 @@ import LiveIndicator from './LiveIndicator'
 
 const API_BASE = 'http://localhost:3001/api'
 
+// Known index symbols (trade on US exchanges)
+const US_INDEX_SYMBOLS = ['VIX', 'SPX', 'NDX', 'DJX', 'RUT']
+
+// Get market status for a symbol
+// Returns: { status: string, colorScheme: string }
+function getMarketStatusForSymbol(symbol) {
+  const now = new Date()
+  const upperSymbol = symbol.toUpperCase()
+
+  // For now, assume US market hours for most symbols
+  // TODO: Could expand to detect forex, futures, crypto, etc.
+  const eastern = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+  const day = eastern.getDay()
+  const hours = eastern.getHours()
+  const minutes = eastern.getMinutes()
+  const timeInMinutes = hours * 60 + minutes
+
+  const marketOpen = 9 * 60 + 30   // 9:30 AM
+  const marketClose = 16 * 60      // 4:00 PM
+  const preMarketOpen = 4 * 60     // 4:00 AM
+  const afterMarketClose = 20 * 60 // 8:00 PM
+
+  // Weekend
+  if (day === 0 || day === 6) {
+    return { status: 'Wknd', colorScheme: 'gray' }
+  }
+
+  // Regular hours
+  if (timeInMinutes >= marketOpen && timeInMinutes < marketClose) {
+    return { status: 'Open', colorScheme: 'green' }
+  }
+
+  // Pre-market
+  if (timeInMinutes >= preMarketOpen && timeInMinutes < marketOpen) {
+    return { status: 'Pre', colorScheme: 'yellow' }
+  }
+
+  // After-hours
+  if (timeInMinutes >= marketClose && timeInMinutes < afterMarketClose) {
+    return { status: 'AH', colorScheme: 'yellow' }
+  }
+
+  return { status: 'Closed', colorScheme: 'gray' }
+}
+
 function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, canMoveLeft, canMoveRight, isLoading, isExpanded, onToggleExpand }) {
   const [isHovered, setIsHovered] = useState(false)
 
@@ -138,6 +183,7 @@ function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, c
   const changePctFromClose = last && prevClose ? ((last - prevClose) / prevClose) * 100 : null
 
   const changeColor = changePctFromClose > 0 ? 'green' : changePctFromClose < 0 ? 'red' : 'gray'
+  const marketStatus = getMarketStatusForSymbol(symbol)
 
   return (
     <Box
@@ -148,9 +194,25 @@ function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, c
       onMouseLeave={() => setIsHovered(false)}
     >
       <HStack justify="space-between" mb={1}>
-        <Badge colorScheme={changeColor} fontSize="xs" fontWeight="bold">
-          {symbol}
-        </Badge>
+        <HStack spacing={1}>
+          <Badge colorScheme={changeColor} fontSize="xs" fontWeight="bold">
+            {symbol}
+          </Badge>
+          {marketStatus.status !== 'Open' && (
+            <Tooltip label={`Market ${marketStatus.status === 'Pre' ? 'Pre-Market' : marketStatus.status === 'AH' ? 'After-Hours' : marketStatus.status}`} fontSize="xs">
+              <Badge
+                colorScheme={marketStatus.colorScheme}
+                variant="outline"
+                fontSize="8px"
+                px={1}
+                py={0}
+                lineHeight="1.4"
+              >
+                {marketStatus.status}
+              </Badge>
+            </Tooltip>
+          )}
+        </HStack>
         <IconButton
           icon={<CloseIcon />}
           size="xs"
