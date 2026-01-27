@@ -470,19 +470,18 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
         outlineColor={isEditing ? (isResizing || isMoving ? 'blue.400' : 'gray.500') : undefined}
         outlineOffset="-2px"
         opacity={isMoving ? 0.7 : 1}
+        cursor={isEditing ? 'move' : 'default'}
+        onMouseDown={isEditing ? handleMoveStart : undefined}
         zIndex={isMoving ? 100 : 1}
       >
-        {/* Header with controls - drag handle area (only visible in edit mode) */}
+        {/* Edit mode controls - absolutely positioned to not affect layout */}
         {isEditing && (
           <Box
-            px={2}
-            py={1}
-            cursor="move"
-            onMouseDown={handleMoveStart}
-            bg="whiteAlpha.100"
+            position="absolute"
+            top={1}
+            right={4}
+            zIndex={10}
             display="flex"
-            justifyContent="flex-end"
-            flexShrink={0}
           >
             <IconButton
               icon={<AddIcon />}
