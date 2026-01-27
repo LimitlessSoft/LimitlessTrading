@@ -49,7 +49,7 @@ const DEFAULT_STYLE = {
 // Placeholder pattern for template variables: ${name} or ${name:interval}
 const PLACEHOLDER_REGEX = /\$\{(\w+)(?::(\d+))?\}/g
 
-function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, isEditing, containerRef }) {
+function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, onDragStateChange, onMoveControl, activeDrag, parentPanelId, isEditing, containerRef }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -166,6 +166,21 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     onClose()
   }
 
+  // Find panel under mouse position
+  const findPanelAtPosition = (mouseX, mouseY) => {
+    const panels = document.querySelectorAll('[data-panel-id]')
+    for (const panel of panels) {
+      const panelId = panel.getAttribute('data-panel-id')
+      // Don't allow dropping on self or current parent
+      if (panelId === label.id) continue
+      const rect = panel.getBoundingClientRect()
+      if (mouseX >= rect.left && mouseX <= rect.right && mouseY >= rect.top && mouseY <= rect.bottom) {
+        return panelId
+      }
+    }
+    return null
+  }
+
   // Move handler (drag to reposition)
   const handleMoveStart = (e) => {
     if (!isEditing) return
@@ -181,8 +196,11 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     const startVisualY = layoutY ?? 0  // Start from visual position
     let currentX = x
     let currentY = y
+    let lastMouseX = e.clientX
+    let lastMouseY = e.clientY
 
     setIsMoving(true)
+    onDragStateChange?.(true, { x: e.clientX, y: e.clientY })
 
     const handleMouseMove = (moveEvent) => {
       const deltaX = moveEvent.clientX - startMouseX
@@ -196,17 +214,48 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
 
       currentX = newX
       currentY = newVisualY  // Use visual position as new order hint
+      lastMouseX = moveEvent.clientX
+      lastMouseY = moveEvent.clientY
+
       setPreviewPos({ x: newX, y: newVisualY })
       onDragPreview?.({ x: newX, y: newVisualY })
+      onDragStateChange?.(true, { x: moveEvent.clientX, y: moveEvent.clientY })
     }
 
     const handleMouseUp = () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
       setIsMoving(false)
-      // Don't clear previews here - let useEffect clear them when data catches up
+      onDragStateChange?.(false, null)
 
-      if (currentX !== x || currentY !== y) {
+      // Check if dropped on a panel
+      const targetPanelId = findPanelAtPosition(lastMouseX, lastMouseY)
+
+      if (targetPanelId && targetPanelId !== parentPanelId) {
+        // Move to the target panel
+        onMoveControl?.(label.id, parentPanelId, targetPanelId)
+        setPreviewPos(null)
+        onDragPreview?.(null)
+      } else if (targetPanelId === null && parentPanelId !== null) {
+        // Check if dropped outside any panel - move to root
+        const mainContainer = containerRef?.current
+        if (mainContainer) {
+          const rect = mainContainer.getBoundingClientRect()
+          if (lastMouseX >= rect.left && lastMouseX <= rect.right && lastMouseY >= rect.top && lastMouseY <= rect.bottom) {
+            onMoveControl?.(label.id, parentPanelId, null)
+            setPreviewPos(null)
+            onDragPreview?.(null)
+            return
+          }
+        }
+        // Normal position update within current container
+        if (currentX !== x || currentY !== y) {
+          onUpdate(label.id, { x: currentX, y: currentY })
+        } else {
+          setPreviewPos(null)
+          onDragPreview?.(null)
+        }
+      } else if (currentX !== x || currentY !== y) {
         onUpdate(label.id, { x: currentX, y: currentY })
       } else {
         // No change, clear previews immediately

@@ -36,7 +36,7 @@ const DEFAULT_STYLE = {
 // Placeholder pattern for template variables: ${name} or ${name:interval}
 const PLACEHOLDER_REGEX = /\$\{(\w+)(?::(\d+))?\}/
 
-function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, isEditing, containerRef }) {
+function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, onDragStateChange, onMoveControl, activeDrag, parentPanelId, isEditing, containerRef }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -183,6 +183,20 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     setEditConfig({ ...editConfig, colorMappings: newMappings })
   }
 
+  // Find panel under mouse position
+  const findPanelAtPosition = (mouseX, mouseY) => {
+    const panels = document.querySelectorAll('[data-panel-id]')
+    for (const panel of panels) {
+      const panelId = panel.getAttribute('data-panel-id')
+      if (panelId === label.id) continue
+      const rect = panel.getBoundingClientRect()
+      if (mouseX >= rect.left && mouseX <= rect.right && mouseY >= rect.top && mouseY <= rect.bottom) {
+        return panelId
+      }
+    }
+    return null
+  }
+
   // Move handler
   const handleMoveStart = (e) => {
     if (!isEditing) return
@@ -198,8 +212,11 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     const startVisualY = layoutY ?? 0
     let currentX = x
     let currentY = y
+    let lastMouseX = e.clientX
+    let lastMouseY = e.clientY
 
     setIsMoving(true)
+    onDragStateChange?.(true, { x: e.clientX, y: e.clientY })
 
     const handleMouseMove = (moveEvent) => {
       const deltaX = moveEvent.clientX - startMouseX
@@ -211,16 +228,45 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
 
       currentX = newX
       currentY = newVisualY
+      lastMouseX = moveEvent.clientX
+      lastMouseY = moveEvent.clientY
+
       setPreviewPos({ x: newX, y: newVisualY })
       onDragPreview?.({ x: newX, y: newVisualY })
+      onDragStateChange?.(true, { x: moveEvent.clientX, y: moveEvent.clientY })
     }
 
     const handleMouseUp = () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
       setIsMoving(false)
+      onDragStateChange?.(false, null)
 
-      if (currentX !== x || currentY !== y) {
+      // Check if dropped on a panel
+      const targetPanelId = findPanelAtPosition(lastMouseX, lastMouseY)
+
+      if (targetPanelId && targetPanelId !== parentPanelId) {
+        onMoveControl?.(label.id, parentPanelId, targetPanelId)
+        setPreviewPos(null)
+        onDragPreview?.(null)
+      } else if (targetPanelId === null && parentPanelId !== null) {
+        const mainContainer = containerRef?.current
+        if (mainContainer) {
+          const rect = mainContainer.getBoundingClientRect()
+          if (lastMouseX >= rect.left && lastMouseX <= rect.right && lastMouseY >= rect.top && lastMouseY <= rect.bottom) {
+            onMoveControl?.(label.id, parentPanelId, null)
+            setPreviewPos(null)
+            onDragPreview?.(null)
+            return
+          }
+        }
+        if (currentX !== x || currentY !== y) {
+          onUpdate(label.id, { x: currentX, y: currentY })
+        } else {
+          setPreviewPos(null)
+          onDragPreview?.(null)
+        }
+      } else if (currentX !== x || currentY !== y) {
         onUpdate(label.id, { x: currentX, y: currentY })
       } else {
         setPreviewPos(null)

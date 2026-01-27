@@ -39,6 +39,7 @@ function TemplatePage() {
   const toast = useToast()
   const containerRef = useRef(null)
   const [dragPreview, setDragPreview] = useState(null)  // { id, x, y } during drag
+  const [activeDrag, setActiveDrag] = useState(null)  // { controlId, mousePos } during drag
 
   useEffect(() => {
     const loadPageInfo = async () => {
@@ -149,6 +150,71 @@ function TemplatePage() {
     }
   }
 
+  // Move a control to a panel (or to root if targetPanelId is null)
+  const handleMoveControl = async (controlId, sourcePanelId, targetPanelId) => {
+    if (!pageInfo) return
+    if (sourcePanelId === targetPanelId) return // No change
+    if (controlId === targetPanelId) return // Can't move panel into itself
+
+    try {
+      let currentLabels = [...(pageInfo.config?.labels || [])]
+      let controlToMove = null
+
+      // Find and remove the control from its source
+      if (sourcePanelId === null) {
+        // Moving from root
+        controlToMove = currentLabels.find(l => l.id === controlId)
+        if (!controlToMove) return
+        currentLabels = currentLabels.filter(l => l.id !== controlId)
+      } else {
+        // Moving from a panel - find the panel and remove the control from its children
+        currentLabels = currentLabels.map(l => {
+          if (l.id === sourcePanelId && l.children) {
+            controlToMove = l.children.find(c => c.id === controlId)
+            return { ...l, children: l.children.filter(c => c.id !== controlId) }
+          }
+          return l
+        })
+      }
+
+      if (!controlToMove) return
+
+      // Reset position for the new container
+      controlToMove = { ...controlToMove, x: 0, y: 0 }
+
+      // Add the control to its target
+      if (targetPanelId === null) {
+        // Moving to root
+        currentLabels = [...currentLabels, controlToMove]
+      } else {
+        // Moving to a panel
+        currentLabels = currentLabels.map(l => {
+          if (l.id === targetPanelId && l.type === 'panel') {
+            return { ...l, children: [...(l.children || []), controlToMove] }
+          }
+          return l
+        })
+      }
+
+      const updatedConfig = { ...pageInfo.config, labels: currentLabels }
+      const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
+      setPageInfo(updatedRoute)
+
+      toast({
+        title: 'Control moved',
+        status: 'success',
+        duration: 2000
+      })
+    } catch (err) {
+      toast({
+        title: 'Failed to move control',
+        description: err.message,
+        status: 'error',
+        duration: 3000
+      })
+    }
+  }
+
   const labels = pageInfo?.config?.labels || []
 
   // Calculate layout positions - prevents overlap, maintains consistent gaps
@@ -236,6 +302,10 @@ function TemplatePage() {
                   onDelete: handleDeleteLabel,
                   onUpdate: handleUpdateLabel,
                   onDragPreview: (pos) => setDragPreview(pos ? { id: label.id, ...pos } : null),
+                  onDragStateChange: (dragging, mousePos) => setActiveDrag(dragging ? { controlId: label.id, mousePos } : null),
+                  onMoveControl: handleMoveControl,
+                  activeDrag: activeDrag,
+                  parentPanelId: null,
                   isEditing: isEditing,
                   containerRef: containerRef
                 }

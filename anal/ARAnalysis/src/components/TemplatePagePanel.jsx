@@ -21,6 +21,7 @@ import {
 } from '@chakra-ui/react'
 import { CloseIcon, DragHandleIcon, SettingsIcon, AddIcon } from '@chakra-ui/icons'
 import TemplatePageLabel from './TemplatePageLabel'
+import TemplatePageBadge from './TemplatePageBadge'
 
 const TOTAL_SEGMENTS = 20
 const MIN_SEGMENTS = 2
@@ -33,7 +34,7 @@ const DEFAULT_STYLE = {
   borderWidth: 1
 }
 
-function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, isEditing, containerRef }) {
+function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, onDragStateChange, onMoveControl, activeDrag, parentPanelId, isEditing, containerRef }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -125,9 +126,9 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     const newChild = {
       id: crypto.randomUUID(),
       type: addType,
-      text: addType === 'label' ? addText.trim() : '',
-      width: addType === 'panel' ? 8 : 4,
-      height: addType === 'panel' ? DEFAULT_HEIGHT : 60,
+      text: addType === 'label' ? addText.trim() : undefined,
+      width: addType === 'panel' ? 8 : addType === 'badge' ? 2 : 4,
+      height: addType === 'panel' ? DEFAULT_HEIGHT : addType === 'badge' ? 40 : 60,
       x: 0,
       y: 0,
       createdAt: Date.now(),
@@ -151,6 +152,23 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     onUpdate(label.id, { children: updatedChildren })
   }
 
+  // Find panel under mouse position (excluding self and children)
+  const findPanelAtPosition = (mouseX, mouseY) => {
+    const panels = document.querySelectorAll('[data-panel-id]')
+    for (const panel of panels) {
+      const panelId = panel.getAttribute('data-panel-id')
+      // Don't allow dropping on self
+      if (panelId === label.id) continue
+      // Don't allow dropping on own children (would cause infinite loop)
+      if (boxRef.current?.contains(panel)) continue
+      const rect = panel.getBoundingClientRect()
+      if (mouseX >= rect.left && mouseX <= rect.right && mouseY >= rect.top && mouseY <= rect.bottom) {
+        return panelId
+      }
+    }
+    return null
+  }
+
   // Move handler (drag to reposition)
   const handleMoveStart = (e) => {
     if (!isEditing) return
@@ -166,8 +184,11 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     const startVisualY = layoutY ?? 0  // Start from visual position
     let currentX = x
     let currentY = y
+    let lastMouseX = e.clientX
+    let lastMouseY = e.clientY
 
     setIsMoving(true)
+    onDragStateChange?.(true, { x: e.clientX, y: e.clientY })
 
     const handleMouseMove = (moveEvent) => {
       const deltaX = moveEvent.clientX - startMouseX
@@ -180,17 +201,45 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
 
       currentX = newX
       currentY = newVisualY  // Use visual position as new order hint
+      lastMouseX = moveEvent.clientX
+      lastMouseY = moveEvent.clientY
+
       setPreviewPos({ x: newX, y: newVisualY })
       onDragPreview?.({ x: newX, y: newVisualY })
+      onDragStateChange?.(true, { x: moveEvent.clientX, y: moveEvent.clientY })
     }
 
     const handleMouseUp = () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
       setIsMoving(false)
-      // Don't clear previews here - let useEffect clear them when data catches up
+      onDragStateChange?.(false, null)
 
-      if (currentX !== x || currentY !== y) {
+      // Check if dropped on a panel
+      const targetPanelId = findPanelAtPosition(lastMouseX, lastMouseY)
+
+      if (targetPanelId && targetPanelId !== parentPanelId) {
+        onMoveControl?.(label.id, parentPanelId, targetPanelId)
+        setPreviewPos(null)
+        onDragPreview?.(null)
+      } else if (targetPanelId === null && parentPanelId !== null) {
+        const mainContainer = containerRef?.current
+        if (mainContainer) {
+          const rect = mainContainer.getBoundingClientRect()
+          if (lastMouseX >= rect.left && lastMouseX <= rect.right && lastMouseY >= rect.top && lastMouseY <= rect.bottom) {
+            onMoveControl?.(label.id, parentPanelId, null)
+            setPreviewPos(null)
+            onDragPreview?.(null)
+            return
+          }
+        }
+        if (currentX !== x || currentY !== y) {
+          onUpdate(label.id, { x: currentX, y: currentY })
+        } else {
+          setPreviewPos(null)
+          onDragPreview?.(null)
+        }
+      } else if (currentX !== x || currentY !== y) {
         onUpdate(label.id, { x: currentX, y: currentY })
       } else {
         // No change, clear previews immediately
@@ -316,52 +365,63 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     document.addEventListener('mouseup', handleMouseUp)
   }
 
+  // Check if something is being dragged over this panel
+  const isDragTarget = activeDrag &&
+    activeDrag.controlId !== label.id &&
+    activeDrag.mousePos
+
+  const checkIsOverPanel = () => {
+    if (!isDragTarget || !boxRef.current) return false
+    const rect = boxRef.current.getBoundingClientRect()
+    const { x, y } = activeDrag.mousePos
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+  }
+
+  const isDropTarget = checkIsOverPanel()
+
   const renderChild = (child) => {
-    if (child.type === 'panel') {
-      return (
-        <TemplatePagePanel
-          key={child.id}
-          label={child}
-          layoutY={childLayoutPositions.get(child.id)}
-          onDelete={handleDeleteChild}
-          onUpdate={handleUpdateChild}
-          isEditing={isEditing}
-          containerRef={childContainerRef}
-        />
-      )
+    const childCommonProps = {
+      key: child.id,
+      label: child,
+      layoutY: childLayoutPositions.get(child.id),
+      onDelete: handleDeleteChild,
+      onUpdate: handleUpdateChild,
+      onDragStateChange: onDragStateChange,
+      onMoveControl: onMoveControl,
+      activeDrag: activeDrag,
+      parentPanelId: label.id,
+      isEditing: isEditing,
+      containerRef: childContainerRef
     }
-    return (
-      <TemplatePageLabel
-        key={child.id}
-        label={child}
-        layoutY={childLayoutPositions.get(child.id)}
-        onDelete={handleDeleteChild}
-        onUpdate={handleUpdateChild}
-        isEditing={isEditing}
-        containerRef={childContainerRef}
-      />
-    )
+
+    if (child.type === 'panel') {
+      return <TemplatePagePanel {...childCommonProps} />
+    } else if (child.type === 'badge') {
+      return <TemplatePageBadge {...childCommonProps} />
+    }
+    return <TemplatePageLabel {...childCommonProps} />
   }
 
   return (
     <>
       <Box
         ref={boxRef}
+        data-panel-id={label.id}
         position="absolute"
         left={`${(displayX / TOTAL_SEGMENTS) * 100}%`}
         top={`${displayY}px`}
         width={`calc(${(displayWidth / TOTAL_SEGMENTS) * 100}% - 8px)`}
         height={`${displayHeight}px`}
-        bg={style.bgColor}
+        bg={isDropTarget ? 'blue.900' : style.bgColor}
         borderRadius="md"
         display="flex"
         flexDirection="column"
         overflow="hidden"
         transition={isResizing || isMoving ? 'none' : 'all 0.15s ease'}
-        borderWidth={`${style.borderWidth}px`}
-        borderColor={style.borderColor}
+        borderWidth={isDropTarget ? '2px' : `${style.borderWidth}px`}
+        borderColor={isDropTarget ? 'blue.400' : style.borderColor}
         borderStyle="solid"
-        outline={isEditing ? '2px dashed' : 'none'}
+        outline={isEditing && !isDropTarget ? '2px dashed' : 'none'}
         outlineColor={isEditing ? (isResizing || isMoving ? 'blue.400' : 'gray.500') : undefined}
         outlineOffset="-2px"
         opacity={isMoving ? 0.7 : 1}
@@ -554,6 +614,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
                 >
                   <option value="label">Label</option>
                   <option value="panel">Panel</option>
+                  <option value="badge">Badge</option>
                 </Select>
               </FormControl>
               {addType === 'label' && (
