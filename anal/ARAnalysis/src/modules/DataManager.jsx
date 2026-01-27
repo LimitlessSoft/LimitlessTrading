@@ -31,16 +31,14 @@ import {
 
 const IBKR_PORTS = [
   { value: 7496, label: '7496 (TWS Live)' },
-  { value: 7497, label: '7497 (TWS Paper)' },
-  { value: 4001, label: '4001 (Gateway Live)' },
-  { value: 4002, label: '4002 (Gateway Paper)' }
+  { value: 4001, label: '4001 (Gateway Live)' }
 ]
 
 function DataManager({ connectionStatus, onConnectionChange, onDataLoaded }) {
   const { isOpen, onOpen, onClose } = useDisclosure()
   const toast = useToast()
 
-  const [selectedPort, setSelectedPort] = useState(7497)
+  const [selectedPort, setSelectedPort] = useState(7496)
   const [connecting, setConnecting] = useState(false)
 
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { connect, disconnect, getHistoricalData, getConnectionStatus, getOptionsChain, getCurrentPrices, getOptionHistoricalData } from '../ibkrClient.js'
+import { connect, disconnect, getHistoricalData, getConnectionStatus, getOptionsChain, getCurrentPrices, getOptionHistoricalData, getDetailedQuotes } from '../ibkrClient.js'
 
 const router = Router()
 
@@ -32,7 +32,7 @@ function parseDurationToDays(duration) {
 
 // Connect to IBKR
 router.post('/connect', async (req, res) => {
-  const { port = 7497 } = req.body
+  const { port = 7496 } = req.body
   try {
     const status = await connect(port)
     res.json(status)
@@ -122,6 +122,23 @@ router.post('/current-prices', async (req, res) => {
     res.json(prices)
   } catch (error) {
     console.error('Current prices error:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Get detailed quotes for multiple symbols (prev close, open, last, vwap, etc.)
+router.post('/live-quotes', async (req, res) => {
+  const { symbols } = req.body
+
+  if (!symbols || !Array.isArray(symbols) || symbols.length === 0) {
+    return res.status(400).json({ error: 'Symbols array is required' })
+  }
+
+  try {
+    const quotes = await getDetailedQuotes(symbols.map(s => s.toUpperCase()))
+    res.json(quotes)
+  } catch (error) {
+    console.error('Live quotes error:', error)
     res.status(500).json({ error: error.message })
   }
 })

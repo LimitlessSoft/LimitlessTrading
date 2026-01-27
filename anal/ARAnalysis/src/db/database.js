@@ -99,6 +99,21 @@ db.version(7).stores({
   await tx.table('screenerSymbols').bulkAdd(symbols)
 })
 
+// Version 8: Add live watchlist
+db.version(8).stores({
+  securities: 'symbol, name, exchange',
+  priceData: '++id, [symbol+interval+timestamp], symbol, interval, timestamp',
+  settings: 'key',
+  favorites: 'symbol',
+  conditionalFormats: '++id, name, enabled, groupId',
+  formatGroups: '++id, name',
+  analysisPresets: '++id, name',
+  watchgroups: '++id, name',
+  watchgroupMembers: '++id, [groupId+symbol], groupId, symbol',
+  screenerSymbols: 'symbol',
+  liveWatchlist: 'symbol, order'
+})
+
 // Helper functions
 
 export async function getSetting(key) {
@@ -376,6 +391,39 @@ export async function getThresholdReportSettings() {
 
 export async function saveThresholdReportSettings(settings) {
   return setSetting('thresholdReportSettings', settings)
+}
+
+// Live watchlist management
+export async function getLiveWatchlist() {
+  const items = await db.liveWatchlist.toArray()
+  return items.sort((a, b) => (a.order || 0) - (b.order || 0)).map(i => i.symbol)
+}
+
+export async function addToLiveWatchlist(symbol) {
+  const upperSymbol = symbol.toUpperCase().trim()
+  if (!upperSymbol) return
+  const existing = await db.liveWatchlist.get(upperSymbol)
+  if (!existing) {
+    const all = await db.liveWatchlist.toArray()
+    const maxOrder = all.reduce((max, i) => Math.max(max, i.order || 0), 0)
+    await db.liveWatchlist.add({ symbol: upperSymbol, order: maxOrder + 1 })
+  }
+}
+
+export async function removeFromLiveWatchlist(symbol) {
+  await db.liveWatchlist.delete(symbol.toUpperCase())
+}
+
+export async function clearLiveWatchlist() {
+  await db.liveWatchlist.clear()
+}
+
+export async function reorderLiveWatchlist(symbols) {
+  await db.transaction('rw', db.liveWatchlist, async () => {
+    for (let i = 0; i < symbols.length; i++) {
+      await db.liveWatchlist.update(symbols[i].toUpperCase(), { order: i })
+    }
+  })
 }
 
 export default db

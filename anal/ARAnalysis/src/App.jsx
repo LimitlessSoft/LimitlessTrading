@@ -26,6 +26,7 @@ import ThresholdReport from './components/ThresholdReport'
 import TwoUpThenBigMove from './components/TwoUpThenBigMove'
 import Screener from './components/Screener'
 import FedCountdown from './components/FedCountdown'
+import LiveWatchlist from './components/LiveWatchlist'
 import DataManager from './modules/DataManager'
 import {
   getConnectionStatus,
@@ -48,7 +49,7 @@ function App() {
   const [securities, setSecurities] = useState([])
   const [showConnectionDialog, setShowConnectionDialog] = useState(false)
   const [connectionError, setConnectionError] = useState(null)
-  const [lastUsedPort, setLastUsedPort] = useState(7497)
+  const [lastUsedPort, setLastUsedPort] = useState(7496)
   const [initialConnectionAttempted, setInitialConnectionAttempted] = useState(false)
   const cancelRef = useRef(null)
   const toast = useToast()
@@ -151,7 +152,7 @@ function App() {
 
       // Get last used port from storage
       const savedPort = await getLastPort()
-      const port = savedPort || 7497
+      const port = savedPort || 7496
       setLastUsedPort(port)
 
       try {
@@ -268,7 +269,10 @@ function App() {
         onOffline={handleGoOffline}
       />
       <FedCountdown isConnected={connectionState.connected} />
-      <Box px={4} py={4} pt="52px">
+      <Box pt="52px">
+        <LiveWatchlist isConnected={connectionState.connected} />
+      </Box>
+      <Box px={4} py={4}>
         <VStack spacing={4} align="stretch">
           {/* Header */}
           <Flex align="center" wrap="wrap" gap={4}>

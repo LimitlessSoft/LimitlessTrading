@@ -24,7 +24,7 @@ export function getConnectionStatus() {
   return { ...connectionState }
 }
 
-export async function connect(port = 7497) {
+export async function connect(port = 7496) {
   if (ib && connectionState.connected) {
     await disconnect()
   }
@@ -569,6 +569,153 @@ async function getCurrentPriceOnce(symbol) {
       resolve(null)
     }
   })
+}
+
+// Get detailed quote data for a symbol (prev close, open, last, vwap, high, low)
+// Tick types: 1=bid, 2=ask, 4=last, 6=high, 7=low, 9=close, 14=open, 81=vwap
+async function getDetailedQuoteOnce(symbol) {
+  if (!ib || !connectionState.connected) {
+    throw new Error('Not connected to IBKR')
+  }
+
+  return new Promise((resolve) => {
+    const reqId = nextRequestId++
+
+    const indexConfig = INDEX_SYMBOLS[symbol.toUpperCase()]
+    const contract = indexConfig ? {
+      symbol,
+      secType: SecType.IND,
+      exchange: indexConfig.exchange,
+      currency: 'USD'
+    } : {
+      symbol,
+      secType: SecType.STK,
+      exchange: 'SMART',
+      currency: 'USD'
+    }
+
+    const quote = {
+      symbol,
+      last: null,
+      open: null,
+      high: null,
+      low: null,
+      prevClose: null,
+      vwap: null,
+      bid: null,
+      ask: null,
+      volume: null
+    }
+    let resolved = false
+    let dataReceived = false
+
+    const onTickPrice = (rId, tickType, price) => {
+      if (rId !== reqId || price <= 0) return
+      dataReceived = true
+      switch (tickType) {
+        case 1: quote.bid = price; break
+        case 2: quote.ask = price; break
+        case 4: quote.last = price; break
+        case 6: quote.high = price; break
+        case 7: quote.low = price; break
+        case 9: quote.prevClose = price; break
+        case 14: quote.open = price; break
+      }
+    }
+
+    const onTickSize = (rId, tickType, size) => {
+      if (rId !== reqId) return
+      dataReceived = true
+      if (tickType === 8) quote.volume = size // volume
+    }
+
+    const onTickGeneric = (rId, tickType, value) => {
+      if (rId !== reqId) return
+      dataReceived = true
+      if (tickType === 81 && value > 0) quote.vwap = value // vwap (generic tick)
+    }
+
+    const cleanup = () => {
+      if (resolved) return
+      resolved = true
+      try { ib.off(EventName.tickPrice, onTickPrice) } catch (e) {}
+      try { ib.off(EventName.tickSize, onTickSize) } catch (e) {}
+      try { ib.off(EventName.tickGeneric, onTickGeneric) } catch (e) {}
+      pendingRequests.delete(reqId)
+      try { ib.cancelMktData(reqId) } catch (e) {}
+    }
+
+    pendingRequests.set(reqId, {
+      resolve,
+      reject: () => {
+        cleanup()
+        resolve(null)
+      }
+    })
+
+    ib.on(EventName.tickPrice, onTickPrice)
+    ib.on(EventName.tickSize, onTickSize)
+    ib.on(EventName.tickGeneric, onTickGeneric)
+
+    // Wait 2 seconds for quote data
+    setTimeout(() => {
+      if (!resolved) {
+        cleanup()
+        if (dataReceived) {
+          resolve(quote)
+        } else {
+          resolve(null)
+        }
+      }
+    }, 2000)
+
+    try {
+      // Request market data with generic tick 233 for vwap
+      ib.reqMktData(reqId, contract, '233', false, false, [])
+    } catch (err) {
+      cleanup()
+      resolve(null)
+    }
+  })
+}
+
+// Get detailed quote with retry
+export async function getDetailedQuote(symbol, maxRetries = 2) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const quote = await getDetailedQuoteOnce(symbol)
+    if (quote !== null && quote.last !== null) {
+      return quote
+    }
+    if (attempt < maxRetries) {
+      await sleep(300)
+    }
+  }
+  return null
+}
+
+// Get detailed quotes for multiple symbols in parallel
+export async function getDetailedQuotes(symbols) {
+  const BATCH_SIZE = 10
+  const results = {}
+
+  for (let i = 0; i < symbols.length; i += BATCH_SIZE) {
+    const batch = symbols.slice(i, i + BATCH_SIZE)
+    const batchPromises = batch.map(async (symbol) => {
+      const quote = await getDetailedQuote(symbol)
+      return { symbol, quote }
+    })
+
+    const batchResults = await Promise.all(batchPromises)
+    batchResults.forEach(({ symbol, quote }) => {
+      results[symbol] = quote
+    })
+
+    if (i + BATCH_SIZE < symbols.length) {
+      await sleep(200)
+    }
+  }
+
+  return results
 }
 
 // Get current/last price for a symbol with retry

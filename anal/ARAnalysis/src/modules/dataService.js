@@ -538,6 +538,22 @@ export async function fetchCurrentPrices(symbols) {
   }
 }
 
+// Fetch detailed live quotes for multiple symbols
+// Returns { symbol: { last, open, high, low, prevClose, vwap, bid, ask, volume } }
+export async function fetchLiveQuotes(symbols) {
+  if (!symbols || !Array.isArray(symbols) || symbols.length === 0) {
+    return {}
+  }
+
+  try {
+    const response = await api.post('/live-quotes', { symbols })
+    return response.data
+  } catch (err) {
+    console.error('Failed to fetch live quotes:', err.message)
+    return {}
+  }
+}
+
 // Fetch historical data for an option contract
 export async function fetchOptionHistory(symbol, expiration, strike, right) {
   try {
