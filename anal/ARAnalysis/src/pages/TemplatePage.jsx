@@ -15,6 +15,10 @@ import {
   ModalCloseButton,
   Button,
   Input,
+  Select,
+  FormControl,
+  FormLabel,
+  VStack,
   useDisclosure,
   useToast
 } from '@chakra-ui/react'
@@ -22,11 +26,13 @@ import { EditIcon, AddIcon } from '@chakra-ui/icons'
 import { fetchRoutes, updateRoute } from '../modules/routesService'
 import PageNavMenu from '../components/PageNavMenu'
 import TemplatePageLabel from '../components/TemplatePageLabel'
+import TemplatePagePanel from '../components/TemplatePagePanel'
 
 function TemplatePage() {
   const location = useLocation()
   const [pageInfo, setPageInfo] = useState(null)
   const [labelText, setLabelText] = useState('')
+  const [controlType, setControlType] = useState('label')
   const [isSaving, setIsSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const { isOpen, onOpen, onClose } = useDisclosure()
@@ -46,34 +52,39 @@ function TemplatePage() {
     loadPageInfo()
   }, [location.pathname])
 
-  const handleAddLabel = async () => {
-    if (!labelText.trim() || !pageInfo) return
+  const handleAddControl = async () => {
+    if (controlType === 'label' && !labelText.trim()) return
+    if (!pageInfo) return
 
     setIsSaving(true)
     try {
-      const newLabel = {
+      const newControl = {
         id: crypto.randomUUID(),
-        text: labelText.trim(),
-        width: 4,
-        createdAt: Date.now()
+        type: controlType,
+        text: controlType === 'label' ? labelText.trim() : '',
+        width: controlType === 'panel' ? 8 : 4,
+        height: controlType === 'panel' ? 120 : 60,
+        createdAt: Date.now(),
+        children: controlType === 'panel' ? [] : undefined
       }
       const currentLabels = pageInfo.config?.labels || []
       const updatedConfig = {
         ...pageInfo.config,
-        labels: [...currentLabels, newLabel]
+        labels: [...currentLabels, newControl]
       }
       const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
       setPageInfo(updatedRoute)
       setLabelText('')
+      setControlType('label')
       onClose()
       toast({
-        title: 'Label added',
+        title: `${controlType === 'panel' ? 'Panel' : 'Label'} added`,
         status: 'success',
         duration: 2000
       })
     } catch (err) {
       toast({
-        title: 'Failed to add label',
+        title: 'Failed to add control',
         description: err.message,
         status: 'error',
         duration: 3000
@@ -154,7 +165,7 @@ function TemplatePage() {
           icon={<AddIcon />}
           variant="ghost"
           size="sm"
-          aria-label="Add label"
+          aria-label="Add control"
           _hover={{ bg: 'whiteAlpha.200' }}
           ml={1}
           onClick={onOpen}
@@ -168,14 +179,25 @@ function TemplatePage() {
             <Text color="gray.500" mb={6}>{pageInfo.path}</Text>
             <Flex wrap="wrap" gap={2} width="100%">
               {labels.map(label => (
-                <TemplatePageLabel
-                  key={label.id}
-                  label={label}
-                  onDelete={handleDeleteLabel}
-                  onResize={handleUpdateLabel}
-                  onUpdate={handleUpdateLabel}
-                  isEditing={isEditing}
-                />
+                label.type === 'panel' ? (
+                  <TemplatePagePanel
+                    key={label.id}
+                    label={label}
+                    onDelete={handleDeleteLabel}
+                    onResize={handleUpdateLabel}
+                    onUpdate={handleUpdateLabel}
+                    isEditing={isEditing}
+                  />
+                ) : (
+                  <TemplatePageLabel
+                    key={label.id}
+                    label={label}
+                    onDelete={handleDeleteLabel}
+                    onResize={handleUpdateLabel}
+                    onUpdate={handleUpdateLabel}
+                    isEditing={isEditing}
+                  />
+                )
               ))}
             </Flex>
           </>
@@ -187,20 +209,36 @@ function TemplatePage() {
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
         <ModalContent bg="gray.800">
-          <ModalHeader>Add Label</ModalHeader>
+          <ModalHeader>Add Control</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            <Input
-              placeholder="Enter label text"
-              value={labelText}
-              onChange={(e) => setLabelText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && labelText.trim()) {
-                  handleAddLabel()
-                }
-              }}
-              autoFocus
-            />
+            <VStack spacing={4}>
+              <FormControl>
+                <FormLabel fontSize="sm">Control Type</FormLabel>
+                <Select
+                  value={controlType}
+                  onChange={(e) => setControlType(e.target.value)}
+                >
+                  <option value="label">Label</option>
+                  <option value="panel">Panel</option>
+                </Select>
+              </FormControl>
+              {controlType === 'label' && (
+                <FormControl>
+                  <FormLabel fontSize="sm">Label Text</FormLabel>
+                  <Input
+                    placeholder="Enter label text"
+                    value={labelText}
+                    onChange={(e) => setLabelText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && labelText.trim()) {
+                        handleAddControl()
+                      }
+                    }}
+                  />
+                </FormControl>
+              )}
+            </VStack>
           </ModalBody>
           <ModalFooter>
             <Button variant="ghost" mr={3} onClick={onClose}>
@@ -208,9 +246,9 @@ function TemplatePage() {
             </Button>
             <Button
               colorScheme="blue"
-              onClick={handleAddLabel}
+              onClick={handleAddControl}
               isLoading={isSaving}
-              isDisabled={!labelText.trim()}
+              isDisabled={controlType === 'label' && !labelText.trim()}
             >
               Add
             </Button>
