@@ -363,48 +363,46 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
         opacity={isMoving ? 0.7 : 1}
         zIndex={isMoving ? 100 : 1}
       >
-        {/* Header with controls - drag handle area */}
-        <Box
-          px={2}
-          py={1}
-          cursor={isEditing ? 'move' : 'default'}
-          onMouseDown={isEditing ? handleMoveStart : undefined}
-          bg="whiteAlpha.100"
-          display="flex"
-          justifyContent="flex-end"
-          flexShrink={0}
-        >
-          {isEditing && (
-            <>
-              <IconButton
-                icon={<AddIcon />}
-                size="xs"
-                variant="ghost"
-                aria-label="Add child control"
-                onClick={(e) => { e.stopPropagation(); onAddOpen() }}
-                onMouseDown={(e) => e.stopPropagation()}
-              />
-              <IconButton
-                icon={<SettingsIcon />}
-                size="xs"
-                variant="ghost"
-                aria-label="Edit panel style"
-                onClick={(e) => { e.stopPropagation(); handleOpenStyleEdit() }}
-                onMouseDown={(e) => e.stopPropagation()}
-                ml={1}
-              />
-              <IconButton
-                icon={<CloseIcon />}
-                size="xs"
-                variant="ghost"
-                aria-label="Delete panel"
-                onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
-                onMouseDown={(e) => e.stopPropagation()}
-                ml={1}
-              />
-            </>
-          )}
-        </Box>
+        {/* Header with controls - drag handle area (only visible in edit mode) */}
+        {isEditing && (
+          <Box
+            px={2}
+            py={1}
+            cursor="move"
+            onMouseDown={handleMoveStart}
+            bg="whiteAlpha.100"
+            display="flex"
+            justifyContent="flex-end"
+            flexShrink={0}
+          >
+            <IconButton
+              icon={<AddIcon />}
+              size="xs"
+              variant="ghost"
+              aria-label="Add child control"
+              onClick={(e) => { e.stopPropagation(); onAddOpen() }}
+              onMouseDown={(e) => e.stopPropagation()}
+            />
+            <IconButton
+              icon={<SettingsIcon />}
+              size="xs"
+              variant="ghost"
+              aria-label="Edit panel style"
+              onClick={(e) => { e.stopPropagation(); handleOpenStyleEdit() }}
+              onMouseDown={(e) => e.stopPropagation()}
+              ml={1}
+            />
+            <IconButton
+              icon={<CloseIcon />}
+              size="xs"
+              variant="ghost"
+              aria-label="Delete panel"
+              onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+              onMouseDown={(e) => e.stopPropagation()}
+              ml={1}
+            />
+          </Box>
+        )}
 
         {/* Children container - relative positioning for absolute children */}
         <Box
