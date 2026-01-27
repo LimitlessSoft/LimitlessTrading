@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import {
   Box,
   Text,
@@ -21,6 +21,7 @@ import {
   useDisclosure
 } from '@chakra-ui/react'
 import { CloseIcon, DragHandleIcon, SettingsIcon } from '@chakra-ui/icons'
+import { getConnectionStatus } from '../modules/dataService'
 
 const TOTAL_SEGMENTS = 20
 const MIN_SEGMENTS = 2
@@ -37,14 +38,59 @@ const DEFAULT_STYLE = {
   fontSize: 1
 }
 
+// Placeholder pattern for template variables
+const PLACEHOLDER_REGEX = /\$\{(\w+)\}/g
+
 function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, isEditing, containerRef }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
   const [previewSize, setPreviewSize] = useState(null)
   const [editStyle, setEditStyle] = useState(null)
+  const [placeholderValues, setPlaceholderValues] = useState({})
   const boxRef = useRef(null)
   const { isOpen, onOpen, onClose } = useDisclosure()
+
+  // Check if text contains placeholders
+  const hasPlaceholders = label.text && label.text.includes('${')
+
+  // Fetch placeholder values
+  const fetchPlaceholderValues = useCallback(async () => {
+    if (!label.text) return
+
+    const values = {}
+
+    // Check for tws_connection_status placeholder
+    if (label.text.includes('${tws_connection_status}')) {
+      try {
+        const status = await getConnectionStatus()
+        values.tws_connection_status = status.connected
+          ? `Connected (${status.port})`
+          : 'Disconnected'
+      } catch (err) {
+        values.tws_connection_status = 'Unknown'
+      }
+    }
+
+    setPlaceholderValues(values)
+  }, [label.text])
+
+  // Poll for placeholder values when text contains placeholders
+  useEffect(() => {
+    if (!hasPlaceholders) return
+
+    fetchPlaceholderValues()
+    const interval = setInterval(fetchPlaceholderValues, 5000)
+    return () => clearInterval(interval)
+  }, [hasPlaceholders, fetchPlaceholderValues])
+
+  // Resolve placeholders in text
+  const resolveText = (text) => {
+    if (!text) return ''
+    return text.replace(PLACEHOLDER_REGEX, (match, key) => {
+      return placeholderValues[key] !== undefined ? placeholderValues[key] : match
+    })
+  }
 
   const width = label.width || 4
   const height = label.height || DEFAULT_HEIGHT
@@ -297,7 +343,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
           pointerEvents="none"
           userSelect="none"
         >
-          {label.text}
+          {resolveText(label.text)}
         </Text>
         {isEditing && (
           <>

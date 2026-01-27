@@ -265,8 +265,15 @@ A resizable, moveable, styleable text label control for template pages.
   - Right edge: horizontal resize (ew-resize cursor)
   - Bottom edge: vertical resize (ns-resize cursor)
   - Corner: both directions (nwse-resize cursor)
-- **Style dialog**: Settings button opens modal for colors, borders, font
+- **Style dialog**: Settings button opens modal for colors, borders, font (including transparent background)
 - **Smooth transitions**: Position/size animate except during drag
+- **Template placeholders**: Dynamic text substitution with `${placeholder_name}` syntax
+
+**Template Placeholders:**
+Labels support dynamic placeholders that are resolved at runtime:
+- `${tws_connection_status}` - Shows TWS connection status ("Connected (port)" or "Disconnected")
+- Placeholders are polled every 5 seconds for updates
+- Unknown placeholders are displayed as-is
 
 **Position/Resize Implementation:**
 - Gets container width from parent via `containerRef.current.getBoundingClientRect()` at drag start
