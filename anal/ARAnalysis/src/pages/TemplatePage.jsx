@@ -110,13 +110,13 @@ function TemplatePage() {
     }
   }
 
-  const handleResizeLabel = async (labelId, newWidth) => {
+  const handleResizeLabel = async (labelId, changes) => {
     if (!pageInfo) return
 
     try {
       const currentLabels = pageInfo.config?.labels || []
       const updatedLabels = currentLabels.map(l =>
-        l.id === labelId ? { ...l, width: newWidth } : l
+        l.id === labelId ? { ...l, ...changes } : l
       )
       const updatedConfig = {
         ...pageInfo.config,
