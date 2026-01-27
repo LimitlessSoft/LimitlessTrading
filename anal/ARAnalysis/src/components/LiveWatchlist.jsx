@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Box,
   HStack,
@@ -412,6 +412,12 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
   const [refreshInterval, setRefreshInterval] = useState(propRefreshInterval || DEFAULT_REFRESH_INTERVAL)
   const toast = useToast()
 
+  // Refs for request management
+  const abortControllerRef = useRef(null)
+  const isFetchingRef = useRef(false)
+  const symbolsRef = useRef(symbols)
+  const expandedSymbolsRef = useRef(expandedSymbols)
+
   // Load refresh interval from settings on mount
   useEffect(() => {
     const loadInterval = async () => {
@@ -427,6 +433,15 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
       setRefreshInterval(propRefreshInterval)
     }
   }, [propRefreshInterval])
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    symbolsRef.current = symbols
+  }, [symbols])
+
+  useEffect(() => {
+    expandedSymbolsRef.current = expandedSymbols
+  }, [expandedSymbols])
 
   const toggleExpanded = (symbol) => {
     setExpandedSymbols(prev => {
@@ -496,51 +511,97 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
   }, [loadSymbols])
 
   const fetchQuotes = useCallback(async () => {
-    if (!isConnected || symbols.length === 0) return
+    // Use refs to avoid dependency on symbols/expandedSymbols state
+    const currentSymbols = symbolsRef.current
+    const currentExpanded = expandedSymbolsRef.current
+
+    if (!isConnected || currentSymbols.length === 0) return
+
+    // Skip if already fetching (prevent overlapping requests)
+    if (isFetchingRef.current) return
+    isFetchingRef.current = true
+
+    // Cancel any in-flight requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    abortControllerRef.current = new AbortController()
 
     setLoading(true)
     setLastFetchTime(Date.now()) // Set at start so timer aligns with interval
-    try {
-      const response = await fetch(`${API_BASE}/live-quotes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbols })
-      })
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch quotes')
-      }
+    // Fetch each symbol individually and update UI as each returns
+    const fetchPromises = currentSymbols.map(async (symbol) => {
+      try {
+        const response = await fetch(`${API_BASE}/live-quotes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbols: [symbol] }),
+          signal: abortControllerRef.current.signal
+        })
 
-      const data = await response.json()
-      setQuotes(data)
-
-      // Also refresh intraday data for expanded symbols
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const startTimestamp = today.getTime()
-
-      for (const symbol of expandedSymbols) {
-        try {
-          const intradayResult = await fetchIntradayForDay(symbol, startTimestamp, '5m')
-          setIntradayData(prev => ({ ...prev, [symbol]: intradayResult || [] }))
-        } catch (err) {
-          console.error(`Failed to refresh intraday for ${symbol}:`, err)
+        if (!response.ok) {
+          throw new Error(`Failed to fetch quote for ${symbol}`)
         }
+
+        const data = await response.json()
+        // Update state immediately as this symbol's data arrives
+        setQuotes(prev => ({ ...prev, ...data }))
+
+        // If this symbol is expanded, also fetch intraday data
+        if (currentExpanded.has(symbol)) {
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+          const startTimestamp = today.getTime()
+          try {
+            const intradayResult = await fetchIntradayForDay(symbol, startTimestamp, '5m')
+            setIntradayData(prev => ({ ...prev, [symbol]: intradayResult || [] }))
+          } catch (err) {
+            console.error(`Failed to refresh intraday for ${symbol}:`, err)
+          }
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') return
+        console.error(`Failed to fetch quote for ${symbol}:`, err)
       }
-    } catch (err) {
-      console.error('Failed to fetch live quotes:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [isConnected, symbols, expandedSymbols])
+    })
 
+    // Wait for all to complete before clearing loading state
+    await Promise.all(fetchPromises)
+    setLoading(false)
+    isFetchingRef.current = false
+  }, [isConnected])
+
+  // Set up interval for fetching - uses refs so doesn't need symbols/expandedSymbols deps
   useEffect(() => {
-    if (!isConnected || symbols.length === 0) return
+    if (!isConnected) return
 
-    fetchQuotes()
-    const interval = setInterval(fetchQuotes, refreshInterval * 1000)
-    return () => clearInterval(interval)
-  }, [isConnected, symbols, fetchQuotes, refreshInterval])
+    // Initial fetch if we have symbols
+    if (symbolsRef.current.length > 0) {
+      fetchQuotes()
+    }
+
+    const interval = setInterval(() => {
+      if (symbolsRef.current.length > 0) {
+        fetchQuotes()
+      }
+    }, refreshInterval * 1000)
+
+    return () => {
+      clearInterval(interval)
+      // Cancel any in-flight request on unmount
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
+  }, [isConnected, fetchQuotes, refreshInterval])
+
+  // Fetch immediately when symbols are added (separate effect)
+  useEffect(() => {
+    if (isConnected && symbols.length > 0 && !isFetchingRef.current) {
+      fetchQuotes()
+    }
+  }, [symbols.length, isConnected, fetchQuotes])
 
   const handleAddSymbol = async () => {
     const symbol = newSymbol.trim().toUpperCase()

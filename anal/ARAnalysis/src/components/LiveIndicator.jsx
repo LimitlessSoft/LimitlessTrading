@@ -45,6 +45,8 @@ function LiveIndicator({ isConnected, isLoading, lastFetchTime, refreshInterval 
     )
   }
 
+  const showLabel = refreshInterval >= 5
+
   return (
     <HStack spacing={1}>
       <Box
@@ -55,9 +57,11 @@ function LiveIndicator({ isConnected, isLoading, lastFetchTime, refreshInterval 
         boxShadow={isLoading ? '0 0 6px var(--chakra-colors-blue-400)' : '0 0 6px var(--chakra-colors-green-400)'}
         transition="all 0.2s"
       />
-      <Text color="gray.500" fontSize="xs" fontFamily="mono">
-        {isLoading ? 'updating' : `${nextRefreshIn}s`}
-      </Text>
+      {showLabel && (
+        <Text color="gray.500" fontSize="xs" fontFamily="mono">
+          {isLoading ? 'updating' : `${nextRefreshIn}s`}
+        </Text>
+      )}
     </HStack>
   )
 }

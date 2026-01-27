@@ -39,6 +39,7 @@ const IBKR_PORTS = [
 ]
 
 const REFRESH_INTERVALS = [
+  { value: 1, label: '1 second' },
   { value: 5, label: '5 seconds' },
   { value: 10, label: '10 seconds' },
   { value: 15, label: '15 seconds' },
