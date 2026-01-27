@@ -161,8 +161,13 @@ export async function getPriceData(symbol, interval) {
   const data = await db.priceData
     .where({ symbol, interval })
     .sortBy('timestamp')
+  // Deduplicate by timestamp (keep last occurrence which is most recent data)
+  const seen = new Map()
+  for (const bar of data) {
+    seen.set(bar.timestamp, bar)
+  }
   // Return descending (newest first)
-  return data.reverse()
+  return Array.from(seen.values()).reverse()
 }
 
 export async function clearPriceData(symbol = null, interval = null) {
