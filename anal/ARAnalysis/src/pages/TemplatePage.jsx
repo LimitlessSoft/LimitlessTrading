@@ -110,7 +110,7 @@ function TemplatePage() {
     }
   }
 
-  const handleResizeLabel = async (labelId, changes) => {
+  const handleUpdateLabel = async (labelId, changes) => {
     if (!pageInfo) return
 
     try {
@@ -126,7 +126,7 @@ function TemplatePage() {
       setPageInfo(updatedRoute)
     } catch (err) {
       toast({
-        title: 'Failed to resize label',
+        title: 'Failed to update label',
         description: err.message,
         status: 'error',
         duration: 3000
@@ -172,7 +172,8 @@ function TemplatePage() {
                   key={label.id}
                   label={label}
                   onDelete={handleDeleteLabel}
-                  onResize={handleResizeLabel}
+                  onResize={handleUpdateLabel}
+                  onUpdate={handleUpdateLabel}
                   isEditing={isEditing}
                 />
               ))}
