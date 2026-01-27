@@ -100,18 +100,23 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
   }, [placeholder, fetchPlaceholderValue, getRefreshInterval])
 
   // Determine badge color based on current value and mappings
+  // Check exact matches first, then contains matches (order-independent)
   const getBadgeColor = () => {
     if (!currentValue) return defaultColor
 
+    const valueLower = currentValue.toLowerCase()
+
+    // First pass: exact matches take priority
     for (const mapping of colorMappings) {
-      if (mapping.contains) {
-        if (currentValue.toLowerCase().includes(mapping.value.toLowerCase())) {
-          return mapping.color
-        }
-      } else {
-        if (currentValue.toLowerCase() === mapping.value.toLowerCase()) {
-          return mapping.color
-        }
+      if (!mapping.contains && valueLower === mapping.value.toLowerCase()) {
+        return mapping.color
+      }
+    }
+
+    // Second pass: contains matches
+    for (const mapping of colorMappings) {
+      if (mapping.contains && valueLower.includes(mapping.value.toLowerCase())) {
+        return mapping.color
       }
     }
 
