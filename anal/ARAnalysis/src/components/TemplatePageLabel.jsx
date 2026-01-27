@@ -38,7 +38,9 @@ const DEFAULT_STYLE = {
   textColor: '#FFFFFF',
   fontWeight: 'normal',
   fontStyle: 'normal',
-  fontSize: 1
+  fontSize: 1,
+  textAlign: 'left',
+  verticalAlign: 'top'
 }
 
 // Placeholder pattern for template variables: ${name} or ${name:interval}
@@ -544,7 +546,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
         py={2}
         borderRadius="md"
         display="flex"
-        alignItems="flex-start"
+        alignItems={style.verticalAlign === 'top' ? 'flex-start' : style.verticalAlign === 'bottom' ? 'flex-end' : 'center'}
         justifyContent="space-between"
         overflow="hidden"
         transition={isResizing || isMoving ? 'none' : 'all 0.15s ease'}
@@ -566,6 +568,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
           fontWeight={style.fontWeight}
           fontStyle={style.fontStyle}
           fontSize={`${style.fontSize}rem`}
+          textAlign={style.textAlign}
           pointerEvents="none"
           userSelect="none"
         >
@@ -771,6 +774,31 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
                     onChange={(e) => setEditStyle({ ...editStyle, fontSize: parseFloat(e.target.value) || 1 })}
                   />
                 </FormControl>
+
+                <HStack width="100%" spacing={4}>
+                  <FormControl>
+                    <FormLabel fontSize="sm">Horizontal Align</FormLabel>
+                    <Select
+                      value={editStyle.textAlign}
+                      onChange={(e) => setEditStyle({ ...editStyle, textAlign: e.target.value })}
+                    >
+                      <option value="left">Left</option>
+                      <option value="center">Center</option>
+                      <option value="right">Right</option>
+                    </Select>
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel fontSize="sm">Vertical Align</FormLabel>
+                    <Select
+                      value={editStyle.verticalAlign}
+                      onChange={(e) => setEditStyle({ ...editStyle, verticalAlign: e.target.value })}
+                    >
+                      <option value="top">Top</option>
+                      <option value="center">Center</option>
+                      <option value="bottom">Bottom</option>
+                    </Select>
+                  </FormControl>
+                </HStack>
               </VStack>
             )}
           </ModalBody>
