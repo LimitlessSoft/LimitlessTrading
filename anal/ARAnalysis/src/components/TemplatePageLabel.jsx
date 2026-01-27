@@ -19,16 +19,10 @@ import {
   VStack,
   Checkbox,
   Tooltip,
-  Code,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
   useDisclosure
 } from '@chakra-ui/react'
 import { CloseIcon, DragHandleIcon, SettingsIcon, InfoOutlineIcon } from '@chakra-ui/icons'
+import { useNavigate } from 'react-router-dom'
 import { getConnectionStatus } from '../modules/dataService'
 import { useSymbolQuotes, hasSymbolPlaceholders } from '../hooks/useSymbolQuotes'
 
@@ -59,8 +53,8 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
   const [editText, setEditText] = useState('')
   const [placeholderValues, setPlaceholderValues] = useState({})
   const boxRef = useRef(null)
+  const navigate = useNavigate()
   const { isOpen, onOpen, onClose } = useDisclosure()
-  const { isOpen: isDocsOpen, onOpen: onDocsOpen, onClose: onDocsClose } = useDisclosure()
 
   // Symbol quote placeholders (@{SYMBOL:property:seconds})
   const { resolveText: resolveSymbolText } = useSymbolQuotes(label.text)
@@ -472,7 +466,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
                           size="xs"
                           variant="ghost"
                           aria-label="Placeholder documentation"
-                          onClick={onDocsOpen}
+                          onClick={() => navigate('/docs/placeholders')}
                           minW="auto"
                           h="auto"
                           p={0}
@@ -666,7 +660,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
                         size="xs"
                         variant="ghost"
                         aria-label="Placeholder documentation"
-                        onClick={onDocsOpen}
+                        onClick={() => navigate('/docs/placeholders')}
                         minW="auto"
                         h="auto"
                         p={0}
@@ -787,83 +781,6 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
             <Button colorScheme="blue" onClick={handleSaveStyle}>
               Save
             </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
-      {/* Placeholder API Documentation Modal */}
-      <Modal isOpen={isDocsOpen} onClose={onDocsClose} size="xl">
-        <ModalOverlay />
-        <ModalContent bg="gray.800">
-          <ModalHeader>Placeholder API Documentation</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <VStack align="stretch" spacing={4}>
-              <Text fontWeight="bold">System Placeholders</Text>
-              <Text fontSize="sm">
-                Syntax: <Code>${'{name:seconds}'}</Code> where <Code>seconds</Code> is refresh interval.
-              </Text>
-
-              <Table variant="simple" size="sm">
-                <Thead>
-                  <Tr>
-                    <Th color="gray.400">Placeholder</Th>
-                    <Th color="gray.400">Description</Th>
-                    <Th color="gray.400">Example Output</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  <Tr>
-                    <Td><Code>${'{tws_connection_status:5}'}</Code></Td>
-                    <Td>TWS/IBKR connection status</Td>
-                    <Td>Connected (7496) / Disconnected</Td>
-                  </Tr>
-                </Tbody>
-              </Table>
-
-              <Text fontWeight="bold" mt={4}>Symbol Quote Placeholders</Text>
-              <Text fontSize="sm">
-                Syntax: <Code>@{'{SYMBOL:property:seconds}'}</Code> for real-time market data.
-              </Text>
-              <Text fontSize="sm" color="gray.400">
-                Intervals &le;5s use real-time streaming (SSE), &gt;5s use HTTP polling.
-              </Text>
-
-              <Table variant="simple" size="sm">
-                <Thead>
-                  <Tr>
-                    <Th color="gray.400">Example</Th>
-                    <Th color="gray.400">Description</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  <Tr>
-                    <Td><Code>@{'{AAPL:last:5}'}</Code></Td>
-                    <Td>AAPL last price (5s refresh)</Td>
-                  </Tr>
-                  <Tr>
-                    <Td><Code>@{'{SPY:change:3}'}</Code></Td>
-                    <Td>SPY price change (+/- format)</Td>
-                  </Tr>
-                  <Tr>
-                    <Td><Code>@{'{VIX:last}'}</Code></Td>
-                    <Td>VIX value (default 5s)</Td>
-                  </Tr>
-                </Tbody>
-              </Table>
-
-              <Text fontSize="sm" fontWeight="medium" mt={2}>Available Properties:</Text>
-              <Text fontSize="xs" color="gray.400">
-                <Code fontSize="xs">last</Code>, <Code fontSize="xs">bid</Code>, <Code fontSize="xs">ask</Code>, <Code fontSize="xs">open</Code>, <Code fontSize="xs">high</Code>, <Code fontSize="xs">low</Code>, <Code fontSize="xs">prevClose</Code>, <Code fontSize="xs">close</Code>, <Code fontSize="xs">vwap</Code>, <Code fontSize="xs">volume</Code>, <Code fontSize="xs">avgVolume</Code>, <Code fontSize="xs">bidSize</Code>, <Code fontSize="xs">askSize</Code>, <Code fontSize="xs">change</Code>, <Code fontSize="xs">changePercent</Code>, <Code fontSize="xs">marketCap</Code>, <Code fontSize="xs">week52High</Code>, <Code fontSize="xs">week52Low</Code>
-              </Text>
-
-              <Text fontSize="sm" color="gray.400" mt={4}>
-                Both placeholder types can be mixed in the same label.
-              </Text>
-            </VStack>
-          </ModalBody>
-          <ModalFooter>
-            <Button onClick={onDocsClose}>Close</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

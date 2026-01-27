@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { ChakraProvider } from '@chakra-ui/react'
 import App from './App'
 import TemplatePage from './pages/TemplatePage'
+import PlaceholderDocsPage from './pages/PlaceholderDocsPage'
 import theme from './theme'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -12,6 +13,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<App />} />
+          <Route path="/docs/placeholders" element={<PlaceholderDocsPage />} />
           <Route path="*" element={<TemplatePage />} />
         </Routes>
       </BrowserRouter>
