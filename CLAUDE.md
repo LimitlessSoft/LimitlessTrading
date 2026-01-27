@@ -45,7 +45,8 @@ anal/ARAnalysis/
 │   │   ├── TreasuryYields.jsx     # Treasury yield display
 │   │   ├── FearGreedGauge.jsx     # Fear & Greed Index speedometer
 │   │   ├── LiveWatchlist.jsx      # Real-time streaming watchlist (SSE)
-│   │   └── MarketClocks.jsx       # NYSE/LSE market hours display
+│   │   ├── MarketClocks.jsx       # NYSE/LSE market hours display
+│   │   └── TemplatePageLabel.jsx  # Resizable/styleable label for template pages
 │   ├── pages/
 │   │   └── TemplatePage.jsx       # Dynamic page template for custom routes
 │   ├── modules/
@@ -160,6 +161,91 @@ The template for all custom/dynamic pages. This is a key component for extensibi
 - The `config` object in routes can store page-specific settings
 - TemplatePage can be enhanced to render different layouts based on config
 - Can add widgets, charts, or other components based on route config
+
+## Template Controls System
+
+Template pages support editable controls that persist to the backend via `route.config.labels`. Controls are managed through an edit mode toggle in the page header.
+
+### Edit Mode
+- Toggle via Edit button (pencil icon) in PageNavMenu
+- When enabled: shows resize handles, delete buttons, and settings on controls
+- When disabled: controls display with their configured styles
+
+### Control Data Structure
+Controls are stored in `route.config.labels` array:
+```js
+{
+  id: "uuid",
+  text: "Label content",
+  width: 4,           // 1-20 segments (5% increments)
+  height: 60,         // pixels (min 40px)
+  createdAt: timestamp,
+  style: {
+    bgColor: "#4A5568",
+    borderColor: "#718096",
+    borderWidth: 0,
+    textColor: "#FFFFFF",
+    fontWeight: "normal",  // normal | bold | lighter
+    fontStyle: "normal",   // normal | italic
+    fontSize: 1            // rem units
+  }
+}
+```
+
+### TemplatePageLabel Component
+**Location:** `src/components/TemplatePageLabel.jsx`
+
+A resizable, styleable text label control for template pages.
+
+**Props:**
+- `label` - Label data object (see structure above)
+- `onDelete(id)` - Callback when delete button clicked
+- `onResize(id, { width?, height? })` - Callback when resized
+- `onUpdate(id, changes)` - Callback for any property updates (including style)
+- `isEditing` - Whether edit mode is active
+
+**Features:**
+- **20-segment grid width**: Page divided into 20 equal segments, labels snap to boundaries
+- **Pixel height**: Free vertical sizing with 40px minimum
+- **Three resize handles** (edit mode only):
+  - Right edge: horizontal resize (ew-resize cursor)
+  - Bottom edge: vertical resize (ns-resize cursor)
+  - Corner: both directions (nwse-resize cursor)
+- **Style dialog**: Settings button opens modal for colors, borders, font
+- **Smooth transitions**: Width/height animate except during drag
+
+**Resize Implementation:**
+- Gets container width from parent via `getBoundingClientRect()` at drag start
+- Calculates segment size: `containerWidth / 20`
+- Preview state during drag, persists on mouseup
+- Uses `useEffect` to clear preview when label data catches up (prevents flicker)
+
+### Creating New Template Controls
+
+Follow this pattern for new control types:
+
+1. **Component file**: `src/components/Template[ControlName].jsx`
+2. **Props interface**: Accept `label`, `onDelete`, `onResize`, `onUpdate`, `isEditing`
+3. **Width calculation**: `width={${(displayWidth / 20) * 100}%}`
+4. **Edit mode guards**: Only show edit UI when `isEditing` is true
+5. **Resize handlers**: Use parent container width, snap to segments
+6. **Style storage**: Use `label.style` object for visual customization
+7. **Preview state**: Keep preview until backend update completes
+
+**Add to TemplatePage.jsx:**
+```jsx
+// In the Flex container that renders controls:
+{labels.map(label => (
+  <TemplatePageLabel  // or new control type based on label.type
+    key={label.id}
+    label={label}
+    onDelete={handleDeleteLabel}
+    onResize={handleUpdateLabel}
+    onUpdate={handleUpdateLabel}
+    isEditing={isEditing}
+  />
+))}
+```
 
 ### Routes API
 
