@@ -14,6 +14,7 @@ import {
   FormControl,
   FormLabel,
   Input,
+  Select,
   HStack,
   VStack,
   Checkbox,
@@ -55,6 +56,8 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
   const style = { ...DEFAULT_STYLE, ...label.style }
   const valueProvider = label.placeholder || ''
   const text = label.text || ''
+  const showValueAsText = label.showValueAsText || false
+  const displayMode = label.displayMode || 'circle'  // 'circle' or 'full'
   const colorMappings = label.colorMappings || []
   const defaultColor = label.defaultColor || '#718096'
 
@@ -115,6 +118,9 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
       return match
     })
   }
+
+  // Get the display text - either from value provider or custom text
+  const displayText = showValueAsText ? currentValue : (text ? resolveText(text) : null)
 
   // Poll for placeholder values
   useEffect(() => {
@@ -178,6 +184,8 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     setEditConfig({
       placeholder: valueProvider,
       text: text,
+      showValueAsText: showValueAsText,
+      displayMode: displayMode,
       colorMappings: colorMappings.length > 0 ? [...colorMappings] : [{ value: '', color: '#48BB78', contains: true }],
       defaultColor: defaultColor,
       style: { ...DEFAULT_STYLE, ...label.style }
@@ -189,6 +197,8 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     onUpdate(label.id, {
       placeholder: editConfig.placeholder,
       text: editConfig.text,
+      showValueAsText: editConfig.showValueAsText,
+      displayMode: editConfig.displayMode,
       colorMappings: editConfig.colorMappings.filter(m => m.value.trim()),
       defaultColor: editConfig.defaultColor,
       style: editConfig.style
@@ -385,25 +395,50 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
           opacity={isMoving ? 0.7 : 1}
           px={1}
         >
-          <Tooltip label={currentValue || 'No data'} placement="bottom" hasArrow>
-            <Box
-              width="16px"
-              height="16px"
-              borderRadius="full"
-              bg={badgeColor}
-              transition="background-color 0.3s ease"
-              flexShrink={0}
-            />
-          </Tooltip>
-          {text && (
-            <Text
-              ml={1}
-              fontSize="sm"
-              whiteSpace="nowrap"
-              color="white"
-            >
-              {resolveText(text)}
-            </Text>
+          {displayMode === 'full' ? (
+            // Full background mode
+            <Tooltip label={currentValue || 'No data'} placement="bottom" hasArrow>
+              <Box
+                bg={badgeColor}
+                borderRadius="md"
+                px={2}
+                py={0.5}
+                transition="background-color 0.3s ease"
+              >
+                <Text
+                  fontSize="sm"
+                  fontWeight="medium"
+                  whiteSpace="nowrap"
+                  color="white"
+                >
+                  {displayText || currentValue || '—'}
+                </Text>
+              </Box>
+            </Tooltip>
+          ) : (
+            // Circle indicator mode
+            <>
+              <Tooltip label={currentValue || 'No data'} placement="bottom" hasArrow>
+                <Box
+                  width="16px"
+                  height="16px"
+                  borderRadius="full"
+                  bg={badgeColor}
+                  transition="background-color 0.3s ease"
+                  flexShrink={0}
+                />
+              </Tooltip>
+              {displayText && (
+                <Text
+                  ml={1}
+                  fontSize="sm"
+                  whiteSpace="nowrap"
+                  color="white"
+                >
+                  {displayText}
+                </Text>
+              )}
+            </>
           )}
           {isEditing && (
             <>
@@ -452,8 +487,29 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
                       value={editConfig.text || ''}
                       onChange={(e) => setEditConfig({ ...editConfig, text: e.target.value })}
                       placeholder="Optional text (supports ${placeholder} syntax)"
+                      isDisabled={editConfig.showValueAsText}
                     />
                   </FormControl>
+
+                  <HStack spacing={4}>
+                    <Checkbox
+                      isChecked={editConfig.showValueAsText}
+                      onChange={(e) => setEditConfig({ ...editConfig, showValueAsText: e.target.checked })}
+                      size="sm"
+                    >
+                      Show value as text
+                    </Checkbox>
+                    <FormControl flex={1}>
+                      <Select
+                        size="sm"
+                        value={editConfig.displayMode}
+                        onChange={(e) => setEditConfig({ ...editConfig, displayMode: e.target.value })}
+                      >
+                        <option value="circle">Circle indicator</option>
+                        <option value="full">Full background</option>
+                      </Select>
+                    </FormControl>
+                  </HStack>
 
                   <FormControl>
                     <FormLabel fontSize="sm">Default Color</FormLabel>
@@ -511,36 +567,6 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
                       ))}
                     </VStack>
                   </Box>
-
-                  <HStack spacing={4}>
-                    <FormControl>
-                      <FormLabel fontSize="sm">Background</FormLabel>
-                      <HStack>
-                        <Input
-                          type="color"
-                          value={editConfig.style.bgColor === 'transparent' ? '#4A5568' : editConfig.style.bgColor}
-                          onChange={(e) => setEditConfig({
-                            ...editConfig,
-                            style: { ...editConfig.style, bgColor: e.target.value }
-                          })}
-                          height="40px"
-                          p={1}
-                          isDisabled={editConfig.style.bgColor === 'transparent'}
-                          flex={1}
-                        />
-                        <Checkbox
-                          isChecked={editConfig.style.bgColor === 'transparent'}
-                          onChange={(e) => setEditConfig({
-                            ...editConfig,
-                            style: { ...editConfig.style, bgColor: e.target.checked ? 'transparent' : '#4A5568' }
-                          })}
-                          size="sm"
-                        >
-                          None
-                        </Checkbox>
-                      </HStack>
-                    </FormControl>
-                  </HStack>
                 </VStack>
               )}
             </ModalBody>
@@ -567,12 +593,12 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
         top={`${displayY}px`}
         width={`calc(${(displayWidth / TOTAL_SEGMENTS) * 100}% - 8px)`}
         height={`${displayHeight}px`}
-        bg={style.bgColor}
+        bg={displayMode === 'full' ? badgeColor : style.bgColor}
         borderRadius="md"
         display="flex"
         alignItems="center"
-        justifyContent={text ? 'flex-start' : 'center'}
-        px={text ? 2 : 0}
+        justifyContent={displayMode === 'full' ? 'center' : (displayText ? 'flex-start' : 'center')}
+        px={displayMode === 'full' ? 2 : (displayText ? 2 : 0)}
         overflow="hidden"
         transition={isResizing || isMoving ? 'none' : 'all 0.15s ease'}
         borderWidth={`${style.borderWidth}px`}
@@ -586,28 +612,46 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
         onMouseDown={isEditing ? handleMoveStart : undefined}
         zIndex={isMoving ? 100 : 1}
       >
-        {/* Badge circle */}
-        <Tooltip label={currentValue || 'No data'} placement="top" hasArrow>
-          <Box
-            width={`${Math.min(displayHeight - 8, 32)}px`}
-            height={`${Math.min(displayHeight - 8, 32)}px`}
-            borderRadius="full"
-            bg={badgeColor}
-            transition="background-color 0.3s ease"
-            flexShrink={0}
-          />
-        </Tooltip>
-        {text && (
-          <Text
-            ml={2}
-            fontSize="sm"
-            whiteSpace="nowrap"
-            color="white"
-            pointerEvents="none"
-            userSelect="none"
-          >
-            {resolveText(text)}
-          </Text>
+        {displayMode === 'full' ? (
+          // Full background mode - text inside colored box
+          <Tooltip label={currentValue || 'No data'} placement="top" hasArrow>
+            <Text
+              fontSize="sm"
+              fontWeight="medium"
+              whiteSpace="nowrap"
+              color="white"
+              pointerEvents="none"
+              userSelect="none"
+            >
+              {displayText || currentValue || '—'}
+            </Text>
+          </Tooltip>
+        ) : (
+          // Circle indicator mode
+          <>
+            <Tooltip label={currentValue || 'No data'} placement="top" hasArrow>
+              <Box
+                width={`${Math.min(displayHeight - 8, 32)}px`}
+                height={`${Math.min(displayHeight - 8, 32)}px`}
+                borderRadius="full"
+                bg={badgeColor}
+                transition="background-color 0.3s ease"
+                flexShrink={0}
+              />
+            </Tooltip>
+            {displayText && (
+              <Text
+                ml={2}
+                fontSize="sm"
+                whiteSpace="nowrap"
+                color="white"
+                pointerEvents="none"
+                userSelect="none"
+              >
+                {displayText}
+              </Text>
+            )}
+          </>
         )}
 
         {isEditing && (
@@ -674,8 +718,29 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
                     value={editConfig.text || ''}
                     onChange={(e) => setEditConfig({ ...editConfig, text: e.target.value })}
                     placeholder="Optional text (supports ${placeholder} syntax)"
+                    isDisabled={editConfig.showValueAsText}
                   />
                 </FormControl>
+
+                <HStack spacing={4}>
+                  <Checkbox
+                    isChecked={editConfig.showValueAsText}
+                    onChange={(e) => setEditConfig({ ...editConfig, showValueAsText: e.target.checked })}
+                    size="sm"
+                  >
+                    Show value as text
+                  </Checkbox>
+                  <FormControl flex={1}>
+                    <Select
+                      size="sm"
+                      value={editConfig.displayMode}
+                      onChange={(e) => setEditConfig({ ...editConfig, displayMode: e.target.value })}
+                    >
+                      <option value="circle">Circle indicator</option>
+                      <option value="full">Full background</option>
+                    </Select>
+                  </FormControl>
+                </HStack>
 
                 <FormControl>
                   <FormLabel fontSize="sm">Default Color</FormLabel>
@@ -733,36 +798,6 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
                     ))}
                   </VStack>
                 </Box>
-
-                <HStack spacing={4}>
-                  <FormControl>
-                    <FormLabel fontSize="sm">Background</FormLabel>
-                    <HStack>
-                      <Input
-                        type="color"
-                        value={editConfig.style.bgColor === 'transparent' ? '#4A5568' : editConfig.style.bgColor}
-                        onChange={(e) => setEditConfig({
-                          ...editConfig,
-                          style: { ...editConfig.style, bgColor: e.target.value }
-                        })}
-                        height="40px"
-                        p={1}
-                        isDisabled={editConfig.style.bgColor === 'transparent'}
-                        flex={1}
-                      />
-                      <Checkbox
-                        isChecked={editConfig.style.bgColor === 'transparent'}
-                        onChange={(e) => setEditConfig({
-                          ...editConfig,
-                          style: { ...editConfig.style, bgColor: e.target.checked ? 'transparent' : '#4A5568' }
-                        })}
-                        size="sm"
-                      >
-                        None
-                      </Checkbox>
-                    </HStack>
-                  </FormControl>
-                </HStack>
               </VStack>
             )}
           </ModalBody>
