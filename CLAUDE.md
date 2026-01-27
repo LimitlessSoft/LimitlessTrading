@@ -46,7 +46,8 @@ anal/ARAnalysis/
 │   │   ├── FearGreedGauge.jsx     # Fear & Greed Index speedometer
 │   │   ├── LiveWatchlist.jsx      # Real-time streaming watchlist (SSE)
 │   │   ├── MarketClocks.jsx       # NYSE/LSE market hours display
-│   │   └── TemplatePageLabel.jsx  # Resizable/styleable label for template pages
+│   │   ├── TemplatePageLabel.jsx  # Resizable/styleable label for template pages
+│   │   └── TemplatePagePanel.jsx  # Container control for nested layouts
 │   ├── pages/
 │   │   └── TemplatePage.jsx       # Dynamic page template for custom routes
 │   ├── modules/
@@ -171,14 +172,20 @@ Template pages support editable controls that persist to the backend via `route.
 - When enabled: shows resize handles, delete buttons, and settings on controls
 - When disabled: controls display with their configured styles
 
+### Control Types
+- `label` - Text display with styling (default if no type specified)
+- `panel` - Container that holds child controls
+
 ### Control Data Structure
-Controls are stored in `route.config.labels` array:
+
+**Label:**
 ```js
 {
   id: "uuid",
+  type: "label",        // or omitted (defaults to label)
   text: "Label content",
-  width: 4,           // 1-20 segments (5% increments)
-  height: 60,         // pixels (min 40px)
+  width: 4,             // 1-20 segments (5% increments)
+  height: 60,           // pixels (min 40px)
   createdAt: timestamp,
   style: {
     bgColor: "#4A5568",
@@ -188,6 +195,23 @@ Controls are stored in `route.config.labels` array:
     fontWeight: "normal",  // normal | bold | lighter
     fontStyle: "normal",   // normal | italic
     fontSize: 1            // rem units
+  }
+}
+```
+
+**Panel:**
+```js
+{
+  id: "uuid",
+  type: "panel",
+  width: 8,             // default 8 segments
+  height: 120,          // pixels (min 58px)
+  createdAt: timestamp,
+  children: [],         // nested controls (labels or panels)
+  style: {
+    bgColor: "#2D3748",
+    borderColor: "#4A5568",
+    borderWidth: 1
   }
 }
 ```
@@ -220,6 +244,38 @@ A resizable, styleable text label control for template pages.
 - Preview state during drag, persists on mouseup
 - Uses `useEffect` to clear preview when label data catches up (prevents flicker)
 
+### TemplatePagePanel Component
+**Location:** `src/components/TemplatePagePanel.jsx`
+
+A container control that holds nested child controls.
+
+**Props:**
+- `label` - Panel data object (see structure above)
+- `onDelete(id)` - Callback when delete button clicked
+- `onResize(id, { width?, height? })` - Callback when resized
+- `onUpdate(id, changes)` - Callback for any property updates
+- `isEditing` - Whether edit mode is active
+
+**Features:**
+- **Container for children**: Holds nested labels or panels in `children` array
+- **Recursive rendering**: Panels can contain panels (unlimited nesting)
+- **Header controls** (edit mode): Add (+), Settings (gear), Delete (X) buttons
+- **Add child modal**: Select Label or Panel type when adding children
+- **Flex-wrap layout**: Children flow and wrap within panel bounds
+- **Overflow scroll**: Content scrolls when exceeding panel height
+
+**Child Management:**
+- Children stored in `label.children` array
+- `handleAddChild()` - Creates new child, appends to children array
+- `handleDeleteChild(childId)` - Filters child from array
+- `handleUpdateChild(childId, changes)` - Maps and updates specific child
+- All child operations trigger `onUpdate()` with updated children array
+
+**Style Options:**
+- `bgColor` - Background color (default: #2D3748)
+- `borderColor` - Border color (default: #4A5568)
+- `borderWidth` - Border width in px (default: 1)
+
 ### Creating New Template Controls
 
 Follow this pattern for new control types:
@@ -236,14 +292,25 @@ Follow this pattern for new control types:
 ```jsx
 // In the Flex container that renders controls:
 {labels.map(label => (
-  <TemplatePageLabel  // or new control type based on label.type
-    key={label.id}
-    label={label}
-    onDelete={handleDeleteLabel}
-    onResize={handleUpdateLabel}
-    onUpdate={handleUpdateLabel}
-    isEditing={isEditing}
-  />
+  label.type === 'panel' ? (
+    <TemplatePagePanel
+      key={label.id}
+      label={label}
+      onDelete={handleDeleteLabel}
+      onResize={handleUpdateLabel}
+      onUpdate={handleUpdateLabel}
+      isEditing={isEditing}
+    />
+  ) : (
+    <TemplatePageLabel
+      key={label.id}
+      label={label}
+      onDelete={handleDeleteLabel}
+      onResize={handleUpdateLabel}
+      onUpdate={handleUpdateLabel}
+      isEditing={isEditing}
+    />
+  )
 ))}
 ```
 
