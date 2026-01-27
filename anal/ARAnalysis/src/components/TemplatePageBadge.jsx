@@ -342,48 +342,168 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
   // Header mode: simplified inline rendering
   if (isHeaderMode) {
     return (
-      <Box
-        ref={boxRef}
-        display="flex"
-        alignItems="center"
-        outline={isEditing ? '1px dashed' : 'none'}
-        outlineColor={isEditing ? 'gray.500' : undefined}
-        cursor={isEditing ? 'move' : 'default'}
-        onMouseDown={isEditing ? handleMoveStart : undefined}
-        opacity={isMoving ? 0.7 : 1}
-        px={1}
-      >
-        <Tooltip label={currentValue || 'No data'} placement="bottom" hasArrow>
-          <Box
-            width="20px"
-            height="20px"
-            borderRadius="full"
-            bg={badgeColor}
-            transition="background-color 0.3s ease"
-          />
-        </Tooltip>
-        {isEditing && (
-          <>
-            <IconButton
-              icon={<SettingsIcon />}
-              size="xs"
-              variant="ghost"
-              aria-label="Edit badge"
-              onClick={(e) => { e.stopPropagation(); handleOpenEdit() }}
-              onMouseDown={(e) => e.stopPropagation()}
-              ml={1}
+      <>
+        <Box
+          ref={boxRef}
+          display="flex"
+          alignItems="center"
+          outline={isEditing ? '1px dashed' : 'none'}
+          outlineColor={isEditing ? 'gray.500' : undefined}
+          cursor={isEditing ? 'move' : 'default'}
+          onMouseDown={isEditing ? handleMoveStart : undefined}
+          opacity={isMoving ? 0.7 : 1}
+          px={1}
+        >
+          <Tooltip label={currentValue || 'No data'} placement="bottom" hasArrow>
+            <Box
+              width="20px"
+              height="20px"
+              borderRadius="full"
+              bg={badgeColor}
+              transition="background-color 0.3s ease"
             />
-            <IconButton
-              icon={<CloseIcon />}
-              size="xs"
-              variant="ghost"
-              aria-label="Delete badge"
-              onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
-              onMouseDown={(e) => e.stopPropagation()}
-            />
-          </>
-        )}
-      </Box>
+          </Tooltip>
+          {isEditing && (
+            <>
+              <IconButton
+                icon={<SettingsIcon />}
+                size="xs"
+                variant="ghost"
+                aria-label="Edit badge"
+                onClick={(e) => { e.stopPropagation(); handleOpenEdit() }}
+                onMouseDown={(e) => e.stopPropagation()}
+                ml={1}
+              />
+              <IconButton
+                icon={<CloseIcon />}
+                size="xs"
+                variant="ghost"
+                aria-label="Delete badge"
+                onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+                onMouseDown={(e) => e.stopPropagation()}
+              />
+            </>
+          )}
+        </Box>
+
+        {/* Edit Modal */}
+        <Modal isOpen={isOpen} onClose={onClose} size="lg">
+          <ModalOverlay />
+          <ModalContent bg="gray.800">
+            <ModalHeader>Edit Badge</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              {editConfig && (
+                <VStack spacing={4} align="stretch">
+                  <FormControl>
+                    <FormLabel fontSize="sm">Placeholder</FormLabel>
+                    <Input
+                      value={editConfig.placeholder}
+                      onChange={(e) => setEditConfig({ ...editConfig, placeholder: e.target.value })}
+                      placeholder="${tws_connection_status:5}"
+                    />
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="sm">Default Color</FormLabel>
+                    <Input
+                      type="color"
+                      value={editConfig.defaultColor}
+                      onChange={(e) => setEditConfig({ ...editConfig, defaultColor: e.target.value })}
+                      height="40px"
+                      p={1}
+                    />
+                  </FormControl>
+
+                  <Box>
+                    <HStack justify="space-between" mb={2}>
+                      <FormLabel fontSize="sm" mb={0}>Color Mappings</FormLabel>
+                      <Button size="xs" leftIcon={<AddIcon />} onClick={handleAddMapping}>
+                        Add
+                      </Button>
+                    </HStack>
+
+                    <VStack spacing={2} align="stretch">
+                      {editConfig.colorMappings.map((mapping, index) => (
+                        <HStack key={index} spacing={2}>
+                          <Input
+                            size="sm"
+                            placeholder="Value to match"
+                            value={mapping.value}
+                            onChange={(e) => handleUpdateMapping(index, 'value', e.target.value)}
+                            flex={1}
+                          />
+                          <Input
+                            type="color"
+                            value={mapping.color}
+                            onChange={(e) => handleUpdateMapping(index, 'color', e.target.value)}
+                            width="50px"
+                            height="32px"
+                            p={1}
+                          />
+                          <Checkbox
+                            size="sm"
+                            isChecked={mapping.contains}
+                            onChange={(e) => handleUpdateMapping(index, 'contains', e.target.checked)}
+                          >
+                            Contains
+                          </Checkbox>
+                          <IconButton
+                            icon={<DeleteIcon />}
+                            size="xs"
+                            variant="ghost"
+                            colorScheme="red"
+                            onClick={() => handleRemoveMapping(index)}
+                            aria-label="Remove mapping"
+                          />
+                        </HStack>
+                      ))}
+                    </VStack>
+                  </Box>
+
+                  <HStack spacing={4}>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Background</FormLabel>
+                      <HStack>
+                        <Input
+                          type="color"
+                          value={editConfig.style.bgColor === 'transparent' ? '#4A5568' : editConfig.style.bgColor}
+                          onChange={(e) => setEditConfig({
+                            ...editConfig,
+                            style: { ...editConfig.style, bgColor: e.target.value }
+                          })}
+                          height="40px"
+                          p={1}
+                          isDisabled={editConfig.style.bgColor === 'transparent'}
+                          flex={1}
+                        />
+                        <Checkbox
+                          isChecked={editConfig.style.bgColor === 'transparent'}
+                          onChange={(e) => setEditConfig({
+                            ...editConfig,
+                            style: { ...editConfig.style, bgColor: e.target.checked ? 'transparent' : '#4A5568' }
+                          })}
+                          size="sm"
+                        >
+                          None
+                        </Checkbox>
+                      </HStack>
+                    </FormControl>
+                  </HStack>
+                </VStack>
+              )}
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="ghost" mr={3} onClick={onClose}>
+                Cancel
+              </Button>
+              <Button colorScheme="blue" onClick={handleSaveConfig}>
+                Save
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      </>
     )
   }
 
