@@ -5,7 +5,7 @@ import {
   Heading,
   Text,
   IconButton,
-  VStack,
+  Flex,
   Modal,
   ModalOverlay,
   ModalContent,
@@ -54,6 +54,7 @@ function TemplatePage() {
       const newLabel = {
         id: crypto.randomUUID(),
         text: labelText.trim(),
+        width: 4,
         createdAt: Date.now()
       }
       const currentLabels = pageInfo.config?.labels || []
@@ -109,6 +110,30 @@ function TemplatePage() {
     }
   }
 
+  const handleResizeLabel = async (labelId, newWidth) => {
+    if (!pageInfo) return
+
+    try {
+      const currentLabels = pageInfo.config?.labels || []
+      const updatedLabels = currentLabels.map(l =>
+        l.id === labelId ? { ...l, width: newWidth } : l
+      )
+      const updatedConfig = {
+        ...pageInfo.config,
+        labels: updatedLabels
+      }
+      const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
+      setPageInfo(updatedRoute)
+    } catch (err) {
+      toast({
+        title: 'Failed to resize label',
+        description: err.message,
+        status: 'error',
+        duration: 3000
+      })
+    }
+  }
+
   const labels = pageInfo?.config?.labels || []
 
   return (
@@ -141,18 +166,17 @@ function TemplatePage() {
           <>
             <Heading size="lg" mb={2}>{pageInfo.name}</Heading>
             <Text color="gray.500" mb={6}>{pageInfo.path}</Text>
-            {labels.length > 0 && (
-              <VStack align="stretch" spacing={2} maxW="md">
-                {labels.map(label => (
-                  <TemplatePageLabel
-                    key={label.id}
-                    label={label}
-                    onDelete={handleDeleteLabel}
-                    isEditing={isEditing}
-                  />
-                ))}
-              </VStack>
-            )}
+            <Flex wrap="wrap" gap={2} width="100%">
+              {labels.map(label => (
+                <TemplatePageLabel
+                  key={label.id}
+                  label={label}
+                  onDelete={handleDeleteLabel}
+                  onResize={handleResizeLabel}
+                  isEditing={isEditing}
+                />
+              ))}
+            </Flex>
           </>
         ) : (
           <Text color="gray.500">{location.pathname}</Text>
