@@ -17,6 +17,7 @@ import {
   Select,
   HStack,
   VStack,
+  Checkbox,
   useDisclosure
 } from '@chakra-ui/react'
 import { CloseIcon, DragHandleIcon, SettingsIcon } from '@chakra-ui/icons'
@@ -381,13 +382,27 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
                 <HStack width="100%" spacing={4}>
                   <FormControl>
                     <FormLabel fontSize="sm">Background Color</FormLabel>
-                    <Input
-                      type="color"
-                      value={editStyle.bgColor}
-                      onChange={(e) => setEditStyle({ ...editStyle, bgColor: e.target.value })}
-                      height="40px"
-                      p={1}
-                    />
+                    <HStack>
+                      <Input
+                        type="color"
+                        value={editStyle.bgColor === 'transparent' ? '#4A5568' : editStyle.bgColor}
+                        onChange={(e) => setEditStyle({ ...editStyle, bgColor: e.target.value })}
+                        height="40px"
+                        p={1}
+                        isDisabled={editStyle.bgColor === 'transparent'}
+                        flex={1}
+                      />
+                      <Checkbox
+                        isChecked={editStyle.bgColor === 'transparent'}
+                        onChange={(e) => setEditStyle({
+                          ...editStyle,
+                          bgColor: e.target.checked ? 'transparent' : '#4A5568'
+                        })}
+                        size="sm"
+                      >
+                        None
+                      </Checkbox>
+                    </HStack>
                   </FormControl>
                   <FormControl>
                     <FormLabel fontSize="sm">Text Color</FormLabel>
