@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Box, HStack, Flex, Spacer, Text, Badge } from '@chakra-ui/react'
+import { HStack, Spacer, Text, Badge } from '@chakra-ui/react'
 import { getNextFomcDecision, formatFomcLabel, calculateCountdown } from '../modules/fomcService'
 import VixDisplay from './VixDisplay'
 import TreasuryYields from './TreasuryYields'
@@ -87,51 +87,37 @@ function FedCountdown({ isConnected }) {
   const formatNumber = (n) => String(n).padStart(2, '0')
 
   return (
-    <Box
-      position="sticky"
-      top={0}
-      zIndex={1000}
-      bg={style.bg}
-      borderBottom="2px solid"
-      borderColor={style.borderColor}
-      px={4}
-      py={2}
-    >
-      <Flex align="center">
-        <PageNavMenu />
-        {showFomc ? (
-          <HStack spacing={3} ml={2}>
-            <Badge
-              colorScheme={style.badgeScheme}
-              variant="solid"
-              px={3}
-              py={1}
-              borderRadius="md"
-              fontSize="sm"
-            >
-              {formatFomcLabel(nextDecision)}
-            </Badge>
-            <Text
-              color={style.textColor}
-              fontFamily="mono"
-              fontSize="md"
-              fontWeight="semibold"
-            >
-              {countdown.days > 0 && `${countdown.days}d `}
-              {formatNumber(countdown.hours)}h {formatNumber(countdown.minutes)}m {formatNumber(countdown.seconds)}s
-            </Text>
-          </HStack>
-        ) : (
-          <Box />
-        )}
-        <Spacer />
-        <HStack spacing={6}>
-          <FearGreedGauge isConnected={isConnected} />
-          <TreasuryYields />
-          <VixDisplay isConnected={isConnected} />
+    <PageNavMenu bg={style.bg} borderColor={style.borderColor}>
+      {showFomc && (
+        <HStack spacing={3} ml={2}>
+          <Badge
+            colorScheme={style.badgeScheme}
+            variant="solid"
+            px={3}
+            py={1}
+            borderRadius="md"
+            fontSize="sm"
+          >
+            {formatFomcLabel(nextDecision)}
+          </Badge>
+          <Text
+            color={style.textColor}
+            fontFamily="mono"
+            fontSize="md"
+            fontWeight="semibold"
+          >
+            {countdown.days > 0 && `${countdown.days}d `}
+            {formatNumber(countdown.hours)}h {formatNumber(countdown.minutes)}m {formatNumber(countdown.seconds)}s
+          </Text>
         </HStack>
-      </Flex>
-    </Box>
+      )}
+      <Spacer />
+      <HStack spacing={6}>
+        <FearGreedGauge isConnected={isConnected} />
+        <TreasuryYields />
+        <VixDisplay isConnected={isConnected} />
+      </HStack>
+    </PageNavMenu>
   )
 }
 

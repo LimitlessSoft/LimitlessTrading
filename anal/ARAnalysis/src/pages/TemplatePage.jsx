@@ -24,18 +24,7 @@ function TemplatePage() {
 
   return (
     <Box minH="100vh" bg="gray.900">
-      <Box
-        position="sticky"
-        top={0}
-        zIndex={1000}
-        bg="gray.800"
-        borderBottom="1px solid"
-        borderColor="gray.700"
-        px={4}
-        py={2}
-      >
-        <PageNavMenu />
-      </Box>
+      <PageNavMenu />
       <Box p={8}>
         {pageInfo ? (
           <>

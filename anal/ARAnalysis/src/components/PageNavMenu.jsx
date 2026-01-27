@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
+  Flex,
   IconButton,
   Menu,
   MenuButton,
@@ -25,7 +26,7 @@ import {
 import { HamburgerIcon, AddIcon } from '@chakra-ui/icons'
 import { fetchRoutes, createRoute } from '../modules/routesService'
 
-function PageNavMenu() {
+function PageNavMenu({ children, bg = 'gray.800', borderColor = 'gray.700' }) {
   const [routes, setRoutes] = useState([])
   const [newName, setNewName] = useState('')
   const [newPath, setNewPath] = useState('')
@@ -94,46 +95,58 @@ function PageNavMenu() {
 
   return (
     <>
-      <Box display="inline-block">
-        <Menu>
-          <MenuButton
-            as={IconButton}
-            icon={<HamburgerIcon />}
-            variant="ghost"
-            size="sm"
-            aria-label="Navigation menu"
-            _hover={{ bg: 'gray.700' }}
-          />
-          <MenuList bg="gray.800" borderColor="gray.600">
-            <MenuItem
-              onClick={() => handleNavigate('/')}
-              bg="gray.800"
-              _hover={{ bg: 'gray.700' }}
-            >
-              Main Page (/)
-            </MenuItem>
-            {routes.length > 0 && <MenuDivider />}
-            {routes.map((route) => (
+      <Box
+        position="sticky"
+        top={0}
+        zIndex={1000}
+        bg={bg}
+        borderBottom="2px solid"
+        borderColor={borderColor}
+        px={4}
+        py={2}
+      >
+        <Flex align="center">
+          <Menu>
+            <MenuButton
+              as={IconButton}
+              icon={<HamburgerIcon />}
+              variant="ghost"
+              size="sm"
+              aria-label="Navigation menu"
+              _hover={{ bg: 'whiteAlpha.200' }}
+            />
+            <MenuList bg="gray.800" borderColor="gray.600">
               <MenuItem
-                key={route.id}
-                onClick={() => handleNavigate(route.path)}
+                onClick={() => handleNavigate('/')}
                 bg="gray.800"
                 _hover={{ bg: 'gray.700' }}
               >
-                {route.name} ({route.path})
+                Main Page (/)
               </MenuItem>
-            ))}
-            <MenuDivider />
-            <MenuItem
-              icon={<AddIcon />}
-              onClick={onOpen}
-              bg="gray.800"
-              _hover={{ bg: 'gray.700' }}
-            >
-              Add New Page
-            </MenuItem>
-          </MenuList>
-        </Menu>
+              {routes.length > 0 && <MenuDivider />}
+              {routes.map((route) => (
+                <MenuItem
+                  key={route.id}
+                  onClick={() => handleNavigate(route.path)}
+                  bg="gray.800"
+                  _hover={{ bg: 'gray.700' }}
+                >
+                  {route.name} ({route.path})
+                </MenuItem>
+              ))}
+              <MenuDivider />
+              <MenuItem
+                icon={<AddIcon />}
+                onClick={onOpen}
+                bg="gray.800"
+                _hover={{ bg: 'gray.700' }}
+              >
+                Add New Page
+              </MenuItem>
+            </MenuList>
+          </Menu>
+          {children}
+        </Flex>
       </Box>
 
       <Modal isOpen={isOpen} onClose={handleModalClose}>
