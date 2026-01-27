@@ -38,6 +38,7 @@ function TemplatePage() {
   const { isOpen, onOpen, onClose } = useDisclosure()
   const toast = useToast()
   const containerRef = useRef(null)
+  const headerRef = useRef(null)
   const [dragPreview, setDragPreview] = useState(null)  // { id, x, y } during drag
   const [activeDrag, setActiveDrag] = useState(null)  // { controlId, mousePos } during drag
 
@@ -150,7 +151,8 @@ function TemplatePage() {
     }
   }
 
-  // Move a control to a panel (or to root if targetPanelId is null)
+  // Move a control to a panel, root, or header
+  // targetPanelId: null = root, 'header' = header bar, or panelId
   const handleMoveControl = async (controlId, sourcePanelId, targetPanelId) => {
     if (!pageInfo) return
     if (sourcePanelId === targetPanelId) return // No change
@@ -158,10 +160,16 @@ function TemplatePage() {
 
     try {
       let currentLabels = [...(pageInfo.config?.labels || [])]
+      let currentHeaderControls = [...(pageInfo.config?.headerControls || [])]
       let controlToMove = null
 
       // Find and remove the control from its source
-      if (sourcePanelId === null) {
+      if (sourcePanelId === 'header') {
+        // Moving from header
+        controlToMove = currentHeaderControls.find(c => c.id === controlId)
+        if (!controlToMove) return
+        currentHeaderControls = currentHeaderControls.filter(c => c.id !== controlId)
+      } else if (sourcePanelId === null) {
         // Moving from root
         controlToMove = currentLabels.find(l => l.id === controlId)
         if (!controlToMove) return
@@ -183,7 +191,10 @@ function TemplatePage() {
       controlToMove = { ...controlToMove, x: 0, y: 0 }
 
       // Add the control to its target
-      if (targetPanelId === null) {
+      if (targetPanelId === 'header') {
+        // Moving to header
+        currentHeaderControls = [...currentHeaderControls, controlToMove]
+      } else if (targetPanelId === null) {
         // Moving to root
         currentLabels = [...currentLabels, controlToMove]
       } else {
@@ -196,7 +207,11 @@ function TemplatePage() {
         })
       }
 
-      const updatedConfig = { ...pageInfo.config, labels: currentLabels }
+      const updatedConfig = {
+        ...pageInfo.config,
+        labels: currentLabels,
+        headerControls: currentHeaderControls
+      }
       const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
       setPageInfo(updatedRoute)
 
@@ -216,6 +231,58 @@ function TemplatePage() {
   }
 
   const labels = pageInfo?.config?.labels || []
+  const headerControls = pageInfo?.config?.headerControls || []
+
+  // Header control handlers
+  const handleDeleteHeaderControl = async (controlId) => {
+    if (!pageInfo) return
+    try {
+      const updatedHeaderControls = headerControls.filter(c => c.id !== controlId)
+      const updatedConfig = { ...pageInfo.config, headerControls: updatedHeaderControls }
+      const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
+      setPageInfo(updatedRoute)
+    } catch (err) {
+      toast({ title: 'Failed to delete control', status: 'error', duration: 3000 })
+    }
+  }
+
+  const handleUpdateHeaderControl = async (controlId, changes) => {
+    if (!pageInfo) return
+    try {
+      const updatedHeaderControls = headerControls.map(c =>
+        c.id === controlId ? { ...c, ...changes } : c
+      )
+      const updatedConfig = { ...pageInfo.config, headerControls: updatedHeaderControls }
+      const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
+      setPageInfo(updatedRoute)
+    } catch (err) {
+      toast({ title: 'Failed to update control', status: 'error', duration: 3000 })
+    }
+  }
+
+  // Render a header control (simplified - inline, no absolute positioning)
+  const renderHeaderControl = (control) => {
+    const commonProps = {
+      key: control.id,
+      label: control,
+      onDelete: handleDeleteHeaderControl,
+      onUpdate: handleUpdateHeaderControl,
+      onDragStateChange: (dragging, mousePos) => setActiveDrag(dragging ? { controlId: control.id, mousePos } : null),
+      onMoveControl: handleMoveControl,
+      activeDrag: activeDrag,
+      parentPanelId: 'header',
+      isEditing: isEditing,
+      isHeaderMode: true
+    }
+
+    if (control.type === 'badge') {
+      return <TemplatePageBadge {...commonProps} />
+    } else if (control.type === 'label') {
+      return <TemplatePageLabel {...commonProps} />
+    }
+    // Panels not supported in header
+    return null
+  }
 
   // Calculate layout positions - prevents overlap, maintains consistent gaps
   const calculateLayout = (controls, preview, gap = 8) => {
@@ -260,7 +327,12 @@ function TemplatePage() {
 
   return (
     <Box minH="100vh" bg="gray.900">
-      <PageNavMenu>
+      <PageNavMenu
+        headerRef={headerRef}
+        headerControls={headerControls}
+        activeDrag={activeDrag}
+        onRenderControl={renderHeaderControl}
+      >
         <IconButton
           icon={<EditIcon />}
           variant="ghost"

@@ -36,7 +36,7 @@ const DEFAULT_STYLE = {
 // Placeholder pattern for template variables: ${name} or ${name:interval}
 const PLACEHOLDER_REGEX = /\$\{(\w+)(?::(\d+))?\}/
 
-function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, onDragStateChange, onMoveControl, activeDrag, parentPanelId, isEditing, containerRef }) {
+function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, onDragStateChange, onMoveControl, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -183,8 +183,18 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     setEditConfig({ ...editConfig, colorMappings: newMappings })
   }
 
-  // Find panel under mouse position
-  const findPanelAtPosition = (mouseX, mouseY) => {
+  // Find drop target under mouse position (panel or header)
+  const findDropTarget = (mouseX, mouseY) => {
+    // Check header first
+    const header = document.querySelector('[data-header-dropzone]')
+    if (header) {
+      const rect = header.getBoundingClientRect()
+      if (mouseX >= rect.left && mouseX <= rect.right && mouseY >= rect.top && mouseY <= rect.bottom) {
+        return 'header'
+      }
+    }
+
+    // Check panels
     const panels = document.querySelectorAll('[data-panel-id]')
     for (const panel of panels) {
       const panelId = panel.getAttribute('data-panel-id')
@@ -242,14 +252,14 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
       setIsMoving(false)
       onDragStateChange?.(false, null)
 
-      // Check if dropped on a panel
-      const targetPanelId = findPanelAtPosition(lastMouseX, lastMouseY)
+      // Check if dropped on a panel or header
+      const dropTarget = findDropTarget(lastMouseX, lastMouseY)
 
-      if (targetPanelId && targetPanelId !== parentPanelId) {
-        onMoveControl?.(label.id, parentPanelId, targetPanelId)
+      if (dropTarget && dropTarget !== parentPanelId) {
+        onMoveControl?.(label.id, parentPanelId, dropTarget)
         setPreviewPos(null)
         onDragPreview?.(null)
-      } else if (targetPanelId === null && parentPanelId !== null) {
+      } else if (dropTarget === null && parentPanelId !== null && parentPanelId !== 'header') {
         const mainContainer = containerRef?.current
         if (mainContainer) {
           const rect = mainContainer.getBoundingClientRect()
@@ -328,6 +338,54 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
   }
 
   const badgeColor = getBadgeColor()
+
+  // Header mode: simplified inline rendering
+  if (isHeaderMode) {
+    return (
+      <Box
+        ref={boxRef}
+        display="flex"
+        alignItems="center"
+        outline={isEditing ? '1px dashed' : 'none'}
+        outlineColor={isEditing ? 'gray.500' : undefined}
+        cursor={isEditing ? 'move' : 'default'}
+        onMouseDown={isEditing ? handleMoveStart : undefined}
+        opacity={isMoving ? 0.7 : 1}
+        px={1}
+      >
+        <Tooltip label={currentValue || 'No data'} placement="bottom" hasArrow>
+          <Box
+            width="20px"
+            height="20px"
+            borderRadius="full"
+            bg={badgeColor}
+            transition="background-color 0.3s ease"
+          />
+        </Tooltip>
+        {isEditing && (
+          <>
+            <IconButton
+              icon={<SettingsIcon />}
+              size="xs"
+              variant="ghost"
+              aria-label="Edit badge"
+              onClick={(e) => { e.stopPropagation(); handleOpenEdit() }}
+              onMouseDown={(e) => e.stopPropagation()}
+              ml={1}
+            />
+            <IconButton
+              icon={<CloseIcon />}
+              size="xs"
+              variant="ghost"
+              aria-label="Delete badge"
+              onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+              onMouseDown={(e) => e.stopPropagation()}
+            />
+          </>
+        )}
+      </Box>
+    )
+  }
 
   return (
     <>

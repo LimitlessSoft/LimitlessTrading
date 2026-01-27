@@ -49,7 +49,7 @@ const DEFAULT_STYLE = {
 // Placeholder pattern for template variables: ${name} or ${name:interval}
 const PLACEHOLDER_REGEX = /\$\{(\w+)(?::(\d+))?\}/g
 
-function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, onDragStateChange, onMoveControl, activeDrag, parentPanelId, isEditing, containerRef }) {
+function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, onDragStateChange, onMoveControl, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -166,12 +166,21 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     onClose()
   }
 
-  // Find panel under mouse position
-  const findPanelAtPosition = (mouseX, mouseY) => {
+  // Find drop target under mouse position (panel or header)
+  const findDropTarget = (mouseX, mouseY) => {
+    // Check header first
+    const header = document.querySelector('[data-header-dropzone]')
+    if (header) {
+      const rect = header.getBoundingClientRect()
+      if (mouseX >= rect.left && mouseX <= rect.right && mouseY >= rect.top && mouseY <= rect.bottom) {
+        return 'header'
+      }
+    }
+
+    // Check panels
     const panels = document.querySelectorAll('[data-panel-id]')
     for (const panel of panels) {
       const panelId = panel.getAttribute('data-panel-id')
-      // Don't allow dropping on self or current parent
       if (panelId === label.id) continue
       const rect = panel.getBoundingClientRect()
       if (mouseX >= rect.left && mouseX <= rect.right && mouseY >= rect.top && mouseY <= rect.bottom) {
@@ -228,16 +237,16 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
       setIsMoving(false)
       onDragStateChange?.(false, null)
 
-      // Check if dropped on a panel
-      const targetPanelId = findPanelAtPosition(lastMouseX, lastMouseY)
+      // Check if dropped on a panel or header
+      const dropTarget = findDropTarget(lastMouseX, lastMouseY)
 
-      if (targetPanelId && targetPanelId !== parentPanelId) {
-        // Move to the target panel
-        onMoveControl?.(label.id, parentPanelId, targetPanelId)
+      if (dropTarget && dropTarget !== parentPanelId) {
+        // Move to the target (panel or header)
+        onMoveControl?.(label.id, parentPanelId, dropTarget)
         setPreviewPos(null)
         onDragPreview?.(null)
-      } else if (targetPanelId === null && parentPanelId !== null) {
-        // Check if dropped outside any panel - move to root
+      } else if (dropTarget === null && parentPanelId !== null && parentPanelId !== 'header') {
+        // Check if dropped outside any panel/header - move to root
         const mainContainer = containerRef?.current
         if (mainContainer) {
           const rect = mainContainer.getBoundingClientRect()
@@ -379,6 +388,142 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
 
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
+  }
+
+  // Header mode: simplified inline rendering
+  if (isHeaderMode) {
+    return (
+      <>
+        <Box
+          ref={boxRef}
+          bg={style.bgColor}
+          px={2}
+          py={1}
+          borderRadius="md"
+          display="flex"
+          alignItems="center"
+          borderWidth={`${style.borderWidth}px`}
+          borderColor={style.borderColor}
+          borderStyle="solid"
+          outline={isEditing ? '1px dashed' : 'none'}
+          outlineColor={isEditing ? 'gray.500' : undefined}
+          cursor={isEditing ? 'move' : 'default'}
+          onMouseDown={isEditing ? handleMoveStart : undefined}
+          opacity={isMoving ? 0.7 : 1}
+        >
+          <Text
+            whiteSpace="nowrap"
+            color={style.textColor}
+            fontWeight={style.fontWeight}
+            fontStyle={style.fontStyle}
+            fontSize={`${(style.fontSize || 1) * 0.875}rem`}
+            pointerEvents="none"
+            userSelect="none"
+          >
+            {resolveText(label.text)}
+          </Text>
+          {isEditing && (
+            <>
+              <IconButton
+                icon={<SettingsIcon />}
+                size="xs"
+                variant="ghost"
+                aria-label="Edit label"
+                onClick={(e) => { e.stopPropagation(); handleOpenEdit() }}
+                onMouseDown={(e) => e.stopPropagation()}
+                ml={1}
+              />
+              <IconButton
+                icon={<CloseIcon />}
+                size="xs"
+                variant="ghost"
+                aria-label="Delete label"
+                onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+                onMouseDown={(e) => e.stopPropagation()}
+              />
+            </>
+          )}
+        </Box>
+        {/* Edit Modal - same as normal mode */}
+        <Modal isOpen={isOpen} onClose={onClose}>
+          <ModalOverlay />
+          <ModalContent bg="gray.800">
+            <ModalHeader>Edit Label</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              {editStyle && (
+                <VStack spacing={4}>
+                  <FormControl>
+                    <FormLabel fontSize="sm" display="flex" alignItems="center" gap={1}>
+                      Label Text
+                      <Tooltip label="View placeholder API docs" placement="top" hasArrow>
+                        <IconButton
+                          icon={<InfoOutlineIcon />}
+                          size="xs"
+                          variant="ghost"
+                          aria-label="Placeholder documentation"
+                          onClick={onDocsOpen}
+                          minW="auto"
+                          h="auto"
+                          p={0}
+                          color="gray.400"
+                          _hover={{ color: 'blue.300' }}
+                        />
+                      </Tooltip>
+                    </FormLabel>
+                    <Input
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      placeholder="Enter label text"
+                    />
+                  </FormControl>
+                  <HStack width="100%" spacing={4}>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Background</FormLabel>
+                      <HStack>
+                        <Input
+                          type="color"
+                          value={editStyle.bgColor === 'transparent' ? '#4A5568' : editStyle.bgColor}
+                          onChange={(e) => setEditStyle({ ...editStyle, bgColor: e.target.value })}
+                          height="40px"
+                          p={1}
+                          isDisabled={editStyle.bgColor === 'transparent'}
+                          flex={1}
+                        />
+                        <Checkbox
+                          isChecked={editStyle.bgColor === 'transparent'}
+                          onChange={(e) => setEditStyle({
+                            ...editStyle,
+                            bgColor: e.target.checked ? 'transparent' : '#4A5568'
+                          })}
+                          size="sm"
+                        >
+                          None
+                        </Checkbox>
+                      </HStack>
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Text Color</FormLabel>
+                      <Input
+                        type="color"
+                        value={editStyle.textColor}
+                        onChange={(e) => setEditStyle({ ...editStyle, textColor: e.target.value })}
+                        height="40px"
+                        p={1}
+                      />
+                    </FormControl>
+                  </HStack>
+                </VStack>
+              )}
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="ghost" mr={3} onClick={onClose}>Cancel</Button>
+              <Button colorScheme="blue" onClick={handleSaveStyle}>Save</Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      </>
+    )
   }
 
   return (

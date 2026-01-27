@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -26,7 +26,15 @@ import {
 import { HamburgerIcon, AddIcon } from '@chakra-ui/icons'
 import { fetchRoutes, createRoute } from '../modules/routesService'
 
-function PageNavMenu({ children, bg = 'gray.800', borderColor = 'gray.700' }) {
+function PageNavMenu({
+  children,
+  bg = 'gray.800',
+  borderColor = 'gray.700',
+  headerControls = [],
+  activeDrag = null,
+  onRenderControl,
+  headerRef: externalHeaderRef
+}) {
   const [routes, setRoutes] = useState([])
   const [newName, setNewName] = useState('')
   const [newPath, setNewPath] = useState('')
@@ -34,6 +42,15 @@ function PageNavMenu({ children, bg = 'gray.800', borderColor = 'gray.700' }) {
   const { isOpen, onOpen, onClose } = useDisclosure()
   const navigate = useNavigate()
   const toast = useToast()
+  const internalHeaderRef = useRef(null)
+  const headerRef = externalHeaderRef || internalHeaderRef
+
+  // Check if something is being dragged over the header
+  const isDropTarget = activeDrag && activeDrag.mousePos && headerRef.current && (() => {
+    const rect = headerRef.current.getBoundingClientRect()
+    const { x, y } = activeDrag.mousePos
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+  })()
 
   const loadRoutes = async () => {
     try {
@@ -96,14 +113,17 @@ function PageNavMenu({ children, bg = 'gray.800', borderColor = 'gray.700' }) {
   return (
     <>
       <Box
+        ref={headerRef}
+        data-header-dropzone="true"
         position="sticky"
         top={0}
         zIndex={1000}
-        bg={bg}
+        bg={isDropTarget ? 'blue.900' : bg}
         borderBottom="2px solid"
-        borderColor={borderColor}
+        borderColor={isDropTarget ? 'blue.400' : borderColor}
         px={4}
         py={2}
+        transition="background-color 0.15s, border-color 0.15s"
       >
         <Flex align="center">
           <Menu>
@@ -145,6 +165,12 @@ function PageNavMenu({ children, bg = 'gray.800', borderColor = 'gray.700' }) {
               </MenuItem>
             </MenuList>
           </Menu>
+          {/* Header controls drop zone */}
+          {headerControls.length > 0 && onRenderControl && (
+            <Flex align="center" ml={2} gap={2} flex={1}>
+              {headerControls.map(control => onRenderControl(control))}
+            </Flex>
+          )}
           {children}
         </Flex>
       </Box>
