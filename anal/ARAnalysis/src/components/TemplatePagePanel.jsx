@@ -91,16 +91,24 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
   const { positions: childLayoutPositions, contentHeight } = calculateChildLayout(children)
 
   // Calculate vertical offset based on alignment
+  // Note: children use absolute positioning, so they ignore padding.
+  // In edit mode, resize handles overlay the bottom (12px)
+  const PADDING = 8 // matches p={2} on children container
+  const RESIZE_HANDLE_HEIGHT = 12
   const getVerticalOffset = () => {
     if (!childContainerRef.current || children.length === 0) return 0
-    const containerHeight = childContainerRef.current.clientHeight - 16 // minus padding
-    if (contentHeight >= containerHeight) return 0
+    let availableHeight = childContainerRef.current.clientHeight - (PADDING * 2)
+    // Account for resize handle overlay in edit mode
+    if (isEditing) {
+      availableHeight -= RESIZE_HANDLE_HEIGHT
+    }
+    if (contentHeight >= availableHeight) return 0
 
     switch (style.verticalAlign) {
       case 'middle':
-        return (containerHeight - contentHeight) / 2
+        return (availableHeight - contentHeight) / 2
       case 'bottom':
-        return containerHeight - contentHeight
+        return availableHeight - contentHeight
       default:
         return 0
     }
@@ -120,7 +128,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
       observer.observe(childContainerRef.current)
     }
     return () => observer.disconnect()
-  }, [children, style.verticalAlign, height, contentHeight])
+  }, [children, style.verticalAlign, height, contentHeight, isEditing])
 
   const displayWidth = previewSize?.width ?? width
   const displayHeight = previewSize?.height ?? height
