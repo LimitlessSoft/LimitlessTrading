@@ -4,6 +4,7 @@ import { getNextFomcDecision, formatFomcLabel, calculateCountdown } from '../mod
 import VixDisplay from './VixDisplay'
 import TreasuryYields from './TreasuryYields'
 import FearGreedGauge from './FearGreedGauge'
+import PageNavMenu from './PageNavMenu'
 
 function FedCountdown({ isConnected }) {
   const [nextDecision, setNextDecision] = useState(null)
@@ -97,8 +98,9 @@ function FedCountdown({ isConnected }) {
       py={2}
     >
       <Flex align="center">
+        <PageNavMenu />
         {showFomc ? (
-          <HStack spacing={3}>
+          <HStack spacing={3} ml={2}>
             <Badge
               colorScheme={style.badgeScheme}
               variant="solid"

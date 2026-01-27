@@ -4,6 +4,7 @@ import marketRoutes from './routes/market.js'
 import fomcRoutes from './routes/fomc.js'
 import treasuryRoutes from './routes/treasury.js'
 import fearGreedRoutes from './routes/fearGreed.js'
+import routesRoutes from './routes/routes.js'
 import { getConnectionStatus } from './ibkrClient.js'
 
 const app = express()
@@ -17,6 +18,7 @@ app.use('/api', marketRoutes)
 app.use('/api/fomc', fomcRoutes)
 app.use('/api/treasury', treasuryRoutes)
 app.use('/api/fear-greed', fearGreedRoutes)
+app.use('/api/routes', routesRoutes)
 
 // Health check
 app.get('/health', (req, res) => {
