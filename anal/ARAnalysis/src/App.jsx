@@ -26,6 +26,7 @@ import ThresholdReport from './components/ThresholdReport'
 import TwoUpThenBigMove from './components/TwoUpThenBigMove'
 import Screener from './components/Screener'
 import FedCountdown from './components/FedCountdown'
+import MarketClocks from './components/MarketClocks'
 import LiveWatchlist from './components/LiveWatchlist'
 import DataManager from './modules/DataManager'
 import {
@@ -270,6 +271,7 @@ function App() {
         onOffline={handleGoOffline}
       />
       <FedCountdown isConnected={connectionState.connected} />
+      <MarketClocks />
       <LiveWatchlist isConnected={connectionState.connected} refreshInterval={liveWatchlistInterval} />
       <Box px={4} py={4}>
         <VStack spacing={4} align="stretch">

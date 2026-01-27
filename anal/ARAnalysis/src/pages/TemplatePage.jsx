@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Box, Heading, Text } from '@chakra-ui/react'
+import { Box, Heading, Text, IconButton } from '@chakra-ui/react'
+import { EditIcon } from '@chakra-ui/icons'
 import { fetchRoutes } from '../modules/routesService'
 import PageNavMenu from '../components/PageNavMenu'
 
@@ -24,7 +25,16 @@ function TemplatePage() {
 
   return (
     <Box minH="100vh" bg="gray.900">
-      <PageNavMenu />
+      <PageNavMenu>
+        <IconButton
+          icon={<EditIcon />}
+          variant="ghost"
+          size="sm"
+          aria-label="Edit page"
+          _hover={{ bg: 'whiteAlpha.200' }}
+          ml={1}
+        />
+      </PageNavMenu>
       <Box p={8}>
         {pageInfo ? (
           <>
