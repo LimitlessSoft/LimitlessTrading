@@ -73,8 +73,8 @@ function TemplatePage() {
         // Badge-specific defaults
         placeholder: controlType === 'badge' ? '${tws_connection_status:5}' : undefined,
         colorMappings: controlType === 'badge' ? [
-          { value: 'Connected', color: '#48BB78', contains: true },
-          { value: 'Disconnected', color: '#F56565', contains: false }
+          { value: 'Disconnected', color: '#F56565', contains: false },
+          { value: 'Connected', color: '#48BB78', contains: true }
         ] : undefined,
         defaultColor: controlType === 'badge' ? '#718096' : undefined
       }
