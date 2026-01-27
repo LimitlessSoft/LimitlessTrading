@@ -19,10 +19,13 @@ import {
   VStack,
   Checkbox,
   Tooltip,
+  Code,
   useDisclosure
 } from '@chakra-ui/react'
 import { CloseIcon, DragHandleIcon, SettingsIcon, AddIcon, DeleteIcon } from '@chakra-ui/icons'
 import { getConnectionStatus } from '../modules/dataService'
+import { useSymbolQuotes, hasSymbolPlaceholders } from '../hooks/useSymbolQuotes'
+import { parseSymbolPlaceholders, formatQuoteValue } from '../modules/symbolQuoteService'
 
 const TOTAL_SEGMENTS = 20
 const MIN_SEGMENTS = 1
@@ -35,9 +38,12 @@ const DEFAULT_STYLE = {
   borderWidth: 0
 }
 
-// Placeholder pattern for template variables: ${name} or ${name:interval}
+// Placeholder pattern for system template variables: ${name} or ${name:interval}
 const PLACEHOLDER_REGEX = /\$\{(\w+)(?::(\d+))?\}/
 const PLACEHOLDER_REGEX_GLOBAL = /\$\{(\w+)(?::(\d+))?\}/g
+
+// Symbol quote placeholder pattern: @{SYMBOL:property:seconds}
+const SYMBOL_QUOTE_REGEX = /@\{([A-Za-z0-9.^]+):(\w+)(?::(\d+))?\}/
 
 function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, onDragStateChange, onMoveControl, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode }) {
   const [isResizing, setIsResizing] = useState(false)
@@ -66,14 +72,39 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
   const displayX = previewPos?.x ?? x
   const displayY = previewPos?.y ?? layoutY ?? 0
 
-  // Check if text contains placeholders
-  const hasTextPlaceholders = text && text.includes('${')
+  // Check for placeholder types
+  const hasSystemPlaceholders = (valueProvider && valueProvider.includes('${')) ||
+                                (text && text.includes('${'))
+  const hasSymbolQuotePlaceholders = (valueProvider && valueProvider.includes('@{')) ||
+                                     (text && text.includes('@{'))
 
-  // Parse value provider and text to get minimum refresh interval
-  const getRefreshInterval = useCallback(() => {
+  // Parse symbol quote from value provider
+  const symbolQuoteMatch = valueProvider ? valueProvider.match(SYMBOL_QUOTE_REGEX) : null
+  const symbolQuoteInfo = symbolQuoteMatch ? {
+    symbol: symbolQuoteMatch[1].toUpperCase(),
+    property: symbolQuoteMatch[2].toLowerCase(),
+    interval: symbolQuoteMatch[3] ? parseInt(symbolQuoteMatch[3], 10) : 5
+  } : null
+
+  // Subscribe to symbol quotes (for both value provider and text)
+  const combinedTextForQuotes = [valueProvider, text].filter(Boolean).join(' ')
+  const { quotes: symbolQuotes, resolveText: resolveSymbolText, getValue: getQuoteValue } = useSymbolQuotes(
+    hasSymbolQuotePlaceholders ? combinedTextForQuotes : null
+  )
+
+  // Get value from symbol quote if applicable
+  const symbolQuoteValue = symbolQuoteInfo
+    ? getQuoteValue(symbolQuoteInfo.symbol, symbolQuoteInfo.property)
+    : null
+  const formattedSymbolQuoteValue = symbolQuoteInfo && symbolQuoteValue !== null
+    ? formatQuoteValue(symbolQuoteInfo.property, symbolQuoteValue)
+    : null
+
+  // Parse system placeholders to get minimum refresh interval
+  const getSystemRefreshInterval = useCallback(() => {
     let minInterval = Infinity
 
-    // Check value provider
+    // Check value provider for system placeholders
     if (valueProvider) {
       const match = valueProvider.match(PLACEHOLDER_REGEX)
       if (match) {
@@ -82,7 +113,7 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
       }
     }
 
-    // Check text placeholders
+    // Check text for system placeholders
     if (text) {
       const matches = [...text.matchAll(PLACEHOLDER_REGEX_GLOBAL)]
       for (const match of matches) {
@@ -94,9 +125,10 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     return minInterval === Infinity ? null : minInterval
   }, [valueProvider, text])
 
-  // Fetch all placeholder values
-  const fetchPlaceholderValues = useCallback(async () => {
-    const needsTwsStatus = valueProvider.includes('tws_connection_status') || text.includes('tws_connection_status')
+  // Fetch system placeholder values (like tws_connection_status)
+  const fetchSystemPlaceholderValues = useCallback(async () => {
+    const needsTwsStatus = (valueProvider && valueProvider.includes('tws_connection_status')) ||
+                           (text && text.includes('tws_connection_status'))
 
     if (needsTwsStatus) {
       try {
@@ -108,8 +140,8 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     }
   }, [valueProvider, text])
 
-  // Resolve placeholders in text
-  const resolveText = (inputText) => {
+  // Resolve system placeholders in text (${name} syntax)
+  const resolveSystemText = (inputText) => {
     if (!inputText) return ''
     return inputText.replace(PLACEHOLDER_REGEX_GLOBAL, (match, key) => {
       if (key === 'tws_connection_status') {
@@ -119,32 +151,60 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     })
   }
 
+  // Resolve all placeholders: first system (${...}), then symbol (@{...})
+  const resolveText = (inputText) => {
+    const systemResolved = resolveSystemText(inputText)
+    return resolveSymbolText(systemResolved)
+  }
+
+  // Determine the current value for color mapping
+  // Priority: symbol quote value > system placeholder value
+  const effectiveValue = formattedSymbolQuoteValue !== null
+    ? formattedSymbolQuoteValue
+    : currentValue
+
+  // For numeric comparisons in color mappings, use raw value
+  const rawValue = symbolQuoteValue !== null ? symbolQuoteValue : currentValue
+
   // Get the display text - either from value provider or custom text
-  const displayText = showValueAsText ? currentValue : (text ? resolveText(text) : null)
+  const displayText = showValueAsText
+    ? effectiveValue
+    : (text ? resolveText(text) : null)
 
-  // Poll for placeholder values
+  // Poll for system placeholder values
   useEffect(() => {
-    if (!valueProvider && !hasTextPlaceholders) return
+    if (!hasSystemPlaceholders) return
 
-    const refreshInterval = getRefreshInterval()
+    const refreshInterval = getSystemRefreshInterval()
     if (!refreshInterval) return
 
-    fetchPlaceholderValues()
-    const interval = setInterval(fetchPlaceholderValues, refreshInterval * 1000)
+    fetchSystemPlaceholderValues()
+    const interval = setInterval(fetchSystemPlaceholderValues, refreshInterval * 1000)
     return () => clearInterval(interval)
-  }, [valueProvider, hasTextPlaceholders, fetchPlaceholderValues, getRefreshInterval])
+  }, [hasSystemPlaceholders, fetchSystemPlaceholderValues, getSystemRefreshInterval])
 
   // Determine badge color based on current value and mappings
-  // Check exact matches first, then contains matches (order-independent)
+  // Supports both string matching and numeric comparisons
   const getBadgeColor = () => {
-    if (!currentValue) return defaultColor
+    if (effectiveValue === null && rawValue === null) return defaultColor
 
-    const valueLower = currentValue.toLowerCase()
+    const stringValue = effectiveValue !== null ? String(effectiveValue) : ''
+    const valueLower = stringValue.toLowerCase()
+    const numericValue = typeof rawValue === 'number' ? rawValue : parseFloat(stringValue)
+    const isNumeric = !isNaN(numericValue)
 
     // First pass: exact matches take priority
     for (const mapping of colorMappings) {
-      if (!mapping.contains && valueLower === mapping.value.toLowerCase()) {
-        return mapping.color
+      if (!mapping.contains) {
+        // Check for numeric comparison operators
+        const mappingValue = mapping.value.trim()
+        if (isNumeric && /^[<>=!]/.test(mappingValue)) {
+          if (evaluateNumericCondition(numericValue, mappingValue)) {
+            return mapping.color
+          }
+        } else if (valueLower === mappingValue.toLowerCase()) {
+          return mapping.color
+        }
       }
     }
 
@@ -156,6 +216,27 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     }
 
     return defaultColor
+  }
+
+  // Evaluate numeric conditions like ">20", "<=15", ">=30"
+  function evaluateNumericCondition(value, condition) {
+    const match = condition.match(/^([<>=!]+)\s*(-?\d+\.?\d*)$/)
+    if (!match) return false
+
+    const operator = match[1]
+    const threshold = parseFloat(match[2])
+
+    switch (operator) {
+      case '>': return value > threshold
+      case '>=': return value >= threshold
+      case '<': return value < threshold
+      case '<=': return value <= threshold
+      case '=':
+      case '==': return value === threshold
+      case '!=':
+      case '<>': return value !== threshold
+      default: return false
+    }
   }
 
   useEffect(() => {
@@ -397,7 +478,7 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
         >
           {displayMode === 'full' ? (
             // Full background mode
-            <Tooltip label={currentValue || 'No data'} placement="bottom" hasArrow>
+            <Tooltip label={effectiveValue || 'No data'} placement="bottom" hasArrow>
               <Box
                 bg={badgeColor}
                 borderRadius="md"
@@ -411,14 +492,14 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
                   whiteSpace="nowrap"
                   color="white"
                 >
-                  {displayText || currentValue || '—'}
+                  {displayText || effectiveValue || '—'}
                 </Text>
               </Box>
             </Tooltip>
           ) : (
             // Circle indicator mode
             <>
-              <Tooltip label={currentValue || 'No data'} placement="bottom" hasArrow>
+              <Tooltip label={effectiveValue || 'No data'} placement="bottom" hasArrow>
                 <Box
                   width="16px"
                   height="16px"
@@ -477,8 +558,11 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
                     <Input
                       value={editConfig.placeholder}
                       onChange={(e) => setEditConfig({ ...editConfig, placeholder: e.target.value })}
-                      placeholder="${tws_connection_status:5}"
+                      placeholder="@{AAPL:last:5} or ${tws_connection_status:5}"
                     />
+                    <Text fontSize="xs" color="gray.500" mt={1}>
+                      System: <Code fontSize="xs">${'{name:seconds}'}</Code> | Quote: <Code fontSize="xs">@{'{SYMBOL:property:seconds}'}</Code>
+                    </Text>
                   </FormControl>
 
                   <FormControl>
@@ -486,7 +570,7 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
                     <Input
                       value={editConfig.text || ''}
                       onChange={(e) => setEditConfig({ ...editConfig, text: e.target.value })}
-                      placeholder="Optional text (supports ${placeholder} syntax)"
+                      placeholder="Optional text (supports placeholders)"
                       isDisabled={editConfig.showValueAsText}
                     />
                   </FormControl>
@@ -529,13 +613,16 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
                         Add
                       </Button>
                     </HStack>
+                    <Text fontSize="xs" color="gray.500" mb={2}>
+                      For numeric values, use operators: <Code fontSize="xs">&gt;20</Code>, <Code fontSize="xs">&lt;=15</Code>, <Code fontSize="xs">&gt;=30</Code>
+                    </Text>
 
                     <VStack spacing={2} align="stretch">
                       {editConfig.colorMappings.map((mapping, index) => (
                         <HStack key={index} spacing={2}>
                           <Input
                             size="sm"
-                            placeholder="Value to match"
+                            placeholder="Value or >20, <=15"
                             value={mapping.value}
                             onChange={(e) => handleUpdateMapping(index, 'value', e.target.value)}
                             flex={1}
@@ -614,7 +701,7 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
       >
         {displayMode === 'full' ? (
           // Full background mode - text inside colored box
-          <Tooltip label={currentValue || 'No data'} placement="top" hasArrow>
+          <Tooltip label={effectiveValue || 'No data'} placement="top" hasArrow>
             <Text
               fontSize="sm"
               fontWeight="medium"
@@ -623,13 +710,13 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
               pointerEvents="none"
               userSelect="none"
             >
-              {displayText || currentValue || '—'}
+              {displayText || effectiveValue || '—'}
             </Text>
           </Tooltip>
         ) : (
           // Circle indicator mode
           <>
-            <Tooltip label={currentValue || 'No data'} placement="top" hasArrow>
+            <Tooltip label={effectiveValue || 'No data'} placement="top" hasArrow>
               <Box
                 width={`${Math.min(displayHeight - 8, 32)}px`}
                 height={`${Math.min(displayHeight - 8, 32)}px`}

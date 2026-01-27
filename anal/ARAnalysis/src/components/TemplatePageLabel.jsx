@@ -30,6 +30,7 @@ import {
 } from '@chakra-ui/react'
 import { CloseIcon, DragHandleIcon, SettingsIcon, InfoOutlineIcon } from '@chakra-ui/icons'
 import { getConnectionStatus } from '../modules/dataService'
+import { useSymbolQuotes, hasSymbolPlaceholders } from '../hooks/useSymbolQuotes'
 
 const TOTAL_SEGMENTS = 20
 const MIN_SEGMENTS = 2
@@ -61,10 +62,13 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
   const { isOpen, onOpen, onClose } = useDisclosure()
   const { isOpen: isDocsOpen, onOpen: onDocsOpen, onClose: onDocsClose } = useDisclosure()
 
-  // Check if text contains placeholders and extract refresh interval
-  const hasPlaceholders = label.text && label.text.includes('${')
+  // Symbol quote placeholders (@{SYMBOL:property:seconds})
+  const { resolveText: resolveSymbolText } = useSymbolQuotes(label.text)
 
-  // Parse placeholders to get the minimum refresh interval
+  // Check if text contains system placeholders (${...}) and extract refresh interval
+  const hasSystemPlaceholders = label.text && label.text.includes('${')
+
+  // Parse system placeholders to get the minimum refresh interval
   const getRefreshInterval = useCallback(() => {
     if (!label.text) return null
     const matches = [...label.text.matchAll(PLACEHOLDER_REGEX)]
@@ -78,7 +82,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     return minInterval === Infinity ? 5 : minInterval
   }, [label.text])
 
-  // Fetch placeholder values
+  // Fetch system placeholder values
   const fetchPlaceholderValues = useCallback(async () => {
     if (!label.text) return
 
@@ -99,9 +103,9 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     setPlaceholderValues(values)
   }, [label.text])
 
-  // Poll for placeholder values when text contains placeholders
+  // Poll for system placeholder values when text contains them
   useEffect(() => {
-    if (!hasPlaceholders) return
+    if (!hasSystemPlaceholders) return
 
     const refreshInterval = getRefreshInterval()
     if (!refreshInterval) return
@@ -109,14 +113,20 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
     fetchPlaceholderValues()
     const interval = setInterval(fetchPlaceholderValues, refreshInterval * 1000)
     return () => clearInterval(interval)
-  }, [hasPlaceholders, fetchPlaceholderValues, getRefreshInterval])
+  }, [hasSystemPlaceholders, fetchPlaceholderValues, getRefreshInterval])
 
-  // Resolve placeholders in text
-  const resolveText = (text) => {
+  // Resolve system placeholders in text (${name} or ${name:interval})
+  const resolveSystemText = (text) => {
     if (!text) return ''
     return text.replace(PLACEHOLDER_REGEX, (match, key, interval) => {
       return placeholderValues[key] !== undefined ? placeholderValues[key] : match
     })
+  }
+
+  // Resolve all placeholders: first system (${...}), then symbol (@{...})
+  const resolveText = (text) => {
+    const systemResolved = resolveSystemText(text)
+    return resolveSymbolText(systemResolved)
   }
 
   const width = label.width || 4
@@ -789,12 +799,10 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
           <ModalCloseButton />
           <ModalBody>
             <VStack align="stretch" spacing={4}>
-              <Text>
-                Labels support dynamic placeholders using the <Code>${'{name:seconds}'}</Code> syntax,
-                where <Code>seconds</Code> is the refresh interval.
+              <Text fontWeight="bold">System Placeholders</Text>
+              <Text fontSize="sm">
+                Syntax: <Code>${'{name:seconds}'}</Code> where <Code>seconds</Code> is refresh interval.
               </Text>
-
-              <Text fontWeight="bold" mt={2}>Available Placeholders:</Text>
 
               <Table variant="simple" size="sm">
                 <Thead>
@@ -807,15 +815,50 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
                 <Tbody>
                   <Tr>
                     <Td><Code>${'{tws_connection_status:5}'}</Code></Td>
-                    <Td>TWS/IBKR connection status (refreshes every 5s)</Td>
+                    <Td>TWS/IBKR connection status</Td>
                     <Td>Connected (7496) / Disconnected</Td>
                   </Tr>
                 </Tbody>
               </Table>
 
+              <Text fontWeight="bold" mt={4}>Symbol Quote Placeholders</Text>
+              <Text fontSize="sm">
+                Syntax: <Code>@{'{SYMBOL:property:seconds}'}</Code> for real-time market data.
+              </Text>
+              <Text fontSize="sm" color="gray.400">
+                Intervals &le;5s use real-time streaming (SSE), &gt;5s use HTTP polling.
+              </Text>
+
+              <Table variant="simple" size="sm">
+                <Thead>
+                  <Tr>
+                    <Th color="gray.400">Example</Th>
+                    <Th color="gray.400">Description</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  <Tr>
+                    <Td><Code>@{'{AAPL:last:5}'}</Code></Td>
+                    <Td>AAPL last price (5s refresh)</Td>
+                  </Tr>
+                  <Tr>
+                    <Td><Code>@{'{SPY:change:3}'}</Code></Td>
+                    <Td>SPY price change (+/- format)</Td>
+                  </Tr>
+                  <Tr>
+                    <Td><Code>@{'{VIX:last}'}</Code></Td>
+                    <Td>VIX value (default 5s)</Td>
+                  </Tr>
+                </Tbody>
+              </Table>
+
+              <Text fontSize="sm" fontWeight="medium" mt={2}>Available Properties:</Text>
+              <Text fontSize="xs" color="gray.400">
+                <Code fontSize="xs">last</Code>, <Code fontSize="xs">bid</Code>, <Code fontSize="xs">ask</Code>, <Code fontSize="xs">open</Code>, <Code fontSize="xs">high</Code>, <Code fontSize="xs">low</Code>, <Code fontSize="xs">prevClose</Code>, <Code fontSize="xs">close</Code>, <Code fontSize="xs">vwap</Code>, <Code fontSize="xs">volume</Code>, <Code fontSize="xs">avgVolume</Code>, <Code fontSize="xs">bidSize</Code>, <Code fontSize="xs">askSize</Code>, <Code fontSize="xs">change</Code>, <Code fontSize="xs">changePercent</Code>, <Code fontSize="xs">marketCap</Code>, <Code fontSize="xs">week52High</Code>, <Code fontSize="xs">week52Low</Code>
+              </Text>
+
               <Text fontSize="sm" color="gray.400" mt={4}>
-                The interval parameter specifies refresh rate in seconds. If multiple placeholders exist,
-                the smallest interval is used. More placeholders will be added in future updates.
+                Both placeholder types can be mixed in the same label.
               </Text>
             </VStack>
           </ModalBody>
