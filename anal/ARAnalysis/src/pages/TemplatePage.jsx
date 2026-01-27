@@ -69,14 +69,7 @@ function TemplatePage() {
         x: 0,
         y: 0,
         createdAt: Date.now(),
-        children: controlType === 'panel' ? [] : undefined,
-        // Badge-specific defaults
-        placeholder: controlType === 'badge' ? '${tws_connection_status:5}' : undefined,
-        colorMappings: controlType === 'badge' ? [
-          { value: 'Disconnected', color: '#F56565', contains: false },
-          { value: 'Connected', color: '#48BB78', contains: true }
-        ] : undefined,
-        defaultColor: controlType === 'badge' ? '#718096' : undefined
+        children: controlType === 'panel' ? [] : undefined
       }
       const currentLabels = pageInfo.config?.labels || []
       const updatedConfig = {
