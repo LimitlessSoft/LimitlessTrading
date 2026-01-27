@@ -711,7 +711,7 @@ function LiveWatchlist({ isConnected }) {
       {symbols.length > 0 && (
         <Box
           display="grid"
-          gridTemplateColumns="repeat(8, 1fr)"
+          gridTemplateColumns={{ base: 'repeat(4, 1fr)', lg: 'repeat(6, 1fr)', xl: 'repeat(8, 1fr)' }}
           gap={2}
           pb={3}
         >

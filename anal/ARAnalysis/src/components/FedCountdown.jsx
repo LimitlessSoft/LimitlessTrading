@@ -86,10 +86,8 @@ function FedCountdown({ isConnected }) {
 
   return (
     <Box
-      position="fixed"
+      position="sticky"
       top={0}
-      left={0}
-      right={0}
       zIndex={1000}
       bg={style.bg}
       borderBottom="2px solid"

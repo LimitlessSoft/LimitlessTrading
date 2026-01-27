@@ -269,9 +269,7 @@ function App() {
         onOffline={handleGoOffline}
       />
       <FedCountdown isConnected={connectionState.connected} />
-      <Box pt="52px">
-        <LiveWatchlist isConnected={connectionState.connected} />
-      </Box>
+      <LiveWatchlist isConnected={connectionState.connected} />
       <Box px={4} py={4}>
         <VStack spacing={4} align="stretch">
           {/* Header */}
