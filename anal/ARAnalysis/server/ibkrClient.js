@@ -119,7 +119,7 @@ export async function getHistoricalData(symbol, barSize = '1 day', duration = '1
 
     // Indices may need different data type
     const whatToShow = indexConfig?.whatToShow || 'TRADES'
-    const useRTH = 1 // Regular trading hours only
+    const useRTH = 0 // 0 = include pre-market and after-hours data
     const formatDate = 1 // 1 = yyyyMMdd HH:mm:ss format
 
     pendingRequests.set(reqId, { resolve, reject })

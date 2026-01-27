@@ -20,7 +20,9 @@ import {
   removeFromLiveWatchlist,
   reorderLiveWatchlist
 } from '../db/database'
+import { getIntradayForDay, fetchIntradayForDay } from '../modules/dataService'
 import LiveIndicator from './LiveIndicator'
+import MiniIntradayChart from './MiniIntradayChart'
 
 const API_BASE = 'http://localhost:3001/api'
 
@@ -69,8 +71,17 @@ function getMarketStatusForSymbol(symbol) {
   return { status: 'Closed', colorScheme: 'gray' }
 }
 
-function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, canMoveLeft, canMoveRight, isLoading, isExpanded, onToggleExpand }) {
+function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, canMoveLeft, canMoveRight, isLoading, isExpanded, onToggleExpand, intradayData, intradayLoading, onFetchIntraday, isConnected }) {
   const [isHovered, setIsHovered] = useState(false)
+
+  // Fetch intraday data when expanded
+  useEffect(() => {
+    // Fetch if expanded AND (no data OR empty data) AND not currently loading
+    const hasData = intradayData && intradayData.length > 0
+    if (isExpanded && !hasData && !intradayLoading && isConnected) {
+      onFetchIntraday(symbol)
+    }
+  }, [isExpanded, intradayData, intradayLoading, onFetchIntraday, symbol, isConnected])
 
   const cardBase = {
     bg: 'gray.800',
@@ -285,31 +296,42 @@ function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, c
 
       {/* Expanded details */}
       {isExpanded && (
-        <VStack align="stretch" spacing={0} fontSize="10px" color="gray.500" mt={2} pt={2} borderTop="1px solid" borderColor="gray.700">
-          <HStack justify="space-between">
-            <Tooltip label="Market Capitalization" placement="left" fontSize="xs">
-              <Text cursor="help">MCap</Text>
-            </Tooltip>
-            <Text fontFamily="mono" color="blue.300">{formatMarketCap(marketCap)}</Text>
-          </HStack>
-          <HStack justify="space-between">
-            <Tooltip label="Average Daily Volume" placement="left" fontSize="xs">
-              <Text cursor="help">AvgV</Text>
-            </Tooltip>
-            <Text fontFamily="mono" color="gray.400">{formatVolume(avgVolume)}</Text>
-          </HStack>
-          <HStack justify="space-between">
-            <Tooltip label="52-Week High" placement="left" fontSize="xs">
-              <Text cursor="help">52H</Text>
-            </Tooltip>
-            <Text fontFamily="mono" color="gray.400">{formatPrice(week52High)}</Text>
-          </HStack>
-          <HStack justify="space-between">
-            <Tooltip label="52-Week Low" placement="left" fontSize="xs">
-              <Text cursor="help">52L</Text>
-            </Tooltip>
-            <Text fontFamily="mono" color="gray.400">{formatPrice(week52Low)}</Text>
-          </HStack>
+        <VStack align="stretch" spacing={2} fontSize="10px" color="gray.500" mt={2} pt={2} borderTop="1px solid" borderColor="gray.700">
+          {/* Mini intraday chart */}
+          <MiniIntradayChart
+            data={intradayData}
+            loading={intradayLoading}
+            symbol={symbol}
+            vwapValue={vwap}
+          />
+
+          {/* Stats */}
+          <VStack align="stretch" spacing={0}>
+            <HStack justify="space-between">
+              <Tooltip label="Market Capitalization" placement="left" fontSize="xs">
+                <Text cursor="help">MCap</Text>
+              </Tooltip>
+              <Text fontFamily="mono" color="blue.300">{formatMarketCap(marketCap)}</Text>
+            </HStack>
+            <HStack justify="space-between">
+              <Tooltip label="Average Daily Volume" placement="left" fontSize="xs">
+                <Text cursor="help">AvgV</Text>
+              </Tooltip>
+              <Text fontFamily="mono" color="gray.400">{formatVolume(avgVolume)}</Text>
+            </HStack>
+            <HStack justify="space-between">
+              <Tooltip label="52-Week High" placement="left" fontSize="xs">
+                <Text cursor="help">52H</Text>
+              </Tooltip>
+              <Text fontFamily="mono" color="gray.400">{formatPrice(week52High)}</Text>
+            </HStack>
+            <HStack justify="space-between">
+              <Tooltip label="52-Week Low" placement="left" fontSize="xs">
+                <Text cursor="help">52L</Text>
+              </Tooltip>
+              <Text fontFamily="mono" color="gray.400">{formatPrice(week52Low)}</Text>
+            </HStack>
+          </VStack>
         </VStack>
       )}
 
@@ -397,6 +419,8 @@ function LiveWatchlist({ isConnected }) {
   const [isAdding, setIsAdding] = useState(false)
   const [expandedSymbols, setExpandedSymbols] = useState(new Set())
   const [lastFetchTime, setLastFetchTime] = useState(null)
+  const [intradayData, setIntradayData] = useState({}) // { symbol: data[] }
+  const [intradayLoading, setIntradayLoading] = useState({}) // { symbol: boolean }
   const toast = useToast()
 
   const toggleExpanded = (symbol) => {
@@ -422,6 +446,40 @@ function LiveWatchlist({ isConnected }) {
   }
 
   const allExpanded = symbols.length > 0 && expandedSymbols.size === symbols.length
+
+  // Fetch intraday data for a symbol (current day)
+  const fetchIntraday = useCallback(async (symbol, forceRefresh = false) => {
+    if (intradayLoading[symbol]) return
+
+    setIntradayLoading(prev => ({ ...prev, [symbol]: true }))
+
+    try {
+      // Get start of today in local time
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const startTimestamp = today.getTime()
+
+      let data = null
+
+      // First try to get from cache (unless force refresh)
+      if (!forceRefresh) {
+        data = await getIntradayForDay(symbol, startTimestamp, '5m')
+      }
+
+      // If no data, stale, or force refresh - fetch from IBKR
+      // Also fetch if we have very few bars (might be missing pre-market)
+      if (isConnected && (!data || data.length === 0 || data.length < 5 || forceRefresh)) {
+        data = await fetchIntradayForDay(symbol, startTimestamp, '5m')
+      }
+
+      setIntradayData(prev => ({ ...prev, [symbol]: data || [] }))
+    } catch (err) {
+      console.error(`Failed to fetch intraday data for ${symbol}:`, err)
+      setIntradayData(prev => ({ ...prev, [symbol]: [] }))
+    } finally {
+      setIntradayLoading(prev => ({ ...prev, [symbol]: false }))
+    }
+  }, [isConnected, intradayLoading])
 
   const loadSymbols = useCallback(async () => {
     const saved = await getLiveWatchlist()
@@ -670,6 +728,10 @@ function LiveWatchlist({ isConnected }) {
               isLoading={loading && !quotes[symbol]}
               isExpanded={expandedSymbols.has(symbol)}
               onToggleExpand={() => toggleExpanded(symbol)}
+              intradayData={intradayData[symbol]}
+              intradayLoading={intradayLoading[symbol]}
+              onFetchIntraday={fetchIntraday}
+              isConnected={isConnected}
             />
           ))}
         </Box>
