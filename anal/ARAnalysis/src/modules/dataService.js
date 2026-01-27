@@ -483,6 +483,92 @@ export async function fetchIntradayForDay(symbol, startTimestamp, interval = '5m
   }
 }
 
+// Get median 5-minute volume from market open to current time of day over past N days
+// Returns { median5mVol, sampleDays, barsPerDay } or null if insufficient data
+export async function getHistoricalMedian5mVolume(symbol, numDays = 10, interval = '5m') {
+  const cached = await getPriceData(symbol, interval)
+  if (!cached || cached.length === 0) return null
+
+  const now = new Date()
+  // Get current time in Eastern timezone
+  const easternNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+  const currentHours = easternNow.getHours()
+  const currentMinutes = easternNow.getMinutes()
+  const currentTimeInMinutes = currentHours * 60 + currentMinutes
+
+  // Market open is 9:30 AM ET (570 min), close is 4:00 PM ET (960 min)
+  const marketOpenMinutes = 570
+  const marketCloseMinutes = 960
+
+  // If before market open, use full day; if after close, cap at close
+  const effectiveEndMinutes = Math.min(
+    Math.max(currentTimeInMinutes, marketOpenMinutes),
+    marketCloseMinutes
+  )
+
+  // Collect volumes from past N trading days, for bars from market open to current time
+  const volumesByDay = []
+  const today = new Date(easternNow)
+  today.setHours(0, 0, 0, 0)
+
+  // Go back up to numDays * 2 calendar days to find numDays trading days
+  for (let daysBack = 1; daysBack <= numDays * 2 && volumesByDay.length < numDays; daysBack++) {
+    const targetDate = new Date(today)
+    targetDate.setDate(targetDate.getDate() - daysBack)
+
+    // Skip weekends
+    const dayOfWeek = targetDate.getDay()
+    if (dayOfWeek === 0 || dayOfWeek === 6) continue
+
+    // Get bars for this day from cache
+    const dayStart = targetDate.getTime()
+    const dayEnd = dayStart + 24 * 60 * 60 * 1000
+
+    const dayBars = cached.filter(bar => {
+      if (bar.timestamp < dayStart || bar.timestamp >= dayEnd) return false
+
+      // Convert bar timestamp to Eastern time to check if it's within our time window
+      const barDate = new Date(bar.timestamp)
+      const barEastern = new Date(barDate.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+      const barHours = barEastern.getHours()
+      const barMinutes = barEastern.getMinutes()
+      const barTimeInMinutes = barHours * 60 + barMinutes
+
+      // Include bars from market open to current time of day
+      return barTimeInMinutes >= marketOpenMinutes && barTimeInMinutes < effectiveEndMinutes
+    })
+
+    if (dayBars.length > 0) {
+      const dayVolumes = dayBars.map(bar => bar.volume).filter(v => v != null && v > 0)
+      if (dayVolumes.length > 0) {
+        volumesByDay.push({
+          date: targetDate,
+          volumes: dayVolumes,
+          avgVolume: dayVolumes.reduce((a, b) => a + b, 0) / dayVolumes.length
+        })
+      }
+    }
+  }
+
+  if (volumesByDay.length === 0) return null
+
+  // Collect all volumes across all days
+  const allVolumes = volumesByDay.flatMap(d => d.volumes).sort((a, b) => a - b)
+
+  // Calculate median
+  const mid = Math.floor(allVolumes.length / 2)
+  const median5mVol = allVolumes.length % 2 === 0
+    ? (allVolumes[mid - 1] + allVolumes[mid]) / 2
+    : allVolumes[mid]
+
+  return {
+    median5mVol,
+    sampleDays: volumesByDay.length,
+    totalBars: allVolumes.length,
+    avgBarsPerDay: Math.round(allVolumes.length / volumesByDay.length)
+  }
+}
+
 // Interval definitions for UI
 export const INTERVALS = [
   { value: '1m', label: '1 Minute (2Y)' },

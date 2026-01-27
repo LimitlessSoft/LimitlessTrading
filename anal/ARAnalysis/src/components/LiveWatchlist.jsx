@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Box,
   HStack,
@@ -21,7 +21,7 @@ import {
   reorderLiveWatchlist,
   getLiveWatchlistInterval
 } from '../db/database'
-import { getIntradayForDay, fetchIntradayForDay } from '../modules/dataService'
+import { getIntradayForDay, fetchIntradayForDay, getHistoricalMedian5mVolume } from '../modules/dataService'
 import LiveIndicator from './LiveIndicator'
 import MiniIntradayChart from './MiniIntradayChart'
 
@@ -74,6 +74,7 @@ function getMarketStatusForSymbol(symbol) {
 
 function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, canMoveLeft, canMoveRight, isLoading, isExpanded, onToggleExpand, intradayData, intradayLoading, onFetchIntraday, isConnected }) {
   const [isHovered, setIsHovered] = useState(false)
+  const [historicalMedian, setHistoricalMedian] = useState(null)
 
   // Fetch intraday data when expanded
   useEffect(() => {
@@ -83,6 +84,22 @@ function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, c
       onFetchIntraday(symbol)
     }
   }, [isExpanded, intradayData, intradayLoading, onFetchIntraday, symbol, isConnected])
+
+  // Fetch historical median 5m volume when expanded
+  useEffect(() => {
+    if (!isExpanded) return
+
+    const fetchHistoricalMedian = async () => {
+      try {
+        const result = await getHistoricalMedian5mVolume(symbol, 10, '5m')
+        setHistoricalMedian(result)
+      } catch (err) {
+        console.error(`Failed to get historical median for ${symbol}:`, err)
+      }
+    }
+
+    fetchHistoricalMedian()
+  }, [isExpanded, symbol])
 
   const cardBase = {
     bg: 'gray.800',
@@ -110,6 +127,75 @@ function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, c
     if (v >= 1000000) return '$' + (v / 1000000).toFixed(2) + 'M'
     return '$' + v.toFixed(0)
   }
+
+  // Calculate 5-minute volume metrics from intraday data
+  const { last5mVol, median5mVol, volRatio, candleSecondsLeft, candleElapsedPct, relativeVolRatio, sampleDays } = useMemo(() => {
+    if (!intradayData || intradayData.length === 0) {
+      return { last5mVol: null, median5mVol: null, volRatio: null, candleSecondsLeft: null, candleElapsedPct: null, relativeVolRatio: null, sampleDays: null }
+    }
+
+    // Get the most recent bar's volume and timestamp
+    const lastBar = intradayData[intradayData.length - 1]
+    const last5mVol = lastBar?.volume ?? null
+    const lastBarTimestamp = lastBar?.timestamp ?? null
+
+    // Calculate time until candle close (5-minute candles)
+    let candleSecondsLeft = null
+    let candleElapsedPct = null
+    if (lastBarTimestamp) {
+      const now = Date.now()
+      const candleDuration = 5 * 60 * 1000 // 5 minutes in ms
+      const candleEnd = lastBarTimestamp + candleDuration
+      const msLeft = Math.max(0, candleEnd - now)
+      candleSecondsLeft = Math.floor(msLeft / 1000)
+      const elapsed = candleDuration - msLeft
+      candleElapsedPct = Math.min(1, elapsed / candleDuration)
+    }
+
+    // Use historical median if available, otherwise null
+    const median5mVol = historicalMedian?.median5mVol ?? null
+    const sampleDays = historicalMedian?.sampleDays ?? null
+
+    // Volume ratio (how current bar compares to historical median)
+    const volRatio = last5mVol != null && median5mVol != null && median5mVol > 0
+      ? last5mVol / median5mVol
+      : null
+
+    // Relative volume ratio (adjusted for elapsed time in current candle)
+    // If 50% through candle with 50% of median volume, relative ratio = 100%
+    const relativeVolRatio = volRatio != null && candleElapsedPct != null && candleElapsedPct > 0.1
+      ? volRatio / candleElapsedPct
+      : null
+
+    return { last5mVol, median5mVol, volRatio, candleSecondsLeft, candleElapsedPct, relativeVolRatio, sampleDays }
+  }, [intradayData, historicalMedian])
+
+  // Update candle countdown every second
+  const [candleCountdown, setCandleCountdown] = useState(null)
+  useEffect(() => {
+    if (!intradayData || intradayData.length === 0) {
+      setCandleCountdown(null)
+      return
+    }
+
+    const lastBar = intradayData[intradayData.length - 1]
+    if (!lastBar?.timestamp) {
+      setCandleCountdown(null)
+      return
+    }
+
+    const updateCountdown = () => {
+      const now = Date.now()
+      const candleDuration = 5 * 60 * 1000
+      const candleEnd = lastBar.timestamp + candleDuration
+      const msLeft = Math.max(0, candleEnd - now)
+      setCandleCountdown(Math.floor(msLeft / 1000))
+    }
+
+    updateCountdown()
+    const timer = setInterval(updateCountdown, 1000)
+    return () => clearInterval(timer)
+  }, [intradayData])
 
   if (!quote && !isLoading) {
     return (
@@ -258,11 +344,11 @@ function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, c
       {/* Compact details - sorted by value (highest first) */}
       <VStack align="stretch" spacing={0} fontSize="10px" color="gray.500">
         {[
-          { key: 'O', label: 'Open', value: open },
-          { key: 'H', label: 'High', value: high },
-          { key: 'L', label: 'Low', value: low },
-          { key: 'PC', label: 'Previous Close', value: prevClose },
-          { key: 'VW', label: 'VWAP (Volume Weighted Avg Price)', value: vwap }
+          { key: 'O', label: "Today's opening price at market open (9:30 AM ET)", value: open },
+          { key: 'H', label: "Highest price reached during today's session", value: high },
+          { key: 'L', label: "Lowest price reached during today's session", value: low },
+          { key: 'PC', label: "Yesterday's closing price - used to calculate daily change %", value: prevClose },
+          { key: 'VW', label: 'VWAP - Volume Weighted Average Price. Average price weighted by volume, used by institutions as a trading benchmark', value: vwap }
         ]
           .filter(item => item.value != null)
           .sort((a, b) => (b.value || 0) - (a.value || 0))
@@ -275,7 +361,7 @@ function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, c
             </HStack>
           ))}
         <HStack justify="space-between">
-          <Tooltip label="Today's Trading Volume" placement="left" fontSize="xs">
+          <Tooltip label="Total shares traded today across all exchanges" placement="left" fontSize="xs">
             <Text cursor="help">Vol</Text>
           </Tooltip>
           <Text fontFamily="mono" color="gray.400">{formatVolume(volume)}</Text>
@@ -293,28 +379,76 @@ function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, c
             vwapValue={vwap}
           />
 
+          {/* 5-Minute Volume Stats */}
+          {(last5mVol != null || median5mVol != null) && (
+            <VStack align="stretch" spacing={0}>
+              <HStack justify="space-between">
+                <Tooltip label="Volume traded in the current/last 5-minute candle. Green if 1.5x+ avg, red if below 0.5x avg" placement="left" fontSize="xs">
+                  <Text cursor="help">5m Vol</Text>
+                </Tooltip>
+                <Text
+                  fontFamily="mono"
+                  color={volRatio != null ? (volRatio >= 1.5 ? 'green.300' : volRatio <= 0.5 ? 'red.300' : 'gray.400') : 'gray.400'}
+                >
+                  {formatVolume(last5mVol)}
+                </Text>
+              </HStack>
+              <HStack justify="space-between">
+                <Tooltip label={`Median 5-min volume from market open to now, calculated from ${sampleDays || '?'} previous trading days. Compares apples-to-apples by only using bars from 9:30 AM to current time of day`} placement="left" fontSize="xs">
+                  <Text cursor="help">Med 5m</Text>
+                </Tooltip>
+                <Text fontFamily="mono" color="gray.400">
+                  {formatVolume(median5mVol)}{sampleDays ? ` (${sampleDays}d)` : ''}
+                </Text>
+              </HStack>
+              {candleCountdown != null && (
+                <HStack justify="space-between">
+                  <Tooltip label="Time remaining until the current 5-minute candle closes and a new one begins" placement="left" fontSize="xs">
+                    <Text cursor="help">Closes</Text>
+                  </Tooltip>
+                  <Text fontFamily="mono" color="cyan.300">
+                    {Math.floor(candleCountdown / 60)}:{String(candleCountdown % 60).padStart(2, '0')}
+                  </Text>
+                </HStack>
+              )}
+              {relativeVolRatio != null && (
+                <HStack justify="space-between">
+                  <Tooltip label="Relative Volume - Projects current candle's final volume based on time elapsed vs historical median. Example: 2 min into candle (40% elapsed) with 60% of median volume = 150% RVol (on pace for 1.5x typical). Green ≥150%, Red ≤50%" placement="left" fontSize="xs">
+                    <Text cursor="help">RVol</Text>
+                  </Tooltip>
+                  <Text
+                    fontFamily="mono"
+                    color={relativeVolRatio >= 1.5 ? 'green.300' : relativeVolRatio <= 0.5 ? 'red.300' : 'gray.400'}
+                  >
+                    {(relativeVolRatio * 100).toFixed(0)}%
+                  </Text>
+                </HStack>
+              )}
+            </VStack>
+          )}
+
           {/* Stats */}
           <VStack align="stretch" spacing={0}>
             <HStack justify="space-between">
-              <Tooltip label="Market Capitalization" placement="left" fontSize="xs">
+              <Tooltip label="Market Capitalization - Total value of all outstanding shares (share price × shares outstanding)" placement="left" fontSize="xs">
                 <Text cursor="help">MCap</Text>
               </Tooltip>
               <Text fontFamily="mono" color="blue.300">{formatMarketCap(marketCap)}</Text>
             </HStack>
             <HStack justify="space-between">
-              <Tooltip label="Average Daily Volume" placement="left" fontSize="xs">
+              <Tooltip label="Average Daily Volume - Typical number of shares traded per day, averaged over recent trading days" placement="left" fontSize="xs">
                 <Text cursor="help">AvgV</Text>
               </Tooltip>
               <Text fontFamily="mono" color="gray.400">{formatVolume(avgVolume)}</Text>
             </HStack>
             <HStack justify="space-between">
-              <Tooltip label="52-Week High" placement="left" fontSize="xs">
+              <Tooltip label="52-Week High - Highest price reached in the past 52 weeks (1 year)" placement="left" fontSize="xs">
                 <Text cursor="help">52H</Text>
               </Tooltip>
               <Text fontFamily="mono" color="gray.400">{formatPrice(week52High)}</Text>
             </HStack>
             <HStack justify="space-between">
-              <Tooltip label="52-Week Low" placement="left" fontSize="xs">
+              <Tooltip label="52-Week Low - Lowest price reached in the past 52 weeks (1 year)" placement="left" fontSize="xs">
                 <Text cursor="help">52L</Text>
               </Tooltip>
               <Text fontFamily="mono" color="gray.400">{formatPrice(week52Low)}</Text>
@@ -560,6 +694,7 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
       eventSource.onopen = () => {
         console.log('SSE connection opened')
         setIsStreaming(true)
+        setLoading(false) // SSE connected, no longer "connecting"
         setLastFetchTime(Date.now())
       }
 
