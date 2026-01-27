@@ -28,28 +28,58 @@ import {
   getLastPort,
   clearAllCache
 } from './dataService'
+import {
+  getLiveWatchlistInterval,
+  setLiveWatchlistInterval
+} from '../db/database'
 
 const IBKR_PORTS = [
   { value: 7496, label: '7496 (TWS Live)' },
   { value: 4001, label: '4001 (Gateway Live)' }
 ]
 
-function DataManager({ connectionStatus, onConnectionChange, onDataLoaded }) {
+const REFRESH_INTERVALS = [
+  { value: 5, label: '5 seconds' },
+  { value: 10, label: '10 seconds' },
+  { value: 15, label: '15 seconds' },
+  { value: 30, label: '30 seconds' },
+  { value: 60, label: '1 minute' }
+]
+
+function DataManager({ connectionStatus, onConnectionChange, onDataLoaded, onSettingsChange }) {
   const { isOpen, onOpen, onClose } = useDisclosure()
   const toast = useToast()
 
   const [selectedPort, setSelectedPort] = useState(7496)
   const [connecting, setConnecting] = useState(false)
+  const [refreshInterval, setRefreshInterval] = useState(15)
 
   useEffect(() => {
-    const loadLastPort = async () => {
+    const loadSettings = async () => {
       const lastPort = await getLastPort()
       if (lastPort) {
         setSelectedPort(lastPort)
       }
+      const interval = await getLiveWatchlistInterval()
+      setRefreshInterval(interval)
     }
-    loadLastPort()
+    loadSettings()
   }, [])
+
+  const handleIntervalChange = async (value) => {
+    const interval = Number(value)
+    setRefreshInterval(interval)
+    await setLiveWatchlistInterval(interval)
+    if (onSettingsChange) {
+      onSettingsChange({ liveWatchlistInterval: interval })
+    }
+    toast({
+      title: 'Setting Saved',
+      description: `Refresh interval set to ${interval} seconds`,
+      status: 'success',
+      duration: 2000
+    })
+  }
 
   const handleConnect = async () => {
     setConnecting(true)
@@ -170,6 +200,30 @@ function DataManager({ connectionStatus, onConnectionChange, onDataLoaded }) {
                     )}
                   </HStack>
                 </VStack>
+              </Box>
+
+              <Divider borderColor="gray.600" />
+
+              {/* Live Watchlist Settings */}
+              <Box>
+                <Text fontWeight="bold" mb={3} color="gray.200">
+                  Live Watchlist
+                </Text>
+                <FormControl>
+                  <FormLabel color="gray.400" fontSize="sm">Refresh Interval</FormLabel>
+                  <Select
+                    value={refreshInterval}
+                    onChange={(e) => handleIntervalChange(e.target.value)}
+                    bg="gray.700"
+                    borderColor="gray.600"
+                  >
+                    {REFRESH_INTERVALS.map(opt => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
               </Box>
 
               <Divider borderColor="gray.600" />

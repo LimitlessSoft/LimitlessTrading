@@ -426,4 +426,14 @@ export async function reorderLiveWatchlist(symbols) {
   })
 }
 
+// Live watchlist refresh interval (in seconds)
+export async function getLiveWatchlistInterval() {
+  const interval = await getSetting('liveWatchlistInterval')
+  return interval || 15 // default 15 seconds
+}
+
+export async function setLiveWatchlistInterval(seconds) {
+  return setSetting('liveWatchlistInterval', seconds)
+}
+
 export default db

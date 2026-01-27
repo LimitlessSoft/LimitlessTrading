@@ -203,6 +203,50 @@ function ChartSVG({ width, height, sortedData, vwapData, minPrice, priceRange, h
         />
       )}
 
+      {/* Current price arrow and label (large view only) */}
+      {isLarge && hasData && sortedData.length > 0 && (() => {
+        const lastBar = sortedData[sortedData.length - 1]
+        const lastX = timestampToX(lastBar.timestamp)
+        const lastY = priceToY(lastBar.close)
+        const isUp = lastBar.close >= lastBar.open
+        const isPre = isPreMarket(lastBar.timestamp)
+
+        // Use same colors as candles
+        const upColor = isPre ? '#9f7aea' : '#48bb78'
+        const downColor = isPre ? '#b794f4' : '#f56565'
+        const arrowColor = isUp ? upColor : downColor
+
+        return (
+          <g>
+            {/* Arrow pointing to current price */}
+            <polygon
+              points={`${lastX + candleWidth + 4},${lastY} ${lastX + candleWidth + 12},${lastY - 5} ${lastX + candleWidth + 12},${lastY + 5}`}
+              fill={arrowColor}
+            />
+            {/* Current price label */}
+            <rect
+              x={lastX + candleWidth + 13}
+              y={lastY - 10}
+              width={50}
+              height={20}
+              rx={3}
+              fill={arrowColor}
+            />
+            <text
+              x={lastX + candleWidth + 38}
+              y={lastY}
+              fill="white"
+              fontSize={11}
+              fontWeight="bold"
+              textAnchor="middle"
+              dominantBaseline="middle"
+            >
+              {lastBar.close.toFixed(2)}
+            </text>
+          </g>
+        )
+      })()}
+
       {/* Current VWAP value label */}
       {hasData && vwapValue && (
         <text

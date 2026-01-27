@@ -51,6 +51,7 @@ function App() {
   const [connectionError, setConnectionError] = useState(null)
   const [lastUsedPort, setLastUsedPort] = useState(7496)
   const [initialConnectionAttempted, setInitialConnectionAttempted] = useState(false)
+  const [liveWatchlistInterval, setLiveWatchlistInterval] = useState(15)
   const cancelRef = useRef(null)
   const toast = useToast()
 
@@ -269,7 +270,7 @@ function App() {
         onOffline={handleGoOffline}
       />
       <FedCountdown isConnected={connectionState.connected} />
-      <LiveWatchlist isConnected={connectionState.connected} />
+      <LiveWatchlist isConnected={connectionState.connected} refreshInterval={liveWatchlistInterval} />
       <Box px={4} py={4}>
         <VStack spacing={4} align="stretch">
           {/* Header */}
@@ -319,6 +320,11 @@ function App() {
               connectionStatus={connectionState}
               onConnectionChange={handleConnectionChange}
               onDataLoaded={handleDataLoaded}
+              onSettingsChange={(settings) => {
+                if (settings.liveWatchlistInterval) {
+                  setLiveWatchlistInterval(settings.liveWatchlistInterval)
+                }
+              }}
             />
           </HStack>
 

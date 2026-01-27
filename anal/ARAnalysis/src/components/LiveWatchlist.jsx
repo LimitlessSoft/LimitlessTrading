@@ -18,7 +18,8 @@ import {
   getLiveWatchlist,
   addToLiveWatchlist,
   removeFromLiveWatchlist,
-  reorderLiveWatchlist
+  reorderLiveWatchlist,
+  getLiveWatchlistInterval
 } from '../db/database'
 import { getIntradayForDay, fetchIntradayForDay } from '../modules/dataService'
 import LiveIndicator from './LiveIndicator'
@@ -396,9 +397,9 @@ function ReorderButtons({ onMoveLeft, onMoveRight, canMoveLeft, canMoveRight }) 
   )
 }
 
-const REFRESH_INTERVAL = 15 // seconds
+const DEFAULT_REFRESH_INTERVAL = 15 // seconds
 
-function LiveWatchlist({ isConnected }) {
+function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
   const [symbols, setSymbols] = useState([])
   const [quotes, setQuotes] = useState({})
   const [loading, setLoading] = useState(false)
@@ -408,7 +409,24 @@ function LiveWatchlist({ isConnected }) {
   const [lastFetchTime, setLastFetchTime] = useState(null)
   const [intradayData, setIntradayData] = useState({}) // { symbol: data[] }
   const [intradayLoading, setIntradayLoading] = useState({}) // { symbol: boolean }
+  const [refreshInterval, setRefreshInterval] = useState(propRefreshInterval || DEFAULT_REFRESH_INTERVAL)
   const toast = useToast()
+
+  // Load refresh interval from settings on mount
+  useEffect(() => {
+    const loadInterval = async () => {
+      const interval = await getLiveWatchlistInterval()
+      setRefreshInterval(interval)
+    }
+    loadInterval()
+  }, [])
+
+  // Update if prop changes
+  useEffect(() => {
+    if (propRefreshInterval) {
+      setRefreshInterval(propRefreshInterval)
+    }
+  }, [propRefreshInterval])
 
   const toggleExpanded = (symbol) => {
     setExpandedSymbols(prev => {
@@ -495,20 +513,34 @@ function LiveWatchlist({ isConnected }) {
 
       const data = await response.json()
       setQuotes(data)
+
+      // Also refresh intraday data for expanded symbols
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const startTimestamp = today.getTime()
+
+      for (const symbol of expandedSymbols) {
+        try {
+          const intradayResult = await fetchIntradayForDay(symbol, startTimestamp, '5m')
+          setIntradayData(prev => ({ ...prev, [symbol]: intradayResult || [] }))
+        } catch (err) {
+          console.error(`Failed to refresh intraday for ${symbol}:`, err)
+        }
+      }
     } catch (err) {
       console.error('Failed to fetch live quotes:', err)
     } finally {
       setLoading(false)
     }
-  }, [isConnected, symbols])
+  }, [isConnected, symbols, expandedSymbols])
 
   useEffect(() => {
     if (!isConnected || symbols.length === 0) return
 
     fetchQuotes()
-    const interval = setInterval(fetchQuotes, REFRESH_INTERVAL * 1000)
+    const interval = setInterval(fetchQuotes, refreshInterval * 1000)
     return () => clearInterval(interval)
-  }, [isConnected, symbols, fetchQuotes])
+  }, [isConnected, symbols, fetchQuotes, refreshInterval])
 
   const handleAddSymbol = async () => {
     const symbol = newSymbol.trim().toUpperCase()
@@ -623,7 +655,7 @@ function LiveWatchlist({ isConnected }) {
               isConnected={isConnected}
               isLoading={loading}
               lastFetchTime={lastFetchTime}
-              refreshInterval={REFRESH_INTERVAL}
+              refreshInterval={refreshInterval}
             />
           )}
         </HStack>
