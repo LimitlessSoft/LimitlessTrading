@@ -18,9 +18,17 @@ import {
   HStack,
   VStack,
   Checkbox,
+  Tooltip,
+  Code,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
   useDisclosure
 } from '@chakra-ui/react'
-import { CloseIcon, DragHandleIcon, SettingsIcon } from '@chakra-ui/icons'
+import { CloseIcon, DragHandleIcon, SettingsIcon, InfoOutlineIcon } from '@chakra-ui/icons'
 import { getConnectionStatus } from '../modules/dataService'
 
 const TOTAL_SEGMENTS = 20
@@ -38,8 +46,8 @@ const DEFAULT_STYLE = {
   fontSize: 1
 }
 
-// Placeholder pattern for template variables
-const PLACEHOLDER_REGEX = /\$\{(\w+)\}/g
+// Placeholder pattern for template variables: ${name} or ${name:interval}
+const PLACEHOLDER_REGEX = /\$\{(\w+)(?::(\d+))?\}/g
 
 function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, isEditing, containerRef }) {
   const [isResizing, setIsResizing] = useState(false)
@@ -47,12 +55,28 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
   const [previewPos, setPreviewPos] = useState(null)
   const [previewSize, setPreviewSize] = useState(null)
   const [editStyle, setEditStyle] = useState(null)
+  const [editText, setEditText] = useState('')
   const [placeholderValues, setPlaceholderValues] = useState({})
   const boxRef = useRef(null)
   const { isOpen, onOpen, onClose } = useDisclosure()
+  const { isOpen: isDocsOpen, onOpen: onDocsOpen, onClose: onDocsClose } = useDisclosure()
 
-  // Check if text contains placeholders
+  // Check if text contains placeholders and extract refresh interval
   const hasPlaceholders = label.text && label.text.includes('${')
+
+  // Parse placeholders to get the minimum refresh interval
+  const getRefreshInterval = useCallback(() => {
+    if (!label.text) return null
+    const matches = [...label.text.matchAll(PLACEHOLDER_REGEX)]
+    if (matches.length === 0) return null
+
+    let minInterval = Infinity
+    for (const match of matches) {
+      const interval = match[2] ? parseInt(match[2], 10) : 5 // default 5 seconds
+      if (interval < minInterval) minInterval = interval
+    }
+    return minInterval === Infinity ? 5 : minInterval
+  }, [label.text])
 
   // Fetch placeholder values
   const fetchPlaceholderValues = useCallback(async () => {
@@ -60,8 +84,8 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
 
     const values = {}
 
-    // Check for tws_connection_status placeholder
-    if (label.text.includes('${tws_connection_status}')) {
+    // Check for tws_connection_status placeholder (with or without interval)
+    if (label.text.includes('${tws_connection_status')) {
       try {
         const status = await getConnectionStatus()
         values.tws_connection_status = status.connected
@@ -79,15 +103,18 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
   useEffect(() => {
     if (!hasPlaceholders) return
 
+    const refreshInterval = getRefreshInterval()
+    if (!refreshInterval) return
+
     fetchPlaceholderValues()
-    const interval = setInterval(fetchPlaceholderValues, 5000)
+    const interval = setInterval(fetchPlaceholderValues, refreshInterval * 1000)
     return () => clearInterval(interval)
-  }, [hasPlaceholders, fetchPlaceholderValues])
+  }, [hasPlaceholders, fetchPlaceholderValues, getRefreshInterval])
 
   // Resolve placeholders in text
   const resolveText = (text) => {
     if (!text) return ''
-    return text.replace(PLACEHOLDER_REGEX, (match, key) => {
+    return text.replace(PLACEHOLDER_REGEX, (match, key, interval) => {
       return placeholderValues[key] !== undefined ? placeholderValues[key] : match
     })
   }
@@ -130,11 +157,12 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
 
   const handleOpenEdit = () => {
     setEditStyle({ ...DEFAULT_STYLE, ...label.style })
+    setEditText(label.text || '')
     onOpen()
   }
 
   const handleSaveStyle = () => {
-    onUpdate(label.id, { style: editStyle })
+    onUpdate(label.id, { style: editStyle, text: editText })
     onClose()
   }
 
@@ -420,11 +448,36 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
         <ModalContent bg="gray.800">
-          <ModalHeader>Label Style</ModalHeader>
+          <ModalHeader>Edit Label</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             {editStyle && (
               <VStack spacing={4}>
+                <FormControl>
+                  <FormLabel fontSize="sm" display="flex" alignItems="center" gap={1}>
+                    Label Text
+                    <Tooltip label="View placeholder API docs" placement="top" hasArrow>
+                      <IconButton
+                        icon={<InfoOutlineIcon />}
+                        size="xs"
+                        variant="ghost"
+                        aria-label="Placeholder documentation"
+                        onClick={onDocsOpen}
+                        minW="auto"
+                        h="auto"
+                        p={0}
+                        color="gray.400"
+                        _hover={{ color: 'blue.300' }}
+                      />
+                    </Tooltip>
+                  </FormLabel>
+                  <Input
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    placeholder="Enter label text (supports ${placeholder} syntax)"
+                  />
+                </FormControl>
+
                 <HStack width="100%" spacing={4}>
                   <FormControl>
                     <FormLabel fontSize="sm">Background Color</FormLabel>
@@ -530,6 +583,50 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
             <Button colorScheme="blue" onClick={handleSaveStyle}>
               Save
             </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Placeholder API Documentation Modal */}
+      <Modal isOpen={isDocsOpen} onClose={onDocsClose} size="xl">
+        <ModalOverlay />
+        <ModalContent bg="gray.800">
+          <ModalHeader>Placeholder API Documentation</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack align="stretch" spacing={4}>
+              <Text>
+                Labels support dynamic placeholders using the <Code>${'{name:seconds}'}</Code> syntax,
+                where <Code>seconds</Code> is the refresh interval.
+              </Text>
+
+              <Text fontWeight="bold" mt={2}>Available Placeholders:</Text>
+
+              <Table variant="simple" size="sm">
+                <Thead>
+                  <Tr>
+                    <Th color="gray.400">Placeholder</Th>
+                    <Th color="gray.400">Description</Th>
+                    <Th color="gray.400">Example Output</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  <Tr>
+                    <Td><Code>${'{tws_connection_status:5}'}</Code></Td>
+                    <Td>TWS/IBKR connection status (refreshes every 5s)</Td>
+                    <Td>Connected (7496) / Disconnected</Td>
+                  </Tr>
+                </Tbody>
+              </Table>
+
+              <Text fontSize="sm" color="gray.400" mt={4}>
+                The interval parameter specifies refresh rate in seconds. If multiple placeholders exist,
+                the smallest interval is used. More placeholders will be added in future updates.
+              </Text>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button onClick={onDocsClose}>Close</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

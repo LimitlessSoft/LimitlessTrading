@@ -270,9 +270,10 @@ A resizable, moveable, styleable text label control for template pages.
 - **Template placeholders**: Dynamic text substitution with `${placeholder_name}` syntax
 
 **Template Placeholders:**
-Labels support dynamic placeholders that are resolved at runtime:
-- `${tws_connection_status}` - Shows TWS connection status ("Connected (port)" or "Disconnected")
-- Placeholders are polled every 5 seconds for updates
+Labels support dynamic placeholders using `${name:seconds}` syntax:
+- `${tws_connection_status:5}` - Shows TWS connection status ("Connected (port)" or "Disconnected"), refreshes every 5 seconds
+- The `:seconds` parameter specifies the refresh interval
+- If multiple placeholders exist, the smallest interval is used
 - Unknown placeholders are displayed as-is
 
 **Position/Resize Implementation:**
