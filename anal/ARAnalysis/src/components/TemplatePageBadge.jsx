@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import {
   Box,
+  Text,
   IconButton,
   Modal,
   ModalOverlay,
@@ -35,6 +36,7 @@ const DEFAULT_STYLE = {
 
 // Placeholder pattern for template variables: ${name} or ${name:interval}
 const PLACEHOLDER_REGEX = /\$\{(\w+)(?::(\d+))?\}/
+const PLACEHOLDER_REGEX_GLOBAL = /\$\{(\w+)(?::(\d+))?\}/g
 
 function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, onDragStateChange, onMoveControl, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode }) {
   const [isResizing, setIsResizing] = useState(false)
@@ -51,7 +53,8 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
   const x = label.x || 0
   const y = label.y || 0
   const style = { ...DEFAULT_STYLE, ...label.style }
-  const placeholder = label.placeholder || ''
+  const valueProvider = label.placeholder || ''
+  const text = label.text || ''
   const colorMappings = label.colorMappings || []
   const defaultColor = label.defaultColor || '#718096'
 
@@ -60,24 +63,39 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
   const displayX = previewPos?.x ?? x
   const displayY = previewPos?.y ?? layoutY ?? 0
 
-  // Parse placeholder to get refresh interval
+  // Check if text contains placeholders
+  const hasTextPlaceholders = text && text.includes('${')
+
+  // Parse value provider and text to get minimum refresh interval
   const getRefreshInterval = useCallback(() => {
-    if (!placeholder) return null
-    const match = placeholder.match(PLACEHOLDER_REGEX)
-    if (!match) return null
-    return match[2] ? parseInt(match[2], 10) : 5
-  }, [placeholder])
+    let minInterval = Infinity
 
-  // Fetch placeholder value
-  const fetchPlaceholderValue = useCallback(async () => {
-    if (!placeholder) return
+    // Check value provider
+    if (valueProvider) {
+      const match = valueProvider.match(PLACEHOLDER_REGEX)
+      if (match) {
+        const interval = match[2] ? parseInt(match[2], 10) : 5
+        if (interval < minInterval) minInterval = interval
+      }
+    }
 
-    const match = placeholder.match(PLACEHOLDER_REGEX)
-    if (!match) return
+    // Check text placeholders
+    if (text) {
+      const matches = [...text.matchAll(PLACEHOLDER_REGEX_GLOBAL)]
+      for (const match of matches) {
+        const interval = match[2] ? parseInt(match[2], 10) : 5
+        if (interval < minInterval) minInterval = interval
+      }
+    }
 
-    const placeholderName = match[1]
+    return minInterval === Infinity ? null : minInterval
+  }, [valueProvider, text])
 
-    if (placeholderName === 'tws_connection_status') {
+  // Fetch all placeholder values
+  const fetchPlaceholderValues = useCallback(async () => {
+    const needsTwsStatus = valueProvider.includes('tws_connection_status') || text.includes('tws_connection_status')
+
+    if (needsTwsStatus) {
       try {
         const status = await getConnectionStatus()
         setCurrentValue(status.connected ? `Connected (${status.port})` : 'Disconnected')
@@ -85,19 +103,30 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
         setCurrentValue('Unknown')
       }
     }
-  }, [placeholder])
+  }, [valueProvider, text])
 
-  // Poll for placeholder value
+  // Resolve placeholders in text
+  const resolveText = (inputText) => {
+    if (!inputText) return ''
+    return inputText.replace(PLACEHOLDER_REGEX_GLOBAL, (match, key) => {
+      if (key === 'tws_connection_status') {
+        return currentValue || match
+      }
+      return match
+    })
+  }
+
+  // Poll for placeholder values
   useEffect(() => {
-    if (!placeholder) return
+    if (!valueProvider && !hasTextPlaceholders) return
 
     const refreshInterval = getRefreshInterval()
     if (!refreshInterval) return
 
-    fetchPlaceholderValue()
-    const interval = setInterval(fetchPlaceholderValue, refreshInterval * 1000)
+    fetchPlaceholderValues()
+    const interval = setInterval(fetchPlaceholderValues, refreshInterval * 1000)
     return () => clearInterval(interval)
-  }, [placeholder, fetchPlaceholderValue, getRefreshInterval])
+  }, [valueProvider, hasTextPlaceholders, fetchPlaceholderValues, getRefreshInterval])
 
   // Determine badge color based on current value and mappings
   // Check exact matches first, then contains matches (order-independent)
@@ -147,7 +176,8 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
 
   const handleOpenEdit = () => {
     setEditConfig({
-      placeholder: placeholder,
+      placeholder: valueProvider,
+      text: text,
       colorMappings: colorMappings.length > 0 ? [...colorMappings] : [{ value: '', color: '#48BB78', contains: true }],
       defaultColor: defaultColor,
       style: { ...DEFAULT_STYLE, ...label.style }
@@ -158,6 +188,7 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
   const handleSaveConfig = () => {
     onUpdate(label.id, {
       placeholder: editConfig.placeholder,
+      text: editConfig.text,
       colorMappings: editConfig.colorMappings.filter(m => m.value.trim()),
       defaultColor: editConfig.defaultColor,
       style: editConfig.style
@@ -356,13 +387,24 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
         >
           <Tooltip label={currentValue || 'No data'} placement="bottom" hasArrow>
             <Box
-              width="20px"
-              height="20px"
+              width="16px"
+              height="16px"
               borderRadius="full"
               bg={badgeColor}
               transition="background-color 0.3s ease"
+              flexShrink={0}
             />
           </Tooltip>
+          {text && (
+            <Text
+              ml={1}
+              fontSize="sm"
+              whiteSpace="nowrap"
+              color="white"
+            >
+              {resolveText(text)}
+            </Text>
+          )}
           {isEditing && (
             <>
               <IconButton
@@ -396,11 +438,20 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
               {editConfig && (
                 <VStack spacing={4} align="stretch">
                   <FormControl>
-                    <FormLabel fontSize="sm">Placeholder</FormLabel>
+                    <FormLabel fontSize="sm">Value Provider</FormLabel>
                     <Input
                       value={editConfig.placeholder}
                       onChange={(e) => setEditConfig({ ...editConfig, placeholder: e.target.value })}
                       placeholder="${tws_connection_status:5}"
+                    />
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="sm">Text</FormLabel>
+                    <Input
+                      value={editConfig.text || ''}
+                      onChange={(e) => setEditConfig({ ...editConfig, text: e.target.value })}
+                      placeholder="Optional text (supports ${placeholder} syntax)"
                     />
                   </FormControl>
 
@@ -520,7 +571,8 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
         borderRadius="md"
         display="flex"
         alignItems="center"
-        justifyContent="center"
+        justifyContent={text ? 'flex-start' : 'center'}
+        px={text ? 2 : 0}
         overflow="hidden"
         transition={isResizing || isMoving ? 'none' : 'all 0.15s ease'}
         borderWidth={`${style.borderWidth}px`}
@@ -542,8 +594,21 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
             borderRadius="full"
             bg={badgeColor}
             transition="background-color 0.3s ease"
+            flexShrink={0}
           />
         </Tooltip>
+        {text && (
+          <Text
+            ml={2}
+            fontSize="sm"
+            whiteSpace="nowrap"
+            color="white"
+            pointerEvents="none"
+            userSelect="none"
+          >
+            {resolveText(text)}
+          </Text>
+        )}
 
         {isEditing && (
           <>
@@ -595,11 +660,20 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
             {editConfig && (
               <VStack spacing={4} align="stretch">
                 <FormControl>
-                  <FormLabel fontSize="sm">Placeholder</FormLabel>
+                  <FormLabel fontSize="sm">Value Provider</FormLabel>
                   <Input
                     value={editConfig.placeholder}
                     onChange={(e) => setEditConfig({ ...editConfig, placeholder: e.target.value })}
                     placeholder="${tws_connection_status:5}"
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel fontSize="sm">Text</FormLabel>
+                  <Input
+                    value={editConfig.text || ''}
+                    onChange={(e) => setEditConfig({ ...editConfig, text: e.target.value })}
+                    placeholder="Optional text (supports ${placeholder} syntax)"
                   />
                 </FormControl>
 
