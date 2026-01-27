@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Box, Heading, Text, IconButton } from '@chakra-ui/react'
-import { EditIcon } from '@chakra-ui/icons'
+import { EditIcon, AddIcon } from '@chakra-ui/icons'
 import { fetchRoutes } from '../modules/routesService'
 import PageNavMenu from '../components/PageNavMenu'
 
@@ -31,6 +31,14 @@ function TemplatePage() {
           variant="ghost"
           size="sm"
           aria-label="Edit page"
+          _hover={{ bg: 'whiteAlpha.200' }}
+          ml={1}
+        />
+        <IconButton
+          icon={<AddIcon />}
+          variant="ghost"
+          size="sm"
+          aria-label="Add widget"
           _hover={{ bg: 'whiteAlpha.200' }}
           ml={1}
         />
