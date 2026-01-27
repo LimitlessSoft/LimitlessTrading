@@ -572,7 +572,8 @@ async function getCurrentPriceOnce(symbol) {
 }
 
 // Get detailed quote data for a symbol (prev close, open, last, vwap, high, low)
-// Tick types: 1=bid, 2=ask, 4=last, 6=high, 7=low, 9=close, 14=open, 81=vwap
+// Tick types: 1=bid, 2=ask, 4=last, 5=bidSize, 6=high, 7=low, 8=volume, 9=close, 14=open
+// Generic ticks: 81=vwap, 47=fundamentals (market cap via generic tick string "258")
 async function getDetailedQuoteOnce(symbol) {
   if (!ib || !connectionState.connected) {
     throw new Error('Not connected to IBKR')
@@ -604,7 +605,13 @@ async function getDetailedQuoteOnce(symbol) {
       vwap: null,
       bid: null,
       ask: null,
-      volume: null
+      bidSize: null,
+      askSize: null,
+      volume: null,
+      avgVolume: null,
+      marketCap: null,
+      week52High: null,
+      week52Low: null
     }
     let resolved = false
     let dataReceived = false
@@ -620,19 +627,51 @@ async function getDetailedQuoteOnce(symbol) {
         case 7: quote.low = price; break
         case 9: quote.prevClose = price; break
         case 14: quote.open = price; break
+        case 15: quote.week52Low = price; break
+        case 16: quote.week52High = price; break
       }
     }
 
     const onTickSize = (rId, tickType, size) => {
       if (rId !== reqId) return
       dataReceived = true
-      if (tickType === 8) quote.volume = size // volume
+      switch (tickType) {
+        case 0: quote.bidSize = size; break
+        case 3: quote.askSize = size; break
+        case 5: quote.lastSize = size; break
+        case 8: quote.volume = size; break
+        case 21: quote.avgVolume = size; break
+      }
     }
 
     const onTickGeneric = (rId, tickType, value) => {
       if (rId !== reqId) return
       dataReceived = true
-      if (tickType === 81 && value > 0) quote.vwap = value // vwap (generic tick)
+      if (tickType === 81 && value > 0) quote.vwap = value
+    }
+
+    const onTickString = (rId, tickType, value) => {
+      if (rId !== reqId) return
+      // Log first time to debug
+      if (tickType === 47) {
+        console.log(`tickString(47) for ${symbol}: ${value?.substring(0, 300)}`)
+      }
+      // tickType 47 = fundamental ratios string
+      // tickType 48 = RT volume string (sometimes contains data)
+      if ((tickType === 47 || tickType === 48) && value) {
+        dataReceived = true
+        // Try multiple parsing strategies
+        // Format 1: "FIELD1=VALUE1;FIELD2=VALUE2;..."
+        // Format 2: Key:Value pairs
+        const mktCapMatch = value.match(/MKTCAP[=:]\s*([\d.]+)/i)
+        if (mktCapMatch) {
+          const val = parseFloat(mktCapMatch[1])
+          if (!isNaN(val) && val > 0) {
+            quote.marketCap = val * 1000000 // MKTCAP is in millions
+            console.log(`Found MKTCAP for ${symbol}: ${val}M -> ${quote.marketCap}`)
+          }
+        }
+      }
     }
 
     const cleanup = () => {
@@ -641,6 +680,7 @@ async function getDetailedQuoteOnce(symbol) {
       try { ib.off(EventName.tickPrice, onTickPrice) } catch (e) {}
       try { ib.off(EventName.tickSize, onTickSize) } catch (e) {}
       try { ib.off(EventName.tickGeneric, onTickGeneric) } catch (e) {}
+      try { ib.off(EventName.tickString, onTickString) } catch (e) {}
       pendingRequests.delete(reqId)
       try { ib.cancelMktData(reqId) } catch (e) {}
     }
@@ -656,6 +696,7 @@ async function getDetailedQuoteOnce(symbol) {
     ib.on(EventName.tickPrice, onTickPrice)
     ib.on(EventName.tickSize, onTickSize)
     ib.on(EventName.tickGeneric, onTickGeneric)
+    ib.on(EventName.tickString, onTickString)
 
     // Wait 2 seconds for quote data
     setTimeout(() => {
@@ -670,8 +711,82 @@ async function getDetailedQuoteOnce(symbol) {
     }, 2000)
 
     try {
-      // Request market data with generic tick 233 for vwap
-      ib.reqMktData(reqId, contract, '233', false, false, [])
+      // Request market data with generic ticks:
+      // 233 = vwap, 258 = fundamental ratios (includes MKTCAP), 165 = misc stats (avg volume)
+      ib.reqMktData(reqId, contract, '233,258,165', false, false, [])
+    } catch (err) {
+      cleanup()
+      resolve(null)
+    }
+  })
+}
+
+// Get market cap via fundamental data request
+async function getMarketCap(symbol) {
+  if (!ib || !connectionState.connected) {
+    return null
+  }
+
+  // Skip for indices
+  const indexConfig = INDEX_SYMBOLS[symbol.toUpperCase()]
+  if (indexConfig) return null
+
+  return new Promise((resolve) => {
+    const reqId = nextRequestId++
+    let resolved = false
+
+    const contract = {
+      symbol,
+      secType: SecType.STK,
+      exchange: 'SMART',
+      currency: 'USD'
+    }
+
+    const onFundamentalData = (rId, data) => {
+      if (rId !== reqId) return
+      cleanup()
+      // Parse XML data to find market cap
+      // Format varies but typically includes <MKTCAP>value</MKTCAP> or similar
+      try {
+        const mktCapMatch = data.match(/<MKTCAP[^>]*>([^<]+)<\/MKTCAP>/i) ||
+                           data.match(/MKTCAP[=:]?\s*([\d.]+)/i)
+        if (mktCapMatch) {
+          const val = parseFloat(mktCapMatch[1])
+          if (!isNaN(val) && val > 0) {
+            resolve(val * 1000000) // Usually in millions
+            return
+          }
+        }
+      } catch (e) {
+        console.error('Error parsing fundamental data:', e)
+      }
+      resolve(null)
+    }
+
+    const cleanup = () => {
+      if (resolved) return
+      resolved = true
+      try { ib.off(EventName.fundamentalData, onFundamentalData) } catch (e) {}
+      pendingRequests.delete(reqId)
+    }
+
+    pendingRequests.set(reqId, {
+      resolve,
+      reject: () => { cleanup(); resolve(null) }
+    })
+
+    ib.on(EventName.fundamentalData, onFundamentalData)
+
+    setTimeout(() => {
+      if (!resolved) {
+        cleanup()
+        resolve(null)
+      }
+    }, 3000)
+
+    try {
+      // Request ReportSnapshot which includes market cap
+      ib.reqFundamentalData(reqId, contract, 'ReportSnapshot', [])
     } catch (err) {
       cleanup()
       resolve(null)
@@ -684,6 +799,11 @@ export async function getDetailedQuote(symbol, maxRetries = 2) {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const quote = await getDetailedQuoteOnce(symbol)
     if (quote !== null && quote.last !== null) {
+      // If no market cap from tick data, try fundamental data request
+      if (quote.marketCap === null) {
+        const mktCap = await getMarketCap(symbol)
+        if (mktCap) quote.marketCap = mktCap
+      }
       return quote
     }
     if (attempt < maxRetries) {

@@ -13,17 +13,18 @@ import {
   Spacer,
   useToast
 } from '@chakra-ui/react'
-import { AddIcon, CloseIcon, RepeatIcon, ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons'
+import { AddIcon, CloseIcon, RepeatIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, ChevronUpIcon, ViewIcon, ViewOffIcon } from '@chakra-ui/icons'
 import {
   getLiveWatchlist,
   addToLiveWatchlist,
   removeFromLiveWatchlist,
   reorderLiveWatchlist
 } from '../db/database'
+import LiveIndicator from './LiveIndicator'
 
 const API_BASE = 'http://localhost:3001/api'
 
-function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, canMoveLeft, canMoveRight, isLoading }) {
+function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, canMoveLeft, canMoveRight, isLoading, isExpanded, onToggleExpand }) {
   const [isHovered, setIsHovered] = useState(false)
 
   const cardBase = {
@@ -34,6 +35,23 @@ function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, c
     borderWidth: '1px',
     position: 'relative',
     transition: 'all 0.15s'
+  }
+
+  const formatPrice = (p) => p != null ? p.toFixed(2) : '--'
+  const formatPct = (p) => p != null ? (p >= 0 ? '+' : '') + p.toFixed(2) + '%' : '--'
+  const formatVolume = (v) => {
+    if (v == null) return '--'
+    if (v >= 1000000000) return (v / 1000000000).toFixed(1) + 'B'
+    if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M'
+    if (v >= 1000) return (v / 1000).toFixed(1) + 'K'
+    return v.toString()
+  }
+  const formatMarketCap = (v) => {
+    if (v == null) return '--'
+    if (v >= 1000000000000) return '$' + (v / 1000000000000).toFixed(2) + 'T'
+    if (v >= 1000000000) return '$' + (v / 1000000000).toFixed(2) + 'B'
+    if (v >= 1000000) return '$' + (v / 1000000).toFixed(2) + 'M'
+    return '$' + v.toFixed(0)
   }
 
   if (!quote && !isLoading) {
@@ -111,20 +129,15 @@ function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, c
   const high = quote?.high
   const low = quote?.low
   const volume = quote?.volume
+  const marketCap = quote?.marketCap
+  const avgVolume = quote?.avgVolume
+  const week52High = quote?.week52High
+  const week52Low = quote?.week52Low
 
   const changeFromClose = last && prevClose ? last - prevClose : null
   const changePctFromClose = last && prevClose ? ((last - prevClose) / prevClose) * 100 : null
 
   const changeColor = changePctFromClose > 0 ? 'green' : changePctFromClose < 0 ? 'red' : 'gray'
-
-  const formatPrice = (p) => p != null ? p.toFixed(2) : '--'
-  const formatPct = (p) => p != null ? (p >= 0 ? '+' : '') + p.toFixed(2) + '%' : '--'
-  const formatVolume = (v) => {
-    if (v == null) return '--'
-    if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M'
-    if (v >= 1000) return (v / 1000).toFixed(1) + 'K'
-    return v.toString()
-  }
 
   return (
     <Box
@@ -208,6 +221,59 @@ function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, c
         </HStack>
       </VStack>
 
+      {/* Expanded details */}
+      {isExpanded && (
+        <VStack align="stretch" spacing={0} fontSize="10px" color="gray.500" mt={2} pt={2} borderTop="1px solid" borderColor="gray.700">
+          <HStack justify="space-between">
+            <Tooltip label="Market Capitalization" placement="left" fontSize="xs">
+              <Text cursor="help">MCap</Text>
+            </Tooltip>
+            <Text fontFamily="mono" color="blue.300">{formatMarketCap(marketCap)}</Text>
+          </HStack>
+          <HStack justify="space-between">
+            <Tooltip label="Average Daily Volume" placement="left" fontSize="xs">
+              <Text cursor="help">AvgV</Text>
+            </Tooltip>
+            <Text fontFamily="mono" color="gray.400">{formatVolume(avgVolume)}</Text>
+          </HStack>
+          <HStack justify="space-between">
+            <Tooltip label="52-Week High" placement="left" fontSize="xs">
+              <Text cursor="help">52H</Text>
+            </Tooltip>
+            <Text fontFamily="mono" color="gray.400">{formatPrice(week52High)}</Text>
+          </HStack>
+          <HStack justify="space-between">
+            <Tooltip label="52-Week Low" placement="left" fontSize="xs">
+              <Text cursor="help">52L</Text>
+            </Tooltip>
+            <Text fontFamily="mono" color="gray.400">{formatPrice(week52Low)}</Text>
+          </HStack>
+        </VStack>
+      )}
+
+      {/* Expand button */}
+      <Box
+        as="button"
+        w="100%"
+        mt={1}
+        mb={isHovered ? 3 : 0}
+        py={0.5}
+        bg="gray.750"
+        borderRadius="sm"
+        onClick={onToggleExpand}
+        _hover={{ bg: 'gray.700' }}
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+        transition="margin 0.15s"
+      >
+        {isExpanded ? (
+          <ChevronUpIcon color="gray.500" boxSize={3} />
+        ) : (
+          <ChevronDownIcon color="gray.500" boxSize={3} />
+        )}
+      </Box>
+
       {isHovered && (
         <ReorderButtons
           onMoveLeft={onMoveLeft}
@@ -259,13 +325,41 @@ function ReorderButtons({ onMoveLeft, onMoveRight, canMoveLeft, canMoveRight }) 
   )
 }
 
+const REFRESH_INTERVAL = 15 // seconds
+
 function LiveWatchlist({ isConnected }) {
   const [symbols, setSymbols] = useState([])
   const [quotes, setQuotes] = useState({})
   const [loading, setLoading] = useState(false)
   const [newSymbol, setNewSymbol] = useState('')
   const [isAdding, setIsAdding] = useState(false)
+  const [expandedSymbols, setExpandedSymbols] = useState(new Set())
+  const [lastFetchTime, setLastFetchTime] = useState(null)
   const toast = useToast()
+
+  const toggleExpanded = (symbol) => {
+    setExpandedSymbols(prev => {
+      const next = new Set(prev)
+      if (next.has(symbol)) {
+        next.delete(symbol)
+      } else {
+        next.add(symbol)
+      }
+      return next
+    })
+  }
+
+  const toggleAllExpanded = () => {
+    if (expandedSymbols.size === symbols.length) {
+      // All expanded, collapse all
+      setExpandedSymbols(new Set())
+    } else {
+      // Expand all
+      setExpandedSymbols(new Set(symbols))
+    }
+  }
+
+  const allExpanded = symbols.length > 0 && expandedSymbols.size === symbols.length
 
   const loadSymbols = useCallback(async () => {
     const saved = await getLiveWatchlist()
@@ -280,6 +374,7 @@ function LiveWatchlist({ isConnected }) {
     if (!isConnected || symbols.length === 0) return
 
     setLoading(true)
+    setLastFetchTime(Date.now()) // Set at start so timer aligns with interval
     try {
       const response = await fetch(`${API_BASE}/live-quotes`, {
         method: 'POST',
@@ -304,7 +399,7 @@ function LiveWatchlist({ isConnected }) {
     if (!isConnected || symbols.length === 0) return
 
     fetchQuotes()
-    const interval = setInterval(fetchQuotes, 15000)
+    const interval = setInterval(fetchQuotes, REFRESH_INTERVAL * 1000)
     return () => clearInterval(interval)
   }, [isConnected, symbols, fetchQuotes])
 
@@ -416,7 +511,14 @@ function LiveWatchlist({ isConnected }) {
       <Flex align="center" mb={symbols.length > 0 ? 2 : 0}>
         <HStack spacing={2}>
           <Text color="gray.400" fontSize="sm" fontWeight="medium">Live Watchlist</Text>
-          {loading && <Spinner size="xs" color="blue.400" />}
+          {symbols.length > 0 && (
+            <LiveIndicator
+              isConnected={isConnected}
+              isLoading={loading}
+              lastFetchTime={lastFetchTime}
+              refreshInterval={REFRESH_INTERVAL}
+            />
+          )}
         </HStack>
         <Spacer />
         <HStack spacing={2}>
@@ -460,6 +562,18 @@ function LiveWatchlist({ isConnected }) {
               />
             </Tooltip>
           )}
+          {symbols.length > 0 && (
+            <Tooltip label={allExpanded ? "Collapse all" : "Expand all"}>
+              <IconButton
+                icon={allExpanded ? <ViewOffIcon /> : <ViewIcon />}
+                size="xs"
+                variant="ghost"
+                colorScheme="blue"
+                onClick={toggleAllExpanded}
+                aria-label={allExpanded ? "Collapse all" : "Expand all"}
+              />
+            </Tooltip>
+          )}
           <Tooltip label="Refresh">
             <IconButton
               icon={<RepeatIcon />}
@@ -492,6 +606,8 @@ function LiveWatchlist({ isConnected }) {
               canMoveLeft={index > 0}
               canMoveRight={index < symbols.length - 1}
               isLoading={loading && !quotes[symbol]}
+              isExpanded={expandedSymbols.has(symbol)}
+              onToggleExpand={() => toggleExpanded(symbol)}
             />
           ))}
         </Box>
