@@ -45,6 +45,7 @@ function PageNavMenu({
   const toast = useToast()
   const internalHeaderRef = useRef(null)
   const headerRef = externalHeaderRef || internalHeaderRef
+  const headerControlsRef = useRef(null)
 
   // Check if something is being dragged over the header
   const isDropTarget = activeDrag && activeDrag.mousePos && headerRef.current && (() => {
@@ -169,11 +170,29 @@ function PageNavMenu({
           {children}
           <Spacer />
           {/* Header controls - right side */}
-          {headerControls.length > 0 && onRenderControl && (
-            <Flex align="center" gap={2}>
-              {headerControls.map(control => onRenderControl(control))}
-            </Flex>
-          )}
+          {headerControls.length > 0 && onRenderControl && (() => {
+            const dropIndicatorX = isDropTarget && activeDrag?.mousePos && headerControlsRef.current
+              ? activeDrag.mousePos.x - headerControlsRef.current.getBoundingClientRect().left
+              : null
+            return (
+              <Flex ref={headerControlsRef} align="center" gap={2} position="relative">
+                {dropIndicatorX !== null && (
+                  <Box
+                    position="absolute"
+                    left={`${dropIndicatorX}px`}
+                    top="3px"
+                    bottom="3px"
+                    width="2px"
+                    bg="blue.400"
+                    borderRadius="full"
+                    pointerEvents="none"
+                    zIndex={10}
+                  />
+                )}
+                {[...headerControls].sort((a, b) => (a.x || 0) - (b.x || 0)).map(control => onRenderControl(control))}
+              </Flex>
+            )
+          })()}
         </Flex>
       </Box>
 

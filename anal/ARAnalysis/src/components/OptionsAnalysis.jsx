@@ -80,6 +80,7 @@ export default function OptionsAnalysis({ isConnected }) {
   const [underlyingLoaded, setUnderlyingLoaded] = useState(false)
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState(null)
+  const [loadStatus, setLoadStatus] = useState('')
 
   const [presets, setPresets] = useState(() => {
     try { return JSON.parse(localStorage.getItem('options_presets') || '[]') } catch { return [] }
@@ -285,32 +286,39 @@ export default function OptionsAnalysis({ isConnected }) {
 
     const period = PERIODS[periodIndex]
 
-    const results = await Promise.allSettled(
-      selectedStrikes.map(async (s) => {
+    const newLines = []
+    let errors = 0
+
+    for (let i = 0; i < selectedStrikes.length; i++) {
+      const s = selectedStrikes[i]
+      const label = `$${s} ${right}`
+      setLoadStatus(`(${i + 1}/${selectedStrikes.length}) Fetching ${label}...`)
+      const t0 = Date.now()
+      try {
         const data = await fetchOptionHistory(
           symbol, expiration, parseFloat(s), right,
           period.barSize, period.duration,
           params?.exchange, params?.multiplier
         )
-        return { strike: s, data }
-      })
-    )
-
-    const newLines = []
-    let errors = 0
-
-    for (let i = 0; i < results.length; i++) {
-      const r = results[i]
-      if (r.status === 'fulfilled' && r.value.data.length > 0) {
-        const s = r.value.strike
-        const id = `${symbol}-${expiration}-${s}-${right}`
-        const color = OPTION_COLORS[i % OPTION_COLORS.length]
-        const label = `${symbol} ${formatExpiration(expiration)} $${s}${right}`
-        newLines.push({ id, label, color, data: r.value.data })
-      } else {
+        const elapsed = ((Date.now() - t0) / 1000).toFixed(1)
+        if (data.length > 0) {
+          console.log(`[Options] ${label}: ${data.length} bars in ${elapsed}s`)
+          const id = `${symbol}-${expiration}-${s}-${right}`
+          const color = OPTION_COLORS[i % OPTION_COLORS.length]
+          const lineLabel = `${symbol} ${formatExpiration(expiration)} $${s}${right}`
+          newLines.push({ id, label: lineLabel, color, data })
+        } else {
+          console.log(`[Options] ${label}: no data (${elapsed}s)`)
+          errors++
+        }
+      } catch (err) {
+        const elapsed = ((Date.now() - t0) / 1000).toFixed(1)
+        console.log(`[Options] ${label}: error after ${elapsed}s —`, err.message)
         errors++
       }
     }
+
+    setLoadStatus('')
 
     if (newLines.length === 0) {
       setAddError(`No historical data returned for any of the selected contracts.`)
@@ -629,7 +637,7 @@ export default function OptionsAnalysis({ isConnected }) {
               <Button
                 onClick={handleLoadChart}
                 isLoading={adding}
-                loadingText="Loading..."
+                loadingText={loadStatus || 'Loading...'}
                 isDisabled={selectedStrikes.length === 0 || !expiration}
                 colorScheme="green"
                 size="sm"

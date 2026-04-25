@@ -18,10 +18,21 @@ import {
   FormControl,
   FormLabel,
   VStack,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
   useDisclosure,
   useToast
 } from '@chakra-ui/react'
-import { EditIcon, AddIcon } from '@chakra-ui/icons'
+
+const KebabIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+    <circle cx="12" cy="5" r="2" />
+    <circle cx="12" cy="12" r="2" />
+    <circle cx="12" cy="19" r="2" />
+  </svg>
+)
 import { fetchRoutes, updateRoute } from '../modules/routesService'
 import PageNavMenu from '../components/PageNavMenu'
 import TemplatePageLabel from '../components/TemplatePageLabel'
@@ -35,10 +46,13 @@ function TemplatePage() {
   const [controlType, setControlType] = useState('label')
   const [isSaving, setIsSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [pendingImport, setPendingImport] = useState(null)
   const { isOpen, onOpen, onClose } = useDisclosure()
+  const { isOpen: isImportOpen, onOpen: onImportOpen, onClose: onImportClose } = useDisclosure()
   const toast = useToast()
   const containerRef = useRef(null)
   const headerRef = useRef(null)
+  const fileInputRef = useRef(null)
   const [dragPreview, setDragPreview] = useState(null)  // { id, x, y } during drag
   const [activeDrag, setActiveDrag] = useState(null)  // { controlId, mousePos } during drag
 
@@ -230,6 +244,60 @@ function TemplatePage() {
     }
   }
 
+  const handleExport = () => {
+    if (!pageInfo) return
+    const exportData = {
+      version: 1,
+      name: pageInfo.name,
+      path: pageInfo.path,
+      config: pageInfo.config || {}
+    }
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${pageInfo.name.toLowerCase().replace(/\s+/g, '-')}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleImportFileChange = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result)
+        if (!data.config || typeof data.config !== 'object') {
+          throw new Error('Invalid template file — missing config')
+        }
+        setPendingImport(data)
+        onImportOpen()
+      } catch (err) {
+        toast({ title: 'Import failed', description: err.message, status: 'error', duration: 3000 })
+      } finally {
+        e.target.value = ''
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  const handleImportConfirm = async () => {
+    if (!pendingImport || !pageInfo) return
+    setIsSaving(true)
+    try {
+      const updatedRoute = await updateRoute(pageInfo.id, { config: pendingImport.config })
+      setPageInfo(updatedRoute)
+      onImportClose()
+      setPendingImport(null)
+      toast({ title: 'Template imported', status: 'success', duration: 2000 })
+    } catch (err) {
+      toast({ title: 'Import failed', description: err.message, status: 'error', duration: 3000 })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const labels = pageInfo?.config?.labels || []
   const headerControls = pageInfo?.config?.headerControls || []
 
@@ -272,7 +340,8 @@ function TemplatePage() {
       activeDrag: activeDrag,
       parentPanelId: 'header',
       isEditing: isEditing,
-      isHeaderMode: true
+      isHeaderMode: true,
+      containerRef: headerRef
     }
 
     if (control.type === 'badge') {
@@ -333,26 +402,38 @@ function TemplatePage() {
         activeDrag={activeDrag}
         onRenderControl={renderHeaderControl}
       >
-        <IconButton
-          icon={<EditIcon />}
-          variant="ghost"
-          size="sm"
-          aria-label="Edit page"
-          _hover={{ bg: 'whiteAlpha.200' }}
-          bg={isEditing ? 'whiteAlpha.200' : undefined}
-          ml={1}
-          onClick={() => setIsEditing(!isEditing)}
-          isDisabled={!pageInfo}
-        />
-        <IconButton
-          icon={<AddIcon />}
-          variant="ghost"
-          size="sm"
-          aria-label="Add control"
-          _hover={{ bg: 'whiteAlpha.200' }}
-          ml={1}
-          onClick={onOpen}
-          isDisabled={!pageInfo}
+        <Menu>
+          <MenuButton
+            as={IconButton}
+            icon={<KebabIcon />}
+            variant="ghost"
+            size="sm"
+            aria-label="Page options"
+            _hover={{ bg: 'whiteAlpha.200' }}
+            ml={1}
+            isDisabled={!pageInfo}
+          />
+          <MenuList bg="gray.800" borderColor="gray.700" minW="160px">
+            <MenuItem bg="gray.800" _hover={{ bg: 'gray.700' }} onClick={() => setIsEditing(!isEditing)}>
+              {isEditing ? 'Stop editing' : 'Edit page'}
+            </MenuItem>
+            <MenuItem bg="gray.800" _hover={{ bg: 'gray.700' }} onClick={onOpen}>
+              Add control
+            </MenuItem>
+            <MenuItem bg="gray.800" _hover={{ bg: 'gray.700' }} onClick={handleExport}>
+              Export template
+            </MenuItem>
+            <MenuItem bg="gray.800" _hover={{ bg: 'gray.700' }} onClick={() => fileInputRef.current?.click()}>
+              Import template
+            </MenuItem>
+          </MenuList>
+        </Menu>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          style={{ display: 'none' }}
+          onChange={handleImportFileChange}
         />
       </PageNavMenu>
       <Box p={8}>
@@ -396,6 +477,31 @@ function TemplatePage() {
           <Text color="gray.500">{location.pathname}</Text>
         )}
       </Box>
+
+      {isEditing && (
+        <Box
+          position="fixed"
+          bottom={6}
+          left="50%"
+          transform="translateX(-50%)"
+          bg="blue.900"
+          borderWidth="1px"
+          borderColor="blue.500"
+          borderRadius="lg"
+          px={5}
+          py={3}
+          display="flex"
+          alignItems="center"
+          gap={4}
+          zIndex={1100}
+          boxShadow="0 4px 24px rgba(0,0,0,0.5)"
+        >
+          <Text fontSize="sm" color="blue.200" fontWeight="medium">Edit mode</Text>
+          <Button size="sm" colorScheme="blue" variant="solid" onClick={() => setIsEditing(false)}>
+            Stop editing
+          </Button>
+        </Box>
+      )}
 
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
@@ -443,6 +549,29 @@ function TemplatePage() {
               isDisabled={controlType === 'label' && !labelText.trim()}
             >
               Add
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+      <Modal isOpen={isImportOpen} onClose={onImportClose}>
+        <ModalOverlay />
+        <ModalContent bg="gray.800">
+          <ModalHeader>Import Template</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Text>
+              Import <strong>{pendingImport?.name || 'template'}</strong>?
+            </Text>
+            <Text mt={2} fontSize="sm" color="orange.300">
+              This will replace all current controls on this page.
+            </Text>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={() => { onImportClose(); setPendingImport(null) }}>
+              Cancel
+            </Button>
+            <Button colorScheme="blue" onClick={handleImportConfirm} isLoading={isSaving}>
+              Import
             </Button>
           </ModalFooter>
         </ModalContent>

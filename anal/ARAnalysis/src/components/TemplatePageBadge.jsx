@@ -479,10 +479,14 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
           display="flex"
           alignItems="center"
           outline={isEditing ? '1px dashed' : 'none'}
-          outlineColor={isEditing ? 'gray.500' : undefined}
-          cursor={isEditing ? 'move' : 'default'}
+          outlineColor={isEditing ? (isMoving ? 'blue.400' : 'gray.500') : undefined}
+          cursor={isEditing ? (isMoving ? 'grabbing' : 'grab') : 'default'}
           onMouseDown={isEditing ? handleMoveStart : undefined}
-          opacity={isMoving ? 0.7 : 1}
+          opacity={isMoving ? 0.85 : 1}
+          transform={isMoving ? 'scale(1.08)' : 'scale(1)'}
+          boxShadow={isMoving ? '0 6px 20px rgba(0,0,0,0.6)' : 'none'}
+          transition={isMoving ? 'none' : 'transform 0.15s, box-shadow 0.15s, opacity 0.15s'}
+          zIndex={isMoving ? 100 : 'auto'}
           px={1}
         >
           {displayMode === 'full' ? (

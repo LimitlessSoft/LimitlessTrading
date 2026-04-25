@@ -226,15 +226,18 @@ export async function getOptionHistoricalData(symbol, expiration, strike, right,
   }
 
   const whatToShowCandidates = ['TRADES', 'MIDPOINT']
-  const exchangeCandidates = exchange && exchange !== 'SMART' ? [exchange, 'SMART'] : ['SMART']
-  // If daily bars are requested, also try hourly as fallback (options often lack daily data)
-  const barSizeCandidates = barSize === '1 day' ? ['1 day', '1 hour'] : [barSize]
+  // Options historical data requires the specific exchange — SMART silently times out
+  const exchangeCandidates = exchange && exchange !== 'SMART' ? [exchange] : ['SMART']
+  // If daily bars are requested, also try hourly with capped duration as fallback
+  const barSizeCandidates = barSize === '1 day'
+    ? [{ bs: '1 day', dur: duration }, { bs: '1 hour', dur: '1 W' }]
+    : [{ bs: barSize, dur: duration }]
 
-  for (const bs of barSizeCandidates) {
+  for (const { bs, dur } of barSizeCandidates) {
     for (const exch of exchangeCandidates) {
       for (const whatToShow of whatToShowCandidates) {
         try {
-          const bars = await _requestOptionHistory(symbol, expiration, strike, right, bs, duration, whatToShow, exch, multiplier)
+          const bars = await _requestOptionHistory(symbol, expiration, strike, right, bs, dur, whatToShow, exch, multiplier)
           if (bars.length > 0) return bars
         } catch (err) {
           if (err.message.includes('Not connected')) throw err
@@ -306,7 +309,7 @@ async function _requestOptionHistory(symbol, expiration, strike, right, barSize,
           reject(new Error('Request timeout'))
         }
       }
-    }, 20000)
+    }, 4000)
 
     try {
       ib.reqHistoricalData(reqId, contract, '', duration, barSize, whatToShow, useRTH, formatDate, false)
