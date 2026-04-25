@@ -38,6 +38,7 @@ import PageNavMenu from '../components/PageNavMenu'
 import TemplatePageLabel from '../components/TemplatePageLabel'
 import TemplatePagePanel from '../components/TemplatePagePanel'
 import TemplatePageBadge from '../components/TemplatePageBadge'
+import TemplatePageChart from '../components/TemplatePageChart'
 
 function TemplatePage() {
   const location = useLocation()
@@ -80,12 +81,14 @@ function TemplatePage() {
         id: crypto.randomUUID(),
         type: controlType,
         text: controlType === 'label' ? labelText.trim() : undefined,
-        width: controlType === 'panel' ? 8 : controlType === 'badge' ? 2 : 4,
-        height: controlType === 'panel' ? 120 : controlType === 'badge' ? 40 : 60,
+        width: controlType === 'panel' ? 8 : controlType === 'badge' ? 2 : controlType === 'chart' ? 10 : 4,
+        height: controlType === 'panel' ? 120 : controlType === 'badge' ? 40 : controlType === 'chart' ? 220 : 60,
         x: 0,
         y: 0,
         createdAt: Date.now(),
-        children: controlType === 'panel' ? [] : undefined
+        children: controlType === 'panel' ? [] : undefined,
+        symbol: controlType === 'chart' ? '' : undefined,
+        interval: controlType === 'chart' ? '5m' : undefined
       }
       const currentLabels = pageInfo.config?.labels || []
       const updatedConfig = {
@@ -467,6 +470,8 @@ function TemplatePage() {
                   return <TemplatePagePanel {...commonProps} />
                 } else if (label.type === 'badge') {
                   return <TemplatePageBadge {...commonProps} />
+                } else if (label.type === 'chart') {
+                  return <TemplatePageChart {...commonProps} />
                 } else {
                   return <TemplatePageLabel {...commonProps} />
                 }
@@ -519,6 +524,7 @@ function TemplatePage() {
                   <option value="label">Label</option>
                   <option value="panel">Panel</option>
                   <option value="badge">Badge</option>
+                  <option value="chart">Chart</option>
                 </Select>
               </FormControl>
               {controlType === 'label' && (
