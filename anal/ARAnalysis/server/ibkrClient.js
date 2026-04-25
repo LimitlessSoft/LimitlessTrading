@@ -160,6 +160,7 @@ export async function getHistoricalData(symbol, barSize = '1 day', duration = '1
     const useRTH = 0 // 0 = include pre-market and after-hours data
     const formatDate = 1 // 1 = yyyyMMdd HH:mm:ss format
 
+    const t0 = Date.now()
     pendingRequests.set(reqId, { resolve, reject })
 
     const onHistoricalData = (rId, date, open, high, low, close, volume, count, wap, hasGaps) => {
@@ -167,6 +168,16 @@ export async function getHistoricalData(symbol, barSize = '1 day', duration = '1
 
       // Check for end marker
       if (date.startsWith('finished')) {
+        const elapsed = ((Date.now() - t0) / 1000).toFixed(2)
+        const outsideRth = bars.filter(b => {
+          const d = new Date(b.timestamp)
+          const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(d)
+          const h = parseInt(parts.find(p => p.type === 'hour').value)
+          const m = parseInt(parts.find(p => p.type === 'minute').value)
+          const t = h * 60 + m
+          return t < 570 || t >= 960
+        }).length
+        console.log(`[hist ${reqId}] ${elapsed}s | ${bars.length} bars | ${outsideRth} outside RTH | end=${endDateTime || 'now'} dur=${duration} bar=${barSize}`)
         ib.off(EventName.historicalData, onHistoricalData)
         pendingRequests.delete(reqId)
         resolve(bars)
@@ -187,7 +198,7 @@ export async function getHistoricalData(symbol, barSize = '1 day', duration = '1
 
     ib.on(EventName.historicalData, onHistoricalData)
 
-    // Set timeout (60 seconds per request)
+    // Set timeout (15 seconds per request)
     setTimeout(() => {
       if (pendingRequests.has(reqId)) {
         ib.off(EventName.historicalData, onHistoricalData)
@@ -198,7 +209,7 @@ export async function getHistoricalData(symbol, barSize = '1 day', duration = '1
           reject(new Error('Request timeout'))
         }
       }
-    }, 60000)
+    }, 15000)
 
     try {
       ib.reqHistoricalData(
@@ -1009,6 +1020,10 @@ export async function getOptionsChain(symbol, currentPrice) {
   return { symbol, options }
 }
 
+// Cache for option params: symbol → { data, ts }
+const optionParamsCache = new Map()
+const PARAMS_CACHE_TTL = 60 * 60 * 1000 // 1 hour
+
 // Get contract details to find conId
 async function getContractId(symbol) {
   return new Promise((resolve, reject) => {
@@ -1068,6 +1083,13 @@ async function getContractId(symbol) {
 
 // Get option parameters (expirations and strikes)
 export async function getOptionParams(symbol) {
+  // Return cached result if fresh
+  const cached = optionParamsCache.get(symbol)
+  if (cached && Date.now() - cached.ts < PARAMS_CACHE_TTL) {
+    console.log(`  Option params cache hit for ${symbol}`)
+    return cached.data
+  }
+
   // First get the contract ID
   const conId = await getContractId(symbol)
   if (!conId) {
@@ -1099,7 +1121,9 @@ export async function getOptionParams(symbol) {
     const onSecDefOptParamsEnd = (rId) => {
       if (rId !== reqId) return
       cleanup()
-      resolve({ expirations: bestExpirations, strikes: bestStrikes, exchange: bestExchange, multiplier: bestMultiplier })
+      const result = { expirations: bestExpirations, strikes: bestStrikes, exchange: bestExchange, multiplier: bestMultiplier }
+      optionParamsCache.set(symbol, { data: result, ts: Date.now() })
+      resolve(result)
     }
 
     const cleanup = () => {
@@ -1117,7 +1141,9 @@ export async function getOptionParams(symbol) {
     setTimeout(() => {
       if (!resolved) {
         cleanup()
-        resolve({ expirations: bestExpirations, strikes: bestStrikes, exchange: bestExchange, multiplier: bestMultiplier })
+        const result = { expirations: bestExpirations, strikes: bestStrikes, exchange: bestExchange, multiplier: bestMultiplier }
+        if (result.expirations.length > 0) optionParamsCache.set(symbol, { data: result, ts: Date.now() })
+        resolve(result)
       }
     }, 10000)
 

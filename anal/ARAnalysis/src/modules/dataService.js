@@ -61,6 +61,31 @@ export async function fetchFromCache(symbol, interval) {
   return cached || []
 }
 
+// Fetch only the most recent N days from IBKR and merge into cache
+// Much faster than a full reload — use this for the chart reload button
+export async function refreshRecentData(symbol, interval, days = 30) {
+  const config = INTERVAL_CONFIG[interval]
+  if (!config) throw new Error(`Unknown interval: ${interval}`)
+
+  const numChunks = Math.ceil(days / config.daysPerChunk)
+  let endDate = new Date()
+
+  for (let i = 0; i < numChunks; i++) {
+    const chunkEndDate = i === 0 ? null : new Date(endDate)
+    try {
+      const result = await fetchChunk(symbol, interval, chunkEndDate)
+      if (result.data && result.data.length > 0) {
+        await addPriceData(symbol, interval, result.data)
+      }
+    } catch (err) {
+      console.warn(`[refreshRecentData] chunk ${i} failed:`, err.message)
+    }
+    endDate.setDate(endDate.getDate() - config.daysPerChunk)
+  }
+
+  return getPriceData(symbol, interval)
+}
+
 // Fetch a single chunk from IBKR
 async function fetchChunk(symbol, interval, endDate = null) {
   const params = { interval }
@@ -73,51 +98,27 @@ async function fetchChunk(symbol, interval, endDate = null) {
 }
 
 // Interval configuration
+// initialDays: how much to load upfront; older data is fetched lazily as the user pans back
 const INTERVAL_CONFIG = {
-  '1m':  { daysPerChunk: 1,   years: 2 },
-  '2m':  { daysPerChunk: 2,   years: 2 },
-  '3m':  { daysPerChunk: 7,   years: 5 },
-  '5m':  { daysPerChunk: 7,   years: 10 },
-  '15m': { daysPerChunk: 14,  years: 10 },
-  '30m': { daysPerChunk: 30,  years: 10 },
-  '1h':  { daysPerChunk: 30,  years: 10 },
-  '1d':  { daysPerChunk: 3650, years: 10 }
+  '1m':  { daysPerChunk: 1,    years: 2,  initialDays: 5   },
+  '2m':  { daysPerChunk: 2,    years: 2,  initialDays: 10  },
+  '3m':  { daysPerChunk: 7,    years: 5,  initialDays: 30  },
+  '5m':  { daysPerChunk: 7,    years: 10, initialDays: 30  },
+  '15m': { daysPerChunk: 14,   years: 10, initialDays: 60  },
+  '30m': { daysPerChunk: 30,   years: 10, initialDays: 90  },
+  '1h':  { daysPerChunk: 30,   years: 10, initialDays: 90  },
+  '1d':  { daysPerChunk: 3650, years: 10, initialDays: 365 }
 }
 
-// Number of parallel requests (IBKR allows 50/sec, use 20 to be safe)
-const PARALLEL_REQUESTS = 20
+// Number of parallel requests — keep low to avoid IBKR pacing rejections
+const PARALLEL_REQUESTS = 5
 
-// Check if cached data is complete (covers full time range)
-// Data is sorted descending (newest first)
-function isCacheComplete(data, interval) {
+// Returns true if cache has recent data — skip initial fetch, rely on lazy load for history
+function hasFreshCache(data) {
   if (!data || data.length === 0) return false
-
-  const config = INTERVAL_CONFIG[interval]
-  if (!config) return false
-
-  const now = Date.now()
-  const newestBar = data[0]
-  const oldestBar = data[data.length - 1]
-
-  // Check if oldest bar is old enough (within 5% tolerance of target years)
-  const targetOldestTime = now - (config.years * 365 * 24 * 60 * 60 * 1000)
-  const tolerance = config.years * 365 * 24 * 60 * 60 * 1000 * 0.05 // 5% tolerance
-  const isOldEnough = oldestBar.timestamp <= targetOldestTime + tolerance
-
-  // Check if newest bar is recent (within last 3 days for weekends/holidays)
-  const threeDaysAgo = now - (3 * 24 * 60 * 60 * 1000)
-  const isRecentEnough = newestBar.timestamp >= threeDaysAgo
-
-  // Allow tolerance for missing bars (holidays, market closures won't be filled by IBKR)
-  // If missing < 10% of total bars, consider it complete
-  const { missingCount } = checkMissingBars(data, interval)
-  const missingRatio = missingCount / data.length
-  if (missingRatio > 0.1) {
-    console.log(`Cache has ${missingCount} missing bars (${(missingRatio * 100).toFixed(1)}%) for ${interval}, will re-fetch`)
-    return false
-  }
-
-  return isOldEnough && isRecentEnough
+  const newestBar = data[0] // descending, newest first
+  const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000)
+  return newestBar.timestamp >= threeDaysAgo
 }
 
 // Load historical data with progress updates using parallel requests
@@ -135,16 +136,16 @@ export function loadHistoricalData(symbol, interval, onProgress, onComplete, onE
 
   const run = async () => {
     try {
-      // Check if cached data is already complete
+      // If cache already has recent data, use it — lazy load will extend history as needed
       const cachedData = await getPriceData(symbol, interval)
-      if (isCacheComplete(cachedData, interval)) {
-        console.log(`Cache complete for ${symbol} ${interval}, skipping IBKR fetch`)
+      if (hasFreshCache(cachedData)) {
+        console.log(`Cache fresh for ${symbol} ${interval} (${cachedData.length} bars), skipping initial fetch`)
         onProgress(cachedData, 100)
         onComplete(cachedData)
         return
       }
 
-      const totalDays = config.years * 365
+      const totalDays = config.initialDays
       const numChunks = Math.ceil(totalDays / config.daysPerChunk)
 
       // Generate all end dates upfront
@@ -155,19 +156,25 @@ export function loadHistoricalData(symbol, interval, onProgress, onComplete, onE
         endDate.setDate(endDate.getDate() - config.daysPerChunk)
       }
 
+      const loadStart = Date.now()
+      console.log(`[load] ${symbol} ${interval} — ${numChunks} chunks planned (${PARALLEL_REQUESTS} parallel)`)
+
       // Process in batches, updating UI as each chunk completes
       let completedChunks = 0
       let noMoreData = false
+      let totalBars = 0
 
       for (let batchStart = 0; batchStart < numChunks && !noMoreData; batchStart += PARALLEL_REQUESTS) {
         if (cancelled) break
 
         const batchEnd = Math.min(batchStart + PARALLEL_REQUESTS, numChunks)
         const batchEndDates = endDates.slice(batchStart, batchEnd)
+        const batchT0 = Date.now()
 
         // Track batch results
         let batchHasData = false
         let batchCompleted = 0
+        let batchBars = 0
 
         // Fetch batch in parallel, updating UI as each completes
         const promises = batchEndDates.map(date =>
@@ -176,6 +183,8 @@ export function loadHistoricalData(symbol, interval, onProgress, onComplete, onE
               if (result.data && result.data.length > 0) {
                 allBars = [...allBars, ...result.data]
                 batchHasData = true
+                batchBars += result.data.length
+                totalBars += result.data.length
                 addPriceData(symbol, interval, result.data)
               }
               batchCompleted++
@@ -198,13 +207,19 @@ export function loadHistoricalData(symbol, interval, onProgress, onComplete, onE
 
         await Promise.all(promises)
 
+        const batchMs = Date.now() - batchT0
+        console.log(`[load] batch ${batchStart}–${batchEnd - 1} | ${batchMs}ms | ${batchBars} bars | hasData=${batchHasData}`)
+
         // Only stop if entire batch returned no data (reached end of available history)
         if (!batchHasData) {
+          console.log(`[load] no data in batch — stopping early at chunk ${batchStart}`)
           noMoreData = true
         }
       }
 
       if (!cancelled) {
+        const totalMs = ((Date.now() - loadStart) / 1000).toFixed(1)
+        console.log(`[load] done — ${totalMs}s total | ${totalBars} bars fetched | ${allBars.length} unique`)
         await addSecurity(symbol)
         await setLastFetch(symbol, interval)
 
@@ -226,6 +241,58 @@ export function loadHistoricalData(symbol, interval, onProgress, onComplete, onE
       cancelled = true
     }
   }
+}
+
+// Fetch a batch of older chunks before a given timestamp (lazy history expansion)
+// onProgress(data) called after each chunk; onComplete(data, hasData) when batch is done
+export function fetchOlderData(symbol, interval, beforeTimestamp, onProgress, onComplete, onError) {
+  const config = INTERVAL_CONFIG[interval]
+  if (!config) {
+    onError(new Error(`Unknown interval: ${interval}`))
+    return { cancel: () => {} }
+  }
+
+  const OLDER_BATCH = 5
+  let cancelled = false
+
+  const run = async () => {
+    try {
+      // Pre-compute all end dates so we can fetch in parallel
+      const endDates = []
+      const endDate = new Date(beforeTimestamp)
+      for (let i = 0; i < OLDER_BATCH; i++) {
+        endDates.push(new Date(endDate))
+        endDate.setDate(endDate.getDate() - config.daysPerChunk)
+      }
+
+      let hasData = false
+
+      await Promise.all(endDates.map(async (date) => {
+        if (cancelled) return
+        try {
+          const result = await fetchChunk(symbol, interval, date)
+          if (result.data && result.data.length > 0) {
+            await addPriceData(symbol, interval, result.data)
+            hasData = true
+            const merged = await getPriceData(symbol, interval)
+            onProgress([...merged].sort((a, b) => a.timestamp - b.timestamp))
+          }
+        } catch (err) {
+          console.warn(`[fetchOlderData] chunk failed:`, err.message)
+        }
+      }))
+
+      if (!cancelled) {
+        const finalData = await getPriceData(symbol, interval)
+        onComplete([...finalData].sort((a, b) => a.timestamp - b.timestamp), hasData)
+      }
+    } catch (err) {
+      if (!cancelled) onError(err)
+    }
+  }
+
+  run()
+  return { cancel: () => { cancelled = true } }
 }
 
 function deduplicateAndSort(bars) {

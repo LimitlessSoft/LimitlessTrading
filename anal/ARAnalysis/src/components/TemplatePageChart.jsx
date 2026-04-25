@@ -19,16 +19,29 @@ import {
   VStack,
   Spinner,
   Center,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  Portal,
+  Switch,
   useDisclosure
 } from '@chakra-ui/react'
 import { CloseIcon, SettingsIcon, RepeatIcon } from '@chakra-ui/icons'
-import { fetchFromCache, loadHistoricalData, INTERVALS } from '../modules/dataService'
+import { fetchFromCache, loadHistoricalData, refreshRecentData, fetchOlderData, clearAllCache, INTERVALS } from '../modules/dataService'
+import {
+  getGlobalChartSettings,
+  saveGlobalChartSettings,
+  isRTHTimestamp
+} from '../modules/globalChartSettings'
 
 const TOTAL_SEGMENTS = 20
 const MIN_SEGMENTS = 4
 const MIN_HEIGHT = 100
 const DEFAULT_HEIGHT = 220
 const DEFAULT_WIDTH = 10
+
+const MAX_BARS_CONST = 300
 
 const DEFAULT_STYLE = {
   bgColor: '#1a202c',
@@ -37,10 +50,12 @@ const DEFAULT_STYLE = {
 }
 
 // Candlestick SVG — renders inside the chart control
-function ChartSVG({ data, width, height, symbol, interval }) {
+function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRthBgColor, fontSize, onSymbolClick,
+  quickInputOpen, quickSymbol, quickInputRef, onQuickSymbolChange, onQuickSymbolKeyDown, onQuickSymbolCommit,
+  onIntervalChange }) {
   const [tooltip, setTooltip] = useState(null)
 
-  const padding = { top: 12, right: 50, bottom: 28, left: 8 }
+  const padding = { top: 40, right: fontSize * 5 + 8, bottom: 28, left: 8 }
   const chartWidth  = width  - padding.left - padding.right
   const chartHeight = height - padding.top  - padding.bottom
   const candleAreaH = chartHeight * 0.78
@@ -55,7 +70,7 @@ function ChartSVG({ data, width, height, symbol, interval }) {
   const effectiveMin = minP - pad
   const effectiveRange = pRange + pad * 2
 
-  const maxVol = Math.max(...data.map(d => d.volume || 0)) || 1
+  const maxVol = Math.max(...data.map(d => Math.max(0, d.volume ?? 0))) || 1
 
   const priceToY  = p  => padding.top + candleAreaH - ((p - effectiveMin) / effectiveRange) * candleAreaH
   const volToH    = v  => (v / maxVol) * volumeAreaH
@@ -69,26 +84,93 @@ function ChartSVG({ data, width, height, symbol, interval }) {
 
   return (
     <Box position="relative" w="100%" h="100%">
-      {tooltip && (
-        <HStack
-          position="absolute"
-          top="2px"
-          left="8px"
-          spacing={3}
-          fontSize="10px"
-          color="gray.300"
-          pointerEvents="none"
-          zIndex={5}
-        >
-          <Text>{isIntraday ? formatTime(tooltip.timestamp) : formatDate(tooltip.timestamp)}</Text>
-          <Text>O:{formatPrice(tooltip.open)}</Text>
-          <Text>H:{formatPrice(tooltip.high)}</Text>
-          <Text>L:{formatPrice(tooltip.low)}</Text>
-          <Text color={tooltip.close >= tooltip.open ? 'green.300' : 'red.300'}>
-            C:{formatPrice(tooltip.close)}
+      {/* Combined top bar: symbol + OHLC on hover */}
+      <HStack
+        position="absolute"
+        top="4px"
+        left="8px"
+        right={`${padding.right + 4}px`}
+        spacing={2}
+        fontSize={`${fontSize + 1}px`}
+        pointerEvents="none"
+        zIndex={5}
+      >
+        {quickInputOpen ? (
+          <Input
+            ref={quickInputRef}
+            value={quickSymbol}
+            onChange={(e) => onQuickSymbolChange(e.target.value.toUpperCase())}
+            onKeyDown={onQuickSymbolKeyDown}
+            onBlur={onQuickSymbolCommit}
+            size="xs"
+            width="80px"
+            fontWeight="bold"
+            pointerEvents="auto"
+            onMouseDown={(e) => e.stopPropagation()}
+            bg="transparent"
+            borderColor="blue.400"
+            _focus={{ borderColor: 'blue.300', boxShadow: 'none' }}
+            px={1}
+          />
+        ) : (
+          <Text
+            fontWeight="bold"
+            color="gray.400"
+            whiteSpace="nowrap"
+            cursor="pointer"
+            pointerEvents="auto"
+            _hover={{ color: 'gray.200' }}
+            onClick={onSymbolClick}
+          >
+            {symbol}
           </Text>
-        </HStack>
-      )}
+        )}
+        <Menu isLazy>
+          <MenuButton
+            as={Button}
+            variant="unstyled"
+            fontWeight="bold"
+            color="gray.600"
+            fontSize={`${fontSize + 1}px`}
+            h="auto"
+            minW="auto"
+            p={0}
+            lineHeight="inherit"
+            cursor="pointer"
+            pointerEvents="auto"
+            _hover={{ color: 'gray.400' }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            · {interval}
+          </MenuButton>
+          <Portal>
+            <MenuList bg="gray.800" borderColor="gray.600" minW="100px" zIndex={2000} fontSize="sm">
+              {INTERVALS.map(iv => (
+                <MenuItem
+                  key={iv.value}
+                  bg="gray.800"
+                  _hover={{ bg: 'gray.700' }}
+                  color={iv.value === interval ? 'blue.300' : 'white'}
+                  fontWeight={iv.value === interval ? 'bold' : 'normal'}
+                  onClick={() => onIntervalChange(iv.value)}
+                >
+                  {iv.label}
+                </MenuItem>
+              ))}
+            </MenuList>
+          </Portal>
+        </Menu>
+        {tooltip && (
+          <>
+            <Text color="gray.500">·</Text>
+            <Text color="gray.300">{isIntraday ? formatTime(tooltip.timestamp) : formatDate(tooltip.timestamp)}</Text>
+            <Text color="gray.300">O:{formatPrice(tooltip.open)}</Text>
+            <Text color="gray.300">H:{formatPrice(tooltip.high)}</Text>
+            <Text color="gray.300">L:{formatPrice(tooltip.low)}</Text>
+            <Text color={tooltip.close >= tooltip.open ? 'green.300' : 'red.300'}>C:{formatPrice(tooltip.close)}</Text>
+          </>
+        )}
+      </HStack>
       <svg
         width="100%"
         height={height}
@@ -96,7 +178,40 @@ function ChartSVG({ data, width, height, symbol, interval }) {
         preserveAspectRatio="xMinYMin meet"
         style={{ display: 'block' }}
       >
+        {/* Base background — full chart area including header/price label strips */}
         <rect x={0} y={0} width={width} height={height} fill="#1a202c" />
+
+        {/* Session background — candle+volume area only, between left and right padding */}
+        <rect
+          x={padding.left} y={padding.top}
+          width={chartWidth} height={candleAreaH + chartHeight * 0.06 + volumeAreaH}
+          fill={isIntraday ? outsideRthBgColor : rthBgColor}
+          rx={4} ry={4}
+        />
+
+        {/* Clip RTH bands to the rounded session area */}
+        <defs>
+          <clipPath id={`session-clip-${symbol}`}>
+            <rect x={padding.left} y={padding.top}
+              width={chartWidth} height={candleAreaH + chartHeight * 0.06 + volumeAreaH}
+              rx={4} ry={4} />
+          </clipPath>
+        </defs>
+
+        {/* RTH session background bands (intraday only) */}
+        {isIntraday && (
+          <g clipPath={`url(#session-clip-${symbol})`}>
+            {data.map((bar, i) => {
+              if (!isRTHTimestamp(bar.timestamp)) return null
+              const bx = padding.left + i * spacing
+              return (
+                <rect key={`rth-${i}`} x={bx} y={padding.top} width={spacing}
+                  height={candleAreaH + chartHeight * 0.06 + volumeAreaH}
+                  fill={rthBgColor} />
+              )
+            })}
+          </g>
+        )}
 
         {/* Grid lines */}
         {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
@@ -106,7 +221,7 @@ function ChartSVG({ data, width, height, symbol, interval }) {
             <g key={i}>
               <line x1={padding.left} y1={y} x2={width - padding.right} y2={y}
                 stroke="#2d3748" strokeWidth={1} />
-              <text x={width - padding.right + 4} y={y + 3} fill="#718096" fontSize={9}>
+              <text x={width - padding.right + 4} y={y + 3} fill="#718096" fontSize={fontSize}>
                 {price.toFixed(2)}
               </text>
             </g>
@@ -122,7 +237,7 @@ function ChartSVG({ data, width, height, symbol, interval }) {
           const lowY   = priceToY(bar.low)
           const bodyT  = Math.min(priceToY(bar.open), priceToY(bar.close))
           const bodyH  = Math.max(1, Math.abs(priceToY(bar.close) - priceToY(bar.open)))
-          const volH   = volToH(bar.volume || 0)
+          const volH   = volToH(Math.max(0, bar.volume ?? 0))
 
           return (
             <g key={i}
@@ -153,7 +268,7 @@ function ChartSVG({ data, width, height, symbol, interval }) {
             const x = padding.left + i * spacing + spacing / 2
             const label = isIntraday ? formatTime(bar.timestamp) : formatDate(bar.timestamp)
             return (
-              <text key={`t-${i}`} x={x} y={height - 4} fill="#718096" fontSize={9} textAnchor="middle">
+              <text key={`t-${i}`} x={x} y={height - 4} fill="#718096" fontSize={fontSize} textAnchor="middle">
                 {label}
               </text>
             )
@@ -166,16 +281,28 @@ function ChartSVG({ data, width, height, symbol, interval }) {
 function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, containerRef }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving,   setIsMoving]   = useState(false)
+  const [isPanning,  setIsPanning]  = useState(false)
   const [previewPos,  setPreviewPos]  = useState(null)
   const [previewSize, setPreviewSize] = useState(null)
   const [data,    setData]    = useState([])
   const [loading, setLoading] = useState(false)
   const [loadProgress, setLoadProgress] = useState(null)
-  const [editSymbol,   setEditSymbol]   = useState('')
-  const [editInterval, setEditInterval] = useState('5m')
+  const [editSymbol,     setEditSymbol]     = useState('')
+  const [editInterval,   setEditInterval]   = useState('5m')
+  const [globalSettings, setGlobalSettings] = useState(getGlobalChartSettings)
+  const [editGlobal,     setEditGlobal]     = useState(null)
   const [containerWidth, setContainerWidth] = useState(400)
-  const boxRef = useRef(null)
-  const cancelRef = useRef(null)
+  const [viewOffset,      setViewOffset]      = useState(0)
+  const [quickSymbol,     setQuickSymbol]     = useState('')
+  const [quickInputOpen,  setQuickInputOpen]  = useState(false)
+  const [isFetchingOlder, setIsFetchingOlder] = useState(false)
+  const [hasMoreHistory,  setHasMoreHistory]  = useState(true)
+  const quickInputRef   = useRef(null)
+  const boxRef          = useRef(null)
+  const cancelRef       = useRef(null)
+  const olderCancelRef  = useRef(null)
+  const loadGenRef      = useRef(0)
+  const globalSettingsRef = useRef(globalSettings)
   const { isOpen, onOpen, onClose } = useDisclosure()
 
   const symbol   = label.symbol   || ''
@@ -200,12 +327,49 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
     return () => ro.disconnect()
   }, [])
 
-  // Load cached data when symbol or interval changes
+  // Load cached data when symbol or interval changes; auto-fetch from IBKR if cache empty
   useEffect(() => {
     if (!symbol) { setData([]); return }
+    if (cancelRef.current) { cancelRef.current(); cancelRef.current = null }
+    if (olderCancelRef.current) { olderCancelRef.current(); olderCancelRef.current = null }
+    const gen = ++loadGenRef.current
+    setLoading(true)
+    setViewOffset(0)
+    setIsFetchingOlder(false)
+    setHasMoreHistory(true)
     fetchFromCache(symbol, interval).then(cached => {
+      if (gen !== loadGenRef.current) return
       const sorted = [...(cached || [])].sort((a, b) => a.timestamp - b.timestamp)
-      setData(sorted)
+      if (sorted.length === 0) {
+        setLoadProgress(0)
+        const { cancel } = loadHistoricalData(
+          symbol,
+          interval,
+          (partialData, progress) => {
+            if (gen !== loadGenRef.current) return
+            setLoadProgress(progress)
+            setData([...partialData].sort((a, b) => a.timestamp - b.timestamp))
+          },
+          (finalData) => {
+            if (gen !== loadGenRef.current) return
+            setData([...finalData].sort((a, b) => a.timestamp - b.timestamp))
+            setLoading(false)
+            setLoadProgress(null)
+            cancelRef.current = null
+          },
+          (err) => {
+            if (gen !== loadGenRef.current) return
+            console.error('[TemplatePageChart] auto-load error', err)
+            setLoading(false)
+            setLoadProgress(null)
+            cancelRef.current = null
+          }
+        )
+        cancelRef.current = cancel
+      } else {
+        setData(sorted)
+        setLoading(false)
+      }
     })
   }, [symbol, interval])
 
@@ -363,7 +527,31 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
 
   const handleLoadData = useCallback(() => {
     if (!symbol || loading) return
-    if (cancelRef.current) cancelRef.current()
+    if (cancelRef.current) { cancelRef.current(); cancelRef.current = null }
+    const gen = ++loadGenRef.current
+
+    setLoading(true)
+    setLoadProgress(null)
+
+    refreshRecentData(symbol, interval)
+      .then(finalData => {
+        if (gen !== loadGenRef.current) return
+        setData([...finalData].sort((a, b) => a.timestamp - b.timestamp))
+      })
+      .catch(err => {
+        if (gen !== loadGenRef.current) return
+        console.error('[TemplatePageChart] refresh error', err)
+      })
+      .finally(() => {
+        if (gen !== loadGenRef.current) return
+        setLoading(false)
+      })
+  }, [symbol, interval, loading])
+
+  const handleFullLoad = useCallback(() => {
+    if (!symbol || loading) return
+    if (cancelRef.current) { cancelRef.current(); cancelRef.current = null }
+    const gen = ++loadGenRef.current
 
     setLoading(true)
     setLoadProgress(0)
@@ -372,19 +560,20 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
       symbol,
       interval,
       (partialData, progress) => {
-        setLoadProgress(Math.round(progress * 100))
-        const sorted = [...partialData].sort((a, b) => a.timestamp - b.timestamp)
-        setData(sorted)
+        if (gen !== loadGenRef.current) return
+        setLoadProgress(progress)
+        setData([...partialData].sort((a, b) => a.timestamp - b.timestamp))
       },
       (finalData) => {
-        const sorted = [...finalData].sort((a, b) => a.timestamp - b.timestamp)
-        setData(sorted)
+        if (gen !== loadGenRef.current) return
+        setData([...finalData].sort((a, b) => a.timestamp - b.timestamp))
         setLoading(false)
         setLoadProgress(null)
         cancelRef.current = null
       },
       (err) => {
-        console.error('[TemplatePageChart] load error', err)
+        if (gen !== loadGenRef.current) return
+        console.error('[TemplatePageChart] full load error', err)
         setLoading(false)
         setLoadProgress(null)
         cancelRef.current = null
@@ -394,23 +583,128 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
   }, [symbol, interval, loading])
 
   // Cancel any in-flight load on unmount
-  useEffect(() => () => { cancelRef.current?.() }, [])
+  useEffect(() => () => { cancelRef.current?.(); olderCancelRef.current?.() }, [])
+
+  // Lazy-load older history when user pans near the oldest cached bar
+  const PREFETCH_THRESHOLD = 150
+  useEffect(() => {
+    if (!data.length || isFetchingOlder || !hasMoreHistory || loading) return
+    const clampedOff = Math.min(viewOffset, Math.max(0, data.length - 10))
+    const startIdx = Math.max(0, data.length - clampedOff - MAX_BARS_CONST)
+    if (startIdx >= PREFETCH_THRESHOLD) return
+
+    const oldestTimestamp = data[0].timestamp
+    setIsFetchingOlder(true)
+    const { cancel } = fetchOlderData(
+      symbol,
+      interval,
+      oldestTimestamp,
+      (updatedData) => { setData(updatedData) },
+      (finalData, hadData) => {
+        setData(finalData)
+        setIsFetchingOlder(false)
+        if (!hadData) setHasMoreHistory(false)
+        olderCancelRef.current = null
+      },
+      (err) => {
+        console.error('[TemplatePageChart] fetchOlderData error', err)
+        setIsFetchingOlder(false)
+        olderCancelRef.current = null
+      }
+    )
+    olderCancelRef.current = cancel
+  }, [viewOffset, data.length, isFetchingOlder, hasMoreHistory, loading, symbol, interval])
+
+  const handlePanStart = (e) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    const startX = e.clientX
+    const startOffset = viewOffset
+    const pixelsPerBar = (containerWidth || 400) / MAX_BARS_CONST
+    setIsPanning(true)
+
+    const onMove = (mv) => {
+      const dir = globalSettingsRef.current.invertDrag ? -1 : 1
+      const bars = Math.round((mv.clientX - startX) / pixelsPerBar) * dir
+      setViewOffset(Math.max(0, startOffset - bars))
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      setIsPanning(false)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
+
+  // Sync global chart settings from other chart instances
+  useEffect(() => {
+    const handler = (e) => { setGlobalSettings(e.detail); globalSettingsRef.current = e.detail }
+    window.addEventListener('globalChartSettingsChanged', handler)
+    return () => window.removeEventListener('globalChartSettingsChanged', handler)
+  }, [])
+
+  useEffect(() => { globalSettingsRef.current = globalSettings }, [globalSettings])
+
+  // Wheel scroll to pan time axis — must be non-passive to preventDefault
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el) return
+    const handler = (e) => {
+      e.preventDefault()
+      const step = Math.max(5, Math.round(300 * 0.08))
+      const dir = globalSettingsRef.current.invertScroll ? -1 : 1
+      setViewOffset(prev => Math.max(0, prev + (e.deltaY > 0 ? -dir * step : dir * step)))
+    }
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => el.removeEventListener('wheel', handler)
+  }, [])
 
   const handleOpenSettings = () => {
     setEditSymbol(symbol)
     setEditInterval(interval)
+    setEditGlobal({ ...globalSettings })
     onOpen()
+  }
+
+  const handleSymbolLabelClick = (e) => {
+    e.stopPropagation()
+    setQuickSymbol(symbol)
+    setQuickInputOpen(true)
+    setTimeout(() => quickInputRef.current?.select(), 0)
+  }
+
+  const handleQuickSymbolCommit = () => {
+    const s = quickSymbol.trim().toUpperCase()
+    if (s && s !== symbol) onUpdate(label.id, { symbol: s })
+    setQuickInputOpen(false)
+  }
+
+  const handleQuickSymbolKeyDown = (e) => {
+    if (e.key === 'Enter') handleQuickSymbolCommit()
+    if (e.key === 'Escape') setQuickInputOpen(false)
+  }
+
+  const handleIntervalChange = (newInterval) => {
+    onUpdate(label.id, { interval: newInterval })
   }
 
   const handleSaveSettings = () => {
     const newSymbol = editSymbol.trim().toUpperCase()
     if (!newSymbol) return
     onUpdate(label.id, { symbol: newSymbol, interval: editInterval })
+    if (editGlobal) {
+      saveGlobalChartSettings(editGlobal)
+      setGlobalSettings(editGlobal)
+    }
     onClose()
   }
 
-  // Visible bars — last 300 for performance
-  const visibleData = data.slice(-300)
+  // Visible bars — 300-bar window, shifted by viewOffset from the end
+  const clampedOffset = Math.min(viewOffset, Math.max(0, data.length - 10))
+  const endIdx   = data.length - clampedOffset
+  const startIdx = Math.max(0, endIdx - MAX_BARS_CONST)
+  const visibleData = data.slice(startIdx, endIdx)
 
   return (
     <>
@@ -431,26 +725,10 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
         outlineColor={isEditing ? 'gray.600' : undefined}
         transition={isResizing || isMoving ? 'none' : 'all 0.15s ease'}
         opacity={isMoving ? 0.7 : 1}
-        cursor={isEditing ? (isMoving ? 'grabbing' : 'move') : 'default'}
+        cursor={isEditing ? (isMoving ? 'grabbing' : 'move') : (isPanning ? 'grabbing' : 'grab')}
         zIndex={isMoving ? 100 : 1}
-        onMouseDown={isEditing && !isResizing ? handleMoveStart : undefined}
+        onMouseDown={isEditing && !isResizing ? handleMoveStart : (!isEditing && visibleData.length > 0 ? handlePanStart : undefined)}
       >
-        {/* Symbol label */}
-        {symbol && (
-          <Text
-            position="absolute"
-            top="4px"
-            left="8px"
-            fontSize="11px"
-            fontWeight="bold"
-            color="gray.400"
-            pointerEvents="none"
-            zIndex={3}
-          >
-            {symbol} · {interval}
-          </Text>
-        )}
-
         {/* Chart content */}
         {loading ? (
           <Center h="100%">
@@ -475,51 +753,75 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
             </VStack>
           </Center>
         ) : (
+          <>
+            {isFetchingOlder && (
+              <Box position="absolute" bottom="28px" left="10px" zIndex={6} pointerEvents="none">
+                <Spinner size="xs" color="gray.600" />
+              </Box>
+            )}
           <ChartSVG
             data={visibleData}
             width={containerWidth || 400}
             height={displayHeight}
             symbol={symbol}
             interval={interval}
+            rthBgColor={globalSettings.rthBgColor}
+            outsideRthBgColor={globalSettings.outsideRthBgColor}
+            fontSize={globalSettings.fontSize ?? 9}
+            onSymbolClick={handleSymbolLabelClick}
+            quickInputOpen={quickInputOpen}
+            quickSymbol={quickSymbol}
+            quickInputRef={quickInputRef}
+            onQuickSymbolChange={(v) => setQuickSymbol(v)}
+            onQuickSymbolKeyDown={handleQuickSymbolKeyDown}
+            onQuickSymbolCommit={handleQuickSymbolCommit}
+            onIntervalChange={handleIntervalChange}
           />
+          </>
         )}
 
         {/* Edit mode controls */}
+        {/* Settings always visible */}
+        <HStack position="absolute" top="2px" right="2px" spacing={0} zIndex={10}>
+          {symbol && (
+            <IconButton
+              icon={<RepeatIcon />}
+              size="xs"
+              variant="ghost"
+              aria-label="Reload data"
+              color="gray.400"
+              _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
+              onClick={(e) => { e.stopPropagation(); handleLoadData() }}
+              onMouseDown={(e) => e.stopPropagation()}
+              isLoading={loading}
+            />
+          )}
+          <IconButton
+            icon={<SettingsIcon />}
+            size="xs"
+            variant="ghost"
+            aria-label="Chart settings"
+            color="gray.400"
+            _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
+            onClick={(e) => { e.stopPropagation(); handleOpenSettings() }}
+            onMouseDown={(e) => e.stopPropagation()}
+          />
+          {isEditing && (
+            <IconButton
+              icon={<CloseIcon />}
+              size="xs"
+              variant="ghost"
+              aria-label="Delete chart"
+              color="gray.400"
+              _hover={{ color: 'red.400', bg: 'whiteAlpha.200' }}
+              onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+              onMouseDown={(e) => e.stopPropagation()}
+            />
+          )}
+        </HStack>
+
         {isEditing && (
           <>
-            <HStack position="absolute" top="2px" right="2px" spacing={0} zIndex={10}>
-              <IconButton
-                icon={<RepeatIcon />}
-                size="xs"
-                variant="ghost"
-                aria-label="Reload data"
-                color="gray.400"
-                _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
-                onClick={(e) => { e.stopPropagation(); handleLoadData() }}
-                onMouseDown={(e) => e.stopPropagation()}
-                isLoading={loading}
-              />
-              <IconButton
-                icon={<SettingsIcon />}
-                size="xs"
-                variant="ghost"
-                aria-label="Chart settings"
-                color="gray.400"
-                _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
-                onClick={(e) => { e.stopPropagation(); handleOpenSettings() }}
-                onMouseDown={(e) => e.stopPropagation()}
-              />
-              <IconButton
-                icon={<CloseIcon />}
-                size="xs"
-                variant="ghost"
-                aria-label="Delete chart"
-                color="gray.400"
-                _hover={{ color: 'red.400', bg: 'whiteAlpha.200' }}
-                onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
-                onMouseDown={(e) => e.stopPropagation()}
-              />
-            </HStack>
 
             {/* Right resize */}
             <Box
@@ -544,6 +846,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
             />
           </>
         )}
+
       </Box>
 
       {/* Settings modal */}
@@ -571,10 +874,136 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
                   ))}
                 </Select>
               </FormControl>
+
+              {/* Global chart settings */}
+              {editGlobal && (
+                <Box w="100%" pt={2} borderTop="1px solid" borderColor="gray.600">
+                  <Text fontSize="xs" color="gray.400" fontWeight="semibold" mb={3} textTransform="uppercase" letterSpacing="wider">
+                    Global Chart Settings
+                  </Text>
+                  <VStack spacing={3} align="stretch">
+                    <FormControl>
+                      <HStack justify="space-between">
+                        <FormLabel fontSize="sm" mb={0}>RTH Background</FormLabel>
+                        <HStack spacing={2}>
+                          <Box
+                            as="input"
+                            type="color"
+                            value={editGlobal.rthBgColor}
+                            onChange={(e) => setEditGlobal(g => ({ ...g, rthBgColor: e.target.value }))}
+                            w="36px"
+                            h="28px"
+                            borderRadius="sm"
+                            cursor="pointer"
+                            border="none"
+                            bg="transparent"
+                            p={0}
+                          />
+                          <Button size="xs" variant="ghost" color="gray.500"
+                            onClick={() => setEditGlobal(g => ({ ...g, rthBgColor: globalSettings.rthBgColor }))}>
+                            Reset
+                          </Button>
+                        </HStack>
+                      </HStack>
+                    </FormControl>
+                    <FormControl>
+                      <HStack justify="space-between">
+                        <FormLabel fontSize="sm" mb={0}>Outside RTH Background</FormLabel>
+                        <HStack spacing={2}>
+                          <Box
+                            as="input"
+                            type="color"
+                            value={editGlobal.outsideRthBgColor}
+                            onChange={(e) => setEditGlobal(g => ({ ...g, outsideRthBgColor: e.target.value }))}
+                            w="36px"
+                            h="28px"
+                            borderRadius="sm"
+                            cursor="pointer"
+                            border="none"
+                            bg="transparent"
+                            p={0}
+                          />
+                          <Button size="xs" variant="ghost" color="gray.500"
+                            onClick={() => setEditGlobal(g => ({ ...g, outsideRthBgColor: globalSettings.outsideRthBgColor }))}>
+                            Reset
+                          </Button>
+                        </HStack>
+                      </HStack>
+                    </FormControl>
+                    <FormControl>
+                      <HStack justify="space-between">
+                        <FormLabel fontSize="sm" mb={0}>Font Size</FormLabel>
+                        <HStack spacing={2}>
+                          <Box
+                            as="input"
+                            type="number"
+                            min={6}
+                            max={16}
+                            value={editGlobal.fontSize ?? 9}
+                            onChange={(e) => setEditGlobal(g => ({ ...g, fontSize: Math.max(6, Math.min(16, Number(e.target.value))) }))}
+                            style={{ width: '52px', background: '#2d3748', color: 'white', border: '1px solid #4a5568', borderRadius: '4px', padding: '2px 6px', fontSize: '13px' }}
+                          />
+                          <Button size="xs" variant="ghost" color="gray.500"
+                            onClick={() => setEditGlobal(g => ({ ...g, fontSize: globalSettings.fontSize ?? 9 }))}>
+                            Reset
+                          </Button>
+                        </HStack>
+                      </HStack>
+                    </FormControl>
+                    <FormControl>
+                      <HStack justify="space-between">
+                        <FormLabel fontSize="sm" mb={0}>Invert Scroll</FormLabel>
+                        <Switch
+                          isChecked={editGlobal.invertScroll ?? false}
+                          onChange={(e) => setEditGlobal(g => ({ ...g, invertScroll: e.target.checked }))}
+                          colorScheme="blue"
+                        />
+                      </HStack>
+                    </FormControl>
+                    <FormControl>
+                      <HStack justify="space-between">
+                        <FormLabel fontSize="sm" mb={0}>Invert Drag</FormLabel>
+                        <Switch
+                          isChecked={editGlobal.invertDrag ?? false}
+                          onChange={(e) => setEditGlobal(g => ({ ...g, invertDrag: e.target.checked }))}
+                          colorScheme="blue"
+                        />
+                      </HStack>
+                    </FormControl>
+                    <FormControl pt={1}>
+                      <HStack justify="space-between">
+                        <FormLabel fontSize="sm" mb={0}>Clear All Caches</FormLabel>
+                        <Button
+                          size="xs"
+                          colorScheme="red"
+                          variant="outline"
+                          onClick={async () => {
+                            await clearAllCache()
+                            setData([])
+                          }}
+                        >
+                          Clear
+                        </Button>
+                      </HStack>
+                    </FormControl>
+                  </VStack>
+                </Box>
+              )}
             </VStack>
           </ModalBody>
           <ModalFooter>
             <Button variant="ghost" mr={3} onClick={onClose}>Cancel</Button>
+            <Button
+              variant="ghost"
+              colorScheme="orange"
+              mr="auto"
+              leftIcon={<RepeatIcon />}
+              onClick={() => { onClose(); handleFullLoad() }}
+              isDisabled={!symbol}
+              title="Re-fetch full history from IBKR"
+            >
+              Full Reload
+            </Button>
             <Button colorScheme="blue" onClick={handleSaveSettings}
               isDisabled={!editSymbol.trim()}>
               Save

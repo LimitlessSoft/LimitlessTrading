@@ -91,6 +91,9 @@ export default function OptionsAnalysis({ isConnected }) {
   const chartContainerRef = useRef(null)
   const chartRef = useRef(null)
   const seriesMapRef = useRef(new Map()) // id -> series
+  const tooltipRef = useRef(null)
+  const linesRef = useRef([]) // always-current copy of lines for crosshair callback
+  const underlyingDataRef = useRef([]) // sorted underlying bars for nearest-time lookup
 
   const atmStrike = (() => {
     const ref = parseFloat(priceRef)
@@ -145,6 +148,109 @@ export default function OptionsAnalysis({ isConnected }) {
 
     chartRef.current = chart
 
+    chart.subscribeCrosshairMove((param) => {
+      const tooltip = tooltipRef.current
+      if (!tooltip) return
+
+      if (!param.time || !param.point || param.point.x < 0 || param.point.y < 0) {
+        tooltip.style.display = 'none'
+        return
+      }
+
+      // Nearest-time lookup for underlying (avoids gaps causing null)
+      let underlyingPrice = null
+      const uData = underlyingDataRef.current
+      if (uData.length > 0) {
+        let lo = 0, hi = uData.length - 1, best = 0
+        while (lo <= hi) {
+          const mid = (lo + hi) >> 1
+          if (Math.abs(uData[mid].time - param.time) < Math.abs(uData[best].time - param.time)) best = mid
+          if (uData[mid].time < param.time) lo = mid + 1
+          else hi = mid - 1
+        }
+        underlyingPrice = uData[best].value
+      }
+
+      const rows = []
+      for (const line of linesRef.current) {
+        const series = seriesMapRef.current.get(line.id)
+        if (!series) continue
+        const data = param.seriesData.get(series)
+        if (!data) continue
+        const intrinsic = underlyingPrice !== null
+          ? Math.max(0, line.right === 'C' ? underlyingPrice - line.strike : line.strike - underlyingPrice)
+          : null
+        rows.push({ ...line, optPrice: data.value, intrinsic, extrinsic: intrinsic !== null ? data.value - intrinsic : null })
+      }
+
+      if (rows.length === 0) { tooltip.style.display = 'none'; return }
+
+      // Sort by strike ascending
+      rows.sort((a, b) => a.strike - b.strike)
+
+      const tw = underlyingPrice !== null ? 360 : 180
+      const containerWidth = chartContainerRef.current?.clientWidth ?? 600
+      const left = param.point.x + tw + 20 > containerWidth ? param.point.x - tw - 10 : param.point.x + 15
+      tooltip.style.left = `${left}px`
+      tooltip.style.top = `${Math.max(0, param.point.y - 10)}px`
+      tooltip.style.display = 'block'
+
+      const dateStr = new Date(param.time * 1000).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+
+      const fmt = (n) => n >= 1000 ? `$${(n/1000).toFixed(1)}k` : `$${n.toFixed(0)}`
+      const shares100Cost = underlyingPrice !== null ? underlyingPrice * 100 : null
+
+      let html = `<div style="color:#718096;font-size:10px;margin-bottom:5px">${dateStr}</div>`
+      if (underlyingPrice !== null) {
+        html += `<div style="color:#63B3ED;font-size:12px;font-weight:600;margin-bottom:2px">Stock $${underlyingPrice.toFixed(2)}</div>`
+        html += `<div style="color:#718096;font-size:10px;margin-bottom:6px">100 shares = <b style="color:#A0AEC0">${fmt(shares100Cost)}</b></div>`
+      }
+
+      // Header row
+      const cols = underlyingPrice !== null
+        ? '55px 42px 42px 52px 52px 52px'
+        : '55px 42px 42px'
+      html += `<div style="display:grid;grid-template-columns:${cols};gap:3px;color:#718096;font-size:9px;font-weight:600;margin-bottom:3px">
+        <span>Strike</span><span style="text-align:right">Prem</span><span style="text-align:right">Δ prev</span>${underlyingPrice !== null ? '<span style="text-align:right">@Strike</span><span style="text-align:right">@Mkt</span><span style="text-align:right">Diff</span>' : ''}
+      </div>`
+
+      const mktCost = underlyingPrice !== null ? underlyingPrice * 100 : null
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i]
+        const diff = i > 0 ? row.optPrice - rows[i - 1].optPrice : null
+        const diffStr = diff !== null
+          ? `<span style="color:${diff >= 0 ? '#68D391' : '#FC8181'}">${diff >= 0 ? '+' : ''}${diff.toFixed(2)}</span>`
+          : '<span style="color:#4A5568">—</span>'
+        const strikeCost = row.strike * 100
+        const premCost = row.optPrice * 100
+        const totalRealizeCost = strikeCost + premCost
+        const costDiff = mktCost !== null ? totalRealizeCost - mktCost : null
+        const diffColor = costDiff === null ? '#A0AEC0' : (costDiff > 0 ? '#FC8181' : '#68D391')
+
+        html += `<div style="display:grid;grid-template-columns:${cols};gap:3px;font-size:11px;padding:3px 0;border-top:1px solid #2D3748;align-items:center">
+          <span style="color:${row.color};font-weight:600">$${row.strike}${row.right}</span>
+          <span style="text-align:right">$${row.optPrice.toFixed(2)}</span>
+          <span style="text-align:right">${diffStr}</span>
+          ${underlyingPrice !== null ? `
+          <span style="text-align:right;color:#E2E8F0">${fmt(strikeCost)}</span>
+          <span style="text-align:right;color:#A0AEC0">${fmt(mktCost)}</span>
+          <span style="text-align:right"><span style="color:${diffColor};font-weight:600">${costDiff >= 0 ? '+' : ''}${fmt(Math.abs(costDiff))}</span><br><span style="color:#718096;font-size:9px">+${fmt(premCost)} prem</span></span>` : ''}
+        </div>`
+      }
+
+      // Max spread
+      if (rows.length > 1) {
+        const maxP = Math.max(...rows.map(r => r.optPrice))
+        const minP = Math.min(...rows.map(r => r.optPrice))
+        html += `<div style="margin-top:6px;padding-top:5px;border-top:1px solid #4A5568;font-size:10px;color:#A0AEC0">
+          Strike spread: <b style="color:#E2E8F0">$${(maxP - minP).toFixed(2)}</b>
+        </div>`
+      }
+
+      tooltip.innerHTML = html
+    })
+
     const ro = new ResizeObserver(entries => {
       if (entries[0]) chart.applyOptions({ width: entries[0].contentRect.width })
     })
@@ -157,6 +263,8 @@ export default function OptionsAnalysis({ isConnected }) {
       seriesMapRef.current.clear()
     }
   }, [])
+
+  useEffect(() => { linesRef.current = lines }, [lines])
 
   // Sync lines → chart series
   useEffect(() => {
@@ -204,7 +312,9 @@ export default function OptionsAnalysis({ isConnected }) {
       priceLineVisible: false,
       lastValueVisible: false
     })
-    series.setData(toChartData(data))
+    const chartData = toChartData(data)
+    series.setData(chartData)
+    underlyingDataRef.current = chartData.slice().sort((a, b) => a.time - b.time)
     seriesMapRef.current.set(UNDERLYING_SERIES_ID, series)
     setUnderlyingLoaded(true)
     chartRef.current.timeScale().fitContent()
@@ -307,7 +417,7 @@ export default function OptionsAnalysis({ isConnected }) {
           const id = `${symbol}-${expiration}-${s}-${right}`
           const color = OPTION_COLORS[i % OPTION_COLORS.length]
           const lineLabel = `${symbol} ${formatExpiration(expiration)} $${s}${right}`
-          newLines.push({ id, label: lineLabel, color, data })
+          newLines.push({ id, label: lineLabel, color, data, strike: parseFloat(s), right })
         } else {
           console.log(`[Options] ${label}: no data (${elapsed}s)`)
           errors++
@@ -798,6 +908,24 @@ export default function OptionsAnalysis({ isConnected }) {
           overflow="hidden"
           border="1px solid"
           borderColor="gray.700"
+        />
+        <div
+          ref={tooltipRef}
+          style={{
+            display: 'none',
+            position: 'absolute',
+            pointerEvents: 'none',
+            zIndex: 10,
+            background: 'rgba(26,32,44,0.95)',
+            border: '1px solid #4A5568',
+            borderRadius: '6px',
+            padding: '8px 10px',
+            minWidth: '180px',
+            maxWidth: '380px',
+            fontSize: '11px',
+            color: '#E2E8F0',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
+          }}
         />
         {lines.length === 0 && (
           <Box
