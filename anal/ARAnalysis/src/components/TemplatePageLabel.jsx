@@ -485,7 +485,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
                           size="xs"
                           variant="ghost"
                           aria-label="Placeholder documentation"
-                          onClick={() => navigate('/docs/placeholders')}
+                          onClick={() => window.open('/docs/placeholders', '_blank')}
                           minW="auto"
                           h="auto"
                           p={0}
@@ -680,7 +680,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
                         size="xs"
                         variant="ghost"
                         aria-label="Placeholder documentation"
-                        onClick={() => navigate('/docs/placeholders')}
+                        onClick={() => window.open('/docs/placeholders', '_blank')}
                         minW="auto"
                         h="auto"
                         p={0}

@@ -145,15 +145,17 @@ export function getExchangeTime(exchange) {
     timeZone: info.timezone,
     hour:     '2-digit',
     minute:   '2-digit',
+    second:   '2-digit',
     hour12:   false,
     timeZoneName: 'short',
   }).formatToParts(new Date())
 
   const hour   = parts.find(p => p.type === 'hour').value
   const minute = parts.find(p => p.type === 'minute').value
+  const second = parts.find(p => p.type === 'second').value
   const tz     = parts.find(p => p.type === 'timeZoneName').value
 
-  return `${hour}:${minute} ${tz}`
+  return `${hour}:${minute}:${second} ${tz}`
 }
 
 export function isKnownExchange(exchange) {
