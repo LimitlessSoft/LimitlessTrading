@@ -25,6 +25,7 @@ import { CloseIcon, DragHandleIcon, SettingsIcon, InfoOutlineIcon } from '@chakr
 import { useNavigate } from 'react-router-dom'
 import { getConnectionStatus } from '../modules/dataService'
 import { useSymbolQuotes, hasSymbolPlaceholders } from '../hooks/useSymbolQuotes'
+import { getExchangeTime, getExchangeStatus } from '../modules/exchangeService'
 
 const TOTAL_SEGMENTS = 20
 const MIN_SEGMENTS = 2
@@ -67,15 +68,19 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
   // Parse system placeholders to get the minimum refresh interval
   const getRefreshInterval = useCallback(() => {
     if (!label.text) return null
-    const matches = [...label.text.matchAll(PLACEHOLDER_REGEX)]
-    if (matches.length === 0) return null
-
     let minInterval = Infinity
-    for (const match of matches) {
-      const interval = match[2] ? parseInt(match[2], 10) : 5 // default 5 seconds
+
+    for (const match of label.text.matchAll(PLACEHOLDER_REGEX)) {
+      const interval = match[2] ? parseInt(match[2], 10) : 5
       if (interval < minInterval) minInterval = interval
     }
-    return minInterval === Infinity ? 5 : minInterval
+
+    for (const match of label.text.matchAll(/\$\{[A-Za-z0-9]+:(?:time|status)(?::(\d+))?\}/g)) {
+      const interval = match[1] ? parseInt(match[1], 10) : 5
+      if (interval < minInterval) minInterval = interval
+    }
+
+    return minInterval === Infinity ? null : minInterval
   }, [label.text])
 
   // Fetch system placeholder values
@@ -84,7 +89,6 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
 
     const values = {}
 
-    // Check for tws_connection_status placeholder (with or without interval)
     if (label.text.includes('${tws_connection_status')) {
       try {
         const status = await getConnectionStatus()
@@ -94,6 +98,14 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
       } catch (err) {
         values.tws_connection_status = 'Unknown'
       }
+    }
+
+    for (const match of label.text.matchAll(/\$\{([A-Za-z0-9]+):(time|status)(?::(\d+))?\}/g)) {
+      const exchange = match[1].toUpperCase()
+      const property = match[2]
+      values[`${exchange}_${property}`] = property === 'time'
+        ? getExchangeTime(exchange)
+        : getExchangeStatus(exchange)
     }
 
     setPlaceholderValues(values)
@@ -114,9 +126,14 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
   // Resolve system placeholders in text (${name} or ${name:interval})
   const resolveSystemText = (text) => {
     if (!text) return ''
-    return text.replace(PLACEHOLDER_REGEX, (match, key, interval) => {
+    let resolved = text.replace(PLACEHOLDER_REGEX, (match, key) => {
       return placeholderValues[key] !== undefined ? placeholderValues[key] : match
     })
+    resolved = resolved.replace(/\$\{([A-Za-z0-9]+):(time|status)(?::(\d+))?\}/g, (match, exchange, property) => {
+      const key = `${exchange.toUpperCase()}_${property}`
+      return placeholderValues[key] !== undefined ? placeholderValues[key] : match
+    })
+    return resolved
   }
 
   // Resolve all placeholders: first system (${...}), then symbol (@{...})

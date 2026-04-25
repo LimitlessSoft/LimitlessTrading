@@ -7,6 +7,7 @@ import {
   getOptionsChain,
   getCurrentPrices,
   getOptionHistoricalData,
+  getOptionParams,
   getDetailedQuotes,
   subscribeMarketData,
   unsubscribeMarketData,
@@ -247,6 +248,37 @@ router.get('/stream-quotes', (req, res) => {
 })
 
 // Get options chain for a symbol
+// Get historical price bars for a stock/index over a given period
+router.get('/stock-history/:symbol', async (req, res) => {
+  const { symbol } = req.params
+  const { barSize, duration } = req.query
+  if (!symbol || symbol.trim() === '') {
+    return res.status(400).json({ error: 'Symbol is required' })
+  }
+  try {
+    const data = await getHistoricalData(symbol.toUpperCase(), barSize || '1 hour', duration || '3 D')
+    res.json({ data })
+  } catch (error) {
+    console.error('Stock history error:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Get option expirations and strikes only (lightweight, no market data required)
+router.get('/options-params/:symbol', async (req, res) => {
+  const { symbol } = req.params
+  if (!symbol || symbol.trim() === '') {
+    return res.status(400).json({ error: 'Symbol is required' })
+  }
+  try {
+    const params = await getOptionParams(symbol.toUpperCase())
+    res.json(params)
+  } catch (error) {
+    console.error('Options params error:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
 router.get('/options-chain/:symbol', async (req, res) => {
   const { symbol } = req.params
   const { price } = req.query
@@ -268,7 +300,7 @@ router.get('/options-chain/:symbol', async (req, res) => {
 // Get historical data for an option contract
 router.get('/option-history/:symbol', async (req, res) => {
   const { symbol } = req.params
-  const { expiration, strike, right } = req.query
+  const { expiration, strike, right, barSize, duration, exchange, multiplier } = req.query
 
   if (!symbol || !expiration || !strike || !right) {
     return res.status(400).json({ error: 'Symbol, expiration, strike, and right (C/P) are required' })
@@ -279,7 +311,11 @@ router.get('/option-history/:symbol', async (req, res) => {
       symbol.toUpperCase(),
       expiration,
       parseFloat(strike),
-      right.toUpperCase()
+      right.toUpperCase(),
+      barSize || '1 hour',
+      duration || '3 D',
+      exchange || 'SMART',
+      multiplier || '100'
     )
     res.json({ data })
   } catch (error) {

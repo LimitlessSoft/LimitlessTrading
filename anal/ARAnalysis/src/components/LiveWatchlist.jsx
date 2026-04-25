@@ -30,6 +30,17 @@ const API_BASE = 'http://localhost:3001/api'
 // Known index symbols (trade on US exchanges)
 const US_INDEX_SYMBOLS = ['VIX', 'SPX', 'NDX', 'DJX', 'RUT']
 
+function isMarketClosed() {
+  const now = new Date()
+  const eastern = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+  const day = eastern.getDay()
+  const timeInMinutes = eastern.getHours() * 60 + eastern.getMinutes()
+  if (day === 0 || day === 6) return true
+  const preMarketOpen = 4 * 60     // 4:00 AM
+  const afterMarketClose = 20 * 60 // 8:00 PM
+  return timeInMinutes < preMarketOpen || timeInMinutes >= afterMarketClose
+}
+
 // Get market status for a symbol
 // Returns: { status: string, colorScheme: string }
 function getMarketStatusForSymbol(symbol) {
@@ -867,6 +878,23 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
               aria-label="Add symbol"
             />
           </Tooltip>
+        </HStack>
+      </Box>
+    )
+  }
+
+  if (isMarketClosed() && symbols.length > 0 && !isAdding) {
+    return (
+      <Box
+        bg="gray.850"
+        borderBottom="1px solid"
+        borderColor="gray.700"
+        px={4}
+        py={1}
+      >
+        <HStack spacing={2}>
+          <Text color="gray.500" fontSize="xs" fontWeight="medium">Live Watchlist</Text>
+          <Badge colorScheme="gray" variant="subtle" fontSize="9px">Market Closed</Badge>
         </HStack>
       </Box>
     )

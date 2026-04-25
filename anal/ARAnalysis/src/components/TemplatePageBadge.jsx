@@ -26,6 +26,7 @@ import { CloseIcon, DragHandleIcon, SettingsIcon, AddIcon, DeleteIcon } from '@c
 import { getConnectionStatus } from '../modules/dataService'
 import { useSymbolQuotes, hasSymbolPlaceholders } from '../hooks/useSymbolQuotes'
 import { parseSymbolPlaceholders, formatQuoteValue } from '../modules/symbolQuoteService'
+import { getExchangeTime, getExchangeStatus } from '../modules/exchangeService'
 
 const TOTAL_SEGMENTS = 20
 const MIN_SEGMENTS = 1
@@ -103,29 +104,22 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
   // Parse system placeholders to get minimum refresh interval
   const getSystemRefreshInterval = useCallback(() => {
     let minInterval = Infinity
+    const allText = [valueProvider, text].filter(Boolean).join(' ')
 
-    // Check value provider for system placeholders
-    if (valueProvider) {
-      const match = valueProvider.match(PLACEHOLDER_REGEX)
-      if (match) {
-        const interval = match[2] ? parseInt(match[2], 10) : 5
-        if (interval < minInterval) minInterval = interval
-      }
+    for (const match of allText.matchAll(PLACEHOLDER_REGEX_GLOBAL)) {
+      const interval = match[2] ? parseInt(match[2], 10) : 5
+      if (interval < minInterval) minInterval = interval
     }
 
-    // Check text for system placeholders
-    if (text) {
-      const matches = [...text.matchAll(PLACEHOLDER_REGEX_GLOBAL)]
-      for (const match of matches) {
-        const interval = match[2] ? parseInt(match[2], 10) : 5
-        if (interval < minInterval) minInterval = interval
-      }
+    for (const match of allText.matchAll(/\$\{[A-Za-z0-9]+:(?:time|status)(?::(\d+))?\}/g)) {
+      const interval = match[1] ? parseInt(match[1], 10) : 5
+      if (interval < minInterval) minInterval = interval
     }
 
     return minInterval === Infinity ? null : minInterval
   }, [valueProvider, text])
 
-  // Fetch system placeholder values (like tws_connection_status)
+  // Fetch system placeholder values (like tws_connection_status and exchange placeholders)
   const fetchSystemPlaceholderValues = useCallback(async () => {
     const needsTwsStatus = (valueProvider && valueProvider.includes('tws_connection_status')) ||
                            (text && text.includes('tws_connection_status'))
@@ -137,18 +131,33 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
       } catch (err) {
         setCurrentValue('Unknown')
       }
+      return
+    }
+
+    // Set currentValue from exchange placeholder in value provider (used for badge color mapping)
+    if (valueProvider) {
+      const match = valueProvider.match(/^\s*\$\{([A-Za-z0-9]+):(time|status)/)
+      if (match) {
+        const exchange = match[1].toUpperCase()
+        const property = match[2]
+        setCurrentValue(property === 'time' ? getExchangeTime(exchange) : getExchangeStatus(exchange))
+      }
     }
   }, [valueProvider, text])
 
   // Resolve system placeholders in text (${name} syntax)
   const resolveSystemText = (inputText) => {
     if (!inputText) return ''
-    return inputText.replace(PLACEHOLDER_REGEX_GLOBAL, (match, key) => {
-      if (key === 'tws_connection_status') {
-        return currentValue || match
-      }
+    let resolved = inputText.replace(PLACEHOLDER_REGEX_GLOBAL, (match, key) => {
+      if (key === 'tws_connection_status') return currentValue || match
       return match
     })
+    resolved = resolved.replace(/\$\{([A-Za-z0-9]+):(time|status)(?::(\d+))?\}/g, (match, exchange, property) => {
+      return property === 'time'
+        ? getExchangeTime(exchange.toUpperCase())
+        : getExchangeStatus(exchange.toUpperCase())
+    })
+    return resolved
   }
 
   // Resolve all placeholders: first system (${...}), then symbol (@{...})

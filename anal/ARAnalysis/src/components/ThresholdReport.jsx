@@ -1288,8 +1288,13 @@ function MultiSymbolReport() {
   )
 }
 
-function ThresholdReport({ symbol, data }) {
+function ThresholdReport({ symbol, data, onModeChange }) {
   const [mode, setMode] = useState('single') // 'single' or 'watchgroup'
+
+  const handleSetMode = (m) => {
+    setMode(m)
+    onModeChange?.(m)
+  }
 
   return (
     <Box bg="gray.800" borderRadius="md" p={4}>
@@ -1302,7 +1307,7 @@ function ThresholdReport({ symbol, data }) {
             size="sm"
             variant={mode === 'single' ? 'solid' : 'outline'}
             colorScheme="blue"
-            onClick={() => setMode('single')}
+            onClick={() => handleSetMode('single')}
           >
             Single
           </Button>
@@ -1310,7 +1315,7 @@ function ThresholdReport({ symbol, data }) {
             size="sm"
             variant={mode === 'watchgroup' ? 'solid' : 'outline'}
             colorScheme="blue"
-            onClick={() => setMode('watchgroup')}
+            onClick={() => handleSetMode('watchgroup')}
           >
             Watchgroup
           </Button>

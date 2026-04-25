@@ -43,6 +43,91 @@ function PlaceholderDocsPage() {
           </Table>
         </Box>
 
+        {/* Exchange Placeholders Section */}
+        <Box>
+          <Heading size="md" mb={4}>Exchange Placeholders</Heading>
+          <Text mb={2}>
+            Syntax: <Code>${'{EXCHANGE:property:seconds}'}</Code> — current time or market status for a stock exchange.
+          </Text>
+          <Text fontSize="sm" color="gray.400" mb={4}>
+            The <Code>:seconds</Code> refresh interval is optional and defaults to 5 s.
+          </Text>
+
+          <Heading size="sm" mb={3}>Properties</Heading>
+          <Table variant="simple" size="sm" bg="gray.800" borderRadius="md" mb={6}>
+            <Thead>
+              <Tr>
+                <Th color="gray.400">Property</Th>
+                <Th color="gray.400">Description</Th>
+                <Th color="gray.400">Example output</Th>
+              </Tr>
+            </Thead>
+            <Tbody>
+              <Tr>
+                <Td><Code>time</Code></Td>
+                <Td>Current local time at the exchange</Td>
+                <Td>09:32 ET</Td>
+              </Tr>
+              <Tr>
+                <Td><Code>status</Code></Td>
+                <Td>Current market session</Td>
+                <Td>Open / Pre-Market / After-Hours / Closed</Td>
+              </Tr>
+            </Tbody>
+          </Table>
+
+          <Heading size="sm" mb={3}>Supported Exchanges</Heading>
+          <Table variant="simple" size="sm" bg="gray.800" borderRadius="md" mb={4}>
+            <Thead>
+              <Tr>
+                <Th color="gray.400">Key</Th>
+                <Th color="gray.400">Exchange</Th>
+                <Th color="gray.400">Timezone</Th>
+                <Th color="gray.400">Regular hours</Th>
+              </Tr>
+            </Thead>
+            <Tbody>
+              <Tr><Td><Code>NYSE</Code></Td><Td>New York Stock Exchange</Td><Td>America/New_York</Td><Td>09:30–16:00 ET</Td></Tr>
+              <Tr><Td><Code>NASDAQ</Code></Td><Td>NASDAQ</Td><Td>America/New_York</Td><Td>09:30–16:00 ET</Td></Tr>
+              <Tr><Td><Code>LSE</Code></Td><Td>London Stock Exchange</Td><Td>Europe/London</Td><Td>08:00–16:30 GMT/BST</Td></Tr>
+              <Tr><Td><Code>XETRA</Code></Td><Td>Deutsche Börse XETRA</Td><Td>Europe/Berlin</Td><Td>09:00–17:30 CET/CEST</Td></Tr>
+              <Tr><Td><Code>TSX</Code></Td><Td>Toronto Stock Exchange</Td><Td>America/Toronto</Td><Td>09:30–16:00 ET</Td></Tr>
+              <Tr><Td><Code>JPX</Code></Td><Td>Japan Exchange Group</Td><Td>Asia/Tokyo</Td><Td>09:00–15:30 JST (lunch 11:30–12:30)</Td></Tr>
+              <Tr><Td><Code>HKEX</Code></Td><Td>Hong Kong Exchange</Td><Td>Asia/Hong_Kong</Td><Td>09:30–16:00 HKT (lunch 12:00–13:00)</Td></Tr>
+              <Tr><Td><Code>ASX</Code></Td><Td>Australian Securities Exchange</Td><Td>Australia/Sydney</Td><Td>10:00–16:00 AEST/AEDT</Td></Tr>
+              <Tr><Td><Code>SGX</Code></Td><Td>Singapore Exchange</Td><Td>Asia/Singapore</Td><Td>09:00–17:00 SGT</Td></Tr>
+            </Tbody>
+          </Table>
+
+          <Heading size="sm" mb={3}>Examples</Heading>
+          <Table variant="simple" size="sm" bg="gray.800" borderRadius="md">
+            <Thead>
+              <Tr>
+                <Th color="gray.400">Placeholder</Th>
+                <Th color="gray.400">Description</Th>
+              </Tr>
+            </Thead>
+            <Tbody>
+              <Tr>
+                <Td><Code>${'{NYSE:time:1}'}</Code></Td>
+                <Td>NYSE local time, updates every second</Td>
+              </Tr>
+              <Tr>
+                <Td><Code>${'{NYSE:status:10}'}</Code></Td>
+                <Td>NYSE market status, updates every 10 s</Td>
+              </Tr>
+              <Tr>
+                <Td><Code>${'{LSE:time:30}'}</Code></Td>
+                <Td>LSE local time, updates every 30 s</Td>
+              </Tr>
+              <Tr>
+                <Td><Code>${'{JPX:status}'}</Code></Td>
+                <Td>JPX status (default 5 s refresh). Returns "Closed" during lunch break.</Td>
+              </Tr>
+            </Tbody>
+          </Table>
+        </Box>
+
         {/* Symbol Quote Placeholders Section */}
         <Box>
           <Heading size="md" mb={4}>Symbol Quote Placeholders</Heading>

@@ -594,6 +594,34 @@ const INTERVAL_MS = {
 }
 
 // Fetch options chain for a symbol
+export async function fetchStockHistory(symbol, barSize, duration) {
+  if (!symbol) return []
+  try {
+    const params = new URLSearchParams({
+      ...(barSize && { barSize }),
+      ...(duration && { duration })
+    })
+    const response = await api.get(`/stock-history/${encodeURIComponent(symbol.trim().toUpperCase())}?${params}`)
+    return response.data?.data || []
+  } catch (err) {
+    console.error(`Failed to fetch stock history for ${symbol}:`, err.message)
+    return []
+  }
+}
+
+export async function fetchOptionsParams(symbol) {
+  if (!symbol || typeof symbol !== 'string' || symbol.trim() === '') {
+    return null
+  }
+  try {
+    const response = await api.get(`/options-params/${encodeURIComponent(symbol.trim().toUpperCase())}`)
+    return response.data
+  } catch (err) {
+    console.error(`Failed to fetch options params for ${symbol}:`, err.message)
+    throw err
+  }
+}
+
 export async function fetchOptionsChain(symbol, currentPrice) {
   if (!symbol || typeof symbol !== 'string' || symbol.trim() === '') {
     return null
@@ -641,12 +669,16 @@ export async function fetchLiveQuotes(symbols) {
 }
 
 // Fetch historical data for an option contract
-export async function fetchOptionHistory(symbol, expiration, strike, right) {
+export async function fetchOptionHistory(symbol, expiration, strike, right, barSize, duration, exchange, multiplier) {
   try {
     const params = new URLSearchParams({
       expiration,
       strike: strike.toString(),
-      right
+      right,
+      ...(barSize && { barSize }),
+      ...(duration && { duration }),
+      ...(exchange && { exchange }),
+      ...(multiplier && { multiplier })
     })
     const response = await api.get(`/option-history/${encodeURIComponent(symbol)}?${params}`)
     return response.data?.data || []

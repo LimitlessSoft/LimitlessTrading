@@ -220,11 +220,34 @@ export async function getHistoricalData(symbol, barSize = '1 day', duration = '1
 }
 
 // Get historical data for an option contract
-export async function getOptionHistoricalData(symbol, expiration, strike, right, barSize = '1 hour', duration = '3 D') {
+export async function getOptionHistoricalData(symbol, expiration, strike, right, barSize = '1 hour', duration = '3 D', exchange = 'SMART', multiplier = '100') {
   if (!ib || !connectionState.connected) {
     throw new Error('Not connected to IBKR')
   }
 
+  const whatToShowCandidates = ['TRADES', 'MIDPOINT']
+  const exchangeCandidates = exchange && exchange !== 'SMART' ? [exchange, 'SMART'] : ['SMART']
+  // If daily bars are requested, also try hourly as fallback (options often lack daily data)
+  const barSizeCandidates = barSize === '1 day' ? ['1 day', '1 hour'] : [barSize]
+
+  for (const bs of barSizeCandidates) {
+    for (const exch of exchangeCandidates) {
+      for (const whatToShow of whatToShowCandidates) {
+        try {
+          const bars = await _requestOptionHistory(symbol, expiration, strike, right, bs, duration, whatToShow, exch, multiplier)
+          if (bars.length > 0) return bars
+        } catch (err) {
+          if (err.message.includes('Not connected')) throw err
+          console.log(`  Option history ${exch}/${whatToShow}/${bs} failed: ${err.message.split('\n')[0]}`)
+        }
+      }
+    }
+  }
+
+  return []
+}
+
+async function _requestOptionHistory(symbol, expiration, strike, right, barSize, duration, whatToShow, exchange, multiplier) {
   return new Promise((resolve, reject) => {
     const reqId = nextRequestId++
     const bars = []
@@ -232,26 +255,27 @@ export async function getOptionHistoricalData(symbol, expiration, strike, right,
     const contract = {
       symbol,
       secType: 'OPT',
-      exchange: 'SMART',
+      exchange: exchange || 'SMART',
       currency: 'USD',
       lastTradeDateOrContractMonth: expiration,
       strike: parseFloat(strike),
-      right, // 'C' or 'P'
-      multiplier: '100'
+      right,
+      multiplier: multiplier || '100'
     }
 
-    const whatToShow = 'MIDPOINT' // Use midpoint for options as TRADES may have gaps
-    const useRTH = 1
+    const useRTH = 0 // include extended hours for more data
     const formatDate = 1
 
-    pendingRequests.set(reqId, { resolve, reject })
+    const cleanup = () => {
+      ib.off(EventName.historicalData, onHistoricalData)
+      pendingRequests.delete(reqId)
+    }
 
     const onHistoricalData = (rId, date, open, high, low, close, volume, count, wap, hasGaps) => {
       if (rId !== reqId) return
 
       if (date.startsWith('finished')) {
-        ib.off(EventName.historicalData, onHistoricalData)
-        pendingRequests.delete(reqId)
+        cleanup()
         resolve(bars)
         return
       }
@@ -266,35 +290,28 @@ export async function getOptionHistoricalData(symbol, expiration, strike, right,
       })
     }
 
+    pendingRequests.set(reqId, {
+      resolve,
+      reject: (err) => { cleanup(); reject(err) }
+    })
+
     ib.on(EventName.historicalData, onHistoricalData)
 
     setTimeout(() => {
       if (pendingRequests.has(reqId)) {
-        ib.off(EventName.historicalData, onHistoricalData)
-        pendingRequests.delete(reqId)
+        cleanup()
         if (bars.length > 0) {
           resolve(bars)
         } else {
           reject(new Error('Request timeout'))
         }
       }
-    }, 30000)
+    }, 20000)
 
     try {
-      ib.reqHistoricalData(
-        reqId,
-        contract,
-        '', // endDateTime - empty for now
-        duration,
-        barSize,
-        whatToShow,
-        useRTH,
-        formatDate,
-        false
-      )
+      ib.reqHistoricalData(reqId, contract, '', duration, barSize, whatToShow, useRTH, formatDate, false)
     } catch (err) {
-      ib.off(EventName.historicalData, onHistoricalData)
-      pendingRequests.delete(reqId)
+      cleanup()
       reject(err)
     }
   })
@@ -1038,7 +1055,7 @@ async function getContractId(symbol) {
 }
 
 // Get option parameters (expirations and strikes)
-async function getOptionParams(symbol) {
+export async function getOptionParams(symbol) {
   // First get the contract ID
   const conId = await getContractId(symbol)
   if (!conId) {
@@ -1049,27 +1066,28 @@ async function getOptionParams(symbol) {
   return new Promise((resolve, reject) => {
     const reqId = nextRequestId++
 
-    let expirations = []
-    let strikes = []
-    let exchange = ''
-    let multiplier = '100'
+    // Track best exchange = the one with the most expirations (most complete data)
+    let bestExpirations = []
+    let bestStrikes = []
+    let bestExchange = ''
+    let bestMultiplier = '100'
     let resolved = false
 
     const onSecDefOptParams = (rId, exchg, underlyingConId, tradingClass, mult, exps, strks) => {
       if (rId !== reqId) return
       console.log(`  Option params: exchange=${exchg}, expirations=${exps?.length}, strikes=${strks?.length}`)
-      if (exps && exps.length > 0) {
-        expirations = [...exps].sort()
-        strikes = [...strks].sort((a, b) => a - b)
-        exchange = exchg
-        multiplier = mult || '100'
+      if (exps && exps.length > bestExpirations.length) {
+        bestExpirations = [...exps].sort()
+        bestStrikes = [...strks].sort((a, b) => a - b)
+        bestExchange = exchg
+        bestMultiplier = mult || '100'
       }
     }
 
     const onSecDefOptParamsEnd = (rId) => {
       if (rId !== reqId) return
       cleanup()
-      resolve({ expirations, strikes, exchange, multiplier })
+      resolve({ expirations: bestExpirations, strikes: bestStrikes, exchange: bestExchange, multiplier: bestMultiplier })
     }
 
     const cleanup = () => {
@@ -1087,7 +1105,7 @@ async function getOptionParams(symbol) {
     setTimeout(() => {
       if (!resolved) {
         cleanup()
-        resolve({ expirations, strikes, exchange, multiplier })
+        resolve({ expirations: bestExpirations, strikes: bestStrikes, exchange: bestExchange, multiplier: bestMultiplier })
       }
     }, 10000)
 

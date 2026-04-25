@@ -25,6 +25,7 @@ import DataStatus from './components/DataStatus'
 import ThresholdReport from './components/ThresholdReport'
 import TwoUpThenBigMove from './components/TwoUpThenBigMove'
 import Screener from './components/Screener'
+import OptionsAnalysis from './components/OptionsAnalysis'
 import FedCountdown from './components/FedCountdown'
 import MarketClocks from './components/MarketClocks'
 import LiveWatchlist from './components/LiveWatchlist'
@@ -53,6 +54,8 @@ function App() {
   const [lastUsedPort, setLastUsedPort] = useState(7496)
   const [initialConnectionAttempted, setInitialConnectionAttempted] = useState(false)
   const [liveWatchlistInterval, setLiveWatchlistInterval] = useState(15)
+  const [activeTab, setActiveTab] = useState(0)
+  const [thresholdMode, setThresholdMode] = useState('single')
   const cancelRef = useRef(null)
   const toast = useToast()
 
@@ -281,43 +284,23 @@ function App() {
               ARAnalysis
             </Heading>
             <Spacer />
+            {(activeTab === 0 || (activeTab === 1 && thresholdMode === 'single')) && (
+              <Tooltip label={loading ? "Loading..." : "Load data from IBKR"}>
+                <IconButton
+                  aria-label="Load data"
+                  icon={<RepeatIcon />}
+                  onClick={handleRefresh}
+                  isLoading={loading}
+                  isDisabled={!selectedSymbol || !connectionState.connected}
+                  colorScheme="blue"
+                  variant="outline"
+                />
+              </Tooltip>
+            )}
             <ConnectionStatus
               status={connectionState}
               onRefresh={refreshConnectionStatus}
             />
-          </Flex>
-
-          {/* Controls */}
-          <HStack spacing={4} wrap="wrap">
-            <SecurityPicker
-              value={selectedSymbol}
-              onChange={handleSymbolChange}
-              securities={securities}
-            />
-            <Tooltip label={loading ? "Loading..." : "Load data from IBKR"}>
-              <IconButton
-                aria-label="Load data"
-                icon={<RepeatIcon />}
-                onClick={handleRefresh}
-                isLoading={loading}
-                isDisabled={!selectedSymbol || !connectionState.connected}
-                colorScheme="blue"
-                variant="outline"
-              />
-            </Tooltip>
-            {loading && (
-              <Tooltip label="Cancel loading">
-                <IconButton
-                  aria-label="Cancel"
-                  icon={<CloseIcon />}
-                  onClick={handleCancel}
-                  colorScheme="red"
-                  variant="outline"
-                  size="sm"
-                />
-              </Tooltip>
-            )}
-            <Spacer />
             <DataManager
               connectionStatus={connectionState}
               onConnectionChange={handleConnectionChange}
@@ -328,10 +311,33 @@ function App() {
                 }
               }}
             />
-          </HStack>
+          </Flex>
+
+          {/* Controls */}
+          {(activeTab === 0 || (activeTab === 1 && thresholdMode === 'single')) && (
+            <HStack spacing={4} wrap="wrap">
+              <SecurityPicker
+                value={selectedSymbol}
+                onChange={handleSymbolChange}
+                securities={securities}
+              />
+              {loading && (
+                <Tooltip label="Cancel loading">
+                  <IconButton
+                    aria-label="Cancel"
+                    icon={<CloseIcon />}
+                    onClick={handleCancel}
+                    colorScheme="red"
+                    variant="outline"
+                    size="sm"
+                  />
+                </Tooltip>
+              )}
+            </HStack>
+          )}
 
           {/* Loading Progress */}
-          {loading && (
+          {(activeTab === 0 || (activeTab === 1 && thresholdMode === 'single')) && loading && (
             <Box>
               <Progress value={loadProgress} size="sm" colorScheme="blue" hasStripe isAnimated />
               <Text fontSize="xs" color="gray.400" mt={1}>
@@ -341,14 +347,16 @@ function App() {
           )}
 
           {/* Data Status */}
-          <DataStatus
-            symbol={selectedSymbol}
-            interval={selectedInterval}
-            data={priceData}
-          />
+          {(activeTab === 0 || (activeTab === 1 && thresholdMode === 'single')) && (
+            <DataStatus
+              symbol={selectedSymbol}
+              interval={selectedInterval}
+              data={priceData}
+            />
+          )}
 
           {/* Tab Navigation */}
-          <Tabs colorScheme="blue" variant="enclosed">
+          <Tabs colorScheme="blue" variant="enclosed" onChange={setActiveTab}>
             <TabList>
               <Tab>Spreadsheet</Tab>
               <Tab
@@ -364,6 +372,7 @@ function App() {
                 Two Up + Big Move
               </Tab>
               <Tab>Screener</Tab>
+              <Tab>Options</Tab>
             </TabList>
             <TabPanels>
               <TabPanel px={0}>
@@ -379,6 +388,7 @@ function App() {
                 <ThresholdReport
                   symbol={selectedSymbol}
                   data={priceData}
+                  onModeChange={setThresholdMode}
                 />
               </TabPanel>
               <TabPanel px={0}>
@@ -389,6 +399,9 @@ function App() {
               </TabPanel>
               <TabPanel px={0}>
                 <Screener />
+              </TabPanel>
+              <TabPanel px={0}>
+                <OptionsAnalysis isConnected={connectionState.connected} />
               </TabPanel>
             </TabPanels>
           </Tabs>
