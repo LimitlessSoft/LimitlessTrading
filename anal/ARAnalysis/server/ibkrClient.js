@@ -94,10 +94,11 @@ export async function connect(port = 7496) {
     })
 
     ib.on(EventName.error, (err, code, reqId) => {
-      console.error('IBKR error:', err?.message || err, 'code:', code)
+      const isPending = reqId && pendingRequests.has(reqId)
+      console.error(`IBKR error [reqId=${reqId ?? 'none'}${isPending ? ' PENDING' : ''}]: ${err?.message || err} code: ${code}`)
 
       // Handle pending request errors
-      if (reqId && pendingRequests.has(reqId)) {
+      if (isPending) {
         const request = pendingRequests.get(reqId)
         if (request.reject) {
           request.reject(new Error(err?.message || `IBKR error code: ${code}`))
@@ -226,11 +227,11 @@ export async function getOptionHistoricalData(symbol, expiration, strike, right,
   }
 
   const whatToShowCandidates = ['TRADES', 'MIDPOINT']
-  // Options historical data requires the specific exchange — SMART silently times out
-  const exchangeCandidates = exchange && exchange !== 'SMART' ? [exchange] : ['SMART']
-  // If daily bars are requested, also try hourly with capped duration as fallback
+  // Try SMART first — it routes to wherever data exists. Specific exchange as fallback.
+  const exchangeCandidates = exchange && exchange !== 'SMART' ? ['SMART', exchange] : ['SMART']
+  // If daily bars are requested, also try hourly as fallback (options rarely have daily data)
   const barSizeCandidates = barSize === '1 day'
-    ? [{ bs: '1 day', dur: duration }, { bs: '1 hour', dur: '1 W' }]
+    ? [{ bs: '1 day', dur: duration }, { bs: '1 hour', dur: duration }]
     : [{ bs: barSize, dur: duration }]
 
   for (const { bs, dur } of barSizeCandidates) {
@@ -278,6 +279,7 @@ async function _requestOptionHistory(symbol, expiration, strike, right, barSize,
       if (rId !== reqId) return
 
       if (date.startsWith('finished')) {
+        console.log(`  [opt req ${reqId}] got ${bars.length} bars (${ts()})`)
         cleanup()
         resolve(bars)
         return
@@ -300,20 +302,27 @@ async function _requestOptionHistory(symbol, expiration, strike, right, barSize,
 
     ib.on(EventName.historicalData, onHistoricalData)
 
+    const t0 = Date.now()
+    const ts = () => `+${((Date.now() - t0) / 1000).toFixed(1)}s`
+    console.log(`  [opt req ${reqId}] ${symbol} ${expiration} ${strike}${right} | ${exchange} ${whatToShow} ${barSize} ${duration} @ ${new Date().toISOString()}`)
+
     setTimeout(() => {
       if (pendingRequests.has(reqId)) {
         cleanup()
         if (bars.length > 0) {
+          console.log(`  [opt req ${reqId}] timeout but got ${bars.length} bars — returning (${ts()})`)
           resolve(bars)
         } else {
+          console.log(`  [opt req ${reqId}] timeout with no data (${ts()})`)
           reject(new Error('Request timeout'))
         }
       }
-    }, 4000)
+    }, 20000)
 
     try {
       ib.reqHistoricalData(reqId, contract, '', duration, barSize, whatToShow, useRTH, formatDate, false)
     } catch (err) {
+      console.log(`  [opt req ${reqId}] threw: ${err.message} (${ts()})`)
       cleanup()
       reject(err)
     }

@@ -231,6 +231,7 @@ export default function OptionsAnalysis({ isConnected }) {
         const sym = inputSymbol.trim().toUpperCase()
         setParams(data)
         setSymbol(sym)
+        setSelectedStrikes([])
 
         const restore = pendingRestoreRef.current
         pendingRestoreRef.current = null
@@ -589,9 +590,9 @@ export default function OptionsAnalysis({ isConnected }) {
                   <FormLabel fontSize="sm" color="gray.400" mb={1}>Expiration</FormLabel>
                   <Select
                     value={expiration}
-                    onChange={e => { setExpiration(e.target.value); setSelectedStrikes([]) }}
+                    onChange={e => { setExpiration(e.target.value); setSelectedStrikes(prev => prev.filter(s => params.strikes.includes(s))) }}
                     bg="gray.700"
-                    borderColor="gray.600"
+                    borderColor={expiration && (new Date(expiration.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')) - new Date()) / 86400000 < 7 ? 'orange.400' : 'gray.600'}
                     fontSize="sm"
                     w="155px"
                   >
@@ -599,6 +600,9 @@ export default function OptionsAnalysis({ isConnected }) {
                       <option key={exp} value={exp}>{formatExpiration(exp)}</option>
                     ))}
                   </Select>
+                  {expiration && (new Date(expiration.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')) - new Date()) / 86400000 < 7 && (
+                    <Text fontSize="xs" color="orange.400" mt={1}>Expiring soon — IBKR may have no data</Text>
+                  )}
                 </FormControl>
 
                 <FormControl w="auto">
