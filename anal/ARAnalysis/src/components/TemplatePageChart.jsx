@@ -41,7 +41,9 @@ const MIN_HEIGHT = 100
 const DEFAULT_HEIGHT = 220
 const DEFAULT_WIDTH = 10
 
-const MAX_BARS_CONST = 300
+const DEFAULT_MAX_BARS = 300
+const MIN_BARS = 20
+const MAX_BARS = 1000
 
 const DEFAULT_STYLE = {
   bgColor: '#1a202c',
@@ -50,10 +52,11 @@ const DEFAULT_STYLE = {
 }
 
 // Candlestick SVG — renders inside the chart control
-function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRthBgColor, fontSize, onSymbolClick,
-  quickInputOpen, quickSymbol, quickInputRef, onQuickSymbolChange, onQuickSymbolKeyDown, onQuickSymbolCommit,
+function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRthBgColor, fontSize, volumeMultiplier,
+  onSymbolClick, quickInputOpen, quickSymbol, quickInputRef, onQuickSymbolChange, onQuickSymbolKeyDown, onQuickSymbolCommit,
   onIntervalChange }) {
-  const [tooltip, setTooltip] = useState(null)
+  const [tooltip,    setTooltip]    = useState(null)
+  const [crosshairY, setCrosshairY] = useState(null)
 
   const padding = { top: 40, right: fontSize * 5 + 8, bottom: 28, left: 8 }
   const chartWidth  = width  - padding.left - padding.right
@@ -73,9 +76,9 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
   const maxVol = Math.max(...data.map(d => Math.max(0, d.volume ?? 0))) || 1
 
   const priceToY  = p  => padding.top + candleAreaH - ((p - effectiveMin) / effectiveRange) * candleAreaH
-  const volToH    = v  => (v / maxVol) * volumeAreaH
-  const candleW   = Math.max(1, Math.min(8, (chartWidth / data.length) * 0.75))
+  const volToH    = v  => Math.min(volumeAreaH, (v / maxVol) * volumeAreaH * (volumeMultiplier ?? 1))
   const spacing   = chartWidth / data.length
+  const candleW   = Math.max(1, spacing * 0.6)
 
   const formatPrice = p => p?.toFixed(2) ?? '-'
   const formatTime  = ts => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -163,11 +166,11 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
         {tooltip && (
           <>
             <Text color="gray.500">·</Text>
-            <Text color="gray.300">{isIntraday ? formatTime(tooltip.timestamp) : formatDate(tooltip.timestamp)}</Text>
-            <Text color="gray.300">O:{formatPrice(tooltip.open)}</Text>
-            <Text color="gray.300">H:{formatPrice(tooltip.high)}</Text>
-            <Text color="gray.300">L:{formatPrice(tooltip.low)}</Text>
-            <Text color={tooltip.close >= tooltip.open ? 'green.300' : 'red.300'}>C:{formatPrice(tooltip.close)}</Text>
+            <Text color="gray.300">{isIntraday ? formatTime(tooltip.bar.timestamp) : formatDate(tooltip.bar.timestamp)}</Text>
+            <Text color="gray.300">O:{formatPrice(tooltip.bar.open)}</Text>
+            <Text color="gray.300">H:{formatPrice(tooltip.bar.high)}</Text>
+            <Text color="gray.300">L:{formatPrice(tooltip.bar.low)}</Text>
+            <Text color={tooltip.bar.close >= tooltip.bar.open ? 'green.300' : 'red.300'}>C:{formatPrice(tooltip.bar.close)}</Text>
           </>
         )}
       </HStack>
@@ -177,6 +180,18 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
         viewBox={`0 0 ${width} ${height}`}
         preserveAspectRatio="xMinYMin meet"
         style={{ display: 'block' }}
+        onMouseMove={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect()
+          const scaleX = width / rect.width
+          const scaleY = height / rect.height
+          const svgY = (e.clientY - rect.top) * scaleY
+          if (svgY >= padding.top && svgY <= height - padding.bottom) {
+            setCrosshairY(svgY)
+          } else {
+            setCrosshairY(null)
+          }
+        }}
+        onMouseLeave={() => { setCrosshairY(null); setTooltip(null) }}
       >
         {/* Base background — full chart area including header/price label strips */}
         <rect x={0} y={0} width={width} height={height} fill="#1a202c" />
@@ -228,6 +243,22 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
           )
         })}
 
+        {/* Day separators */}
+        {data.map((bar, i) => {
+          if (i === 0) return null
+          const prev = data[i - 1]
+          const prevDay = new Date(prev.timestamp).toDateString()
+          const curDay  = new Date(bar.timestamp).toDateString()
+          if (prevDay === curDay) return null
+          const x = padding.left + i * spacing
+          return (
+            <line key={`day-${i}`}
+              x1={x} y1={padding.top} x2={x} y2={height - padding.bottom}
+              stroke="#4A5568" strokeWidth={1} strokeDasharray="4 4" opacity={0.6}
+            />
+          )
+        })}
+
         {/* Candlesticks */}
         {data.map((bar, i) => {
           const x      = padding.left + i * spacing + spacing / 2
@@ -241,8 +272,7 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
 
           return (
             <g key={i}
-              onMouseEnter={() => setTooltip(bar)}
-              onMouseLeave={() => setTooltip(null)}
+              onMouseEnter={() => setTooltip({ bar, cx: padding.left + i * spacing + spacing / 2 })}
             >
               <line x1={x} y1={highY} x2={x} y2={lowY} stroke={color} strokeWidth={1} />
               <rect x={x - candleW / 2} y={bodyT} width={candleW} height={bodyH}
@@ -273,6 +303,27 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
               </text>
             )
           })}
+
+        {/* Crosshair */}
+        {tooltip && crosshairY !== null && (() => {
+          const cx = tooltip.cx
+          const price = effectiveMin + effectiveRange * (1 - (crosshairY - padding.top) / candleAreaH)
+          return (
+            <g pointerEvents="none">
+              <line x1={cx} y1={padding.top} x2={cx} y2={height - padding.bottom}
+                stroke="#718096" strokeWidth={1} strokeDasharray="3 3" opacity={0.7} />
+              <line x1={padding.left} y1={crosshairY} x2={width - padding.right} y2={crosshairY}
+                stroke="#718096" strokeWidth={1} strokeDasharray="3 3" opacity={0.7} />
+              <rect x={width - padding.right} y={crosshairY - fontSize * 0.8}
+                width={padding.right - 2} height={fontSize * 1.6}
+                fill="#4A5568" rx={2} />
+              <text x={width - padding.right + 3} y={crosshairY + fontSize * 0.45}
+                fill="#e2e8f0" fontSize={fontSize - 1}>
+                {price > 0 ? price.toFixed(2) : ''}
+              </text>
+            </g>
+          )
+        })()}
       </svg>
     </Box>
   )
@@ -295,6 +346,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
   const [viewOffset,      setViewOffset]      = useState(0)
   const [quickSymbol,     setQuickSymbol]     = useState('')
   const [quickInputOpen,  setQuickInputOpen]  = useState(false)
+  const [maxBars,         setMaxBars]         = useState(DEFAULT_MAX_BARS)
   const [isFetchingOlder, setIsFetchingOlder] = useState(false)
   const [hasMoreHistory,  setHasMoreHistory]  = useState(true)
   const quickInputRef   = useRef(null)
@@ -590,7 +642,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
   useEffect(() => {
     if (!data.length || isFetchingOlder || !hasMoreHistory || loading) return
     const clampedOff = Math.min(viewOffset, Math.max(0, data.length - 10))
-    const startIdx = Math.max(0, data.length - clampedOff - MAX_BARS_CONST)
+    const startIdx = Math.max(0, data.length - clampedOff - maxBars)
     if (startIdx >= PREFETCH_THRESHOLD) return
 
     const oldestTimestamp = data[0].timestamp
@@ -613,14 +665,14 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
       }
     )
     olderCancelRef.current = cancel
-  }, [viewOffset, data.length, isFetchingOlder, hasMoreHistory, loading, symbol, interval])
+  }, [viewOffset, maxBars, data.length, isFetchingOlder, hasMoreHistory, loading, symbol, interval])
 
   const handlePanStart = (e) => {
     if (e.button !== 0) return
     e.preventDefault()
     const startX = e.clientX
     const startOffset = viewOffset
-    const pixelsPerBar = (containerWidth || 400) / MAX_BARS_CONST
+    const pixelsPerBar = (containerWidth || 400) / maxBars
     setIsPanning(true)
 
     const onMove = (mv) => {
@@ -646,15 +698,22 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
 
   useEffect(() => { globalSettingsRef.current = globalSettings }, [globalSettings])
 
-  // Wheel scroll to pan time axis — must be non-passive to preventDefault
+  // Wheel: pan time axis; Ctrl+wheel: zoom (change visible bar count)
   useEffect(() => {
     const el = boxRef.current
     if (!el) return
     const handler = (e) => {
       e.preventDefault()
-      const step = Math.max(5, Math.round(300 * 0.08))
-      const dir = globalSettingsRef.current.invertScroll ? -1 : 1
-      setViewOffset(prev => Math.max(0, prev + (e.deltaY > 0 ? -dir * step : dir * step)))
+      if (e.ctrlKey) {
+        const dir = globalSettingsRef.current.invertScroll ? -1 : 1
+        const step = Math.max(5, Math.round(DEFAULT_MAX_BARS * 0.08))
+        setViewOffset(prev => Math.max(0, prev + (e.deltaY > 0 ? -dir * step : dir * step)))
+      } else {
+        setMaxBars(prev => {
+          const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15
+          return Math.round(Math.min(MAX_BARS, Math.max(MIN_BARS, prev * factor)))
+        })
+      }
     }
     el.addEventListener('wheel', handler, { passive: false })
     return () => el.removeEventListener('wheel', handler)
@@ -703,7 +762,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
   // Visible bars — 300-bar window, shifted by viewOffset from the end
   const clampedOffset = Math.min(viewOffset, Math.max(0, data.length - 10))
   const endIdx   = data.length - clampedOffset
-  const startIdx = Math.max(0, endIdx - MAX_BARS_CONST)
+  const startIdx = Math.max(0, endIdx - maxBars)
   const visibleData = data.slice(startIdx, endIdx)
 
   return (
@@ -768,6 +827,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
             rthBgColor={globalSettings.rthBgColor}
             outsideRthBgColor={globalSettings.outsideRthBgColor}
             fontSize={globalSettings.fontSize ?? 9}
+            volumeMultiplier={globalSettings.volumeMultiplier ?? 1}
             onSymbolClick={handleSymbolLabelClick}
             quickInputOpen={quickInputOpen}
             quickSymbol={quickSymbol}
@@ -945,6 +1005,27 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
                           />
                           <Button size="xs" variant="ghost" color="gray.500"
                             onClick={() => setEditGlobal(g => ({ ...g, fontSize: globalSettings.fontSize ?? 9 }))}>
+                            Reset
+                          </Button>
+                        </HStack>
+                      </HStack>
+                    </FormControl>
+                    <FormControl>
+                      <HStack justify="space-between">
+                        <FormLabel fontSize="sm" mb={0}>Volume Multiplier</FormLabel>
+                        <HStack spacing={2}>
+                          <Box
+                            as="input"
+                            type="number"
+                            min={0.1}
+                            max={20}
+                            step={0.1}
+                            value={editGlobal.volumeMultiplier ?? 1}
+                            onChange={(e) => setEditGlobal(g => ({ ...g, volumeMultiplier: Math.max(0.1, Math.min(20, Number(e.target.value))) }))}
+                            style={{ width: '52px', background: '#2d3748', color: 'white', border: '1px solid #4a5568', borderRadius: '4px', padding: '2px 6px', fontSize: '13px' }}
+                          />
+                          <Button size="xs" variant="ghost" color="gray.500"
+                            onClick={() => setEditGlobal(g => ({ ...g, volumeMultiplier: 1 }))}>
                             Reset
                           </Button>
                         </HStack>

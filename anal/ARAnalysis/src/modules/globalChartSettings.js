@@ -5,7 +5,8 @@ export const DEFAULT_GLOBAL_CHART_SETTINGS = {
   outsideRthBgColor: '#1a1a2e',
   fontSize: 9,
   invertScroll: false,
-  invertDrag: false
+  invertDrag: false,
+  volumeMultiplier: 1
 }
 
 export function getGlobalChartSettings() {

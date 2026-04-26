@@ -27,7 +27,7 @@ import {
   PopoverArrow,
   IconButton
 } from '@chakra-ui/react'
-import { StarIcon } from '@chakra-ui/icons'
+import { StarIcon, InfoOutlineIcon } from '@chakra-ui/icons'
 import { createChart, LineSeries } from 'lightweight-charts'
 import { fetchOptionsParams, fetchOptionHistory, fetchStockHistory, fetchLiveQuotes } from '../modules/dataService'
 
@@ -94,6 +94,8 @@ export default function OptionsAnalysis({ isConnected }) {
   const tooltipRef = useRef(null)
   const linesRef = useRef([]) // always-current copy of lines for crosshair callback
   const underlyingDataRef = useRef([]) // sorted underlying bars for nearest-time lookup
+  const barSizeRef = useRef('1 hour') // current bar size for crosshair tolerance
+  const shiftHeldRef = useRef(false)
 
   const atmStrike = (() => {
     const ref = parseFloat(priceRef)
@@ -138,7 +140,7 @@ export default function OptionsAnalysis({ isConnected }) {
     const chart = createChart(chartContainerRef.current, {
       layout: { background: { color: '#1A202C' }, textColor: '#A0AEC0' },
       grid: { vertLines: { color: '#2D3748' }, horzLines: { visible: false } },
-      crosshair: { vertLine: { color: '#4A5568' }, horzLine: { color: '#4A5568' } },
+      crosshair: { vertLine: { color: '#4A5568' }, horzLine: { visible: false, labelVisible: false } },
       leftPriceScale: { visible: true, borderColor: '#4A5568' },
       rightPriceScale: { visible: true, borderColor: '#4A5568' },
       timeScale: { borderColor: '#4A5568', timeVisible: true },
@@ -152,7 +154,7 @@ export default function OptionsAnalysis({ isConnected }) {
       const tooltip = tooltipRef.current
       if (!tooltip) return
 
-      if (!param.time || !param.point || param.point.x < 0 || param.point.y < 0) {
+      if (!param.time || !param.point || param.point.x < 0 || param.point.y < 0 || shiftHeldRef.current) {
         tooltip.style.display = 'none'
         return
       }
@@ -175,12 +177,30 @@ export default function OptionsAnalysis({ isConnected }) {
       for (const line of linesRef.current) {
         const series = seriesMapRef.current.get(line.id)
         if (!series) continue
-        const data = param.seriesData.get(series)
-        if (!data) continue
+
+        let optPrice = null
+        const exact = param.seriesData.get(series)
+        if (exact) {
+          optPrice = exact.value
+        } else if (line.chartData?.length > 0) {
+          // nearest-time fallback — covers overnight gaps for hourly data (~17h) and weekends for daily
+          const tolerance = barSizeRef.current === '1 day' ? 4 * 86400 : 20 * 3600
+          const cd = line.chartData
+          let lo = 0, hi = cd.length - 1, best = 0
+          while (lo <= hi) {
+            const mid = (lo + hi) >> 1
+            if (Math.abs(cd[mid].time - param.time) < Math.abs(cd[best].time - param.time)) best = mid
+            if (cd[mid].time < param.time) lo = mid + 1
+            else hi = mid - 1
+          }
+          if (Math.abs(cd[best].time - param.time) <= tolerance) optPrice = cd[best].value
+        }
+        if (optPrice === null) continue
+
         const intrinsic = underlyingPrice !== null
           ? Math.max(0, line.right === 'C' ? underlyingPrice - line.strike : line.strike - underlyingPrice)
           : null
-        rows.push({ ...line, optPrice: data.value, intrinsic, extrinsic: intrinsic !== null ? data.value - intrinsic : null })
+        rows.push({ ...line, optPrice, intrinsic, extrinsic: intrinsic !== null ? optPrice - intrinsic : null })
       }
 
       if (rows.length === 0) { tooltip.style.display = 'none'; return }
@@ -188,30 +208,23 @@ export default function OptionsAnalysis({ isConnected }) {
       // Sort by strike ascending
       rows.sort((a, b) => a.strike - b.strike)
 
-      const tw = underlyingPrice !== null ? 360 : 180
-      const containerWidth = chartContainerRef.current?.clientWidth ?? 600
-      const left = param.point.x + tw + 20 > containerWidth ? param.point.x - tw - 10 : param.point.x + 15
-      tooltip.style.left = `${left}px`
-      tooltip.style.top = `${Math.max(0, param.point.y - 10)}px`
-      tooltip.style.display = 'block'
-
       const dateStr = new Date(param.time * 1000).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
       const fmt = (n) => n >= 1000 ? `$${(n/1000).toFixed(1)}k` : `$${n.toFixed(0)}`
       const shares100Cost = underlyingPrice !== null ? underlyingPrice * 100 : null
 
-      let html = `<div style="color:#718096;font-size:10px;margin-bottom:5px">${dateStr}</div>`
+      let html = `<div style="color:#718096;font-size:12px;margin-bottom:5px">${dateStr}</div>`
       if (underlyingPrice !== null) {
-        html += `<div style="color:#63B3ED;font-size:12px;font-weight:600;margin-bottom:2px">Stock $${underlyingPrice.toFixed(2)}</div>`
-        html += `<div style="color:#718096;font-size:10px;margin-bottom:6px">100 shares = <b style="color:#A0AEC0">${fmt(shares100Cost)}</b></div>`
+        html += `<div style="color:#63B3ED;font-size:14px;font-weight:600;margin-bottom:2px">Stock $${underlyingPrice.toFixed(2)}</div>`
+        html += `<div style="color:#718096;font-size:12px;margin-bottom:6px">100 shares = <b style="color:#A0AEC0">${fmt(shares100Cost)}</b></div>`
       }
 
       // Header row
       const cols = underlyingPrice !== null
-        ? '55px 42px 42px 52px 52px 52px'
-        : '55px 42px 42px'
-      html += `<div style="display:grid;grid-template-columns:${cols};gap:3px;color:#718096;font-size:9px;font-weight:600;margin-bottom:3px">
-        <span>Strike</span><span style="text-align:right">Prem</span><span style="text-align:right">Δ prev</span>${underlyingPrice !== null ? '<span style="text-align:right">@Strike</span><span style="text-align:right">@Mkt</span><span style="text-align:right">Diff</span>' : ''}
+        ? '60px 48px 48px 68px 44px'
+        : '60px 48px 48px'
+      html += `<div style="display:grid;grid-template-columns:${cols};gap:3px;color:#718096;font-size:11px;font-weight:600;margin-bottom:3px">
+        <span>Strike</span><span style="text-align:right">Prem</span><span style="text-align:right">Δ prev</span>${underlyingPrice !== null ? '<span style="text-align:right">Overpay</span><span style="text-align:right">Prem%</span>' : ''}
       </div>`
 
       const mktCost = underlyingPrice !== null ? underlyingPrice * 100 : null
@@ -228,14 +241,13 @@ export default function OptionsAnalysis({ isConnected }) {
         const costDiff = mktCost !== null ? totalRealizeCost - mktCost : null
         const diffColor = costDiff === null ? '#A0AEC0' : (costDiff > 0 ? '#FC8181' : '#68D391')
 
-        html += `<div style="display:grid;grid-template-columns:${cols};gap:3px;font-size:11px;padding:3px 0;border-top:1px solid #2D3748;align-items:center">
+        html += `<div style="display:grid;grid-template-columns:${cols};gap:3px;font-size:13px;padding:3px 0;border-top:1px solid #2D3748;align-items:center">
           <span style="color:${row.color};font-weight:600">$${row.strike}${row.right}</span>
           <span style="text-align:right">$${row.optPrice.toFixed(2)}</span>
           <span style="text-align:right">${diffStr}</span>
           ${underlyingPrice !== null ? `
-          <span style="text-align:right;color:#E2E8F0">${fmt(strikeCost)}</span>
-          <span style="text-align:right;color:#A0AEC0">${fmt(mktCost)}</span>
-          <span style="text-align:right"><span style="color:${diffColor};font-weight:600">${costDiff >= 0 ? '+' : ''}${fmt(Math.abs(costDiff))}</span><br><span style="color:#718096;font-size:9px">+${fmt(premCost)} prem</span></span>` : ''}
+          <span style="text-align:right"><span style="color:${diffColor};font-weight:600">${costDiff >= 0 ? '+' : ''}${fmt(Math.abs(costDiff))}</span><br><span style="color:#718096;font-size:11px">+${fmt(premCost)} prem</span></span>
+          <span style="text-align:right;color:#A0AEC0">${costDiff !== null && costDiff !== 0 ? ((premCost / Math.abs(costDiff)) * 100).toFixed(1) + '%' : '—'}</span>` : ''}
         </div>`
       }
 
@@ -243,12 +255,24 @@ export default function OptionsAnalysis({ isConnected }) {
       if (rows.length > 1) {
         const maxP = Math.max(...rows.map(r => r.optPrice))
         const minP = Math.min(...rows.map(r => r.optPrice))
-        html += `<div style="margin-top:6px;padding-top:5px;border-top:1px solid #4A5568;font-size:10px;color:#A0AEC0">
+        html += `<div style="margin-top:6px;padding-top:5px;border-top:1px solid #4A5568;font-size:12px;color:#A0AEC0">
           Strike spread: <b style="color:#E2E8F0">$${(maxP - minP).toFixed(2)}</b>
         </div>`
       }
 
       tooltip.innerHTML = html
+      tooltip.style.display = 'block'
+
+      const containerWidth = chartContainerRef.current?.clientWidth ?? 600
+      const containerHeight = chartContainerRef.current?.clientHeight ?? 420
+      const tw = underlyingPrice !== null ? 360 : 180
+      const th = tooltip.offsetHeight
+
+      const left = param.point.x + tw + 20 > containerWidth ? param.point.x - tw - 10 : param.point.x + 15
+      const top = Math.min(Math.max(0, param.point.y - 10), containerHeight - th - 4)
+
+      tooltip.style.left = `${left}px`
+      tooltip.style.top = `${top}px`
     })
 
     const ro = new ResizeObserver(entries => {
@@ -256,7 +280,37 @@ export default function OptionsAnalysis({ isConnected }) {
     })
     ro.observe(chartContainerRef.current)
 
+    const lastMousePos = { x: 0, y: 0 }
+
+    const onMouseMove = (e) => {
+      lastMousePos.x = e.clientX
+      lastMousePos.y = e.clientY
+      shiftHeldRef.current = e.shiftKey
+      if (e.shiftKey && tooltipRef.current) tooltipRef.current.style.display = 'none'
+    }
+
+    const onKeyDown = (e) => {
+      if (e.key === 'Shift' && tooltipRef.current) tooltipRef.current.style.display = 'none'
+      shiftHeldRef.current = e.shiftKey
+    }
+
+    const onKeyUp = (e) => {
+      shiftHeldRef.current = e.shiftKey
+      if (!e.shiftKey && chartContainerRef.current) {
+        chartContainerRef.current.dispatchEvent(new MouseEvent('mousemove', {
+          bubbles: true, clientX: lastMousePos.x, clientY: lastMousePos.y
+        }))
+      }
+    }
+
+    chartContainerRef.current.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+
     return () => {
+      chartContainerRef.current?.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
       ro.disconnect()
       chart.remove()
       chartRef.current = null
@@ -350,7 +404,7 @@ export default function OptionsAnalysis({ isConnected }) {
           const validExp = data.expirations.includes(restore.expiration)
             ? restore.expiration : data.expirations[0]
           setExpiration(validExp)
-          setRight(restore.right)
+          setRight(restore.right ?? 'C')
           setSelectedStrikes(restore.selectedStrikes.filter(s => data.strikes.includes(s)))
           setPeriodIndex(restore.periodIndex)
           setNeighbors(restore.neighbors)
@@ -396,6 +450,7 @@ export default function OptionsAnalysis({ isConnected }) {
     }
 
     const period = PERIODS[periodIndex]
+    barSizeRef.current = period.barSize
 
     const newLines = []
     let errors = 0
@@ -417,7 +472,8 @@ export default function OptionsAnalysis({ isConnected }) {
           const id = `${symbol}-${expiration}-${s}-${right}`
           const color = OPTION_COLORS[i % OPTION_COLORS.length]
           const lineLabel = `${symbol} ${formatExpiration(expiration)} $${s}${right}`
-          newLines.push({ id, label: lineLabel, color, data, strike: parseFloat(s), right })
+          const chartData = toChartData(data)
+          newLines.push({ id, label: lineLabel, color, data, chartData, strike: parseFloat(s), right })
         } else {
           console.log(`[Options] ${label}: no data (${elapsed}s)`)
           errors++
@@ -523,7 +579,7 @@ export default function OptionsAnalysis({ isConnected }) {
           const validExp = data.expirations.includes(preset.expiration)
             ? preset.expiration : data.expirations[0]
           setExpiration(validExp)
-          setRight(preset.right)
+          setRight(preset.right ?? 'C')
           setSelectedStrikes(preset.selectedStrikes.filter(s => data.strikes.includes(s)))
           setPeriodIndex(preset.periodIndex)
           setNeighbors(preset.neighbors)
@@ -748,17 +804,82 @@ export default function OptionsAnalysis({ isConnected }) {
                 </FormControl>
               </HStack>
 
-              <Button
-                onClick={handleLoadChart}
-                isLoading={adding}
-                loadingText={loadStatus || 'Loading...'}
-                isDisabled={selectedStrikes.length === 0 || !expiration}
-                colorScheme="green"
-                size="sm"
-                alignSelf="flex-start"
-              >
-                Load Chart
-              </Button>
+              <HStack spacing={2} alignSelf="flex-start">
+                <Button
+                  onClick={handleLoadChart}
+                  isLoading={adding}
+                  loadingText={loadStatus || 'Loading...'}
+                  isDisabled={selectedStrikes.length === 0 || !expiration}
+                  colorScheme="green"
+                  size="sm"
+                >
+                  Load Chart
+                </Button>
+                <Popover placement="right-start" isLazy>
+                  <PopoverTrigger>
+                    <IconButton
+                      icon={<InfoOutlineIcon />}
+                      aria-label="Help"
+                      size="sm"
+                      variant="ghost"
+                      color="gray.400"
+                      _hover={{ color: 'blue.300' }}
+                    />
+                  </PopoverTrigger>
+                  <PopoverContent bg="gray.800" borderColor="gray.600" w="340px" maxH="480px" overflowY="auto">
+                    <PopoverArrow bg="gray.800" />
+                    <PopoverBody p={4}>
+                      <VStack align="stretch" spacing={4} fontSize="sm">
+                        <Box>
+                          <Text fontWeight="bold" color="blue.300" mb={2}>Chart Lines</Text>
+                          <VStack align="stretch" spacing={1}>
+                            <Text color="gray.300"><Text as="span" color="white" fontWeight="600">White line</Text> — underlying stock price (left axis)</Text>
+                            <Text color="gray.300"><Text as="span" color="white" fontWeight="600">Colored lines</Text> — option premium for each selected strike (right axis)</Text>
+                          </VStack>
+                        </Box>
+                        <Box>
+                          <Text fontWeight="bold" color="blue.300" mb={2}>Crosshair Tooltip Columns</Text>
+                          <VStack align="stretch" spacing={2}>
+                            <Box>
+                              <Text color="white" fontWeight="600">Prem</Text>
+                              <Text color="gray.400">Option premium — the market price of the contract at that moment. Multiply by 100 for cost of one contract.</Text>
+                            </Box>
+                            <Box>
+                              <Text color="white" fontWeight="600">Δ prev</Text>
+                              <Text color="gray.400">Difference in premium vs the strike directly below. Shows how premium changes per strike increment.</Text>
+                            </Box>
+                            <Box>
+                              <Text color="white" fontWeight="600">Overpay</Text>
+                              <Text color="gray.400">How much more you would spend to get 100 shares via option exercise vs buying at the current stock price. Calculated as (strike + premium − stock price) × 100. Includes the premium cost so it reflects the true total outlay.</Text>
+                            </Box>
+                            <Box>
+                              <Text color="white" fontWeight="600">Prem%</Text>
+                              <Text color="gray.400">Premium as a percentage of Overpay. High % means most of the extra cost is time value; low % means the strike is deeply OTM and the premium is a small portion of the gap.</Text>
+                            </Box>
+                          </VStack>
+                        </Box>
+                        <Box>
+                          <Text fontWeight="bold" color="blue.300" mb={2}>Strike Picker Controls</Text>
+                          <VStack align="stretch" spacing={2}>
+                            <Box>
+                              <Text color="white" fontWeight="600">Neighbors</Text>
+                              <Text color="gray.400">Number of strikes shown on each side of the ATM strike.</Text>
+                            </Box>
+                            <Box>
+                              <Text color="white" fontWeight="600">Step beyond</Text>
+                              <Text color="gray.400">After the neighbors range, show every Nth strike further out.</Text>
+                            </Box>
+                            <Box>
+                              <Text color="white" fontWeight="600">Max</Text>
+                              <Text color="gray.400">Maximum total strikes shown in the picker.</Text>
+                            </Box>
+                          </VStack>
+                        </Box>
+                      </VStack>
+                    </PopoverBody>
+                  </PopoverContent>
+                </Popover>
+              </HStack>
             </VStack>
 
             {/* Right column: strike picker */}
@@ -920,9 +1041,9 @@ export default function OptionsAnalysis({ isConnected }) {
             border: '1px solid #4A5568',
             borderRadius: '6px',
             padding: '8px 10px',
-            minWidth: '180px',
-            maxWidth: '380px',
-            fontSize: '11px',
+            minWidth: '200px',
+            maxWidth: '470px',
+            fontSize: '13px',
             color: '#E2E8F0',
             boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
           }}
