@@ -16,6 +16,7 @@ Toggle via the pencil icon button in the page header.
 | `label` | `TemplatePageLabel` | Text display with styling |
 | `panel` | `TemplatePagePanel` | Container holding child controls |
 | `badge` | `TemplatePageBadge` | Colored circle indicator |
+| `chart` | `TemplatePageChart` | Interactive candlestick chart fed from IBKR — see [chart-control.md](chart-control.md) |
 
 ## Positioning
 

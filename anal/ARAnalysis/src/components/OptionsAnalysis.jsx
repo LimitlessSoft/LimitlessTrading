@@ -280,41 +280,38 @@ export default function OptionsAnalysis({ isConnected }) {
     })
     ro.observe(chartContainerRef.current)
 
-    const lastMousePos = { x: 0, y: 0 }
-
     const onMouseMove = (e) => {
-      lastMousePos.x = e.clientX
-      lastMousePos.y = e.clientY
       shiftHeldRef.current = e.shiftKey
       if (e.shiftKey && tooltipRef.current) tooltipRef.current.style.display = 'none'
     }
-
-    const onKeyDown = (e) => {
-      if (e.key === 'Shift' && tooltipRef.current) tooltipRef.current.style.display = 'none'
-      shiftHeldRef.current = e.shiftKey
-    }
-
-    const onKeyUp = (e) => {
-      shiftHeldRef.current = e.shiftKey
-      if (!e.shiftKey && chartContainerRef.current) {
-        chartContainerRef.current.dispatchEvent(new MouseEvent('mousemove', {
-          bubbles: true, clientX: lastMousePos.x, clientY: lastMousePos.y
-        }))
-      }
-    }
-
     chartContainerRef.current.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('keydown', onKeyDown)
-    window.addEventListener('keyup', onKeyUp)
 
     return () => {
       chartContainerRef.current?.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('keydown', onKeyDown)
-      window.removeEventListener('keyup', onKeyUp)
       ro.disconnect()
       chart.remove()
       chartRef.current = null
       seriesMapRef.current.clear()
+    }
+  }, [])
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key !== 'Shift') return
+      shiftHeldRef.current = true
+      if (tooltipRef.current) tooltipRef.current.style.display = 'none'
+    }
+    const onKeyUp = (e) => {
+      if (e.key !== 'Shift') return
+      shiftHeldRef.current = false
+      const t = tooltipRef.current
+      if (t && t.innerHTML.trim()) t.style.display = 'block'
+    }
+    document.addEventListener('keydown', onKeyDown, { capture: true })
+    document.addEventListener('keyup', onKeyUp, { capture: true })
+    return () => {
+      document.removeEventListener('keydown', onKeyDown, { capture: true })
+      document.removeEventListener('keyup', onKeyUp, { capture: true })
     }
   }, [])
 
@@ -1020,7 +1017,7 @@ export default function OptionsAnalysis({ isConnected }) {
       )}
 
       {/* Chart */}
-      <Box position="relative" w="100%" h="420px">
+      <Box position="relative" w="100%" h="420px" display={lines.length === 0 && !underlyingLoaded ? 'none' : 'block'}>
         <Box
           ref={chartContainerRef}
           w="100%"
