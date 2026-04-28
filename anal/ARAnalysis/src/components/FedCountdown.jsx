@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { HStack, Spacer, Text, Badge } from '@chakra-ui/react'
+import { HStack, Stack, Spacer, Text, Badge } from '@chakra-ui/react'
 import { getNextFomcDecision, formatFomcLabel, calculateCountdown } from '../modules/fomcService'
 import VixDisplay from './VixDisplay'
 import TreasuryYields from './TreasuryYields'
@@ -89,7 +89,7 @@ function FedCountdown({ isConnected }) {
   return (
     <PageNavMenu bg={style.bg} borderColor={style.borderColor}>
       {showFomc && (
-        <HStack spacing={3} ml={2}>
+        <Stack direction={{ base: 'column', md: 'row' }} spacing={{ base: 1, md: 3 }} ml={2} align={{ base: 'flex-start', md: 'center' }}>
           <Badge
             colorScheme={style.badgeScheme}
             variant="solid"
@@ -105,11 +105,12 @@ function FedCountdown({ isConnected }) {
             fontFamily="mono"
             fontSize="md"
             fontWeight="semibold"
+            whiteSpace="nowrap"
           >
             {countdown.days > 0 && `${countdown.days}d `}
             {formatNumber(countdown.hours)}h {formatNumber(countdown.minutes)}m {formatNumber(countdown.seconds)}s
           </Text>
-        </HStack>
+        </Stack>
       )}
       <Spacer />
       <HStack spacing={6}>
