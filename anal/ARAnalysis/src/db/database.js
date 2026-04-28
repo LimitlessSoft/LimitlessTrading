@@ -114,6 +114,23 @@ db.version(8).stores({
   liveWatchlist: 'symbol, order'
 })
 
+// Version 9: Clear priceData to re-fetch with corrected Eastern timezone timestamps
+db.version(9).stores({
+  securities: 'symbol, name, exchange',
+  priceData: '++id, [symbol+interval+timestamp], symbol, interval, timestamp',
+  settings: 'key',
+  favorites: 'symbol',
+  conditionalFormats: '++id, name, enabled, groupId',
+  formatGroups: '++id, name',
+  analysisPresets: '++id, name',
+  watchgroups: '++id, name',
+  watchgroupMembers: '++id, [groupId+symbol], groupId, symbol',
+  screenerSymbols: 'symbol',
+  liveWatchlist: 'symbol, order'
+}).upgrade(async tx => {
+  await tx.table('priceData').clear()
+})
+
 // Helper functions
 
 export async function getSetting(key) {

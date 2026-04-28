@@ -62,9 +62,10 @@ const DEFAULT_STYLE = {
 // Candlestick SVG — renders inside the chart control
 function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRthBgColor, fontSize, volumeMultiplier,
   onSymbolClick, quickInputOpen, quickSymbol, quickInputRef, onQuickSymbolChange, onQuickSymbolKeyDown, onQuickSymbolCommit,
-  onIntervalChange }) {
+  onIntervalChange, ohlcPosition }) {
   const [tooltip,    setTooltip]    = useState(null)
   const [crosshairY, setCrosshairY] = useState(null)
+  const [mouseX,     setMouseX]     = useState(null)
 
   const padding = { top: 40, right: fontSize * 4 + 4, bottom: 28, left: 8 }
   const axisGap = 6
@@ -96,12 +97,12 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
 
   return (
     <Box position="relative" w="100%" h="100%">
-      {/* Combined top bar: symbol + OHLC on hover */}
+      {/* Top bar: symbol + interval only */}
       <HStack
         position="absolute"
         top="4px"
         left="8px"
-        right={`${padding.right + 4}px`}
+        right={`${padding.right + 62}px`}
         spacing={2}
         fontSize={`${fontSize + 1}px`}
         pointerEvents="none"
@@ -172,16 +173,6 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
             </MenuList>
           </Portal>
         </Menu>
-        {tooltip && (
-          <>
-            <Text color="gray.500">·</Text>
-            <Text color="gray.300">{isIntraday ? formatTime(tooltip.bar.timestamp) : formatDate(tooltip.bar.timestamp)}</Text>
-            <Text color="gray.300">O:{formatPrice(tooltip.bar.open)}</Text>
-            <Text color="gray.300">H:{formatPrice(tooltip.bar.high)}</Text>
-            <Text color="gray.300">L:{formatPrice(tooltip.bar.low)}</Text>
-            <Text color={tooltip.bar.close >= tooltip.bar.open ? 'green.300' : 'red.300'}>C:{formatPrice(tooltip.bar.close)}</Text>
-          </>
-        )}
       </HStack>
       <svg
         width="100%"
@@ -193,14 +184,16 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
           const rect = e.currentTarget.getBoundingClientRect()
           const scaleX = width / rect.width
           const scaleY = height / rect.height
+          const svgX = (e.clientX - rect.left) * scaleX
           const svgY = (e.clientY - rect.top) * scaleY
+          setMouseX(svgX)
           if (svgY >= padding.top && svgY <= height - padding.bottom) {
             setCrosshairY(svgY)
           } else {
             setCrosshairY(null)
           }
         }}
-        onMouseLeave={() => { setCrosshairY(null); setTooltip(null) }}
+        onMouseLeave={() => { setCrosshairY(null); setTooltip(null); setMouseX(null) }}
       >
         {/* Base background — full chart area including header/price label strips */}
         <rect x={0} y={0} width={width} height={height} fill="#1a202c" />
@@ -354,6 +347,54 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
                 fill="#e2e8f0" fontSize={fontSize - 1}>
                 {price > 0 ? price.toFixed(2) : ''}
               </text>
+            </g>
+          )
+        })()}
+
+        {/* OHLC tooltip — floating near cursor or fixed top-left */}
+        {tooltip && (() => {
+          const bar = tooltip.bar
+          const isUp = bar.close >= bar.open
+          const lines = [
+            { text: isIntraday ? formatTime(bar.timestamp) : formatDate(bar.timestamp), color: '#a0aec0' },
+            { text: `O:${formatPrice(bar.open)}`, color: '#a0aec0' },
+            { text: `H:${formatPrice(bar.high)}`, color: '#a0aec0' },
+            { text: `L:${formatPrice(bar.low)}`, color: '#a0aec0' },
+            { text: `C:${formatPrice(bar.close)}`, color: isUp ? '#68d391' : '#fc8181' },
+          ]
+          const ttW = fontSize * 5.5
+          const ttH = lines.length * (fontSize + 3) + 8
+
+          if (ohlcPosition === 'corner') {
+            const ttX = padding.left + 2
+            const ttY = padding.top + 2
+            return (
+              <g pointerEvents="none">
+                <rect x={ttX} y={ttY} width={ttW} height={ttH} fill="#2d3748" stroke="#4A5568" strokeWidth={1} rx={3} opacity={0.88} />
+                {lines.map((line, i) => (
+                  <text key={i} x={ttX + 6} y={ttY + 4 + (i + 1) * (fontSize + 3) - 2}
+                    fill={line.color} fontSize={fontSize}>
+                    {line.text}
+                  </text>
+                ))}
+              </g>
+            )
+          }
+
+          if (mouseX === null || crosshairY === null) return null
+          const offset = 12
+          const flipLeft = mouseX + offset + ttW > width - padding.right
+          const ttX = flipLeft ? mouseX - offset - ttW : mouseX + offset
+          const ttY = Math.min(Math.max(crosshairY - ttH / 2, padding.top), height - padding.bottom - ttH)
+          return (
+            <g pointerEvents="none">
+              <rect x={ttX} y={ttY} width={ttW} height={ttH} fill="#2d3748" stroke="#4A5568" strokeWidth={1} rx={3} opacity={0.92} />
+              {lines.map((line, i) => (
+                <text key={i} x={ttX + 6} y={ttY + 4 + (i + 1) * (fontSize + 3) - 2}
+                  fill={line.color} fontSize={fontSize}>
+                  {line.text}
+                </text>
+              ))}
             </g>
           )
         })()}
@@ -933,6 +974,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEdi
             outsideRthBgColor={globalSettings.outsideRthBgColor}
             fontSize={globalSettings.fontSize ?? 9}
             volumeMultiplier={globalSettings.volumeMultiplier ?? 1}
+            ohlcPosition={globalSettings.ohlcPosition ?? 'mouse'}
             onSymbolClick={handleSymbolLabelClick}
             quickInputOpen={quickInputOpen}
             quickSymbol={quickSymbol}
@@ -1178,6 +1220,30 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEdi
                           onChange={(e) => setEditGlobal(g => ({ ...g, invertDrag: e.target.checked }))}
                           colorScheme="blue"
                         />
+                      </HStack>
+                    </FormControl>
+                    <FormControl>
+                      <HStack justify="space-between">
+                        <FormLabel fontSize="sm" mb={0}>OHLC Tooltip Position</FormLabel>
+                        <HStack spacing={0} borderRadius="md" overflow="hidden" border="1px solid" borderColor="gray.600">
+                          {['mouse', 'corner'].map(opt => (
+                            <Button
+                              key={opt}
+                              size="xs"
+                              variant="unstyled"
+                              px={3}
+                              py={1}
+                              h="auto"
+                              borderRadius={0}
+                              bg={(editGlobal.ohlcPosition ?? 'mouse') === opt ? 'blue.600' : 'transparent'}
+                              color={(editGlobal.ohlcPosition ?? 'mouse') === opt ? 'white' : 'gray.400'}
+                              _hover={{ color: 'white' }}
+                              onClick={() => setEditGlobal(g => ({ ...g, ohlcPosition: opt }))}
+                            >
+                              {opt === 'mouse' ? 'Mouse' : 'Corner'}
+                            </Button>
+                          ))}
+                        </HStack>
                       </HStack>
                     </FormControl>
                   </VStack>

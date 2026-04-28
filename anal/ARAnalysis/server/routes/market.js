@@ -285,19 +285,23 @@ router.get('/close-nd/:symbol', async (req, res) => {
   try {
     // Request enough calendar days to cover N trading days (weekends/holidays ≈ 2× buffer)
     const calendarDays = Math.ceil(days * 2) + 10
+    console.log(`[close-nd] fetching ${upperSymbol} days=${days} calendarDays=${calendarDays}`)
     const bars = await getHistoricalData(upperSymbol, '1 day', `${calendarDays} D`)
+    console.log(`[close-nd] ${upperSymbol} got ${bars.length} bars, need >${days}`)
 
     if (bars.length <= days) {
+      console.warn(`[close-nd] not enough bars for ${upperSymbol}: got ${bars.length}, need >${days}`)
       return res.status(404).json({ error: 'Not enough historical data' })
     }
 
     // bars[-1] = most recent trading day; bars[-1-days] = N trading days ago
     const targetBar = bars[bars.length - 1 - days]
+    console.log(`[close-nd] ${upperSymbol} day-${days} close=${targetBar.close} date=${targetBar.timestamp}`)
     historicalCloseCache.set(cacheKey, { close: targetBar.close, date: targetBar.timestamp, fetchedAt: Date.now() })
 
     res.json({ symbol: upperSymbol, days, close: targetBar.close, date: targetBar.timestamp })
   } catch (error) {
-    console.error('close-nd error:', error)
+    console.error(`[close-nd] error for ${upperSymbol}:`, error.message)
     res.status(500).json({ error: error.message })
   }
 })

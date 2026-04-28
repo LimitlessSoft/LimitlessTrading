@@ -641,13 +641,21 @@ function parseIBKRDate(dateStr) {
     const day = dateStr.substring(6, 8)
     return new Date(`${year}-${month}-${day}T00:00:00`).getTime()
   } else {
-    // Intraday: yyyyMMdd HH:mm:ss or timestamp
+    // Intraday: yyyyMMdd HH:mm:ss or unix timestamp
     if (dateStr.includes(' ')) {
+      // IBKR intraday times are in US Eastern — convert to UTC using the Eastern offset
+      // at noon on this date (using noon avoids DST transition edge cases)
       const [datePart, timePart] = dateStr.split(' ')
-      const year = datePart.substring(0, 4)
-      const month = datePart.substring(4, 6)
-      const day = datePart.substring(6, 8)
-      return new Date(`${year}-${month}-${day}T${timePart}`).getTime()
+      const y = datePart.substring(0, 4)
+      const mo = datePart.substring(4, 6)
+      const d = datePart.substring(6, 8)
+      const [hh, mm, ss] = timePart.split(':').map(Number)
+      const noonUTC = new Date(`${y}-${mo}-${d}T12:00:00Z`)
+      const noonParts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false
+      }).formatToParts(noonUTC)
+      const easternNoonH = parseInt(noonParts.find(p => p.type === 'hour').value)
+      return Date.UTC(+y, +mo - 1, +d, hh + (12 - easternNoonH), mm, ss)
     } else {
       // Unix timestamp
       return parseInt(dateStr) * 1000

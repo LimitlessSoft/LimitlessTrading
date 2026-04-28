@@ -361,7 +361,9 @@ async function unsubscribeSymbolFromBackend(symbol) {
  */
 function handleQuoteUpdate(symbol, quote) {
   const normalizedSymbol = symbol.toUpperCase()
-  quoteCache.set(normalizedSymbol, quote)
+  const existing = quoteCache.get(normalizedSymbol) || {}
+  const merged = { ...existing, ...quote }
+  quoteCache.set(normalizedSymbol, merged)
 
   // Notify all subscribers for this symbol
   const subs = subscribers.get(normalizedSymbol)
@@ -480,7 +482,9 @@ export function parseFormulaPlaceholders(text) {
       const symbol = refMatch[1].toUpperCase()
       const property = refMatch[2].toLowerCase()
 
-      if (isValidProperty(property)) {
+      const valid = isValidProperty(property)
+      console.log(`[formula:parse] symbol=${symbol} property=${property} valid=${valid} interval=${interval}`)
+      if (valid) {
         placeholders.push({ symbol, property, interval })
       }
     }
@@ -504,6 +508,7 @@ export function resolveFormulaText(text, quotes) {
     const substituted = expr.replace(/@\{([A-Za-z0-9.^]+):([A-Za-z]\w*(?:-[A-Za-z0-9]+)*)\}/g, (_, symbol, property) => {
       const quote = quotes.get(symbol.toUpperCase())
       const value = getQuoteProperty(quote, property.toLowerCase())
+      console.log(`[formula:resolve] symbol=${symbol} property=${property} value=${value} quoteKeys=${quote ? Object.keys(quote).join(',') : 'NO_QUOTE'}`)
       if (value === null || value === undefined) {
         hasUnavailable = true
         return '0'
@@ -555,24 +560,28 @@ export function subscribeHistoricalClose(symbol, days, interval) {
   const propertyKey = `close-${days}`
 
   const fetchClose = async () => {
+    console.log(`[historicalClose] fetching ${propertyKey} for ${upperSymbol}`)
     try {
       const res = await api.get(`/close-nd/${upperSymbol}?days=${days}`)
+      console.log(`[historicalClose] got ${propertyKey} for ${upperSymbol}:`, res.data)
       const existing = quoteCache.get(upperSymbol) || { symbol: upperSymbol }
       handleQuoteUpdate(upperSymbol, { ...existing, [propertyKey]: res.data.close })
     } catch (err) {
-      console.error(`[symbolQuoteService] ${propertyKey} fetch error for ${upperSymbol}:`, err)
+      console.error(`[historicalClose] fetch error for ${upperSymbol} ${propertyKey}:`, err)
     }
   }
 
   const existing = historicalCloseSubs.get(key)
   if (existing) {
     existing.refCount++
+    console.log(`[historicalClose] reusing existing sub for ${key}, refCount=${existing.refCount}`)
     // Immediately deliver cached value if available
     const cached = quoteCache.get(upperSymbol)
     if (cached?.[propertyKey] !== undefined) {
       handleQuoteUpdate(upperSymbol, cached)
     }
   } else {
+    console.log(`[historicalClose] creating new sub for ${key}, interval=${interval}s`)
     fetchClose()
     const timerId = setInterval(fetchClose, interval * 1000)
     historicalCloseSubs.set(key, { refCount: 1, timerId })

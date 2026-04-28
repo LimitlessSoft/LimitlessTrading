@@ -222,7 +222,7 @@ function GaugeSVG({ value, min, max, segments, title }) {
 }
 
 
-function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef }) {
+function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -468,6 +468,162 @@ function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDra
     const updated = [...editConfig.segments]
     updated[index] = { ...updated[index], [field]: field === 'color' ? value : parseFloat(value) || 0 }
     setEditConfig({ ...editConfig, segments: updated })
+  }
+
+  if (isHeaderMode) {
+    return (
+      <>
+        <WidgetTooltip
+          title={title || 'Gauge'}
+          value={displayValue}
+          rows={tooltipRows.map(r => ({
+            name: r.name,
+            detail: resolveRowText(r.detail),
+            value: resolveRowText(r.value)
+          }))}
+          footer={resolveRowText(tooltipFooter)}
+        >
+          <Box
+            ref={boxRef}
+            display="flex"
+            alignItems="center"
+            height="32px"
+            width="56px"
+            flexShrink={0}
+            outline={isEditing ? '1px dashed' : 'none'}
+            outlineColor={isEditing ? (isMoving ? 'blue.400' : 'gray.500') : undefined}
+            cursor={isEditing ? (isMoving ? 'grabbing' : 'grab') : 'default'}
+            onMouseDown={isEditing ? handleMoveStart : undefined}
+            opacity={isMoving ? 0.85 : 1}
+            transform={isMoving ? 'scale(1.08)' : 'scale(1)'}
+            boxShadow={isMoving ? '0 6px 20px rgba(0,0,0,0.6)' : 'none'}
+            transition={isMoving ? 'none' : 'transform 0.15s, box-shadow 0.15s, opacity 0.15s'}
+            zIndex={isMoving ? 100 : 'auto'}
+            px={1}
+          >
+            <Box flex={1} height="100%">
+              <GaugeSVG
+                value={resolvedNumeric}
+                min={min}
+                max={max}
+                segments={segments}
+                title={null}
+              />
+            </Box>
+            {isEditing && (
+              <>
+                <Tooltip label="Export gauge" placement="top" hasArrow>
+                  <IconButton icon={<DownloadIcon />} size="xs" variant="ghost" aria-label="Export gauge"
+                    onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
+                    onMouseDown={(e) => e.stopPropagation()} ml={1} />
+                </Tooltip>
+                <IconButton icon={<SettingsIcon />} size="xs" variant="ghost" aria-label="Edit gauge"
+                  onClick={(e) => { e.stopPropagation(); handleOpenEdit() }}
+                  onMouseDown={(e) => e.stopPropagation()} ml={1} />
+                <IconButton icon={<CloseIcon />} size="xs" variant="ghost" aria-label="Delete gauge"
+                  onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+                  onMouseDown={(e) => e.stopPropagation()} />
+              </>
+            )}
+          </Box>
+        </WidgetTooltip>
+
+        <Modal isOpen={isOpen} onClose={onClose} size="lg">
+          <ModalOverlay />
+          <ModalContent bg="gray.800">
+            <ModalHeader>Edit Gauge</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              {editConfig && (
+                <VStack spacing={4} align="stretch">
+                  <FormControl>
+                    <FormLabel fontSize="sm">Value Source</FormLabel>
+                    <Input
+                      value={editConfig.placeholder}
+                      onChange={(e) => setEditConfig({ ...editConfig, placeholder: e.target.value })}
+                      placeholder="@{VIX:last:5} or @{SPY:changePercent:3}"
+                      fontFamily="monospace"
+                      fontSize="sm"
+                    />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel fontSize="sm">Title</FormLabel>
+                    <Input
+                      value={editConfig.title}
+                      onChange={(e) => setEditConfig({ ...editConfig, title: e.target.value })}
+                      placeholder="VIX, RSI, etc."
+                    />
+                  </FormControl>
+                  <WidgetTooltipEditor
+                    rows={editConfig.tooltipRows}
+                    footer={editConfig.tooltipFooter}
+                    onChange={({ rows, footer }) => setEditConfig({ ...editConfig, tooltipRows: rows, tooltipFooter: footer })}
+                  />
+                  <HStack spacing={4}>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Min</FormLabel>
+                      <Input type="number" value={editConfig.min}
+                        onChange={(e) => setEditConfig({ ...editConfig, min: e.target.value })} />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Max</FormLabel>
+                      <Input type="number" value={editConfig.max}
+                        onChange={(e) => setEditConfig({ ...editConfig, max: e.target.value })} />
+                    </FormControl>
+                  </HStack>
+                  <Box>
+                    <HStack justify="space-between" mb={2}>
+                      <FormLabel fontSize="sm" mb={0}>Color Segments</FormLabel>
+                      <Button size="xs" leftIcon={<AddIcon />} onClick={handleAddSegment}>Add</Button>
+                    </HStack>
+                    <VStack spacing={2} align="stretch">
+                      {editConfig.segments.map((seg, index) => (
+                        <HStack key={index} spacing={2}>
+                          <Input size="sm" type="number" placeholder="From" value={seg.from}
+                            onChange={(e) => handleUpdateSegment(index, 'from', e.target.value)} flex={1} />
+                          <Text fontSize="sm" color="gray.400">–</Text>
+                          <Input size="sm" type="number" placeholder="To" value={seg.to}
+                            onChange={(e) => handleUpdateSegment(index, 'to', e.target.value)} flex={1} />
+                          <Input type="color" value={seg.color}
+                            onChange={(e) => handleUpdateSegment(index, 'color', e.target.value)}
+                            width="50px" height="32px" p={1} />
+                          <IconButton icon={<DeleteIcon />} size="xs" variant="ghost" colorScheme="red"
+                            onClick={() => handleRemoveSegment(index)} aria-label="Remove segment" />
+                        </HStack>
+                      ))}
+                    </VStack>
+                  </Box>
+                  <HStack spacing={4}>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Background</FormLabel>
+                      <Input type="color"
+                        value={editConfig.style.bgColor === 'transparent' ? '#1a202c' : editConfig.style.bgColor}
+                        onChange={(e) => setEditConfig({ ...editConfig, style: { ...editConfig.style, bgColor: e.target.value } })}
+                        height="40px" p={1} />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Border Color</FormLabel>
+                      <Input type="color" value={editConfig.style.borderColor}
+                        onChange={(e) => setEditConfig({ ...editConfig, style: { ...editConfig.style, borderColor: e.target.value } })}
+                        height="40px" p={1} />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Border Width</FormLabel>
+                      <Input type="number" min={0} max={4} value={editConfig.style.borderWidth}
+                        onChange={(e) => setEditConfig({ ...editConfig, style: { ...editConfig.style, borderWidth: parseInt(e.target.value) || 0 } })} />
+                    </FormControl>
+                  </HStack>
+                </VStack>
+              )}
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="ghost" mr={3} onClick={onClose}>Cancel</Button>
+              <Button colorScheme="blue" onClick={handleSaveConfig}>Save</Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      </>
+    )
   }
 
   return (

@@ -6,7 +6,8 @@ export const DEFAULT_GLOBAL_CHART_SETTINGS = {
   fontSize: 9,
   invertScroll: false,
   invertDrag: false,
-  volumeMultiplier: 1
+  volumeMultiplier: 1,
+  ohlcPosition: 'mouse'
 }
 
 export function getGlobalChartSettings() {

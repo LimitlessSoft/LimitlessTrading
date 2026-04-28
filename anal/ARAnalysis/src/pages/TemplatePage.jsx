@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import {
   Box,
-  Heading,
   Text,
   IconButton,
   Modal,
@@ -411,8 +410,10 @@ function TemplatePage() {
       return <TemplatePageBadge {...commonProps} />
     } else if (widget.type === 'label') {
       return <TemplatePageLabel {...commonProps} />
+    } else if (widget.type === 'gauge') {
+      return <TemplatePageGauge {...commonProps} />
     }
-    // Panels not supported in header
+    // Panels and charts not supported in header
     return null
   }
 
@@ -507,8 +508,6 @@ function TemplatePage() {
       <Box p={8}>
         {pageInfo ? (
           <>
-            <Heading size="lg" mb={2}>{pageInfo.name}</Heading>
-            <Text color="gray.500" mb={6}>{pageInfo.path}</Text>
             <Box
               ref={containerRef}
               position="relative"
