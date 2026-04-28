@@ -388,6 +388,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEdi
   const boxRef          = useRef(null)
   const cancelRef       = useRef(null)
   const olderCancelRef  = useRef(null)
+  const isHoveredRef    = useRef(false)
   const loadGenRef      = useRef(0)
   const globalSettingsRef = useRef(globalSettings)
   const { isOpen, onOpen, onClose } = useDisclosure()
@@ -799,6 +800,26 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEdi
     }
     el.addEventListener('wheel', handler, { passive: false })
     return () => el.removeEventListener('wheel', handler)
+  }, [])
+
+  // End key: jump to most-recent data (rightmost) when hovering this chart
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el) return
+    const onEnter = () => { isHoveredRef.current = true }
+    const onLeave = () => { isHoveredRef.current = false }
+    const onKeyDown = (e) => {
+      if (!isHoveredRef.current) return
+      if (e.key === 'End') { e.preventDefault(); setViewOffset(0) }
+    }
+    el.addEventListener('mouseenter', onEnter)
+    el.addEventListener('mouseleave', onLeave)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      el.removeEventListener('mouseenter', onEnter)
+      el.removeEventListener('mouseleave', onLeave)
+      window.removeEventListener('keydown', onKeyDown)
+    }
   }, [])
 
   const handleOpenSettings = () => {
