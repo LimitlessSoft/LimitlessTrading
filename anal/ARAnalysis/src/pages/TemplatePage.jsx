@@ -39,24 +39,28 @@ import TemplatePageLabel from '../components/TemplatePageLabel'
 import TemplatePagePanel from '../components/TemplatePagePanel'
 import TemplatePageBadge from '../components/TemplatePageBadge'
 import TemplatePageChart from '../components/TemplatePageChart'
+import TemplatePageGauge from '../components/TemplatePageGauge'
+import WidgetsGalleryModal from '../components/WidgetsGalleryModal'
 
 function TemplatePage() {
   const location = useLocation()
   const [pageInfo, setPageInfo] = useState(null)
   const [labelText, setLabelText] = useState('')
-  const [controlType, setControlType] = useState('label')
+  const [widgetType, setWidgetType] = useState('label')
   const [isSaving, setIsSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [pendingImport, setPendingImport] = useState(null)
+  const [addStage, setAddStage] = useState('pick')
   const { isOpen, onOpen, onClose } = useDisclosure()
   const { isOpen: isImportOpen, onOpen: onImportOpen, onClose: onImportClose } = useDisclosure()
+  const { isOpen: isGalleryOpen, onOpen: onGalleryOpen, onClose: onGalleryClose } = useDisclosure()
   const toast = useToast()
   const containerRef = useRef(null)
   const headerRef = useRef(null)
   const fileInputRef = useRef(null)
-  const controlImportRef = useRef(null)
+  const widgetImportRef = useRef(null)
   const [dragPreview, setDragPreview] = useState(null)  // { id, x, y } during drag
-  const [activeDrag, setActiveDrag] = useState(null)  // { controlId, mousePos } during drag
+  const [activeDrag, setActiveDrag] = useState(null)  // { widgetId, mousePos } during drag
 
   useEffect(() => {
     const loadPageInfo = async () => {
@@ -72,24 +76,36 @@ function TemplatePage() {
     loadPageInfo()
   }, [location.pathname])
 
-  const handleAddControl = async () => {
-    if (controlType === 'label' && !labelText.trim()) return
+  useEffect(() => {
+    if (isOpen) setAddStage('pick')
+  }, [isOpen])
+
+  const handleAddWidget = async () => {
+    if (widgetType === 'label' && !labelText.trim()) return
     if (!pageInfo) return
 
     setIsSaving(true)
     try {
       const newControl = {
         id: crypto.randomUUID(),
-        type: controlType,
-        text: controlType === 'label' ? labelText.trim() : undefined,
-        width: controlType === 'panel' ? 8 : controlType === 'badge' ? 2 : controlType === 'chart' ? 10 : 4,
-        height: controlType === 'panel' ? 120 : controlType === 'badge' ? 40 : controlType === 'chart' ? 220 : 60,
+        type: widgetType,
+        text: widgetType === 'label' ? labelText.trim() : undefined,
+        width: widgetType === 'panel' ? 8 : widgetType === 'badge' ? 2 : widgetType === 'chart' ? 10 : widgetType === 'gauge' ? 6 : 4,
+        height: widgetType === 'panel' ? 120 : widgetType === 'badge' ? 40 : widgetType === 'chart' ? 220 : widgetType === 'gauge' ? 160 : 60,
         x: 0,
         y: 0,
         createdAt: Date.now(),
-        children: controlType === 'panel' ? [] : undefined,
-        symbol: controlType === 'chart' ? '' : undefined,
-        interval: controlType === 'chart' ? '5m' : undefined
+        children: widgetType === 'panel' ? [] : undefined,
+        symbol: widgetType === 'chart' ? '' : undefined,
+        interval: widgetType === 'chart' ? '5m' : undefined,
+        min: widgetType === 'gauge' ? 0 : undefined,
+        max: widgetType === 'gauge' ? 100 : undefined,
+        segments: widgetType === 'gauge' ? [
+          { from: 0, to: 25, color: '#48BB78' },
+          { from: 25, to: 50, color: '#ECC94B' },
+          { from: 50, to: 75, color: '#ED8936' },
+          { from: 75, to: 100, color: '#F56565' }
+        ] : undefined
       }
       const currentLabels = pageInfo.config?.labels || []
       const updatedConfig = {
@@ -99,16 +115,16 @@ function TemplatePage() {
       const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
       setPageInfo(updatedRoute)
       setLabelText('')
-      setControlType('label')
+      setWidgetType('label')
       onClose()
       toast({
-        title: `${controlType.charAt(0).toUpperCase() + controlType.slice(1)} added`,
+        title: `${widgetType.charAt(0).toUpperCase() + widgetType.slice(1)} added`,
         status: 'success',
         duration: 2000
       })
     } catch (err) {
       toast({
-        title: 'Failed to add control',
+        title: 'Failed to add widget',
         description: err.message,
         status: 'error',
         duration: 3000
@@ -169,12 +185,12 @@ function TemplatePage() {
     }
   }
 
-  // Move a control to a panel, root, or header
+  // Move a widget to a panel, root, or header
   // targetPanelId: null = root, 'header' = header bar, or panelId
-  const handleMoveControl = async (controlId, sourcePanelId, targetPanelId) => {
+  const handleMoveWidget = async (widgetId, sourcePanelId, targetPanelId) => {
     if (!pageInfo) return
     if (sourcePanelId === targetPanelId) return // No change
-    if (controlId === targetPanelId) return // Can't move panel into itself
+    if (widgetId === targetPanelId) return // Can't move panel into itself
 
     try {
       let currentLabels = [...(pageInfo.config?.labels || [])]
@@ -184,20 +200,20 @@ function TemplatePage() {
       // Find and remove the control from its source
       if (sourcePanelId === 'header') {
         // Moving from header
-        controlToMove = currentHeaderControls.find(c => c.id === controlId)
+        controlToMove = currentHeaderControls.find(c => c.id === widgetId)
         if (!controlToMove) return
-        currentHeaderControls = currentHeaderControls.filter(c => c.id !== controlId)
+        currentHeaderControls = currentHeaderControls.filter(c => c.id !== widgetId)
       } else if (sourcePanelId === null) {
         // Moving from root
-        controlToMove = currentLabels.find(l => l.id === controlId)
+        controlToMove = currentLabels.find(l => l.id === widgetId)
         if (!controlToMove) return
-        currentLabels = currentLabels.filter(l => l.id !== controlId)
+        currentLabels = currentLabels.filter(l => l.id !== widgetId)
       } else {
         // Moving from a panel - find the panel and remove the control from its children
         currentLabels = currentLabels.map(l => {
           if (l.id === sourcePanelId && l.children) {
-            controlToMove = l.children.find(c => c.id === controlId)
-            return { ...l, children: l.children.filter(c => c.id !== controlId) }
+            controlToMove = l.children.find(c => c.id === widgetId)
+            return { ...l, children: l.children.filter(c => c.id !== widgetId) }
           }
           return l
         })
@@ -234,13 +250,13 @@ function TemplatePage() {
       setPageInfo(updatedRoute)
 
       toast({
-        title: 'Control moved',
+        title: 'Widget moved',
         status: 'success',
         duration: 2000
       })
     } catch (err) {
       toast({
-        title: 'Failed to move control',
+        title: 'Failed to move widget',
         description: err.message,
         status: 'error',
         duration: 3000
@@ -254,19 +270,19 @@ function TemplatePage() {
     return result
   }
 
-  const handleExportControl = (control) => {
+  const handleExportWidget = (control) => {
     const exportData = { version: 1, control }
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    const name = control.text || control.symbol || control.type || 'control'
+    const name = control.text || control.symbol || control.type || 'widget'
     a.download = `${name.toLowerCase().replace(/\s+/g, '-')}.json`
     a.click()
     URL.revokeObjectURL(url)
   }
 
-  const handleImportControlFileChange = async (e) => {
+  const handleImportWidgetFileChange = async (e) => {
     const file = e.target.files[0]
     if (!file || !pageInfo) return
     e.target.value = ''
@@ -275,14 +291,14 @@ function TemplatePage() {
       try {
         const data = JSON.parse(event.target.result)
         if (!data.control || typeof data.control !== 'object') {
-          throw new Error('Invalid control file — missing control object')
+          throw new Error('Invalid widget file — missing control object')
         }
         const control = regenerateIds({ ...data.control, x: 0, y: 0 })
         const currentLabels = pageInfo.config?.labels || []
         const updatedConfig = { ...pageInfo.config, labels: [...currentLabels, control] }
         const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
         setPageInfo(updatedRoute)
-        toast({ title: 'Control imported', status: 'success', duration: 2000 })
+        toast({ title: 'Widget imported', status: 'success', duration: 2000 })
       } catch (err) {
         toast({ title: 'Import failed', description: err.message, status: 'error', duration: 3000 })
       }
@@ -347,43 +363,43 @@ function TemplatePage() {
   const labels = pageInfo?.config?.labels || []
   const headerControls = pageInfo?.config?.headerControls || []
 
-  // Header control handlers
-  const handleDeleteHeaderControl = async (controlId) => {
+  // Header widget handlers
+  const handleDeleteHeaderWidget = async (widgetId) => {
     if (!pageInfo) return
     try {
-      const updatedHeaderControls = headerControls.filter(c => c.id !== controlId)
+      const updatedHeaderControls = headerControls.filter(c => c.id !== widgetId)
       const updatedConfig = { ...pageInfo.config, headerControls: updatedHeaderControls }
       const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
       setPageInfo(updatedRoute)
     } catch (err) {
-      toast({ title: 'Failed to delete control', status: 'error', duration: 3000 })
+      toast({ title: 'Failed to delete widget', status: 'error', duration: 3000 })
     }
   }
 
-  const handleUpdateHeaderControl = async (controlId, changes) => {
+  const handleUpdateHeaderWidget = async (widgetId, changes) => {
     if (!pageInfo) return
     try {
       const updatedHeaderControls = headerControls.map(c =>
-        c.id === controlId ? { ...c, ...changes } : c
+        c.id === widgetId ? { ...c, ...changes } : c
       )
       const updatedConfig = { ...pageInfo.config, headerControls: updatedHeaderControls }
       const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
       setPageInfo(updatedRoute)
     } catch (err) {
-      toast({ title: 'Failed to update control', status: 'error', duration: 3000 })
+      toast({ title: 'Failed to update widget', status: 'error', duration: 3000 })
     }
   }
 
-  // Render a header control (simplified - inline, no absolute positioning)
-  const renderHeaderControl = (control) => {
+  // Render a header widget (simplified - inline, no absolute positioning)
+  const renderHeaderWidget = (control) => {
     const commonProps = {
       key: control.id,
       label: control,
-      onDelete: handleDeleteHeaderControl,
-      onUpdate: handleUpdateHeaderControl,
-      onExport: handleExportControl,
-      onDragStateChange: (dragging, mousePos) => setActiveDrag(dragging ? { controlId: control.id, mousePos } : null),
-      onMoveControl: handleMoveControl,
+      onDelete: handleDeleteHeaderWidget,
+      onUpdate: handleUpdateHeaderWidget,
+      onExport: handleExportWidget,
+      onDragStateChange: (dragging, mousePos) => setActiveDrag(dragging ? { widgetId: control.id, mousePos } : null),
+      onMoveWidget: handleMoveWidget,
       activeDrag: activeDrag,
       parentPanelId: 'header',
       isEditing: isEditing,
@@ -447,7 +463,7 @@ function TemplatePage() {
         headerRef={headerRef}
         headerControls={headerControls}
         activeDrag={activeDrag}
-        onRenderControl={renderHeaderControl}
+        onRenderWidget={renderHeaderWidget}
       >
         <Menu>
           <MenuButton
@@ -465,16 +481,13 @@ function TemplatePage() {
               {isEditing ? 'Stop editing' : 'Edit page'}
             </MenuItem>
             <MenuItem bg="gray.800" _hover={{ bg: 'gray.700' }} onClick={onOpen}>
-              Add control
+              Add widget
             </MenuItem>
             <MenuItem bg="gray.800" _hover={{ bg: 'gray.700' }} onClick={handleExport}>
               Export template
             </MenuItem>
             <MenuItem bg="gray.800" _hover={{ bg: 'gray.700' }} onClick={() => fileInputRef.current?.click()}>
               Import template
-            </MenuItem>
-            <MenuItem bg="gray.800" _hover={{ bg: 'gray.700' }} onClick={() => controlImportRef.current?.click()}>
-              Import control
             </MenuItem>
           </MenuList>
         </Menu>
@@ -486,11 +499,11 @@ function TemplatePage() {
           onChange={handleImportFileChange}
         />
         <input
-          ref={controlImportRef}
+          ref={widgetImportRef}
           type="file"
           accept=".json"
           style={{ display: 'none' }}
-          onChange={handleImportControlFileChange}
+          onChange={handleImportWidgetFileChange}
         />
       </PageNavMenu>
       <Box p={8}>
@@ -511,10 +524,10 @@ function TemplatePage() {
                   layoutY: layoutPositions.get(label.id),
                   onDelete: handleDeleteLabel,
                   onUpdate: handleUpdateLabel,
-                  onExport: handleExportControl,
+                  onExport: handleExportWidget,
                   onDragPreview: (pos) => setDragPreview(pos ? { id: label.id, ...pos } : null),
-                  onDragStateChange: (dragging, mousePos) => setActiveDrag(dragging ? { controlId: label.id, mousePos } : null),
-                  onMoveControl: handleMoveControl,
+                  onDragStateChange: (dragging, mousePos) => setActiveDrag(dragging ? { widgetId: label.id, mousePos } : null),
+                  onMoveWidget: handleMoveWidget,
                   activeDrag: activeDrag,
                   parentPanelId: null,
                   isEditing: isEditing,
@@ -527,6 +540,8 @@ function TemplatePage() {
                   return <TemplatePageBadge {...commonProps} />
                 } else if (label.type === 'chart') {
                   return <TemplatePageChart {...commonProps} />
+                } else if (label.type === 'gauge') {
+                  return <TemplatePageGauge {...commonProps} />
                 } else {
                   return <TemplatePageLabel {...commonProps} />
                 }
@@ -566,54 +581,111 @@ function TemplatePage() {
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
         <ModalContent bg="gray.800">
-          <ModalHeader>Add Control</ModalHeader>
+          <ModalHeader>Add Widget</ModalHeader>
           <ModalCloseButton />
-          <ModalBody>
-            <VStack spacing={4}>
-              <FormControl>
-                <FormLabel fontSize="sm">Control Type</FormLabel>
-                <Select
-                  value={controlType}
-                  onChange={(e) => setControlType(e.target.value)}
+          {addStage === 'pick' ? (
+            <>
+              <ModalBody>
+                <VStack spacing={3}>
+                  <Button
+                    w="full"
+                    variant="outline"
+                    h="auto"
+                    py={3}
+                    px={5}
+                    justifyContent="flex-start"
+                    onClick={() => setAddStage('new')}
+                  >
+                    <VStack align="flex-start" spacing={0}>
+                      <Text fontWeight="semibold">New</Text>
+                      <Text fontSize="xs" color="gray.400" fontWeight="normal">Create a new widget from scratch</Text>
+                    </VStack>
+                  </Button>
+                  <Button
+                    w="full"
+                    variant="outline"
+                    h="auto"
+                    py={3}
+                    px={5}
+                    justifyContent="flex-start"
+                    onClick={() => { onClose(); widgetImportRef.current?.click() }}
+                  >
+                    <VStack align="flex-start" spacing={0}>
+                      <Text fontWeight="semibold">Import from file</Text>
+                      <Text fontSize="xs" color="gray.400" fontWeight="normal">Load a widget from a JSON file</Text>
+                    </VStack>
+                  </Button>
+                  <Button
+                    w="full"
+                    variant="outline"
+                    h="auto"
+                    py={3}
+                    px={5}
+                    justifyContent="flex-start"
+                    onClick={onGalleryOpen}
+                  >
+                    <VStack align="flex-start" spacing={0}>
+                      <Text fontWeight="semibold">Widgets Gallery</Text>
+                      <Text fontSize="xs" color="gray.400" fontWeight="normal">Browse and select from saved widgets</Text>
+                    </VStack>
+                  </Button>
+                </VStack>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="ghost" onClick={onClose}>Cancel</Button>
+              </ModalFooter>
+            </>
+          ) : (
+            <>
+              <ModalBody>
+                <VStack spacing={4}>
+                  <FormControl>
+                    <FormLabel fontSize="sm">Widget Type</FormLabel>
+                    <Select
+                      value={widgetType}
+                      onChange={(e) => setWidgetType(e.target.value)}
+                    >
+                      <option value="label">Label</option>
+                      <option value="panel">Panel</option>
+                      <option value="badge">Badge</option>
+                      <option value="chart">Chart</option>
+                      <option value="gauge">Gauge</option>
+                    </Select>
+                  </FormControl>
+                  {widgetType === 'label' && (
+                    <FormControl>
+                      <FormLabel fontSize="sm">Label Text</FormLabel>
+                      <Input
+                        placeholder="Enter label text"
+                        value={labelText}
+                        onChange={(e) => setLabelText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && labelText.trim()) {
+                            handleAddWidget()
+                          }
+                        }}
+                      />
+                    </FormControl>
+                  )}
+                </VStack>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="ghost" mr="auto" onClick={() => setAddStage('pick')}>Back</Button>
+                <Button variant="ghost" mr={3} onClick={onClose}>Cancel</Button>
+                <Button
+                  colorScheme="blue"
+                  onClick={handleAddWidget}
+                  isLoading={isSaving}
+                  isDisabled={widgetType === 'label' && !labelText.trim()}
                 >
-                  <option value="label">Label</option>
-                  <option value="panel">Panel</option>
-                  <option value="badge">Badge</option>
-                  <option value="chart">Chart</option>
-                </Select>
-              </FormControl>
-              {controlType === 'label' && (
-                <FormControl>
-                  <FormLabel fontSize="sm">Label Text</FormLabel>
-                  <Input
-                    placeholder="Enter label text"
-                    value={labelText}
-                    onChange={(e) => setLabelText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && labelText.trim()) {
-                        handleAddControl()
-                      }
-                    }}
-                  />
-                </FormControl>
-              )}
-            </VStack>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              colorScheme="blue"
-              onClick={handleAddControl}
-              isLoading={isSaving}
-              isDisabled={controlType === 'label' && !labelText.trim()}
-            >
-              Add
-            </Button>
-          </ModalFooter>
+                  Add
+                </Button>
+              </ModalFooter>
+            </>
+          )}
         </ModalContent>
       </Modal>
+      <WidgetsGalleryModal isOpen={isGalleryOpen} onClose={onGalleryClose} />
       <Modal isOpen={isImportOpen} onClose={onImportClose}>
         <ModalOverlay />
         <ModalContent bg="gray.800">
@@ -624,7 +696,7 @@ function TemplatePage() {
               Import <strong>{pendingImport?.name || 'template'}</strong>?
             </Text>
             <Text mt={2} fontSize="sm" color="orange.300">
-              This will replace all current controls on this page.
+              This will replace all current widgets on this page.
             </Text>
           </ModalBody>
           <ModalFooter>

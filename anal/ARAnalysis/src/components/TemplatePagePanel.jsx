@@ -16,6 +16,7 @@ import {
   Select,
   HStack,
   VStack,
+  Text,
   Checkbox,
   Tooltip,
   useDisclosure
@@ -28,7 +29,9 @@ const DownloadIcon = () => (
   </svg>
 )
 import TemplatePageLabel from './TemplatePageLabel'
+import WidgetsGalleryModal from './WidgetsGalleryModal'
 import TemplatePageBadge from './TemplatePageBadge'
+import TemplatePageGauge from './TemplatePageGauge'
 
 const TOTAL_SEGMENTS = 20
 const MIN_SEGMENTS = 2
@@ -42,7 +45,7 @@ const DEFAULT_STYLE = {
   verticalAlign: 'top'
 }
 
-function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveControl, activeDrag, parentPanelId, isEditing, containerRef }) {
+function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -50,10 +53,12 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const [editStyle, setEditStyle] = useState(null)
   const [addType, setAddType] = useState('label')
   const [addText, setAddText] = useState('')
+  const [addStage, setAddStage] = useState('pick')
   const boxRef = useRef(null)
   const childContainerRef = useRef(null)
   const { isOpen: isStyleOpen, onOpen: onStyleOpen, onClose: onStyleClose } = useDisclosure()
   const { isOpen: isAddOpen, onOpen: onAddOpen, onClose: onAddClose } = useDisclosure()
+  const { isOpen: isGalleryOpen, onOpen: onGalleryOpen, onClose: onGalleryClose } = useDisclosure()
 
   const width = label.width || 8
   const height = label.height || DEFAULT_HEIGHT
@@ -174,17 +179,29 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
     onStyleClose()
   }
 
+  useEffect(() => {
+    if (isAddOpen) setAddStage('pick')
+  }, [isAddOpen])
+
   const handleAddChild = () => {
     const newChild = {
       id: crypto.randomUUID(),
       type: addType,
       text: addType === 'label' ? addText.trim() : undefined,
-      width: addType === 'panel' ? 8 : addType === 'badge' ? 2 : 4,
-      height: addType === 'panel' ? DEFAULT_HEIGHT : addType === 'badge' ? 40 : 60,
+      width: addType === 'panel' ? 8 : addType === 'badge' ? 2 : addType === 'gauge' ? 6 : 4,
+      height: addType === 'panel' ? DEFAULT_HEIGHT : addType === 'badge' ? 40 : addType === 'gauge' ? 160 : 60,
       x: 0,
       y: 0,
       createdAt: Date.now(),
-      children: addType === 'panel' ? [] : undefined
+      children: addType === 'panel' ? [] : undefined,
+      min: addType === 'gauge' ? 0 : undefined,
+      max: addType === 'gauge' ? 100 : undefined,
+      segments: addType === 'gauge' ? [
+        { from: 0, to: 25, color: '#48BB78' },
+        { from: 25, to: 50, color: '#ECC94B' },
+        { from: 50, to: 75, color: '#ED8936' },
+        { from: 75, to: 100, color: '#F56565' }
+      ] : undefined
     }
     onUpdate(label.id, { children: [...children, newChild] })
     setAddText('')
@@ -271,7 +288,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
       const targetPanelId = findPanelAtPosition(lastMouseX, lastMouseY)
 
       if (targetPanelId && targetPanelId !== parentPanelId) {
-        onMoveControl?.(label.id, parentPanelId, targetPanelId)
+        onMoveWidget?.(label.id, parentPanelId, targetPanelId)
         setPreviewPos(null)
         onDragPreview?.(null)
       } else if (targetPanelId === null && parentPanelId !== null) {
@@ -279,7 +296,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
         if (mainContainer) {
           const rect = mainContainer.getBoundingClientRect()
           if (lastMouseX >= rect.left && lastMouseX <= rect.right && lastMouseY >= rect.top && lastMouseY <= rect.bottom) {
-            onMoveControl?.(label.id, parentPanelId, null)
+            onMoveWidget?.(label.id, parentPanelId, null)
             setPreviewPos(null)
             onDragPreview?.(null)
             return
@@ -419,7 +436,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
 
   // Check if something is being dragged over this panel
   const isDragTarget = activeDrag &&
-    activeDrag.controlId !== label.id &&
+    activeDrag.widgetId !== label.id &&
     activeDrag.mousePos
 
   const checkIsOverPanel = () => {
@@ -440,7 +457,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
       onUpdate: handleUpdateChild,
       onExport: onExport,
       onDragStateChange: onDragStateChange,
-      onMoveControl: onMoveControl,
+      onMoveWidget: onMoveWidget,
       activeDrag: activeDrag,
       parentPanelId: label.id,
       isEditing: isEditing,
@@ -451,6 +468,8 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
       return <TemplatePagePanel {...childCommonProps} />
     } else if (child.type === 'badge') {
       return <TemplatePageBadge {...childCommonProps} />
+    } else if (child.type === 'gauge') {
+      return <TemplatePageGauge {...childCommonProps} />
     }
     return <TemplatePageLabel {...childCommonProps} />
   }
@@ -495,7 +514,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
               icon={<AddIcon />}
               size="xs"
               variant="ghost"
-              aria-label="Add child control"
+              aria-label="Add child widget"
               onClick={(e) => { e.stopPropagation(); onAddOpen() }}
               onMouseDown={(e) => e.stopPropagation()}
             />
@@ -674,54 +693,97 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
         </ModalContent>
       </Modal>
 
+      <WidgetsGalleryModal isOpen={isGalleryOpen} onClose={onGalleryClose} />
       {/* Add Child Modal */}
       <Modal isOpen={isAddOpen} onClose={onAddClose}>
         <ModalOverlay />
         <ModalContent bg="gray.800">
-          <ModalHeader>Add Control</ModalHeader>
+          <ModalHeader>Add Widget</ModalHeader>
           <ModalCloseButton />
-          <ModalBody>
-            <VStack spacing={4}>
-              <FormControl>
-                <FormLabel fontSize="sm">Control Type</FormLabel>
-                <Select
-                  value={addType}
-                  onChange={(e) => setAddType(e.target.value)}
+          {addStage === 'pick' ? (
+            <>
+              <ModalBody>
+                <VStack spacing={3}>
+                  <Button
+                    w="full"
+                    variant="outline"
+                    h="auto"
+                    py={3}
+                    px={5}
+                    justifyContent="flex-start"
+                    onClick={() => setAddStage('new')}
+                  >
+                    <VStack align="flex-start" spacing={0}>
+                      <Text fontWeight="semibold">New</Text>
+                      <Text fontSize="xs" color="gray.400" fontWeight="normal">Create a new widget from scratch</Text>
+                    </VStack>
+                  </Button>
+                  <Button
+                    w="full"
+                    variant="outline"
+                    h="auto"
+                    py={3}
+                    px={5}
+                    justifyContent="flex-start"
+                    onClick={onGalleryOpen}
+                  >
+                    <VStack align="flex-start" spacing={0}>
+                      <Text fontWeight="semibold">Widgets Gallery</Text>
+                      <Text fontSize="xs" color="gray.400" fontWeight="normal">Browse and select from saved widgets</Text>
+                    </VStack>
+                  </Button>
+                </VStack>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="ghost" onClick={onAddClose}>Cancel</Button>
+              </ModalFooter>
+            </>
+          ) : (
+            <>
+              <ModalBody>
+                <VStack spacing={4}>
+                  <FormControl>
+                    <FormLabel fontSize="sm">Widget Type</FormLabel>
+                    <Select
+                      value={addType}
+                      onChange={(e) => setAddType(e.target.value)}
+                    >
+                      <option value="label">Label</option>
+                      <option value="panel">Panel</option>
+                      <option value="badge">Badge</option>
+                      <option value="gauge">Gauge</option>
+                    </Select>
+                  </FormControl>
+                  {addType === 'label' && (
+                    <FormControl>
+                      <FormLabel fontSize="sm">Label Text</FormLabel>
+                      <Input
+                        placeholder="Enter label text"
+                        value={addText}
+                        onChange={(e) => setAddText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && addText.trim()) {
+                            handleAddChild()
+                          }
+                        }}
+                      />
+                    </FormControl>
+                  )}
+                </VStack>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="ghost" mr="auto" onClick={() => setAddStage('pick')}>Back</Button>
+                <Button variant="ghost" mr={3} onClick={onAddClose}>Cancel</Button>
+                <Button
+                  colorScheme="blue"
+                  onClick={handleAddChild}
+                  isDisabled={addType === 'label' && !addText.trim()}
                 >
-                  <option value="label">Label</option>
-                  <option value="panel">Panel</option>
-                  <option value="badge">Badge</option>
-                </Select>
-              </FormControl>
-              {addType === 'label' && (
-                <FormControl>
-                  <FormLabel fontSize="sm">Label Text</FormLabel>
-                  <Input
-                    placeholder="Enter label text"
-                    value={addText}
-                    onChange={(e) => setAddText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && addText.trim()) {
-                        handleAddChild()
-                      }
-                    }}
-                  />
-                </FormControl>
-              )}
-            </VStack>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onAddClose}>
-              Cancel
-            </Button>
-            <Button
-              colorScheme="blue"
-              onClick={handleAddChild}
-              isDisabled={addType === 'label' && !addText.trim()}
-            >
-              Add
-            </Button>
-          </ModalFooter>
+                  Add
+                </Button>
+              </ModalFooter>
+            </>
+          )}
         </ModalContent>
       </Modal>
     </>
