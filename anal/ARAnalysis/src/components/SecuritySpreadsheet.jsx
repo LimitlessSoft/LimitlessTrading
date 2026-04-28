@@ -611,7 +611,6 @@ function SecuritySpreadsheet({ data, symbol, interval, loading, connectionState,
       await refreshFromCache()
       toast({ title: 'VIX data loaded', status: 'success', duration: 2000 })
     } catch (err) {
-      console.error('Failed to fetch VIX data:', err)
       toast({
         title: 'Failed to fetch VIX data',
         description: err.response?.data?.error || err.message,
@@ -714,7 +713,6 @@ function SecuritySpreadsheet({ data, symbol, interval, loading, connectionState,
       await refreshFromCache()
       toast({ title: 'Data loaded', status: 'success', duration: 2000 })
     } catch (err) {
-      console.error('Failed to fetch opening minutes data:', err)
       toast({
         title: 'Failed to fetch data',
         description: err.response?.data?.error || err.message,
@@ -926,8 +924,7 @@ function SecuritySpreadsheet({ data, symbol, interval, loading, connectionState,
           const { startTimestamp, endTimestamp } = getContextDateRange(row)
           const dayData = await getIntradayForDay(symbol, startTimestamp, '5m', endTimestamp)
           setIntradayData(prev => ({ ...prev, [rowKey]: dayData }))
-        } catch (err) {
-          console.error('Failed to load intraday data:', err)
+        } catch {
           setIntradayData(prev => ({ ...prev, [rowKey]: [] }))
         }
         setLoadingIntraday(prev => ({ ...prev, [rowKey]: false }))
@@ -953,8 +950,7 @@ function SecuritySpreadsheet({ data, symbol, interval, loading, connectionState,
       const { startTimestamp, endTimestamp } = getContextDateRange(row)
       const dayData = await fetchIntradayForDay(symbol, startTimestamp, '5m', endTimestamp)
       setIntradayData(prev => ({ ...prev, [timestamp]: dayData }))
-    } catch (err) {
-      console.error('Failed to fetch intraday data:', err)
+    } catch {
     }
     setFetchingIntraday(prev => ({ ...prev, [timestamp]: false }))
   }

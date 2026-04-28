@@ -695,8 +695,7 @@ function MultiSymbolReport() {
             avgVolume
           })
         }
-      } catch (err) {
-        console.error(`Failed to load ${symbol}:`, err)
+      } catch {
       }
     }
 
@@ -719,8 +718,7 @@ function MultiSymbolReport() {
         pricesWithTime[symbol] = { price, fetchedAt: now }
       })
       setCurrentPrices(prev => ({ ...prev, ...pricesWithTime }))
-    } catch (err) {
-      console.error('Failed to fetch live prices:', err)
+    } catch {
     }
     setLoadingPrices(false)
   }
@@ -742,7 +740,6 @@ function MultiSymbolReport() {
           const chain = await fetchOptionsChain(symbol, currentPrice)
           setOptionsData(prev => ({ ...prev, [symbol]: chain }))
         } catch (err) {
-          console.error(`Failed to fetch options chain for ${symbol}:`, err)
           setOptionsData(prev => ({ ...prev, [symbol]: { error: err.message } }))
         }
         setLoadingOptions(prev => ({ ...prev, [symbol]: false }))
@@ -764,7 +761,6 @@ function MultiSymbolReport() {
       const chain = await fetchOptionsChain(symbol, currentPrice)
       setOptionsData(prev => ({ ...prev, [symbol]: chain }))
     } catch (err) {
-      console.error(`Failed to fetch options chain for ${symbol}:`, err)
       setOptionsData(prev => ({ ...prev, [symbol]: { error: err.message } }))
     }
     setLoadingOptions(prev => ({ ...prev, [symbol]: false }))
@@ -791,7 +787,6 @@ function MultiSymbolReport() {
           const chain = await fetchOptionsChain(item.symbol, item.currentPrice)
           setOptionsData(prev => ({ ...prev, [item.symbol]: chain }))
         } catch (err) {
-          console.error(`Failed to fetch options chain for ${item.symbol}:`, err)
           setOptionsData(prev => ({ ...prev, [item.symbol]: { error: err.message } }))
         }
         setLoadingOptions(prev => ({ ...prev, [item.symbol]: false }))

@@ -421,7 +421,7 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
   )
 }
 
-function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEditing, containerRef }) {
+function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving,   setIsMoving]   = useState(false)
   const [isPanning,  setIsPanning]  = useState(false)
@@ -598,6 +598,18 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEdi
     return { width: rect.width, segmentSize: rect.width / TOTAL_SEGMENTS, rect }
   }
 
+  const findPanelAtPosition = (mouseX, mouseY) => {
+    const panels = document.querySelectorAll('[data-panel-id]')
+    for (const panel of panels) {
+      const panelId = panel.getAttribute('data-panel-id')
+      const rect = panel.getBoundingClientRect()
+      if (mouseX >= rect.left && mouseX <= rect.right && mouseY >= rect.top && mouseY <= rect.bottom) {
+        return panelId
+      }
+    }
+    return null
+  }
+
   const handleMoveStart = (e) => {
     if (!isEditing) return
     e.preventDefault()
@@ -611,8 +623,11 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEdi
     const startVisualY = layoutY ?? 0
     let currentX = x
     let currentY = label.y || 0
+    let lastMouseX = e.clientX
+    let lastMouseY = e.clientY
 
     setIsMoving(true)
+    onDragStateChange?.(true, { x: e.clientX, y: e.clientY })
 
     const onMove = (mv) => {
       const dSeg = Math.round((mv.clientX - startMouseX) / info.segmentSize)
@@ -620,17 +635,47 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEdi
       const newVisualY = Math.max(0, startVisualY + (mv.clientY - startMouseY))
       currentX = newX
       currentY = newVisualY
+      lastMouseX = mv.clientX
+      lastMouseY = mv.clientY
       setPreviewPos({ x: newX, y: newVisualY })
+      onDragPreview?.({ x: newX, y: newVisualY })
+      onDragStateChange?.(true, { x: mv.clientX, y: mv.clientY })
     }
 
     const onUp = () => {
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
       setIsMoving(false)
-      if (currentX !== x || currentY !== (label.y || 0)) {
+      onDragStateChange?.(false, null)
+
+      const targetPanelId = findPanelAtPosition(lastMouseX, lastMouseY)
+
+      if (targetPanelId && targetPanelId !== parentPanelId) {
+        onMoveWidget?.(label.id, parentPanelId, targetPanelId)
+        setPreviewPos(null)
+        onDragPreview?.(null)
+      } else if (targetPanelId === null && parentPanelId !== null) {
+        const mainContainer = containerRef?.current
+        if (mainContainer) {
+          const rect = mainContainer.getBoundingClientRect()
+          if (lastMouseX >= rect.left && lastMouseX <= rect.right && lastMouseY >= rect.top && lastMouseY <= rect.bottom) {
+            onMoveWidget?.(label.id, parentPanelId, null)
+            setPreviewPos(null)
+            onDragPreview?.(null)
+            return
+          }
+        }
+        if (currentX !== x || currentY !== (label.y || 0)) {
+          onUpdate(label.id, { x: currentX, y: currentY })
+        } else {
+          setPreviewPos(null)
+          onDragPreview?.(null)
+        }
+      } else if (currentX !== x || currentY !== (label.y || 0)) {
         onUpdate(label.id, { x: currentX, y: currentY })
       } else {
         setPreviewPos(null)
+        onDragPreview?.(null)
       }
     }
 

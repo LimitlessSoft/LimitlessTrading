@@ -26,8 +26,7 @@ async function fetchFomcDates() {
     }
     const data = await response.json()
     return data.dates
-  } catch (error) {
-    console.warn('Failed to fetch FOMC dates, using fallback:', error.message)
+  } catch {
     return null
   }
 }

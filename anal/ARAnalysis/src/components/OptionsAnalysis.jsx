@@ -465,19 +465,15 @@ export default function OptionsAnalysis({ isConnected }) {
         )
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1)
         if (data.length > 0) {
-          console.log(`[Options] ${label}: ${data.length} bars in ${elapsed}s`)
           const id = `${symbol}-${expiration}-${s}-${right}`
           const color = OPTION_COLORS[i % OPTION_COLORS.length]
           const lineLabel = `${symbol} ${formatExpiration(expiration)} $${s}${right}`
           const chartData = toChartData(data)
           newLines.push({ id, label: lineLabel, color, data, chartData, strike: parseFloat(s), right })
         } else {
-          console.log(`[Options] ${label}: no data (${elapsed}s)`)
           errors++
         }
-      } catch (err) {
-        const elapsed = ((Date.now() - t0) / 1000).toFixed(1)
-        console.log(`[Options] ${label}: error after ${elapsed}s —`, err.message)
+      } catch {
         errors++
       }
     }

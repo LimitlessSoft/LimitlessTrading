@@ -24,8 +24,9 @@ import {
   useDisclosure,
   useToast
 } from '@chakra-ui/react'
-import { HamburgerIcon, AddIcon } from '@chakra-ui/icons'
+import { HamburgerIcon, AddIcon, BellIcon } from '@chakra-ui/icons'
 import { fetchRoutes, createRoute } from '../modules/routesService'
+import AlertsPanel from './AlertsPanel'
 
 function PageNavMenu({
   children,
@@ -34,13 +35,15 @@ function PageNavMenu({
   headerControls = [],
   activeDrag = null,
   onRenderWidget,
-  headerRef: externalHeaderRef
+  headerRef: externalHeaderRef,
+  refreshKey
 }) {
   const [routes, setRoutes] = useState([])
   const [newName, setNewName] = useState('')
   const [newPath, setNewPath] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const { isOpen, onOpen, onClose } = useDisclosure()
+  const { isOpen: isAlertsOpen, onOpen: onAlertsOpen, onClose: onAlertsClose } = useDisclosure()
   const navigate = useNavigate()
   const toast = useToast()
   const internalHeaderRef = useRef(null)
@@ -58,14 +61,13 @@ function PageNavMenu({
     try {
       const data = await fetchRoutes()
       setRoutes(data)
-    } catch (err) {
-      console.error('Failed to load routes:', err)
+    } catch {
     }
   }
 
   useEffect(() => {
     loadRoutes()
-  }, [])
+  }, [refreshKey])
 
   const handleNavigate = (path) => {
     navigate(path)
@@ -158,6 +160,15 @@ function PageNavMenu({
               ))}
               <MenuDivider />
               <MenuItem
+                icon={<BellIcon />}
+                onClick={onAlertsOpen}
+                bg="gray.800"
+                _hover={{ bg: 'gray.700' }}
+              >
+                Alerts
+              </MenuItem>
+              <MenuDivider />
+              <MenuItem
                 icon={<AddIcon />}
                 onClick={onOpen}
                 bg="gray.800"
@@ -195,6 +206,8 @@ function PageNavMenu({
           })()}
         </Flex>
       </Box>
+
+      <AlertsPanel isOpen={isAlertsOpen} onClose={onAlertsClose} />
 
       <Modal isOpen={isOpen} onClose={handleModalClose}>
         <ModalOverlay />

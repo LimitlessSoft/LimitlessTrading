@@ -17,8 +17,7 @@ function FedCountdown({ isConnected }) {
       try {
         const date = await getNextFomcDecision()
         setNextDecision(date)
-      } catch (error) {
-        console.error('Failed to load FOMC date:', error)
+      } catch {
       } finally {
         setLoading(false)
       }

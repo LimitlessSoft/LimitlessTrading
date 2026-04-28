@@ -103,8 +103,7 @@ function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, c
       try {
         const result = await getHistoricalMedian5mVolume(symbol, 10, '5m')
         setHistoricalMedian(result)
-      } catch (err) {
-        console.error(`Failed to get historical median for ${symbol}:`, err)
+      } catch {
       }
     }
 
@@ -678,8 +677,7 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
       }
 
       setIntradayData(prev => ({ ...prev, [symbol]: data || [] }))
-    } catch (err) {
-      console.error(`Failed to fetch intraday data for ${symbol}:`, err)
+    } catch {
       setIntradayData(prev => ({ ...prev, [symbol]: [] }))
     } finally {
       setIntradayLoading(prev => ({ ...prev, [symbol]: false }))
@@ -705,8 +703,7 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbols: symbolList })
       })
-    } catch (err) {
-      console.error('Failed to subscribe to symbols:', err)
+    } catch {
     }
   }, [isConnected])
 
@@ -718,8 +715,7 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbols: symbolList })
       })
-    } catch (err) {
-      console.error('Failed to unsubscribe from symbols:', err)
+    } catch {
     }
   }, [])
 
@@ -743,7 +739,6 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
       const eventSource = new EventSource(`${BACKEND_URL}/api/stream-quotes`)
 
       eventSource.onopen = () => {
-        console.log('SSE connection opened')
         setIsStreaming(true)
         setLoading(false) // SSE connected, no longer "connecting"
         setLastFetchTime(Date.now())
@@ -764,13 +759,11 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
             // Clear delayed state if a live quote arrives without a subscription error
             if (!data.quote?.subscriptionError) setIsDelayed(false)
           }
-        } catch (err) {
-          console.error('Failed to parse SSE message:', err)
+        } catch {
         }
       }
 
-      eventSource.onerror = (err) => {
-        console.error('SSE error:', err)
+      eventSource.onerror = () => {
         setIsStreaming(false)
         setLoading(false)
         eventSource.close()
@@ -818,8 +811,7 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
         try {
           const intradayResult = await fetchIntradayForDay(symbol, startTimestamp, '5m')
           setIntradayData(prev => ({ ...prev, [symbol]: intradayResult || [] }))
-        } catch (err) {
-          console.error(`Failed to refresh intraday for ${symbol}:`, err)
+        } catch {
         }
       }
     }

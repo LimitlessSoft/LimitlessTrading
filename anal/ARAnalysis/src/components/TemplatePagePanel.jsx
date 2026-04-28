@@ -28,10 +28,8 @@ const DownloadIcon = () => (
     <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 4v-2h14v2H5z" />
   </svg>
 )
-import TemplatePageLabel from './TemplatePageLabel'
 import WidgetsGalleryModal from './WidgetsGalleryModal'
-import TemplatePageBadge from './TemplatePageBadge'
-import TemplatePageGauge from './TemplatePageGauge'
+import { WIDGET_REGISTRY, createWidget, renderWidget } from './widgetRenderer'
 import ConditionalStylesSection from './ConditionalStylesSection'
 import { applyConditionalStyles } from '../modules/conditionalStyles'
 import { useWidgetResolveText } from '../hooks/useWidgetResolveText'
@@ -84,8 +82,9 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
 
     for (const widget of sorted) {
       const cx = widget.x || 0
-      const cwidth = widget.width || (widget.type === 'panel' ? 8 : 4)
-      const cheight = widget.height || (widget.type === 'panel' ? DEFAULT_HEIGHT : 60)
+      const def = WIDGET_REGISTRY[widget.type] || WIDGET_REGISTRY.label
+      const cwidth = widget.width || def.width
+      const cheight = widget.height || def.height
 
       let cy = 0
       for (const p of placed) {
@@ -150,7 +149,43 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const displayWidth = previewSize?.width ?? width
   const displayHeight = previewSize?.height ?? height
   const displayX = previewPos?.x ?? x
-  const displayY = previewPos?.y ?? layoutY ?? 0  // Show preview during drag, otherwise use calculated layout
+  const displayY = previewPos?.y ?? layoutY ?? 0
+
+  const layoutMode = style.layoutMode || 'absolute'
+
+  const childLayouts = (() => {
+    if (layoutMode === 'flow') {
+      const dir = style.flowDirection || 'row'
+      if (dir === 'column') {
+        let curY = 0
+        return children.map(child => {
+          const def = WIDGET_REGISTRY[child.type] || WIDGET_REGISTRY.label
+          const h = child.height ?? def.height
+          const entry = { id: child.id, layoutY: curY, labelOverride: { x: 0, y: 0 } }
+          curY += h + 8
+          return entry
+        })
+      }
+      let curX = 0, curY = 0, rowH = 0
+      return children.map(child => {
+        const def = WIDGET_REGISTRY[child.type] || WIDGET_REGISTRY.label
+        const w = child.width ?? def.width
+        const h = child.height ?? def.height
+        if (curX + w > TOTAL_SEGMENTS && curX > 0) { curX = 0; curY += rowH + 8; rowH = 0 }
+        const entry = { id: child.id, layoutY: curY, labelOverride: { x: curX, y: 0 } }
+        curX += w
+        rowH = Math.max(rowH, h)
+        return entry
+      })
+    }
+    // absolute — use already-computed positions + vertical offset
+    return children.map(child => ({
+      id: child.id,
+      layoutY: (childLayoutPositions.get(child.id) || 0) + verticalOffset,
+      labelOverride: null,
+    }))
+  })()
+  const childLayoutMap = new Map(childLayouts.map(e => [e.id, e]))
 
   useEffect(() => {
     if (previewSize && label.width === previewSize.width && label.height === previewSize.height) {
@@ -191,25 +226,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
   }, [isAddOpen])
 
   const handleAddChild = () => {
-    const newChild = {
-      id: crypto.randomUUID(),
-      type: addType,
-      text: addType === 'label' ? addText.trim() : undefined,
-      width: addType === 'panel' ? 8 : addType === 'badge' ? 2 : addType === 'gauge' ? 6 : 4,
-      height: addType === 'panel' ? DEFAULT_HEIGHT : addType === 'badge' ? 40 : addType === 'gauge' ? 160 : 60,
-      x: 0,
-      y: 0,
-      createdAt: Date.now(),
-      children: addType === 'panel' ? [] : undefined,
-      min: addType === 'gauge' ? 0 : undefined,
-      max: addType === 'gauge' ? 100 : undefined,
-      segments: addType === 'gauge' ? [
-        { from: 0, to: 25, color: '#48BB78' },
-        { from: 25, to: 50, color: '#ECC94B' },
-        { from: 50, to: 75, color: '#ED8936' },
-        { from: 75, to: 100, color: '#F56565' }
-      ] : undefined
-    }
+    const newChild = createWidget(addType, addText.trim())
     onUpdate(label.id, { children: [...children, newChild] })
     setAddText('')
     setAddType('label')
@@ -226,6 +243,12 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
       c.id === childId ? { ...c, ...changes } : c
     )
     onUpdate(label.id, { children: updatedChildren })
+  }
+
+  // In grid/flow modes, strip position/size changes so the layout algorithm stays in control
+  const handleUpdateChildInLayout = (childId, changes) => {
+    const { x, y, width, height, ...rest } = changes
+    if (Object.keys(rest).length > 0) handleUpdateChild(childId, rest)
   }
 
   // Find panel under mouse position (excluding self and children)
@@ -456,29 +479,21 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const isDropTarget = checkIsOverPanel()
 
   const renderChild = (child) => {
-    const childCommonProps = {
+    const layout = childLayoutMap.get(child.id) || { layoutY: 0, labelOverride: null }
+    return renderWidget(child, {
       key: child.id,
-      label: child,
-      layoutY: (childLayoutPositions.get(child.id) || 0) + verticalOffset,
+      label: layout.labelOverride ? { ...child, ...layout.labelOverride } : child,
+      layoutY: layout.layoutY,
       onDelete: handleDeleteChild,
-      onUpdate: handleUpdateChild,
+      onUpdate: layoutMode !== 'absolute' ? handleUpdateChildInLayout : handleUpdateChild,
       onExport: onExport,
       onDragStateChange: onDragStateChange,
       onMoveWidget: onMoveWidget,
       activeDrag: activeDrag,
       parentPanelId: label.id,
       isEditing: isEditing,
-      containerRef: childContainerRef
-    }
-
-    if (child.type === 'panel') {
-      return <TemplatePagePanel {...childCommonProps} />
-    } else if (child.type === 'badge') {
-      return <TemplatePageBadge {...childCommonProps} />
-    } else if (child.type === 'gauge') {
-      return <TemplatePageGauge {...childCommonProps} />
-    }
-    return <TemplatePageLabel {...childCommonProps} />
+      containerRef: childContainerRef,
+    })
   }
 
   return (
@@ -627,6 +642,49 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
           <ModalBody>
             {editStyle && (
               <VStack spacing={4}>
+                <FormControl>
+                  <FormLabel fontSize="sm">Layout</FormLabel>
+                  <Select
+                    value={editStyle.layoutMode || 'absolute'}
+                    onChange={(e) => setEditStyle({ ...editStyle, layoutMode: e.target.value })}
+                  >
+                    <option value="absolute">Absolute</option>
+                    <option value="grid">Grid</option>
+                    <option value="flow">Flow</option>
+                  </Select>
+                </FormControl>
+                {editStyle.layoutMode === 'grid' && (
+                  <HStack width="100%" spacing={4}>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Columns</FormLabel>
+                      <Input
+                        type="number" min={1} max={20}
+                        value={editStyle.gridCols || 2}
+                        onChange={(e) => setEditStyle({ ...editStyle, gridCols: Math.max(1, parseInt(e.target.value) || 2) })}
+                      />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Rows</FormLabel>
+                      <Input
+                        type="number" min={1} max={20}
+                        value={editStyle.gridRows || 2}
+                        onChange={(e) => setEditStyle({ ...editStyle, gridRows: Math.max(1, parseInt(e.target.value) || 2) })}
+                      />
+                    </FormControl>
+                  </HStack>
+                )}
+                {editStyle.layoutMode === 'flow' && (
+                  <FormControl>
+                    <FormLabel fontSize="sm">Direction</FormLabel>
+                    <Select
+                      value={editStyle.flowDirection || 'row'}
+                      onChange={(e) => setEditStyle({ ...editStyle, flowDirection: e.target.value })}
+                    >
+                      <option value="row">Row — left to right, wraps</option>
+                      <option value="column">Column — top to bottom</option>
+                    </Select>
+                  </FormControl>
+                )}
                 <HStack width="100%" spacing={4}>
                   <FormControl>
                     <FormLabel fontSize="sm">Background Color</FormLabel>
@@ -674,17 +732,19 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
                       onChange={(e) => setEditStyle({ ...editStyle, borderWidth: parseInt(e.target.value) || 0 })}
                     />
                   </FormControl>
-                  <FormControl>
-                    <FormLabel fontSize="sm">Vertical Align</FormLabel>
-                    <Select
-                      value={editStyle.verticalAlign || 'top'}
-                      onChange={(e) => setEditStyle({ ...editStyle, verticalAlign: e.target.value })}
-                    >
-                      <option value="top">Top</option>
-                      <option value="middle">Middle</option>
-                      <option value="bottom">Bottom</option>
-                    </Select>
-                  </FormControl>
+                  {(!editStyle.layoutMode || editStyle.layoutMode === 'absolute') && (
+                    <FormControl>
+                      <FormLabel fontSize="sm">Vertical Align</FormLabel>
+                      <Select
+                        value={editStyle.verticalAlign || 'top'}
+                        onChange={(e) => setEditStyle({ ...editStyle, verticalAlign: e.target.value })}
+                      >
+                        <option value="top">Top</option>
+                        <option value="middle">Middle</option>
+                        <option value="bottom">Bottom</option>
+                      </Select>
+                    </FormControl>
+                  )}
                 </HStack>
                 <ConditionalStylesSection
                   rules={editStyle.conditionalStyles || []}
@@ -760,13 +820,12 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
                       value={addType}
                       onChange={(e) => setAddType(e.target.value)}
                     >
-                      <option value="label">Label</option>
-                      <option value="panel">Panel</option>
-                      <option value="badge">Badge</option>
-                      <option value="gauge">Gauge</option>
+                      {Object.entries(WIDGET_REGISTRY).map(([type, def]) => (
+                        <option key={type} value={type}>{def.displayName}</option>
+                      ))}
                     </Select>
                   </FormControl>
-                  {addType === 'label' && (
+                  {WIDGET_REGISTRY[addType]?.needsText && (
                     <FormControl>
                       <FormLabel fontSize="sm">Label Text</FormLabel>
                       <Input
@@ -789,7 +848,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
                 <Button
                   colorScheme="blue"
                   onClick={handleAddChild}
-                  isDisabled={addType === 'label' && !addText.trim()}
+                  isDisabled={WIDGET_REGISTRY[addType]?.needsText && !addText.trim()}
                 >
                   Add
                 </Button>

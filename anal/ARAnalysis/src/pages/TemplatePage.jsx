@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Box,
   Text,
@@ -35,14 +35,14 @@ const KebabIcon = () => (
 import { fetchRoutes, updateRoute } from '../modules/routesService'
 import PageNavMenu from '../components/PageNavMenu'
 import TemplatePageLabel from '../components/TemplatePageLabel'
-import TemplatePagePanel from '../components/TemplatePagePanel'
 import TemplatePageBadge from '../components/TemplatePageBadge'
-import TemplatePageChart from '../components/TemplatePageChart'
 import TemplatePageGauge from '../components/TemplatePageGauge'
+import { WIDGET_REGISTRY, createWidget, renderWidget } from '../components/widgetRenderer'
 import WidgetsGalleryModal from '../components/WidgetsGalleryModal'
 
 function TemplatePage() {
   const location = useLocation()
+  const navigate = useNavigate()
   const [pageInfo, setPageInfo] = useState(null)
   const [labelText, setLabelText] = useState('')
   const [widgetType, setWidgetType] = useState('label')
@@ -53,6 +53,10 @@ function TemplatePage() {
   const { isOpen, onOpen, onClose } = useDisclosure()
   const { isOpen: isImportOpen, onOpen: onImportOpen, onClose: onImportClose } = useDisclosure()
   const { isOpen: isGalleryOpen, onOpen: onGalleryOpen, onClose: onGalleryClose } = useDisclosure()
+  const { isOpen: isInfoOpen, onOpen: onInfoOpen, onClose: onInfoClose } = useDisclosure()
+  const [infoName, setInfoName] = useState('')
+  const [infoPath, setInfoPath] = useState('')
+  const [routesVersion, setRoutesVersion] = useState(0)
   const toast = useToast()
   const containerRef = useRef(null)
   const headerRef = useRef(null)
@@ -67,8 +71,7 @@ function TemplatePage() {
         const routes = await fetchRoutes()
         const matchingRoute = routes.find(r => r.path === location.pathname)
         setPageInfo(matchingRoute || null)
-      } catch (err) {
-        console.error('Failed to load page info:', err)
+      } catch {
         setPageInfo(null)
       }
     }
@@ -80,32 +83,12 @@ function TemplatePage() {
   }, [isOpen])
 
   const handleAddWidget = async () => {
-    if (widgetType === 'label' && !labelText.trim()) return
+    if (WIDGET_REGISTRY[widgetType]?.needsText && !labelText.trim()) return
     if (!pageInfo) return
 
     setIsSaving(true)
     try {
-      const newControl = {
-        id: crypto.randomUUID(),
-        type: widgetType,
-        text: widgetType === 'label' ? labelText.trim() : undefined,
-        width: widgetType === 'panel' ? 8 : widgetType === 'badge' ? 2 : widgetType === 'chart' ? 10 : widgetType === 'gauge' ? 6 : 4,
-        height: widgetType === 'panel' ? 120 : widgetType === 'badge' ? 40 : widgetType === 'chart' ? 220 : widgetType === 'gauge' ? 160 : 60,
-        x: 0,
-        y: 0,
-        createdAt: Date.now(),
-        children: widgetType === 'panel' ? [] : undefined,
-        symbol: widgetType === 'chart' ? '' : undefined,
-        interval: widgetType === 'chart' ? '5m' : undefined,
-        min: widgetType === 'gauge' ? 0 : undefined,
-        max: widgetType === 'gauge' ? 100 : undefined,
-        segments: widgetType === 'gauge' ? [
-          { from: 0, to: 25, color: '#48BB78' },
-          { from: 25, to: 50, color: '#ECC94B' },
-          { from: 50, to: 75, color: '#ED8936' },
-          { from: 75, to: 100, color: '#F56565' }
-        ] : undefined
-      }
+      const newControl = createWidget(widgetType, labelText.trim())
       const currentLabels = pageInfo.config?.labels || []
       const updatedConfig = {
         ...pageInfo.config,
@@ -359,6 +342,31 @@ function TemplatePage() {
     }
   }
 
+  const handleOpenInfo = () => {
+    setInfoName(pageInfo?.name || '')
+    setInfoPath(pageInfo?.path || '')
+    onInfoOpen()
+  }
+
+  const handleSaveInfo = async () => {
+    if (!pageInfo || !infoName.trim() || !infoPath.trim()) return
+    setIsSaving(true)
+    try {
+      const updatedRoute = await updateRoute(pageInfo.id, { name: infoName.trim(), path: infoPath.trim() })
+      setPageInfo(updatedRoute)
+      setRoutesVersion(v => v + 1)
+      onInfoClose()
+      if (infoPath.trim() !== pageInfo.path) {
+        navigate(infoPath.trim())
+      }
+      toast({ title: 'Template updated', status: 'success', duration: 2000 })
+    } catch (err) {
+      toast({ title: 'Failed to update template', description: err.message, status: 'error', duration: 3000 })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const labels = pageInfo?.config?.labels || []
   const headerControls = pageInfo?.config?.headerControls || []
 
@@ -436,9 +444,10 @@ function TemplatePage() {
     const placed = []
 
     for (const widget of sorted) {
+      const def = WIDGET_REGISTRY[widget.type] || WIDGET_REGISTRY.label
       const x = widget.x || 0
-      const width = widget.width || (widget.type === 'panel' ? 8 : 4)
-      const height = widget.height || (widget.type === 'panel' ? 120 : 60)
+      const width = widget.width || def.width
+      const height = widget.height || def.height
 
       let y = 0
       for (const p of placed) {
@@ -463,6 +472,7 @@ function TemplatePage() {
         headerControls={headerControls}
         activeDrag={activeDrag}
         onRenderWidget={renderHeaderWidget}
+        refreshKey={routesVersion}
       >
         <Menu>
           <MenuButton
@@ -476,8 +486,11 @@ function TemplatePage() {
             isDisabled={!pageInfo}
           />
           <MenuList bg="gray.800" borderColor="gray.700" minW="160px">
+            <MenuItem bg="gray.800" _hover={{ bg: 'gray.700' }} onClick={handleOpenInfo}>
+              Template information
+            </MenuItem>
             <MenuItem bg="gray.800" _hover={{ bg: 'gray.700' }} onClick={() => setIsEditing(!isEditing)}>
-              {isEditing ? 'Stop editing' : 'Edit page'}
+              {isEditing ? 'Stop editing' : 'Edit layout'}
             </MenuItem>
             <MenuItem bg="gray.800" _hover={{ bg: 'gray.700' }} onClick={onOpen}>
               Add widget
@@ -514,35 +527,21 @@ function TemplatePage() {
               width="100%"
               minH={isEditing ? '200px' : '100px'}
             >
-              {labels.map((label) => {
-                const commonProps = {
-                  key: label.id,
-                  label: label,
-                  layoutY: layoutPositions.get(label.id),
-                  onDelete: handleDeleteLabel,
-                  onUpdate: handleUpdateLabel,
-                  onExport: handleExportWidget,
-                  onDragPreview: (pos) => setDragPreview(pos ? { id: label.id, ...pos } : null),
-                  onDragStateChange: (dragging, mousePos) => setActiveDrag(dragging ? { widgetId: label.id, mousePos } : null),
-                  onMoveWidget: handleMoveWidget,
-                  activeDrag: activeDrag,
-                  parentPanelId: null,
-                  isEditing: isEditing,
-                  containerRef: containerRef
-                }
-
-                if (label.type === 'panel') {
-                  return <TemplatePagePanel {...commonProps} />
-                } else if (label.type === 'badge') {
-                  return <TemplatePageBadge {...commonProps} />
-                } else if (label.type === 'chart') {
-                  return <TemplatePageChart {...commonProps} />
-                } else if (label.type === 'gauge') {
-                  return <TemplatePageGauge {...commonProps} />
-                } else {
-                  return <TemplatePageLabel {...commonProps} />
-                }
-              })}
+              {labels.map((label) => renderWidget(label, {
+                key: label.id,
+                label: label,
+                layoutY: layoutPositions.get(label.id),
+                onDelete: handleDeleteLabel,
+                onUpdate: handleUpdateLabel,
+                onExport: handleExportWidget,
+                onDragPreview: (pos) => setDragPreview(pos ? { id: label.id, ...pos } : null),
+                onDragStateChange: (dragging, mousePos) => setActiveDrag(dragging ? { widgetId: label.id, mousePos } : null),
+                onMoveWidget: handleMoveWidget,
+                activeDrag: activeDrag,
+                parentPanelId: null,
+                isEditing: isEditing,
+                containerRef: containerRef,
+              }))}
             </Box>
           </>
         ) : (
@@ -642,14 +641,12 @@ function TemplatePage() {
                       value={widgetType}
                       onChange={(e) => setWidgetType(e.target.value)}
                     >
-                      <option value="label">Label</option>
-                      <option value="panel">Panel</option>
-                      <option value="badge">Badge</option>
-                      <option value="chart">Chart</option>
-                      <option value="gauge">Gauge</option>
+                      {Object.entries(WIDGET_REGISTRY).map(([type, def]) => (
+                        <option key={type} value={type}>{def.displayName}</option>
+                      ))}
                     </Select>
                   </FormControl>
-                  {widgetType === 'label' && (
+                  {WIDGET_REGISTRY[widgetType]?.needsText && (
                     <FormControl>
                       <FormLabel fontSize="sm">Label Text</FormLabel>
                       <Input
@@ -673,7 +670,7 @@ function TemplatePage() {
                   colorScheme="blue"
                   onClick={handleAddWidget}
                   isLoading={isSaving}
-                  isDisabled={widgetType === 'label' && !labelText.trim()}
+                  isDisabled={WIDGET_REGISTRY[widgetType]?.needsText && !labelText.trim()}
                 >
                   Add
                 </Button>
@@ -702,6 +699,44 @@ function TemplatePage() {
             </Button>
             <Button colorScheme="blue" onClick={handleImportConfirm} isLoading={isSaving}>
               Import
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+      <Modal isOpen={isInfoOpen} onClose={onInfoClose}>
+        <ModalOverlay />
+        <ModalContent bg="gray.800">
+          <ModalHeader>Template information</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4}>
+              <FormControl>
+                <FormLabel fontSize="sm">Name</FormLabel>
+                <Input
+                  value={infoName}
+                  onChange={(e) => setInfoName(e.target.value)}
+                  placeholder="Template name"
+                />
+              </FormControl>
+              <FormControl>
+                <FormLabel fontSize="sm">Path</FormLabel>
+                <Input
+                  value={infoPath}
+                  onChange={(e) => setInfoPath(e.target.value)}
+                  placeholder="/my-page"
+                />
+              </FormControl>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onInfoClose}>Cancel</Button>
+            <Button
+              colorScheme="blue"
+              onClick={handleSaveInfo}
+              isLoading={isSaving}
+              isDisabled={!infoName.trim() || !infoPath.trim()}
+            >
+              Save
             </Button>
           </ModalFooter>
         </ModalContent>

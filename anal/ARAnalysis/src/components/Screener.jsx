@@ -292,8 +292,7 @@ function Screener() {
               }
             }
             return { success: false, symbol, fromCache: false }
-          } catch (err) {
-            console.error(`Failed to screen ${symbol}:`, err.message)
+          } catch {
             return { success: false, symbol, fromCache: false }
           }
         })

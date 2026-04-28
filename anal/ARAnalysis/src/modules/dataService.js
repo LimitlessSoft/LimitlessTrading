@@ -77,8 +77,7 @@ export async function refreshRecentData(symbol, interval, days = 30) {
       if (result.data && result.data.length > 0) {
         await addPriceData(symbol, interval, result.data)
       }
-    } catch (err) {
-      console.warn(`[refreshRecentData] chunk ${i} failed:`, err.message)
+    } catch {
     }
     endDate.setDate(endDate.getDate() - config.daysPerChunk)
   }
@@ -147,7 +146,6 @@ export function loadHistoricalData(symbol, interval, onProgress, onComplete, onE
       // If cache already has recent data, use it — lazy load will extend history as needed
       const cachedData = await getPriceData(symbol, interval)
       if (hasFreshCache(cachedData)) {
-        console.log(`Cache fresh for ${symbol} ${interval} (${cachedData.length} bars), skipping initial fetch`)
         onProgress(cachedData, 100)
         onComplete(cachedData)
         return
@@ -165,7 +163,6 @@ export function loadHistoricalData(symbol, interval, onProgress, onComplete, onE
       }
 
       const loadStart = Date.now()
-      console.log(`[load] ${symbol} ${interval} — ${numChunks} chunks planned (${PARALLEL_REQUESTS} parallel)`)
 
       // Process in batches, updating UI as each chunk completes
       let completedChunks = 0
@@ -206,8 +203,7 @@ export function loadHistoricalData(symbol, interval, onProgress, onComplete, onE
 
               return result
             })
-            .catch(err => {
-              console.error('Chunk failed:', err.message)
+            .catch(() => {
               batchCompleted++
               return { data: [] }
             })
@@ -215,19 +211,13 @@ export function loadHistoricalData(symbol, interval, onProgress, onComplete, onE
 
         await Promise.all(promises)
 
-        const batchMs = Date.now() - batchT0
-        console.log(`[load] batch ${batchStart}–${batchEnd - 1} | ${batchMs}ms | ${batchBars} bars | hasData=${batchHasData}`)
-
         // Only stop if entire batch returned no data (reached end of available history)
         if (!batchHasData) {
-          console.log(`[load] no data in batch — stopping early at chunk ${batchStart}`)
           noMoreData = true
         }
       }
 
       if (!cancelled) {
-        const totalMs = ((Date.now() - loadStart) / 1000).toFixed(1)
-        console.log(`[load] done — ${totalMs}s total | ${totalBars} bars fetched | ${allBars.length} unique`)
         await addSecurity(symbol)
         await setLastFetch(symbol, interval)
 
@@ -285,8 +275,7 @@ export function fetchOlderData(symbol, interval, beforeTimestamp, onProgress, on
             const merged = await getPriceData(symbol, interval)
             onProgress([...merged].sort((a, b) => a.timestamp - b.timestamp))
           }
-        } catch (err) {
-          console.warn(`[fetchOlderData] chunk failed:`, err.message)
+        } catch {
         }
       }))
 
@@ -395,7 +384,6 @@ function isFromRecentTradingDay(barTimestamp, maxTradingDays) {
 export async function fetchForScreener(symbol, maxTradingDays = 1) {
   // Validate symbol
   if (!symbol || typeof symbol !== 'string' || symbol.trim() === '') {
-    console.warn('fetchForScreener called with empty symbol')
     return { data: [], fromCache: false }
   }
 
@@ -412,13 +400,8 @@ export async function fetchForScreener(symbol, maxTradingDays = 1) {
     const mostRecentTradingDay = getMostRecentTradingDay().toDateString()
 
     if (isFromRecentTradingDay(newestBar.timestamp, maxTradingDays)) {
-      console.log(`${cleanSymbol}: CACHE HIT - bar from ${barDate}, recent trading day is ${mostRecentTradingDay}`)
       return { data: cached, fromCache: true }
-    } else {
-      console.log(`${cleanSymbol}: CACHE MISS - bar from ${barDate}, need within ${maxTradingDays} trading days of ${mostRecentTradingDay}`)
     }
-  } else {
-    console.log(`${cleanSymbol}: CACHE MISS - only ${cached?.length || 0} bars (need 30)`)
   }
 
   // Otherwise fetch from IBKR (single chunk = ~1 year of daily data)
@@ -435,8 +418,7 @@ export async function fetchForScreener(symbol, maxTradingDays = 1) {
       const freshData = await getPriceData(cleanSymbol, interval)
       return { data: freshData, fromCache: false }
     }
-  } catch (err) {
-    console.error(`Failed to fetch ${cleanSymbol}:`, err.message)
+  } catch {
   }
 
   // Return whatever we have in cache
@@ -539,10 +521,7 @@ export async function fetchIntradayForDay(symbol, startTimestamp, interval = '5m
             }
           }
           return data
-        }).catch(err => {
-          console.error('Chunk fetch failed:', err.message)
-          return []
-        })
+        }).catch(() => [])
       )
 
       await Promise.all(promises)
@@ -553,7 +532,6 @@ export async function fetchIntradayForDay(symbol, startTimestamp, interval = '5m
       bar.timestamp >= rangeStart && bar.timestamp <= rangeEnd
     ).sort((a, b) => a.timestamp - b.timestamp)
   } catch (error) {
-    console.error('Failed to fetch intraday data:', error)
     throw error
   }
 }
@@ -678,8 +656,7 @@ export async function fetchStockHistory(symbol, barSize, duration) {
     })
     const response = await api.get(`/stock-history/${encodeURIComponent(symbol.trim().toUpperCase())}?${params}`)
     return response.data?.data || []
-  } catch (err) {
-    console.error(`Failed to fetch stock history for ${symbol}:`, err.message)
+  } catch {
     return []
   }
 }
@@ -692,7 +669,6 @@ export async function fetchOptionsParams(symbol) {
     const response = await api.get(`/options-params/${encodeURIComponent(symbol.trim().toUpperCase())}`)
     return response.data
   } catch (err) {
-    console.error(`Failed to fetch options params for ${symbol}:`, err.message)
     throw err
   }
 }
@@ -707,7 +683,6 @@ export async function fetchOptionsChain(symbol, currentPrice) {
     const response = await api.get(`/options-chain/${encodeURIComponent(symbol.trim().toUpperCase())}${params}`)
     return response.data
   } catch (err) {
-    console.error(`Failed to fetch options chain for ${symbol}:`, err.message)
     throw err
   }
 }
@@ -721,8 +696,7 @@ export async function fetchCurrentPrices(symbols) {
   try {
     const response = await api.post('/current-prices', { symbols })
     return response.data
-  } catch (err) {
-    console.error('Failed to fetch current prices:', err.message)
+  } catch {
     return {}
   }
 }
@@ -737,8 +711,7 @@ export async function fetchLiveQuotes(symbols) {
   try {
     const response = await api.post('/live-quotes', { symbols })
     return response.data
-  } catch (err) {
-    console.error('Failed to fetch live quotes:', err.message)
+  } catch {
     return {}
   }
 }
@@ -758,7 +731,6 @@ export async function fetchOptionHistory(symbol, expiration, strike, right, barS
     const response = await api.get(`/option-history/${encodeURIComponent(symbol)}?${params}`)
     return response.data?.data || []
   } catch (err) {
-    console.error(`Failed to fetch option history for ${symbol} ${expiration} ${strike} ${right}:`, err.message)
     throw err
   }
 }

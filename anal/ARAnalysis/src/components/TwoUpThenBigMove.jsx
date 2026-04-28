@@ -101,8 +101,7 @@ function TwoUpThenBigMove({ symbol, data }) {
             ...result
           })
         }
-      } catch (err) {
-        console.error(`Failed to check ${sym}:`, err)
+      } catch {
       }
     }
 
