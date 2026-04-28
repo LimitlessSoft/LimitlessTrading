@@ -9,12 +9,15 @@ import {
   getOptionHistoricalData,
   getOptionParams,
   getDetailedQuotes,
+  getDetailedQuote,
   subscribeMarketData,
   unsubscribeMarketData,
   subscribeToQuotes,
   getLatestQuotes,
   getSubscribedSymbols,
-  unsubscribeAllMarketData
+  unsubscribeAllMarketData,
+  getRecentErrors,
+  isDelayedMode
 } from '../ibkrClient.js'
 
 const router = Router()
@@ -204,6 +207,17 @@ router.get('/subscriptions', (req, res) => {
   res.json({ symbols: getSubscribedSymbols() })
 })
 
+// Debug: show recent IBKR errors and latest quote cache
+router.get('/debug', (req, res) => {
+  const quotes = getLatestQuotes(getSubscribedSymbols())
+  res.json({
+    subscribedSymbols: getSubscribedSymbols(),
+    delayedMode: isDelayedMode(),
+    latestQuotes: quotes,
+    recentErrors: getRecentErrors()
+  })
+})
+
 // SSE endpoint for streaming real-time quotes
 router.get('/stream-quotes', (req, res) => {
   // Set up SSE headers
@@ -218,7 +232,7 @@ router.get('/stream-quotes', (req, res) => {
   // Send initial data for all subscribed symbols
   const initialQuotes = getLatestQuotes(getSubscribedSymbols())
   if (Object.keys(initialQuotes).length > 0) {
-    res.write(`data: ${JSON.stringify({ type: 'snapshot', quotes: initialQuotes })}\n\n`)
+    res.write(`data: ${JSON.stringify({ type: 'snapshot', quotes: initialQuotes, delayed: isDelayedMode() })}\n\n`)
   }
 
   // Subscribe to quote updates
@@ -245,6 +259,24 @@ router.get('/stream-quotes', (req, res) => {
     unsubscribe()
     clearInterval(heartbeat)
   })
+})
+
+// Get VIX index price (uses detailed quote to capture both last and close ticks)
+router.get('/vix', async (req, res) => {
+  try {
+    const quote = await getDetailedQuote('VIX', 2, false)
+    if (!quote) {
+      return res.status(503).json({ error: 'VIX data unavailable' })
+    }
+    const price = quote.last ?? quote.prevClose
+    if (price === null || price === undefined) {
+      return res.status(503).json({ error: 'VIX price unavailable' })
+    }
+    res.json({ price })
+  } catch (error) {
+    console.error('VIX error:', error)
+    res.status(500).json({ error: error.message })
+  }
 })
 
 // Get options chain for a symbol

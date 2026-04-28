@@ -20,12 +20,11 @@ import {
   removeFromLiveWatchlist,
   reorderLiveWatchlist,
   getLiveWatchlistInterval
-} from '../db/database'
+} from '../api/userDataService'
 import { getIntradayForDay, fetchIntradayForDay, getHistoricalMedian5mVolume } from '../modules/dataService'
 import LiveIndicator from './LiveIndicator'
 import MiniIntradayChart from './MiniIntradayChart'
-
-const API_BASE = 'http://localhost:3001/api'
+import { API_BASE, BACKEND_URL } from '../api'
 
 // Known index symbols (trade on US exchanges)
 const US_INDEX_SYMBOLS = ['VIX', 'SPX', 'NDX', 'DJX', 'RUT']
@@ -230,6 +229,44 @@ function LiveWatchlistCard({ symbol, quote, onRemove, onMoveLeft, onMoveRight, c
           />
         </HStack>
         <Text color="gray.500" fontSize="xs">No data</Text>
+        {isHovered && (
+          <ReorderButtons
+            onMoveLeft={onMoveLeft}
+            onMoveRight={onMoveRight}
+            canMoveLeft={canMoveLeft}
+            canMoveRight={canMoveRight}
+          />
+        )}
+      </Box>
+    )
+  }
+
+  const subscriptionError = quote?.subscriptionError
+
+  if (subscriptionError) {
+    return (
+      <Box
+        {...cardBase}
+        borderColor="orange.800"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <HStack justify="space-between" mb={1}>
+          <Badge colorScheme="gray" fontSize="xs">{symbol}</Badge>
+          <IconButton
+            icon={<CloseIcon />}
+            size="xs"
+            variant="ghost"
+            colorScheme="red"
+            onClick={() => onRemove(symbol)}
+            aria-label="Remove"
+            h="16px"
+            minW="16px"
+          />
+        </HStack>
+        <Tooltip label="TWS: Edit → Global Configuration → API → Settings — enable API market data" placement="top" fontSize="xs">
+          <Badge colorScheme="orange" fontSize="8px" variant="subtle" cursor="help">No API data</Badge>
+        </Tooltip>
         {isHovered && (
           <ReorderButtons
             onMoveLeft={onMoveLeft}
@@ -556,10 +593,13 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
   const [intradayLoading, setIntradayLoading] = useState({}) // { symbol: boolean }
   const [refreshInterval, setRefreshInterval] = useState(propRefreshInterval || DEFAULT_REFRESH_INTERVAL)
   const [isStreaming, setIsStreaming] = useState(false)
+  const [isDelayed, setIsDelayed] = useState(false)
+  const [reconnectCount, setReconnectCount] = useState(0)
   const toast = useToast()
 
   // Refs for request management
   const eventSourceRef = useRef(null)
+  const reconnectTimerRef = useRef(null)
   const symbolsRef = useRef(symbols)
   const expandedSymbolsRef = useRef(expandedSymbols)
 
@@ -698,9 +738,9 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
     // Subscribe to all current symbols
     subscribeSymbols(symbols)
 
-    // Set up SSE connection
+    // Set up SSE connection — connect directly to backend to bypass Vite proxy buffering
     if (!eventSourceRef.current) {
-      const eventSource = new EventSource(`${API_BASE}/stream-quotes`)
+      const eventSource = new EventSource(`${BACKEND_URL}/api/stream-quotes`)
 
       eventSource.onopen = () => {
         console.log('SSE connection opened')
@@ -714,13 +754,15 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
           const data = JSON.parse(event.data)
 
           if (data.type === 'snapshot') {
-            // Initial snapshot of all subscribed quotes
             setQuotes(prev => ({ ...prev, ...data.quotes }))
             setLoading(false)
+            if (data.delayed) setIsDelayed(true)
+            else setIsDelayed(false)
           } else if (data.type === 'update') {
-            // Real-time update for a single symbol
             setQuotes(prev => ({ ...prev, [data.symbol]: data.quote }))
             setLastFetchTime(Date.now())
+            // Clear delayed state if a live quote arrives without a subscription error
+            if (!data.quote?.subscriptionError) setIsDelayed(false)
           }
         } catch (err) {
           console.error('Failed to parse SSE message:', err)
@@ -730,21 +772,32 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
       eventSource.onerror = (err) => {
         console.error('SSE error:', err)
         setIsStreaming(false)
-        // EventSource will automatically reconnect
+        setLoading(false)
+        eventSource.close()
+        eventSourceRef.current = null
+        // Reconnect after 3 seconds
+        reconnectTimerRef.current = setTimeout(() => {
+          setReconnectCount(c => c + 1)
+        }, 3000)
       }
 
       eventSourceRef.current = eventSource
       setLoading(true)
+
+      // Fallback: clear loading after 4s in case onopen never fires
+      const loadingTimeout = setTimeout(() => setLoading(false), 4000)
+      eventSource.addEventListener('open', () => clearTimeout(loadingTimeout), { once: true })
     }
 
     return () => {
       // Don't close on every re-render, only on unmount
     }
-  }, [isConnected, symbols, subscribeSymbols])
+  }, [isConnected, symbols, subscribeSymbols, reconnectCount])
 
   // Clean up SSE on unmount
   useEffect(() => {
     return () => {
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
       if (eventSourceRef.current) {
         eventSourceRef.current.close()
         eventSourceRef.current = null
@@ -919,6 +972,11 @@ function LiveWatchlist({ isConnected, refreshInterval: propRefreshInterval }) {
               lastFetchTime={lastFetchTime}
               refreshInterval={refreshInterval}
             />
+          )}
+          {isDelayed && (
+            <Tooltip label="Live data unavailable — showing 15-minute delayed quotes. Check TWS Market Data Connections to enable live API data.">
+              <Badge colorScheme="yellow" variant="subtle" fontSize="9px" cursor="help">15m delay</Badge>
+            </Tooltip>
           )}
         </HStack>
         <Spacer />

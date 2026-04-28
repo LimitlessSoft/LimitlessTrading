@@ -28,7 +28,8 @@ import {
   useDisclosure
 } from '@chakra-ui/react'
 import { CloseIcon, SettingsIcon, RepeatIcon } from '@chakra-ui/icons'
-import { fetchFromCache, loadHistoricalData, refreshRecentData, fetchOlderData, clearAllCache, INTERVALS } from '../modules/dataService'
+import { fetchFromCache, loadHistoricalData, refreshRecentData, fetchOlderData, clearAllCache, cacheNeedsRefresh, INTERVALS } from '../modules/dataService'
+import { subscribeQuote } from '../modules/symbolQuoteService'
 import {
   getGlobalChartSettings,
   saveGlobalChartSettings,
@@ -58,7 +59,7 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
   const [tooltip,    setTooltip]    = useState(null)
   const [crosshairY, setCrosshairY] = useState(null)
 
-  const padding = { top: 40, right: fontSize * 5 + 8, bottom: 28, left: 8 }
+  const padding = { top: 40, right: fontSize * 4 + 4, bottom: 28, left: 8 }
   const chartWidth  = width  - padding.left - padding.right
   const chartHeight = height - padding.top  - padding.bottom
   const candleAreaH = chartHeight * 0.78
@@ -304,6 +305,30 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
             )
           })}
 
+        {/* Last price line */}
+        {(() => {
+          const lastBar = data[data.length - 1]
+          if (!lastBar) return null
+          const lastPrice = lastBar.close
+          const lastY = priceToY(lastPrice)
+          if (lastY < padding.top || lastY > height - padding.bottom) return null
+          const isUp = lastBar.close >= lastBar.open
+          const lineColor = isUp ? '#48bb78' : '#f56565'
+          return (
+            <g pointerEvents="none">
+              <line x1={padding.left} y1={lastY} x2={width - padding.right} y2={lastY}
+                stroke={lineColor} strokeWidth={1} strokeDasharray="3 3" opacity={0.6} />
+              <rect x={width - padding.right} y={lastY - fontSize * 0.8}
+                width={padding.right - 2} height={fontSize * 1.6}
+                fill={lineColor} rx={2} />
+              <text x={width - padding.right + 3} y={lastY + fontSize * 0.45}
+                fill="#1a202c" fontSize={fontSize - 1} fontWeight="bold">
+                {lastPrice.toFixed(2)}
+              </text>
+            </g>
+          )
+        })()}
+
         {/* Crosshair */}
         {tooltip && crosshairY !== null && (() => {
           const cx = tooltip.cx
@@ -342,6 +367,8 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
   const [editInterval,   setEditInterval]   = useState('5m')
   const [globalSettings, setGlobalSettings] = useState(getGlobalChartSettings)
   const [editGlobal,     setEditGlobal]     = useState(null)
+  const [fontSizeDraft,  setFontSizeDraft]  = useState('')
+  const [volMultDraft,   setVolMultDraft]   = useState('')
   const [containerWidth, setContainerWidth] = useState(400)
   const [viewOffset,      setViewOffset]      = useState(0)
   const [quickSymbol,     setQuickSymbol]     = useState('')
@@ -421,8 +448,55 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
       } else {
         setData(sorted)
         setLoading(false)
+        if (cacheNeedsRefresh(cached)) {
+          refreshRecentData(symbol, interval)
+            .then(freshData => {
+              if (gen !== loadGenRef.current) return
+              setData([...freshData].sort((a, b) => a.timestamp - b.timestamp))
+            })
+            .catch(err => console.warn('[TemplatePageChart] background refresh failed', err))
+        }
       }
     })
+  }, [symbol, interval])
+
+  const INTRADAY_INTERVALS = ['1m','2m','3m','5m','15m','30m','1h']
+
+  // SSE live price: update current bar's close/high/low in real time
+  useEffect(() => {
+    if (!symbol || !INTRADAY_INTERVALS.includes(interval)) return
+    const unsub = subscribeQuote(symbol, 1, (_sym, quote) => {
+      const livePrice = quote.last
+      if (!livePrice) return
+      setData(prev => {
+        if (!prev.length) return prev
+        const last = prev[prev.length - 1]
+        if (last.close === livePrice && livePrice <= last.high && livePrice >= last.low) return prev
+        return [...prev.slice(0, -1), {
+          ...last,
+          close: livePrice,
+          high: Math.max(last.high, livePrice),
+          low: Math.min(last.low, livePrice),
+        }]
+      })
+    })
+    return unsub
+  }, [symbol, interval])
+
+  // Periodic fetch to pull in newly completed bars (every 60s)
+  useEffect(() => {
+    if (!symbol || !INTRADAY_INTERVALS.includes(interval)) return
+    const gen = loadGenRef.current
+    const timer = setInterval(() => {
+      if (loadGenRef.current !== gen) return
+      refreshRecentData(symbol, interval, 1)
+        .then(fresh => {
+          if (loadGenRef.current !== gen) return
+          setData([...fresh].sort((a, b) => a.timestamp - b.timestamp))
+        })
+        .catch(() => {})
+    }, 60000)
+    return () => clearInterval(timer)
   }, [symbol, interval])
 
   // Clear preview position once label catches up
@@ -723,6 +797,8 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
     setEditSymbol(symbol)
     setEditInterval(interval)
     setEditGlobal({ ...globalSettings })
+    setFontSizeDraft(String(globalSettings.fontSize ?? 9))
+    setVolMultDraft(String(globalSettings.volumeMultiplier ?? 1))
     onOpen()
   }
 
@@ -999,12 +1075,17 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
                             type="number"
                             min={6}
                             max={16}
-                            value={editGlobal.fontSize ?? 9}
-                            onChange={(e) => setEditGlobal(g => ({ ...g, fontSize: Math.max(6, Math.min(16, Number(e.target.value))) }))}
+                            value={fontSizeDraft}
+                            onChange={(e) => setFontSizeDraft(e.target.value)}
+                            onBlur={(e) => {
+                              const v = Math.max(6, Math.min(16, Number(e.target.value) || 9))
+                              setFontSizeDraft(String(v))
+                              setEditGlobal(g => ({ ...g, fontSize: v }))
+                            }}
                             style={{ width: '52px', background: '#2d3748', color: 'white', border: '1px solid #4a5568', borderRadius: '4px', padding: '2px 6px', fontSize: '13px' }}
                           />
                           <Button size="xs" variant="ghost" color="gray.500"
-                            onClick={() => setEditGlobal(g => ({ ...g, fontSize: globalSettings.fontSize ?? 9 }))}>
+                            onClick={() => { const v = globalSettings.fontSize ?? 9; setFontSizeDraft(String(v)); setEditGlobal(g => ({ ...g, fontSize: v })) }}>
                             Reset
                           </Button>
                         </HStack>
@@ -1020,12 +1101,17 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
                             min={0.1}
                             max={20}
                             step={0.1}
-                            value={editGlobal.volumeMultiplier ?? 1}
-                            onChange={(e) => setEditGlobal(g => ({ ...g, volumeMultiplier: Math.max(0.1, Math.min(20, Number(e.target.value))) }))}
+                            value={volMultDraft}
+                            onChange={(e) => setVolMultDraft(e.target.value)}
+                            onBlur={(e) => {
+                              const v = Math.max(0.1, Math.min(20, Number(e.target.value) || 1))
+                              setVolMultDraft(String(v))
+                              setEditGlobal(g => ({ ...g, volumeMultiplier: v }))
+                            }}
                             style={{ width: '52px', background: '#2d3748', color: 'white', border: '1px solid #4a5568', borderRadius: '4px', padding: '2px 6px', fontSize: '13px' }}
                           />
                           <Button size="xs" variant="ghost" color="gray.500"
-                            onClick={() => setEditGlobal(g => ({ ...g, volumeMultiplier: 1 }))}>
+                            onClick={() => { setVolMultDraft('1'); setEditGlobal(g => ({ ...g, volumeMultiplier: 1 })) }}>
                             Reset
                           </Button>
                         </HStack>

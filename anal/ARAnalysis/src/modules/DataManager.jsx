@@ -31,7 +31,7 @@ import {
 import {
   getLiveWatchlistInterval,
   setLiveWatchlistInterval
-} from '../db/database'
+} from '../api/userDataService'
 
 const IBKR_PORTS = [
   { value: 7496, label: '7496 (TWS Live)' },

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { HStack, Text, Badge, Spinner } from '@chakra-ui/react'
-
-const API_BASE = 'http://localhost:3001/api'
+import { API_BASE } from '../api'
 
 function TreasuryYields() {
   const [yields, setYields] = useState(null)

@@ -5,10 +5,11 @@ import fomcRoutes from './routes/fomc.js'
 import treasuryRoutes from './routes/treasury.js'
 import fearGreedRoutes from './routes/fearGreed.js'
 import routesRoutes from './routes/routes.js'
+import userDataRoutes from './routes/userData.js'
 import { getConnectionStatus } from './ibkrClient.js'
 
 const app = express()
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT || 8744
 
 app.use(cors())
 app.use(express.json())
@@ -19,6 +20,7 @@ app.use('/api/fomc', fomcRoutes)
 app.use('/api/treasury', treasuryRoutes)
 app.use('/api/fear-greed', fearGreedRoutes)
 app.use('/api/routes', routesRoutes)
+app.use('/api/user-data', userDataRoutes)
 
 // Health check
 app.get('/health', (req, res) => {

@@ -28,6 +28,14 @@ const latestQuotes = new Map() // symbol -> quote data
 // Event emitter for quote updates
 const quoteListeners = new Set() // Set<(symbol, quote) => void>
 
+// Recent IBKR errors for debugging
+const recentErrors = []
+const MAX_ERRORS = 50
+export function getRecentErrors() { return [...recentErrors] }
+
+let delayedModeActive = false
+export function isDelayedMode() { return delayedModeActive }
+
 export function subscribeToQuotes(callback) {
   quoteListeners.add(callback)
   return () => quoteListeners.delete(callback)
@@ -44,6 +52,19 @@ export function getLatestQuotes(symbols) {
     if (quote) result[symbol] = quote
   }
   return result
+}
+
+function clearSubscriptionError(sub) {
+  if (sub.subscriptionError) {
+    delete sub.subscriptionError
+    delete sub.retriedDelayed
+    // If all subscriptions are now error-free, restore live mode
+    const anyError = [...activeSubscriptions.values()].some(s => s.subscriptionError)
+    if (!anyError && delayedModeActive) {
+      delayedModeActive = false
+      try { ib.reqMarketDataType(1) } catch (e) {}
+    }
+  }
 }
 
 function emitQuoteUpdate(symbol, quote) {
@@ -66,6 +87,8 @@ export async function connect(port = 7496) {
     await disconnect()
   }
 
+  delayedModeActive = false
+
   return new Promise((resolve, reject) => {
     const clientId = Math.floor(Math.random() * 10000)
 
@@ -85,6 +108,23 @@ export async function connect(port = 7496) {
       clearTimeout(timeout)
       connectionState = { connected: true, port, clientId }
       console.log(`Connected to IBKR on port ${port}`)
+
+      // Re-issue reqMktData for all active subscriptions after reconnect
+      if (symbolToReqId.size > 0) {
+        console.log(`Resubscribing ${symbolToReqId.size} symbols after reconnect`)
+        for (const [symbol, reqId] of symbolToReqId) {
+          const indexConfig = INDEX_SYMBOLS[symbol]
+          const contract = indexConfig
+            ? { symbol, secType: SecType.IND, exchange: indexConfig.exchange, currency: 'USD' }
+            : { symbol, secType: SecType.STK, exchange: 'SMART', currency: 'USD' }
+          try {
+            ib.reqMktData(reqId, contract, '233,165', false, false, [])
+          } catch (err) {
+            console.error(`Failed to resubscribe ${symbol}:`, err)
+          }
+        }
+      }
+
       resolve(connectionState)
     })
 
@@ -95,7 +135,44 @@ export async function connect(port = 7496) {
 
     ib.on(EventName.error, (err, code, reqId) => {
       const isPending = reqId && pendingRequests.has(reqId)
-      console.error(`IBKR error [reqId=${reqId ?? 'none'}${isPending ? ' PENDING' : ''}]: ${err?.message || err} code: ${code}`)
+      const msg = `[reqId=${reqId ?? 'none'}${isPending ? ' PENDING' : ''}]: ${err?.message || err} code: ${code}`
+      console.error(`IBKR error ${msg}`)
+      recentErrors.push({ ts: Date.now(), msg, reqId, code })
+      if (recentErrors.length > MAX_ERRORS) recentErrors.shift()
+
+      // Market data subscription error — switch ALL subscriptions to 15-min delayed (free)
+      if ((code === 10089 || code === 354) && !delayedModeActive) {
+        delayedModeActive = true
+        console.log(`Live market data unavailable (${code}), switching all subscriptions to 15-min delayed data`)
+        setTimeout(() => {
+          try {
+            ib.reqMarketDataType(3)
+          } catch (e) {
+            console.error('reqMarketDataType(3) failed:', e.message)
+          }
+          setTimeout(() => {
+            for (const [sym, rId] of symbolToReqId) {
+              const sub = activeSubscriptions.get(rId)
+              if (!sub) continue
+              sub.retriedDelayed = true
+              try {
+                ib.reqMktData(rId, sub.contract, '', false, false, [])
+              } catch (e) {
+                console.error(`Failed to re-subscribe ${sym} in delayed mode:`, e.message)
+              }
+            }
+          }, 500)
+        }, 100)
+      } else if ((code === 10089 || code === 354) && delayedModeActive) {
+        // Only flag as error if this subscription has actually been retried in delayed mode
+        const sub = activeSubscriptions.get(reqId)
+        if (sub?.retriedDelayed && !sub.subscriptionError) {
+          const errMsg = 'API market data blocked — fix in TWS: Edit → Global Configuration → API → Settings'
+          sub.subscriptionError = errMsg
+          emitQuoteUpdate(sub.symbol, { ...sub.quote, subscriptionError: errMsg })
+          console.log(`Delayed data also failed for ${sub.symbol}`)
+        }
+      }
 
       // Handle pending request errors
       if (isPending) {
@@ -788,9 +865,9 @@ async function getDetailedQuoteOnce(symbol) {
     }, 2000)
 
     try {
-      // Request market data with generic ticks:
-      // 233 = vwap, 258 = fundamental ratios (includes MKTCAP), 165 = misc stats (avg volume)
-      ib.reqMktData(reqId, contract, '233,258,165', false, false, [])
+      // Indices don't support generic ticks like VWAP/fundamentals — use empty string
+      const genericTicks = indexConfig ? '' : '233,258,165'
+      ib.reqMktData(reqId, contract, genericTicks, false, false, [])
     } catch (err) {
       cleanup()
       resolve(null)
@@ -872,22 +949,27 @@ async function getMarketCap(symbol) {
 }
 
 // Get detailed quote with retry
-export async function getDetailedQuote(symbol, maxRetries = 2) {
+// requireLast: if false, return quote even if last is null (e.g. indices outside RTH that only send prevClose)
+export async function getDetailedQuote(symbol, maxRetries = 2, requireLast = true) {
+  let bestQuote = null
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const quote = await getDetailedQuoteOnce(symbol)
-    if (quote !== null && quote.last !== null) {
-      // If no market cap from tick data, try fundamental data request
-      if (quote.marketCap === null) {
-        const mktCap = await getMarketCap(symbol)
-        if (mktCap) quote.marketCap = mktCap
+    if (quote !== null) {
+      if (!requireLast || quote.last !== null) {
+        if (quote.marketCap === null) {
+          const mktCap = await getMarketCap(symbol)
+          if (mktCap) quote.marketCap = mktCap
+        }
+        return quote
       }
-      return quote
+      // Keep the best partial quote (has prevClose at minimum) for fallback
+      if (quote.prevClose !== null) bestQuote = quote
     }
     if (attempt < maxRetries) {
       await sleep(300)
     }
   }
-  return null
+  return bestQuote // non-null only when requireLast=true but we have prevClose
 }
 
 // Get detailed quotes for multiple symbols in parallel
@@ -1295,7 +1377,7 @@ export function subscribeMarketData(symbol) {
     lastUpdate: null
   }
 
-  activeSubscriptions.set(reqId, { symbol: upperSymbol, quote })
+  activeSubscriptions.set(reqId, { symbol: upperSymbol, quote, contract })
   symbolToReqId.set(upperSymbol, reqId)
 
   // Set up tick handlers (these are shared, filter by reqId)
@@ -1318,6 +1400,7 @@ export function subscribeMarketData(symbol) {
     }
     if (changed) {
       sub.quote.lastUpdate = Date.now()
+      clearSubscriptionError(sub)
       emitQuoteUpdate(upperSymbol, { ...sub.quote })
     }
   }
@@ -1336,6 +1419,7 @@ export function subscribeMarketData(symbol) {
     }
     if (changed) {
       sub.quote.lastUpdate = Date.now()
+      clearSubscriptionError(sub)
       emitQuoteUpdate(upperSymbol, { ...sub.quote })
     }
   }
@@ -1348,6 +1432,7 @@ export function subscribeMarketData(symbol) {
     if (tickType === 81 && value > 0 && sub.quote.vwap !== value) {
       sub.quote.vwap = value
       sub.quote.lastUpdate = Date.now()
+      clearSubscriptionError(sub)
       emitQuoteUpdate(upperSymbol, { ...sub.quote })
     }
   }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { API_BASE } from '../api'
 import {
   Box,
   Text,
@@ -13,8 +14,6 @@ import {
   PopoverArrow,
   useDisclosure
 } from '@chakra-ui/react'
-
-const API_BASE = 'http://localhost:3001/api'
 
 // SVG Speedometer/Gauge component
 function SpeedometerSVG({ score, size = 80 }) {

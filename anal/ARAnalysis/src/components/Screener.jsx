@@ -27,11 +27,11 @@ import { AddIcon, DeleteIcon, SearchIcon, StarIcon } from '@chakra-ui/icons'
 import { fetchForScreener } from '../modules/dataService'
 import {
   getWatchgroups,
-  getActiveWatchgroup,
   getWatchgroupSymbols,
   addToWatchgroup,
-  removeFromWatchgroup
-} from '../db/database'
+  removeFromWatchgroup,
+  getActiveWatchgroup
+} from '../api/userDataService'
 
 // Available columns for screening
 const COLUMNS = [

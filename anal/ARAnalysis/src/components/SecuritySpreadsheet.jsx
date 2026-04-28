@@ -50,7 +50,7 @@ import {
   deleteAnalysisPreset,
   getSetting,
   setSetting
-} from '../db/database'
+} from '../api/userDataService'
 
 const ROWS_PER_PAGE_OPTIONS = [25, 50, 100, 200, 500, 1000, 2000, 5000]
 
@@ -289,7 +289,7 @@ function getCellFormat(rules, row, prevRow, column, vixValue = null, prevVixValu
   return matchingRules[matchingRules.length - 1].format
 }
 
-function SecuritySpreadsheet({ data, symbol, interval, loading, connectionState }) {
+function SecuritySpreadsheet({ data, symbol, interval, loading, connectionState, onLoadData }) {
   const [currentPage, setCurrentPage] = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(50)
   const [formatRules, setFormatRules] = useState([])
@@ -1214,9 +1214,20 @@ function SecuritySpreadsheet({ data, symbol, interval, loading, connectionState 
   if (data.length === 0) {
     return (
       <Center h="400px" bg="gray.800" borderRadius="md">
-        <Text color="gray.500" fontSize="lg">
-          No data available for {symbol}. Use Data Manager to load data.
-        </Text>
+        <VStack spacing={4}>
+          <Text color="gray.500" fontSize="lg">No data for {symbol}</Text>
+          <Button
+            colorScheme="blue"
+            leftIcon={<RepeatIcon />}
+            onClick={onLoadData}
+            isDisabled={!connectionState?.connected}
+          >
+            Load from IBKR
+          </Button>
+          {!connectionState?.connected && (
+            <Text color="gray.600" fontSize="sm">Connect to IBKR first</Text>
+          )}
+        </VStack>
       </Center>
     )
   }

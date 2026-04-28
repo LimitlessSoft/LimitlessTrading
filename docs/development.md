@@ -16,8 +16,8 @@ cd anal/ARAnalysis
 npm start
 
 # Run separately
-npm run dev      # Frontend only — Vite dev server on port 3000
-npm run server   # Backend only — Express on port 3001
+npm run dev      # Frontend only — Vite dev server on port 8743
+npm run server   # Backend only — Express on port 8744
 
 # Production build
 npm run build

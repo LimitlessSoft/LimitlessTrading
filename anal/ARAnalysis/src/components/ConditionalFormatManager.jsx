@@ -45,7 +45,7 @@ import {
   deleteFormatGroup,
   getActiveFormatGroup,
   setActiveFormatGroup
-} from '../db/database'
+} from '../api/userDataService'
 
 const COLUMNS = [
   { value: 'open', label: 'Open' },

@@ -16,7 +16,7 @@ import {
   Spinner
 } from '@chakra-ui/react'
 import { fetchFromCache } from '../modules/dataService'
-import { getWatchgroups, getWatchgroupSymbols, getActiveWatchgroup } from '../db/database'
+import { getWatchgroups, getWatchgroupSymbols, getActiveWatchgroup } from '../api/userDataService'
 
 // Check if the pattern occurred: 2 positive days followed by big move
 // data[0] = most recent day (day 3 - big move day, change > threshold)

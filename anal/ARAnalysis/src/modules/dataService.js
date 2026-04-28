@@ -121,6 +121,14 @@ function hasFreshCache(data) {
   return newestBar.timestamp >= threeDaysAgo
 }
 
+// Returns true if the cache is missing data from the most recent trading session.
+// Used to trigger a silent background refresh on chart mount.
+export function cacheNeedsRefresh(data) {
+  if (!data || data.length === 0) return false
+  const newestBar = data[0] // descending, newest first
+  return !isSameDate(newestBar.timestamp, getMostRecentTradingDay())
+}
+
 // Load historical data with progress updates using parallel requests
 // onProgress(data, progress) called after each batch
 // Returns { cancel: function }

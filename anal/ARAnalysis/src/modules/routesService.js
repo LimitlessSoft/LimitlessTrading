@@ -1,4 +1,5 @@
-const API_BASE = 'http://localhost:3001/api/routes'
+import { API_BASE as BASE } from '../api'
+const API_BASE = `${BASE}/routes`
 
 export async function fetchRoutes() {
   const response = await fetch(API_BASE)

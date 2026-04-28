@@ -35,7 +35,7 @@ import {
   removeFromWatchgroup,
   getActiveWatchgroup,
   setActiveWatchgroup
-} from '../db/database'
+} from '../api/userDataService'
 
 const WatchgroupManager = forwardRef(({ onActiveGroupChange, onGroupsChange }, ref) => {
   const { isOpen, onOpen, onClose } = useDisclosure()

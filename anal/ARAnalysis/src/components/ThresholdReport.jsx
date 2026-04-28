@@ -33,7 +33,7 @@ import {
 } from '@chakra-ui/react'
 import { ChevronDownIcon, ChevronRightIcon, WarningIcon } from '@chakra-ui/icons'
 import { fetchFromCache, fetchOptionsChain, fetchCurrentPrices, fetchOptionHistory } from '../modules/dataService'
-import { getWatchgroups, getWatchgroupSymbols, getActiveWatchgroup, getThresholdReportSettings, saveThresholdReportSettings } from '../db/database'
+import { getWatchgroups, getWatchgroupSymbols, getActiveWatchgroup, getThresholdReportSettings, saveThresholdReportSettings } from '../api/userDataService'
 
 // Time periods in trading days
 const TIME_PERIODS = [

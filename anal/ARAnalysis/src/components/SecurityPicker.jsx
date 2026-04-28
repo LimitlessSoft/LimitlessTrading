@@ -25,7 +25,7 @@ import {
   getSymbolWatchgroups,
   getActiveWatchgroup,
   setActiveWatchgroup
-} from '../db/database'
+} from '../api/userDataService'
 import WatchgroupManager from './WatchgroupManager'
 
 function SecurityPicker({ value, onChange, securities }) {
@@ -225,22 +225,25 @@ function SecurityPicker({ value, onChange, securities }) {
           >
             {activeGroup?.name || 'No Group'}
           </MenuButton>
-          <MenuList bg="gray.700" maxH="300px" overflowY="auto">
-            {activeGroupSymbols.length > 0 ? (
-              activeGroupSymbols.map(symbol => (
+          <MenuList bg="gray.700" minW="160px">
+            {watchgroups.length > 0 ? (
+              watchgroups.map(group => (
                 <MenuItem
-                  key={symbol}
+                  key={group.id}
                   bg="transparent"
+                  fontWeight={group.id === activeGroupId ? 'bold' : 'normal'}
+                  color={group.id === activeGroupId ? 'yellow.400' : 'inherit'}
                   _hover={{ bg: 'gray.600' }}
-                  onClick={() => handleSymbolSelect(symbol)}
+                  onClick={async () => {
+                    setActiveGroupId(group.id)
+                    await setActiveWatchgroup(group.id)
+                  }}
                 >
-                  {symbol}
+                  {group.name}
                 </MenuItem>
               ))
             ) : (
-              <MenuItem isDisabled bg="transparent">
-                {activeGroupId ? 'No symbols in group' : 'Select a watchgroup'}
-              </MenuItem>
+              <MenuItem isDisabled bg="transparent">No watchgroups</MenuItem>
             )}
           </MenuList>
         </Menu>

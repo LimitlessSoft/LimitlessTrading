@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { HStack, Text, Badge, Spinner } from '@chakra-ui/react'
-
-const API_BASE = 'http://localhost:3001/api'
+import { API_BASE } from '../api'
 
 function VixDisplay({ isConnected }) {
   const [vixPrice, setVixPrice] = useState(null)
@@ -10,19 +9,15 @@ function VixDisplay({ isConnected }) {
 
   const fetchVix = async () => {
     try {
-      const response = await fetch(`${API_BASE}/current-prices`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbols: ['VIX'] })
-      })
+      const response = await fetch(`${API_BASE}/vix`)
 
       if (!response.ok) {
         throw new Error('Failed to fetch VIX')
       }
 
       const data = await response.json()
-      if (data.VIX !== undefined && data.VIX !== null) {
-        setVixPrice(data.VIX)
+      if (data.price !== undefined && data.price !== null) {
+        setVixPrice(data.price)
         setError(null)
       }
     } catch (err) {

@@ -382,6 +382,7 @@ function App() {
                   interval={selectedInterval}
                   loading={false}
                   connectionState={connectionState}
+                  onLoadData={handleRefresh}
                 />
               </TabPanel>
               <TabPanel px={0}>
