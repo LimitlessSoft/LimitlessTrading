@@ -19,9 +19,10 @@ import {
   VStack,
   Checkbox,
   Tooltip,
+  Divider,
   useDisclosure
 } from '@chakra-ui/react'
-import { CloseIcon, DragHandleIcon, SettingsIcon, InfoOutlineIcon } from '@chakra-ui/icons'
+import { CloseIcon, DragHandleIcon, SettingsIcon, InfoOutlineIcon, AddIcon, DeleteIcon } from '@chakra-ui/icons'
 
 const DownloadIcon = () => (
   <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
@@ -53,7 +54,7 @@ const DEFAULT_STYLE = {
 // Placeholder pattern for template variables: ${name} or ${name:interval}
 const PLACEHOLDER_REGEX = /\$\{(\w+)(?::(\d+))?\}/g
 
-function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveControl, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode }) {
+function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -148,11 +149,35 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
     return resolveSymbolText(systemResolved)
   }
 
+  // Apply conditional style overrides — first matching rule wins
+  const resolveConditionalStyle = (baseStyle) => {
+    const rules = baseStyle.conditionalStyles
+    if (!rules?.length) return baseStyle
+
+    for (const rule of rules) {
+      if (!rule.placeholder) continue
+      const resolved = resolveText(rule.placeholder)
+      const matches = rule.contains
+        ? resolved.includes(rule.value || '')
+        : resolved === (rule.value || '')
+      if (matches) {
+        return {
+          ...baseStyle,
+          ...(rule.bgColor != null && { bgColor: rule.bgColor }),
+          ...(rule.textColor != null && { textColor: rule.textColor }),
+          ...(rule.borderColor != null && { borderColor: rule.borderColor }),
+          ...(rule.borderWidth != null && { borderWidth: rule.borderWidth }),
+        }
+      }
+    }
+    return baseStyle
+  }
+
   const width = label.width || 4
   const height = label.height || DEFAULT_HEIGHT
   const x = label.x || 0
   const y = label.y || 0  // Used as order hint for layout calculation
-  const style = { ...DEFAULT_STYLE, ...label.style }
+  const style = resolveConditionalStyle({ ...DEFAULT_STYLE, ...label.style })
 
   const displayWidth = previewSize?.width ?? width
   const displayHeight = previewSize?.height ?? height
@@ -271,7 +296,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
 
       if (dropTarget && dropTarget !== parentPanelId) {
         // Move to the target (panel or header)
-        onMoveControl?.(label.id, parentPanelId, dropTarget)
+        onMoveWidget?.(label.id, parentPanelId, dropTarget)
         setPreviewPos(null)
         onDragPreview?.(null)
       } else if (dropTarget === null && parentPanelId !== null && parentPanelId !== 'header') {
@@ -280,7 +305,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
         if (mainContainer) {
           const rect = mainContainer.getBoundingClientRect()
           if (lastMouseX >= rect.left && lastMouseX <= rect.right && lastMouseY >= rect.top && lastMouseY <= rect.bottom) {
-            onMoveControl?.(label.id, parentPanelId, null)
+            onMoveWidget?.(label.id, parentPanelId, null)
             setPreviewPos(null)
             onDragPreview?.(null)
             return
@@ -419,6 +444,288 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
     document.addEventListener('mouseup', handleMouseUp)
   }
 
+  const renderEditModal = () => (
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <ModalOverlay />
+      <ModalContent bg="gray.800">
+        <ModalHeader>Edit Label</ModalHeader>
+        <ModalCloseButton />
+        <ModalBody>
+          {editStyle && (
+            <VStack spacing={4}>
+              <FormControl>
+                <FormLabel fontSize="sm" display="flex" alignItems="center" gap={1}>
+                  Label Text
+                  <Tooltip label="View placeholder API docs" placement="top" hasArrow>
+                    <IconButton
+                      icon={<InfoOutlineIcon />}
+                      size="xs"
+                      variant="ghost"
+                      aria-label="Placeholder documentation"
+                      onClick={() => window.open('/docs/placeholders', '_blank')}
+                      minW="auto"
+                      h="auto"
+                      p={0}
+                      color="gray.400"
+                      _hover={{ color: 'blue.300' }}
+                    />
+                  </Tooltip>
+                </FormLabel>
+                <Input
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  placeholder="Enter label text (supports ${placeholder} syntax)"
+                />
+              </FormControl>
+
+              <HStack width="100%" spacing={4}>
+                <FormControl>
+                  <FormLabel fontSize="sm">Background Color</FormLabel>
+                  <HStack>
+                    <Input
+                      type="color"
+                      value={editStyle.bgColor === 'transparent' ? '#4A5568' : editStyle.bgColor}
+                      onChange={(e) => setEditStyle({ ...editStyle, bgColor: e.target.value })}
+                      height="40px"
+                      p={1}
+                      isDisabled={editStyle.bgColor === 'transparent'}
+                      flex={1}
+                    />
+                    <Checkbox
+                      isChecked={editStyle.bgColor === 'transparent'}
+                      onChange={(e) => setEditStyle({
+                        ...editStyle,
+                        bgColor: e.target.checked ? 'transparent' : '#4A5568'
+                      })}
+                      size="sm"
+                    >
+                      None
+                    </Checkbox>
+                  </HStack>
+                </FormControl>
+                <FormControl>
+                  <FormLabel fontSize="sm">Text Color</FormLabel>
+                  <Input
+                    type="color"
+                    value={editStyle.textColor}
+                    onChange={(e) => setEditStyle({ ...editStyle, textColor: e.target.value })}
+                    height="40px"
+                    p={1}
+                  />
+                </FormControl>
+              </HStack>
+
+              <HStack width="100%" spacing={4}>
+                <FormControl>
+                  <FormLabel fontSize="sm">Border Color</FormLabel>
+                  <Input
+                    type="color"
+                    value={editStyle.borderColor}
+                    onChange={(e) => setEditStyle({ ...editStyle, borderColor: e.target.value })}
+                    height="40px"
+                    p={1}
+                  />
+                </FormControl>
+                <FormControl>
+                  <FormLabel fontSize="sm">Border Width (px)</FormLabel>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={10}
+                    value={editStyle.borderWidth}
+                    onChange={(e) => setEditStyle({ ...editStyle, borderWidth: parseInt(e.target.value) || 0 })}
+                  />
+                </FormControl>
+              </HStack>
+
+              <HStack width="100%" spacing={4}>
+                <FormControl>
+                  <FormLabel fontSize="sm">Font Weight</FormLabel>
+                  <Select
+                    value={editStyle.fontWeight}
+                    onChange={(e) => setEditStyle({ ...editStyle, fontWeight: e.target.value })}
+                  >
+                    <option value="normal">Normal</option>
+                    <option value="bold">Bold</option>
+                    <option value="lighter">Light</option>
+                  </Select>
+                </FormControl>
+                <FormControl>
+                  <FormLabel fontSize="sm">Font Style</FormLabel>
+                  <Select
+                    value={editStyle.fontStyle}
+                    onChange={(e) => setEditStyle({ ...editStyle, fontStyle: e.target.value })}
+                  >
+                    <option value="normal">Normal</option>
+                    <option value="italic">Italic</option>
+                  </Select>
+                </FormControl>
+              </HStack>
+
+              <FormControl>
+                <FormLabel fontSize="sm">Font Size (rem)</FormLabel>
+                <Input
+                  type="number"
+                  min={0.5}
+                  max={4}
+                  step={0.1}
+                  value={editStyle.fontSize}
+                  onChange={(e) => setEditStyle({ ...editStyle, fontSize: parseFloat(e.target.value) || 1 })}
+                />
+              </FormControl>
+
+              <HStack width="100%" spacing={4}>
+                <FormControl>
+                  <FormLabel fontSize="sm">Horizontal Align</FormLabel>
+                  <Select
+                    value={editStyle.textAlign}
+                    onChange={(e) => setEditStyle({ ...editStyle, textAlign: e.target.value })}
+                  >
+                    <option value="left">Left</option>
+                    <option value="center">Center</option>
+                    <option value="right">Right</option>
+                  </Select>
+                </FormControl>
+                <FormControl>
+                  <FormLabel fontSize="sm">Vertical Align</FormLabel>
+                  <Select
+                    value={editStyle.verticalAlign}
+                    onChange={(e) => setEditStyle({ ...editStyle, verticalAlign: e.target.value })}
+                  >
+                    <option value="top">Top</option>
+                    <option value="center">Center</option>
+                    <option value="bottom">Bottom</option>
+                  </Select>
+                </FormControl>
+              </HStack>
+
+              <Divider />
+
+              <Box width="100%">
+                <HStack justify="space-between" mb={2}>
+                  <Text fontSize="sm" fontWeight="medium">Conditional Styles</Text>
+                  <Button
+                    size="xs"
+                    leftIcon={<AddIcon />}
+                    variant="ghost"
+                    onClick={() => setEditStyle({
+                      ...editStyle,
+                      conditionalStyles: [
+                        ...(editStyle.conditionalStyles || []),
+                        { id: crypto.randomUUID(), placeholder: '', contains: true, value: '', bgColor: null, textColor: null, borderColor: null, borderWidth: null }
+                      ]
+                    })}
+                  >
+                    Add Rule
+                  </Button>
+                </HStack>
+                <VStack spacing={2} align="stretch">
+                  {(editStyle.conditionalStyles || []).map((rule, idx) => (
+                    <Box key={rule.id} p={3} bg="gray.700" borderRadius="md">
+                      <HStack mb={2} spacing={2}>
+                        <Text fontSize="xs" color="gray.400" flexShrink={0}>When</Text>
+                        <Input
+                          size="xs"
+                          placeholder="${EXCHANGE:status:10}"
+                          value={rule.placeholder}
+                          onChange={(e) => {
+                            const updated = [...editStyle.conditionalStyles]
+                            updated[idx] = { ...rule, placeholder: e.target.value }
+                            setEditStyle({ ...editStyle, conditionalStyles: updated })
+                          }}
+                          flex={1}
+                        />
+                        <Select
+                          size="xs"
+                          value={rule.contains ? 'contains' : 'exact'}
+                          onChange={(e) => {
+                            const updated = [...editStyle.conditionalStyles]
+                            updated[idx] = { ...rule, contains: e.target.value === 'contains' }
+                            setEditStyle({ ...editStyle, conditionalStyles: updated })
+                          }}
+                          width="100px"
+                          flexShrink={0}
+                        >
+                          <option value="contains">contains</option>
+                          <option value="exact">equals</option>
+                        </Select>
+                        <Input
+                          size="xs"
+                          placeholder="Open"
+                          value={rule.value}
+                          onChange={(e) => {
+                            const updated = [...editStyle.conditionalStyles]
+                            updated[idx] = { ...rule, value: e.target.value }
+                            setEditStyle({ ...editStyle, conditionalStyles: updated })
+                          }}
+                          flex={1}
+                        />
+                        <IconButton
+                          icon={<DeleteIcon />}
+                          size="xs"
+                          variant="ghost"
+                          colorScheme="red"
+                          aria-label="Delete rule"
+                          flexShrink={0}
+                          onClick={() => {
+                            const updated = editStyle.conditionalStyles.filter((_, i) => i !== idx)
+                            setEditStyle({ ...editStyle, conditionalStyles: updated })
+                          }}
+                        />
+                      </HStack>
+                      <HStack spacing={4} flexWrap="wrap">
+                        {[
+                          { label: 'Background', key: 'bgColor', type: 'color', default: '#4A5568' },
+                          { label: 'Text', key: 'textColor', type: 'color', default: '#FFFFFF' },
+                          { label: 'Border color', key: 'borderColor', type: 'color', default: '#718096' },
+                          { label: 'Border px', key: 'borderWidth', type: 'number', default: 1 },
+                        ].map(({ label: fieldLabel, key, type, default: defaultVal }) => (
+                          <Box key={key}>
+                            <HStack spacing={1} mb="2px">
+                              <Checkbox
+                                isChecked={rule[key] != null}
+                                onChange={(e) => {
+                                  const updated = [...editStyle.conditionalStyles]
+                                  updated[idx] = { ...rule, [key]: e.target.checked ? defaultVal : null }
+                                  setEditStyle({ ...editStyle, conditionalStyles: updated })
+                                }}
+                                size="sm"
+                              />
+                              <Text fontSize="xs" color="gray.400">{fieldLabel}</Text>
+                            </HStack>
+                            <Input
+                              type={type}
+                              min={type === 'number' ? 0 : undefined}
+                              max={type === 'number' ? 10 : undefined}
+                              value={rule[key] ?? defaultVal}
+                              onChange={(e) => {
+                                const updated = [...editStyle.conditionalStyles]
+                                updated[idx] = { ...rule, [key]: type === 'number' ? (parseInt(e.target.value) || 0) : e.target.value }
+                                setEditStyle({ ...editStyle, conditionalStyles: updated })
+                              }}
+                              height="28px"
+                              p={type === 'color' ? '2px' : '4px'}
+                              width={type === 'color' ? '44px' : '52px'}
+                              isDisabled={rule[key] == null}
+                            />
+                          </Box>
+                        ))}
+                      </HStack>
+                    </Box>
+                  ))}
+                </VStack>
+              </Box>
+            </VStack>
+          )}
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="ghost" mr={3} onClick={onClose}>Cancel</Button>
+          <Button colorScheme="blue" onClick={handleSaveStyle}>Save</Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+  )
+
   // Header mode: simplified inline rendering
   if (isHeaderMode) {
     return (
@@ -488,84 +795,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
             </>
           )}
         </Box>
-        {/* Edit Modal - same as normal mode */}
-        <Modal isOpen={isOpen} onClose={onClose}>
-          <ModalOverlay />
-          <ModalContent bg="gray.800">
-            <ModalHeader>Edit Label</ModalHeader>
-            <ModalCloseButton />
-            <ModalBody>
-              {editStyle && (
-                <VStack spacing={4}>
-                  <FormControl>
-                    <FormLabel fontSize="sm" display="flex" alignItems="center" gap={1}>
-                      Label Text
-                      <Tooltip label="View placeholder API docs" placement="top" hasArrow>
-                        <IconButton
-                          icon={<InfoOutlineIcon />}
-                          size="xs"
-                          variant="ghost"
-                          aria-label="Placeholder documentation"
-                          onClick={() => window.open('/docs/placeholders', '_blank')}
-                          minW="auto"
-                          h="auto"
-                          p={0}
-                          color="gray.400"
-                          _hover={{ color: 'blue.300' }}
-                        />
-                      </Tooltip>
-                    </FormLabel>
-                    <Input
-                      value={editText}
-                      onChange={(e) => setEditText(e.target.value)}
-                      placeholder="Enter label text"
-                    />
-                  </FormControl>
-                  <HStack width="100%" spacing={4}>
-                    <FormControl>
-                      <FormLabel fontSize="sm">Background</FormLabel>
-                      <HStack>
-                        <Input
-                          type="color"
-                          value={editStyle.bgColor === 'transparent' ? '#4A5568' : editStyle.bgColor}
-                          onChange={(e) => setEditStyle({ ...editStyle, bgColor: e.target.value })}
-                          height="40px"
-                          p={1}
-                          isDisabled={editStyle.bgColor === 'transparent'}
-                          flex={1}
-                        />
-                        <Checkbox
-                          isChecked={editStyle.bgColor === 'transparent'}
-                          onChange={(e) => setEditStyle({
-                            ...editStyle,
-                            bgColor: e.target.checked ? 'transparent' : '#4A5568'
-                          })}
-                          size="sm"
-                        >
-                          None
-                        </Checkbox>
-                      </HStack>
-                    </FormControl>
-                    <FormControl>
-                      <FormLabel fontSize="sm">Text Color</FormLabel>
-                      <Input
-                        type="color"
-                        value={editStyle.textColor}
-                        onChange={(e) => setEditStyle({ ...editStyle, textColor: e.target.value })}
-                        height="40px"
-                        p={1}
-                      />
-                    </FormControl>
-                  </HStack>
-                </VStack>
-              )}
-            </ModalBody>
-            <ModalFooter>
-              <Button variant="ghost" mr={3} onClick={onClose}>Cancel</Button>
-              <Button colorScheme="blue" onClick={handleSaveStyle}>Save</Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+        {renderEditModal()}
       </>
     )
   }
@@ -696,172 +926,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
         )}
       </Box>
 
-      <Modal isOpen={isOpen} onClose={onClose}>
-        <ModalOverlay />
-        <ModalContent bg="gray.800">
-          <ModalHeader>Edit Label</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            {editStyle && (
-              <VStack spacing={4}>
-                <FormControl>
-                  <FormLabel fontSize="sm" display="flex" alignItems="center" gap={1}>
-                    Label Text
-                    <Tooltip label="View placeholder API docs" placement="top" hasArrow>
-                      <IconButton
-                        icon={<InfoOutlineIcon />}
-                        size="xs"
-                        variant="ghost"
-                        aria-label="Placeholder documentation"
-                        onClick={() => window.open('/docs/placeholders', '_blank')}
-                        minW="auto"
-                        h="auto"
-                        p={0}
-                        color="gray.400"
-                        _hover={{ color: 'blue.300' }}
-                      />
-                    </Tooltip>
-                  </FormLabel>
-                  <Input
-                    value={editText}
-                    onChange={(e) => setEditText(e.target.value)}
-                    placeholder="Enter label text (supports ${placeholder} syntax)"
-                  />
-                </FormControl>
-
-                <HStack width="100%" spacing={4}>
-                  <FormControl>
-                    <FormLabel fontSize="sm">Background Color</FormLabel>
-                    <HStack>
-                      <Input
-                        type="color"
-                        value={editStyle.bgColor === 'transparent' ? '#4A5568' : editStyle.bgColor}
-                        onChange={(e) => setEditStyle({ ...editStyle, bgColor: e.target.value })}
-                        height="40px"
-                        p={1}
-                        isDisabled={editStyle.bgColor === 'transparent'}
-                        flex={1}
-                      />
-                      <Checkbox
-                        isChecked={editStyle.bgColor === 'transparent'}
-                        onChange={(e) => setEditStyle({
-                          ...editStyle,
-                          bgColor: e.target.checked ? 'transparent' : '#4A5568'
-                        })}
-                        size="sm"
-                      >
-                        None
-                      </Checkbox>
-                    </HStack>
-                  </FormControl>
-                  <FormControl>
-                    <FormLabel fontSize="sm">Text Color</FormLabel>
-                    <Input
-                      type="color"
-                      value={editStyle.textColor}
-                      onChange={(e) => setEditStyle({ ...editStyle, textColor: e.target.value })}
-                      height="40px"
-                      p={1}
-                    />
-                  </FormControl>
-                </HStack>
-
-                <HStack width="100%" spacing={4}>
-                  <FormControl>
-                    <FormLabel fontSize="sm">Border Color</FormLabel>
-                    <Input
-                      type="color"
-                      value={editStyle.borderColor}
-                      onChange={(e) => setEditStyle({ ...editStyle, borderColor: e.target.value })}
-                      height="40px"
-                      p={1}
-                    />
-                  </FormControl>
-                  <FormControl>
-                    <FormLabel fontSize="sm">Border Width (px)</FormLabel>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={10}
-                      value={editStyle.borderWidth}
-                      onChange={(e) => setEditStyle({ ...editStyle, borderWidth: parseInt(e.target.value) || 0 })}
-                    />
-                  </FormControl>
-                </HStack>
-
-                <HStack width="100%" spacing={4}>
-                  <FormControl>
-                    <FormLabel fontSize="sm">Font Weight</FormLabel>
-                    <Select
-                      value={editStyle.fontWeight}
-                      onChange={(e) => setEditStyle({ ...editStyle, fontWeight: e.target.value })}
-                    >
-                      <option value="normal">Normal</option>
-                      <option value="bold">Bold</option>
-                      <option value="lighter">Light</option>
-                    </Select>
-                  </FormControl>
-                  <FormControl>
-                    <FormLabel fontSize="sm">Font Style</FormLabel>
-                    <Select
-                      value={editStyle.fontStyle}
-                      onChange={(e) => setEditStyle({ ...editStyle, fontStyle: e.target.value })}
-                    >
-                      <option value="normal">Normal</option>
-                      <option value="italic">Italic</option>
-                    </Select>
-                  </FormControl>
-                </HStack>
-
-                <FormControl>
-                  <FormLabel fontSize="sm">Font Size (rem)</FormLabel>
-                  <Input
-                    type="number"
-                    min={0.5}
-                    max={4}
-                    step={0.1}
-                    value={editStyle.fontSize}
-                    onChange={(e) => setEditStyle({ ...editStyle, fontSize: parseFloat(e.target.value) || 1 })}
-                  />
-                </FormControl>
-
-                <HStack width="100%" spacing={4}>
-                  <FormControl>
-                    <FormLabel fontSize="sm">Horizontal Align</FormLabel>
-                    <Select
-                      value={editStyle.textAlign}
-                      onChange={(e) => setEditStyle({ ...editStyle, textAlign: e.target.value })}
-                    >
-                      <option value="left">Left</option>
-                      <option value="center">Center</option>
-                      <option value="right">Right</option>
-                    </Select>
-                  </FormControl>
-                  <FormControl>
-                    <FormLabel fontSize="sm">Vertical Align</FormLabel>
-                    <Select
-                      value={editStyle.verticalAlign}
-                      onChange={(e) => setEditStyle({ ...editStyle, verticalAlign: e.target.value })}
-                    >
-                      <option value="top">Top</option>
-                      <option value="center">Center</option>
-                      <option value="bottom">Bottom</option>
-                    </Select>
-                  </FormControl>
-                </HStack>
-              </VStack>
-            )}
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onClose}>
-              Cancel
-            </Button>
-            <Button colorScheme="blue" onClick={handleSaveStyle}>
-              Save
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      {renderEditModal()}
     </>
   )
 }
