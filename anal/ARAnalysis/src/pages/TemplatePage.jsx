@@ -264,19 +264,19 @@ function TemplatePage() {
     }
   }
 
-  const regenerateIds = (control) => {
-    const result = { ...control, id: crypto.randomUUID() }
+  const regenerateIds = (widget) => {
+    const result = { ...widget, id: crypto.randomUUID() }
     if (result.children) result.children = result.children.map(regenerateIds)
     return result
   }
 
-  const handleExportWidget = (control) => {
-    const exportData = { version: 1, control }
+  const handleExportWidget = (widget) => {
+    const exportData = { version: 1, control: widget }
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    const name = control.text || control.symbol || control.type || 'widget'
+    const name = widget.text || widget.symbol || widget.type || 'widget'
     a.download = `${name.toLowerCase().replace(/\s+/g, '-')}.json`
     a.click()
     URL.revokeObjectURL(url)
@@ -291,11 +291,11 @@ function TemplatePage() {
       try {
         const data = JSON.parse(event.target.result)
         if (!data.control || typeof data.control !== 'object') {
-          throw new Error('Invalid widget file — missing control object')
+          throw new Error('Invalid widget file — missing widget object')
         }
-        const control = regenerateIds({ ...data.control, x: 0, y: 0 })
+        const widget = regenerateIds({ ...data.control, x: 0, y: 0 })
         const currentLabels = pageInfo.config?.labels || []
-        const updatedConfig = { ...pageInfo.config, labels: [...currentLabels, control] }
+        const updatedConfig = { ...pageInfo.config, labels: [...currentLabels, widget] }
         const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
         setPageInfo(updatedRoute)
         toast({ title: 'Widget imported', status: 'success', duration: 2000 })
@@ -391,14 +391,14 @@ function TemplatePage() {
   }
 
   // Render a header widget (simplified - inline, no absolute positioning)
-  const renderHeaderWidget = (control) => {
+  const renderHeaderWidget = (widget) => {
     const commonProps = {
-      key: control.id,
-      label: control,
+      key: widget.id,
+      label: widget,
       onDelete: handleDeleteHeaderWidget,
       onUpdate: handleUpdateHeaderWidget,
       onExport: handleExportWidget,
-      onDragStateChange: (dragging, mousePos) => setActiveDrag(dragging ? { widgetId: control.id, mousePos } : null),
+      onDragStateChange: (dragging, mousePos) => setActiveDrag(dragging ? { widgetId: widget.id, mousePos } : null),
       onMoveWidget: handleMoveWidget,
       activeDrag: activeDrag,
       parentPanelId: 'header',
@@ -407,9 +407,9 @@ function TemplatePage() {
       containerRef: headerRef
     }
 
-    if (control.type === 'badge') {
+    if (widget.type === 'badge') {
       return <TemplatePageBadge {...commonProps} />
-    } else if (control.type === 'label') {
+    } else if (widget.type === 'label') {
       return <TemplatePageLabel {...commonProps} />
     }
     // Panels not supported in header
@@ -417,11 +417,11 @@ function TemplatePage() {
   }
 
   // Calculate layout positions - prevents overlap, maintains consistent gaps
-  const calculateLayout = (controls, preview, gap = 8) => {
-    if (!controls.length) return new Map()
+  const calculateLayout = (widgets, preview, gap = 8) => {
+    if (!widgets.length) return new Map()
 
     // Apply preview position if dragging
-    const withPreview = controls.map(c => {
+    const withPreview = widgets.map(c => {
       if (preview && c.id === preview.id) {
         return { ...c, x: preview.x, y: preview.y }
       }
@@ -432,23 +432,21 @@ function TemplatePage() {
     const sorted = [...withPreview].sort((a, b) => (a.y || 0) - (b.y || 0) || (a.x || 0) - (b.x || 0))
 
     const positions = new Map()
-    const placed = [] // {x, width, y, height}
+    const placed = []
 
-    for (const control of sorted) {
-      const x = control.x || 0
-      const width = control.width || (control.type === 'panel' ? 8 : 4)
-      const height = control.height || (control.type === 'panel' ? 120 : 60)
+    for (const widget of sorted) {
+      const x = widget.x || 0
+      const width = widget.width || (widget.type === 'panel' ? 8 : 4)
+      const height = widget.height || (widget.type === 'panel' ? 120 : 60)
 
-      // Find y position - must be below any horizontally overlapping controls
       let y = 0
       for (const p of placed) {
-        // Check horizontal overlap (controls overlap if their x ranges intersect)
         if (x < p.x + p.width && x + width > p.x) {
           y = Math.max(y, p.y + p.height + gap)
         }
       }
 
-      positions.set(control.id, y)
+      positions.set(widget.id, y)
       placed.push({ x, width, y, height })
     }
 

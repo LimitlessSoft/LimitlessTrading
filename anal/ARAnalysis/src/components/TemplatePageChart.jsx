@@ -67,7 +67,8 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
   const [crosshairY, setCrosshairY] = useState(null)
 
   const padding = { top: 40, right: fontSize * 4 + 4, bottom: 28, left: 8 }
-  const chartWidth  = width  - padding.left - padding.right
+  const axisGap = 6
+  const chartWidth  = width  - padding.left - padding.right - axisGap
   const chartHeight = height - padding.top  - padding.bottom
   const candleAreaH = chartHeight * 0.78
   const volumeAreaH = chartHeight * 0.16
@@ -242,7 +243,7 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
           const price = (effectiveMin + effectiveRange) - effectiveRange * ratio
           return (
             <g key={i}>
-              <line x1={padding.left} y1={y} x2={width - padding.right} y2={y}
+              <line x1={padding.left} y1={y} x2={padding.left + chartWidth} y2={y}
                 stroke="#2d3748" strokeWidth={1} />
               <text x={width - padding.right + 4} y={y + 3} fill="#718096" fontSize={fontSize}>
                 {price.toFixed(2)}
@@ -323,7 +324,7 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
           const lineColor = isUp ? '#48bb78' : '#f56565'
           return (
             <g pointerEvents="none">
-              <line x1={padding.left} y1={lastY} x2={width - padding.right} y2={lastY}
+              <line x1={padding.left} y1={lastY} x2={padding.left + chartWidth} y2={lastY}
                 stroke={lineColor} strokeWidth={1} strokeDasharray="3 3" opacity={0.6} />
               <rect x={width - padding.right} y={lastY - fontSize * 0.8}
                 width={padding.right - 2} height={fontSize * 1.6}
@@ -344,7 +345,7 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
             <g pointerEvents="none">
               <line x1={cx} y1={padding.top} x2={cx} y2={height - padding.bottom}
                 stroke="#718096" strokeWidth={1} strokeDasharray="3 3" opacity={0.7} />
-              <line x1={padding.left} y1={crosshairY} x2={width - padding.right} y2={crosshairY}
+              <line x1={padding.left} y1={crosshairY} x2={padding.left + chartWidth} y2={crosshairY}
                 stroke="#718096" strokeWidth={1} strokeDasharray="3 3" opacity={0.7} />
               <rect x={width - padding.right} y={crosshairY - fontSize * 0.8}
                 width={padding.right - 2} height={fontSize * 1.6}

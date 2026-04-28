@@ -32,6 +32,9 @@ import TemplatePageLabel from './TemplatePageLabel'
 import WidgetsGalleryModal from './WidgetsGalleryModal'
 import TemplatePageBadge from './TemplatePageBadge'
 import TemplatePageGauge from './TemplatePageGauge'
+import ConditionalStylesSection from './ConditionalStylesSection'
+import { applyConditionalStyles } from '../modules/conditionalStyles'
+import { useWidgetResolveText } from '../hooks/useWidgetResolveText'
 
 const TOTAL_SEGMENTS = 20
 const MIN_SEGMENTS = 2
@@ -64,21 +67,25 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const height = label.height || DEFAULT_HEIGHT
   const x = label.x || 0
   const y = label.y || 0  // Used as order hint for layout calculation
-  const style = { ...DEFAULT_STYLE, ...label.style }
   const children = label.children || []
 
-  // Calculate layout positions for children and total content height
-  const calculateChildLayout = (controls, gap = 8) => {
-    if (!controls.length) return { positions: new Map(), contentHeight: 0 }
+  const conditionalPlaceholders = (label.style?.conditionalStyles || []).map(r => r.placeholder)
+  const { resolveText } = useWidgetResolveText(conditionalPlaceholders)
+  const baseStyle = { ...DEFAULT_STYLE, ...label.style }
+  const style = applyConditionalStyles(baseStyle, label.style?.conditionalStyles, resolveText)
 
-    const sorted = [...controls].sort((a, b) => (a.y || 0) - (b.y || 0) || (a.x || 0) - (b.x || 0))
+  // Calculate layout positions for children and total content height
+  const calculateChildLayout = (widgets, gap = 8) => {
+    if (!widgets.length) return { positions: new Map(), contentHeight: 0 }
+
+    const sorted = [...widgets].sort((a, b) => (a.y || 0) - (b.y || 0) || (a.x || 0) - (b.x || 0))
     const positions = new Map()
     const placed = []
 
-    for (const control of sorted) {
-      const cx = control.x || 0
-      const cwidth = control.width || (control.type === 'panel' ? 8 : 4)
-      const cheight = control.height || (control.type === 'panel' ? DEFAULT_HEIGHT : 60)
+    for (const widget of sorted) {
+      const cx = widget.x || 0
+      const cwidth = widget.width || (widget.type === 'panel' ? 8 : 4)
+      const cheight = widget.height || (widget.type === 'panel' ? DEFAULT_HEIGHT : 60)
 
       let cy = 0
       for (const p of placed) {
@@ -87,7 +94,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
         }
       }
 
-      positions.set(control.id, cy)
+      positions.set(widget.id, cy)
       placed.push({ x: cx, width: cwidth, y: cy, height: cheight })
     }
 
@@ -679,6 +686,11 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
                     </Select>
                   </FormControl>
                 </HStack>
+                <ConditionalStylesSection
+                  rules={editStyle.conditionalStyles || []}
+                  onChange={(rules) => setEditStyle({ ...editStyle, conditionalStyles: rules })}
+                  fields={['bgColor', 'borderColor', 'borderWidth']}
+                />
               </VStack>
             )}
           </ModalBody>

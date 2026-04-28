@@ -22,6 +22,10 @@ import {
 
 const router = Router()
 
+// Server-side cache for close-nd results: `${symbol}:${days}` → { close, date, fetchedAt }
+const historicalCloseCache = new Map()
+const CLOSE_ND_TTL = 60 * 60 * 1000 // 1 hour
+
 // Interval to IBKR bar size/duration mapping
 const INTERVAL_CONFIG = {
   '1m':  { barSize: '1 min',   duration: '1 D',   years: 2 },
@@ -259,6 +263,43 @@ router.get('/stream-quotes', (req, res) => {
     unsubscribe()
     clearInterval(heartbeat)
   })
+})
+
+// Get the closing price from N trading days ago
+router.get('/close-nd/:symbol', async (req, res) => {
+  const { symbol } = req.params
+  const days = parseInt(req.query.days)
+
+  if (!symbol || !days || days < 1 || days > 252) {
+    return res.status(400).json({ error: 'days must be between 1 and 252' })
+  }
+
+  const upperSymbol = symbol.toUpperCase()
+  const cacheKey = `${upperSymbol}:${days}`
+  const cached = historicalCloseCache.get(cacheKey)
+
+  if (cached && Date.now() - cached.fetchedAt < CLOSE_ND_TTL) {
+    return res.json({ symbol: upperSymbol, days, close: cached.close, date: cached.date })
+  }
+
+  try {
+    // Request enough calendar days to cover N trading days (weekends/holidays ≈ 2× buffer)
+    const calendarDays = Math.ceil(days * 2) + 10
+    const bars = await getHistoricalData(upperSymbol, '1 day', `${calendarDays} D`)
+
+    if (bars.length <= days) {
+      return res.status(404).json({ error: 'Not enough historical data' })
+    }
+
+    // bars[-1] = most recent trading day; bars[-1-days] = N trading days ago
+    const targetBar = bars[bars.length - 1 - days]
+    historicalCloseCache.set(cacheKey, { close: targetBar.close, date: targetBar.timestamp, fetchedAt: Date.now() })
+
+    res.json({ symbol: upperSymbol, days, close: targetBar.close, date: targetBar.timestamp })
+  } catch (error) {
+    console.error('close-nd error:', error)
+    res.status(500).json({ error: error.message })
+  }
 })
 
 // Get VIX index price (uses detailed quote to capture both last and close ticks)

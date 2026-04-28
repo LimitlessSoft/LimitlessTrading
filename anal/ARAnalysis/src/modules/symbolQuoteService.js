@@ -17,16 +17,28 @@ const api = axios.create({
   timeout: 30000
 })
 
-// Regex to match symbol quote placeholders: @{SYMBOL:property:seconds}
+// Regex to match symbol quote placeholders: @{SYMBOL:property-arg1-arg2:seconds}
 // Symbol allows letters, numbers, dots, and ^ (for index symbols like ^VIX)
-const SYMBOL_QUOTE_REGEX = /@\{([A-Za-z0-9.^]+):(\w+)(?::(\d+))?\}/g
+// Property allows word chars plus dash-separated args: last, close-20, someProperty-arg1-arg2
+const SYMBOL_QUOTE_REGEX = /@\{([A-Za-z0-9.^]+):([A-Za-z]\w*(?:-[A-Za-z0-9]+)*)(?::(\d+))?\}/g
 
-// Valid quote properties
+// Valid quote properties (static)
 const VALID_PROPERTIES = new Set([
   'bid', 'ask', 'last', 'high', 'low', 'open', 'prevClose', 'close',
   'vwap', 'volume', 'avgVolume', 'bidSize', 'askSize',
   'marketCap', 'week52High', 'week52Low', 'change', 'changePercent'
 ])
+
+// close-20, close-5, close-17 etc. — closing price N trading days ago
+const CLOSE_ND_REGEX = /^close-(\d+)$/
+
+export function isValidProperty(property) {
+  return VALID_PROPERTIES.has(property) || CLOSE_ND_REGEX.test(property)
+}
+
+export function isHistoricalCloseProperty(property) {
+  return CLOSE_ND_REGEX.test(property)
+}
 
 // Threshold for SSE vs polling (seconds)
 const SSE_THRESHOLD = 5
@@ -61,7 +73,7 @@ export function parseSymbolPlaceholders(text) {
     const property = match[2].toLowerCase()
     const interval = match[3] ? parseInt(match[3], 10) : 5 // default 5 seconds
 
-    if (VALID_PROPERTIES.has(property)) {
+    if (isValidProperty(property)) {
       placeholders.push({
         symbol,
         property,
@@ -165,7 +177,14 @@ function getQuoteProperty(quote, property) {
   }
 
   const apiField = propertyMap[property]
-  return apiField ? quote[apiField] : null
+  if (apiField !== undefined) return quote[apiField] ?? null
+
+  // Dynamic historical close: close-5, close-17, close-20 etc.
+  if (CLOSE_ND_REGEX.test(property)) {
+    return quote[property] ?? null
+  }
+
+  return null
 }
 
 /**
@@ -442,6 +461,70 @@ export function resolveSymbolText(text, quotes) {
 }
 
 /**
+ * Parse formula placeholders from text, returning all ticker refs with their interval.
+ * Formula syntax: %[(expression):seconds]
+ * Ticker refs inside expression: @{SYMBOL:property} (no interval — inherited from formula)
+ * @param {string} text
+ * @returns {Array<{symbol: string, property: string, interval: number}>}
+ */
+export function parseFormulaPlaceholders(text) {
+  if (!text || !text.includes('%[')) return []
+
+  const placeholders = []
+
+  for (const formulaMatch of text.matchAll(/%\[(.+?):(\d+)\]/g)) {
+    const expr = formulaMatch[1]
+    const interval = parseInt(formulaMatch[2], 10)
+
+    for (const refMatch of expr.matchAll(/@\{([A-Za-z0-9.^]+):([A-Za-z]\w*(?:-[A-Za-z0-9]+)*)\}/g)) {
+      const symbol = refMatch[1].toUpperCase()
+      const property = refMatch[2].toLowerCase()
+
+      if (isValidProperty(property)) {
+        placeholders.push({ symbol, property, interval })
+      }
+    }
+  }
+
+  return placeholders
+}
+
+/**
+ * Evaluate formula placeholders in text, replacing each %[(expr):seconds] with its result.
+ * @param {string} text
+ * @param {Map<string, Object>} quotes
+ * @returns {string}
+ */
+export function resolveFormulaText(text, quotes) {
+  if (!text || !text.includes('%[')) return text
+
+  return text.replace(/%\[(.+?):(\d+)\]/g, (match, expr) => {
+    let hasUnavailable = false
+
+    const substituted = expr.replace(/@\{([A-Za-z0-9.^]+):([A-Za-z]\w*(?:-[A-Za-z0-9]+)*)\}/g, (_, symbol, property) => {
+      const quote = quotes.get(symbol.toUpperCase())
+      const value = getQuoteProperty(quote, property.toLowerCase())
+      if (value === null || value === undefined) {
+        hasUnavailable = true
+        return '0'
+      }
+      return String(value)
+    })
+
+    if (hasUnavailable) return '--'
+
+    try {
+      // eslint-disable-next-line no-new-func
+      const result = new Function('return (' + substituted + ')')()
+      if (typeof result !== 'number' || !isFinite(result)) return '--'
+      return result.toFixed(2)
+    } catch {
+      return '--'
+    }
+  })
+}
+
+/**
  * Get raw value from quote for a specific property
  * Useful for badges that need the actual value for color mapping
  * @param {string} symbol - Stock symbol
@@ -452,6 +535,58 @@ export function resolveSymbolText(text, quotes) {
 export function getQuoteValue(symbol, property, quotes) {
   const quote = quotes.get(symbol.toUpperCase())
   return getQuoteProperty(quote, property.toLowerCase())
+}
+
+// Historical close subscriptions: `${symbol}:${days}` → { refCount, timerId }
+const historicalCloseSubs = new Map()
+
+/**
+ * Subscribe to periodic fetches of the closing price from N trading days ago.
+ * Results are merged into the quote cache as `close${days}d` and broadcast to all
+ * existing quote subscribers for that symbol.
+ * @param {string} symbol
+ * @param {number} days - Number of trading days to look back
+ * @param {number} interval - Refresh interval in seconds
+ * @returns {Function} Unsubscribe function
+ */
+export function subscribeHistoricalClose(symbol, days, interval) {
+  const upperSymbol = symbol.toUpperCase()
+  const key = `${upperSymbol}:${days}`
+  const propertyKey = `close-${days}`
+
+  const fetchClose = async () => {
+    try {
+      const res = await api.get(`/close-nd/${upperSymbol}?days=${days}`)
+      const existing = quoteCache.get(upperSymbol) || { symbol: upperSymbol }
+      handleQuoteUpdate(upperSymbol, { ...existing, [propertyKey]: res.data.close })
+    } catch (err) {
+      console.error(`[symbolQuoteService] ${propertyKey} fetch error for ${upperSymbol}:`, err)
+    }
+  }
+
+  const existing = historicalCloseSubs.get(key)
+  if (existing) {
+    existing.refCount++
+    // Immediately deliver cached value if available
+    const cached = quoteCache.get(upperSymbol)
+    if (cached?.[propertyKey] !== undefined) {
+      handleQuoteUpdate(upperSymbol, cached)
+    }
+  } else {
+    fetchClose()
+    const timerId = setInterval(fetchClose, interval * 1000)
+    historicalCloseSubs.set(key, { refCount: 1, timerId })
+  }
+
+  return () => {
+    const sub = historicalCloseSubs.get(key)
+    if (!sub) return
+    sub.refCount--
+    if (sub.refCount <= 0) {
+      clearInterval(sub.timerId)
+      historicalCloseSubs.delete(key)
+    }
+  }
 }
 
 // Export for testing/debugging

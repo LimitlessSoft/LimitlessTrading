@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import {
   Box,
   Text,
@@ -19,10 +19,12 @@ import {
   VStack,
   Checkbox,
   Tooltip,
-  Divider,
   useDisclosure
 } from '@chakra-ui/react'
-import { CloseIcon, DragHandleIcon, SettingsIcon, InfoOutlineIcon, AddIcon, DeleteIcon } from '@chakra-ui/icons'
+import { CloseIcon, DragHandleIcon, SettingsIcon, InfoOutlineIcon } from '@chakra-ui/icons'
+import { applyConditionalStyles } from '../modules/conditionalStyles'
+import { useWidgetResolveText } from '../hooks/useWidgetResolveText'
+import ConditionalStylesSection from './ConditionalStylesSection'
 
 const DownloadIcon = () => (
   <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
@@ -30,9 +32,6 @@ const DownloadIcon = () => (
   </svg>
 )
 import { useNavigate } from 'react-router-dom'
-import { getConnectionStatus } from '../modules/dataService'
-import { useSymbolQuotes, hasSymbolPlaceholders } from '../hooks/useSymbolQuotes'
-import { getExchangeTime, getExchangeStatus } from '../modules/exchangeService'
 
 const TOTAL_SEGMENTS = 20
 const MIN_SEGMENTS = 2
@@ -51,9 +50,6 @@ const DEFAULT_STYLE = {
   verticalAlign: 'top'
 }
 
-// Placeholder pattern for template variables: ${name} or ${name:interval}
-const PLACEHOLDER_REGEX = /\$\{(\w+)(?::(\d+))?\}/g
-
 function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
@@ -61,123 +57,19 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const [previewSize, setPreviewSize] = useState(null)
   const [editStyle, setEditStyle] = useState(null)
   const [editText, setEditText] = useState('')
-  const [placeholderValues, setPlaceholderValues] = useState({})
   const boxRef = useRef(null)
   const navigate = useNavigate()
   const { isOpen, onOpen, onClose } = useDisclosure()
 
-  // Symbol quote placeholders (@{SYMBOL:property:seconds})
-  const { resolveText: resolveSymbolText } = useSymbolQuotes(label.text)
-
-  // Check if text contains system placeholders (${...}) and extract refresh interval
-  const hasSystemPlaceholders = label.text && label.text.includes('${')
-
-  // Parse system placeholders to get the minimum refresh interval
-  const getRefreshInterval = useCallback(() => {
-    if (!label.text) return null
-    let minInterval = Infinity
-
-    for (const match of label.text.matchAll(PLACEHOLDER_REGEX)) {
-      const interval = match[2] ? parseInt(match[2], 10) : 5
-      if (interval < minInterval) minInterval = interval
-    }
-
-    for (const match of label.text.matchAll(/\$\{[A-Za-z0-9]+:(?:time|status)(?::(\d+))?\}/g)) {
-      const interval = match[1] ? parseInt(match[1], 10) : 5
-      if (interval < minInterval) minInterval = interval
-    }
-
-    return minInterval === Infinity ? null : minInterval
-  }, [label.text])
-
-  // Fetch system placeholder values
-  const fetchPlaceholderValues = useCallback(async () => {
-    if (!label.text) return
-
-    const values = {}
-
-    if (label.text.includes('${tws_connection_status')) {
-      try {
-        const status = await getConnectionStatus()
-        values.tws_connection_status = status.connected
-          ? `Connected (${status.port})`
-          : 'Disconnected'
-      } catch (err) {
-        values.tws_connection_status = 'Unknown'
-      }
-    }
-
-    for (const match of label.text.matchAll(/\$\{([A-Za-z0-9]+):(time|status)(?::(\d+))?\}/g)) {
-      const exchange = match[1].toUpperCase()
-      const property = match[2]
-      values[`${exchange}_${property}`] = property === 'time'
-        ? getExchangeTime(exchange)
-        : getExchangeStatus(exchange)
-    }
-
-    setPlaceholderValues(values)
-  }, [label.text])
-
-  // Poll for system placeholder values when text contains them
-  useEffect(() => {
-    if (!hasSystemPlaceholders) return
-
-    const refreshInterval = getRefreshInterval()
-    if (!refreshInterval) return
-
-    fetchPlaceholderValues()
-    const interval = setInterval(fetchPlaceholderValues, refreshInterval * 1000)
-    return () => clearInterval(interval)
-  }, [hasSystemPlaceholders, fetchPlaceholderValues, getRefreshInterval])
-
-  // Resolve system placeholders in text (${name} or ${name:interval})
-  const resolveSystemText = (text) => {
-    if (!text) return ''
-    let resolved = text.replace(PLACEHOLDER_REGEX, (match, key) => {
-      return placeholderValues[key] !== undefined ? placeholderValues[key] : match
-    })
-    resolved = resolved.replace(/\$\{([A-Za-z0-9]+):(time|status)(?::(\d+))?\}/g, (match, exchange, property) => {
-      const key = `${exchange.toUpperCase()}_${property}`
-      return placeholderValues[key] !== undefined ? placeholderValues[key] : match
-    })
-    return resolved
-  }
-
-  // Resolve all placeholders: first system (${...}), then symbol (@{...})
-  const resolveText = (text) => {
-    const systemResolved = resolveSystemText(text)
-    return resolveSymbolText(systemResolved)
-  }
-
-  // Apply conditional style overrides — first matching rule wins
-  const resolveConditionalStyle = (baseStyle) => {
-    const rules = baseStyle.conditionalStyles
-    if (!rules?.length) return baseStyle
-
-    for (const rule of rules) {
-      if (!rule.placeholder) continue
-      const resolved = resolveText(rule.placeholder)
-      const matches = rule.contains
-        ? resolved.includes(rule.value || '')
-        : resolved === (rule.value || '')
-      if (matches) {
-        return {
-          ...baseStyle,
-          ...(rule.bgColor != null && { bgColor: rule.bgColor }),
-          ...(rule.textColor != null && { textColor: rule.textColor }),
-          ...(rule.borderColor != null && { borderColor: rule.borderColor }),
-          ...(rule.borderWidth != null && { borderWidth: rule.borderWidth }),
-        }
-      }
-    }
-    return baseStyle
-  }
+  const conditionalPlaceholders = (label.style?.conditionalStyles || []).map(r => r.placeholder)
+  const { resolveText } = useWidgetResolveText([label.text, ...conditionalPlaceholders])
 
   const width = label.width || 4
   const height = label.height || DEFAULT_HEIGHT
   const x = label.x || 0
   const y = label.y || 0  // Used as order hint for layout calculation
-  const style = resolveConditionalStyle({ ...DEFAULT_STYLE, ...label.style })
+  const baseStyle = { ...DEFAULT_STYLE, ...label.style }
+  const style = applyConditionalStyles(baseStyle, label.style?.conditionalStyles, resolveText)
 
   const displayWidth = previewSize?.width ?? width
   const displayHeight = previewSize?.height ?? height
@@ -599,122 +491,10 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
                 </FormControl>
               </HStack>
 
-              <Divider />
-
-              <Box width="100%">
-                <HStack justify="space-between" mb={2}>
-                  <Text fontSize="sm" fontWeight="medium">Conditional Styles</Text>
-                  <Button
-                    size="xs"
-                    leftIcon={<AddIcon />}
-                    variant="ghost"
-                    onClick={() => setEditStyle({
-                      ...editStyle,
-                      conditionalStyles: [
-                        ...(editStyle.conditionalStyles || []),
-                        { id: crypto.randomUUID(), placeholder: '', contains: true, value: '', bgColor: null, textColor: null, borderColor: null, borderWidth: null }
-                      ]
-                    })}
-                  >
-                    Add Rule
-                  </Button>
-                </HStack>
-                <VStack spacing={2} align="stretch">
-                  {(editStyle.conditionalStyles || []).map((rule, idx) => (
-                    <Box key={rule.id} p={3} bg="gray.700" borderRadius="md">
-                      <HStack mb={2} spacing={2}>
-                        <Text fontSize="xs" color="gray.400" flexShrink={0}>When</Text>
-                        <Input
-                          size="xs"
-                          placeholder="${EXCHANGE:status:10}"
-                          value={rule.placeholder}
-                          onChange={(e) => {
-                            const updated = [...editStyle.conditionalStyles]
-                            updated[idx] = { ...rule, placeholder: e.target.value }
-                            setEditStyle({ ...editStyle, conditionalStyles: updated })
-                          }}
-                          flex={1}
-                        />
-                        <Select
-                          size="xs"
-                          value={rule.contains ? 'contains' : 'exact'}
-                          onChange={(e) => {
-                            const updated = [...editStyle.conditionalStyles]
-                            updated[idx] = { ...rule, contains: e.target.value === 'contains' }
-                            setEditStyle({ ...editStyle, conditionalStyles: updated })
-                          }}
-                          width="100px"
-                          flexShrink={0}
-                        >
-                          <option value="contains">contains</option>
-                          <option value="exact">equals</option>
-                        </Select>
-                        <Input
-                          size="xs"
-                          placeholder="Open"
-                          value={rule.value}
-                          onChange={(e) => {
-                            const updated = [...editStyle.conditionalStyles]
-                            updated[idx] = { ...rule, value: e.target.value }
-                            setEditStyle({ ...editStyle, conditionalStyles: updated })
-                          }}
-                          flex={1}
-                        />
-                        <IconButton
-                          icon={<DeleteIcon />}
-                          size="xs"
-                          variant="ghost"
-                          colorScheme="red"
-                          aria-label="Delete rule"
-                          flexShrink={0}
-                          onClick={() => {
-                            const updated = editStyle.conditionalStyles.filter((_, i) => i !== idx)
-                            setEditStyle({ ...editStyle, conditionalStyles: updated })
-                          }}
-                        />
-                      </HStack>
-                      <HStack spacing={4} flexWrap="wrap">
-                        {[
-                          { label: 'Background', key: 'bgColor', type: 'color', default: '#4A5568' },
-                          { label: 'Text', key: 'textColor', type: 'color', default: '#FFFFFF' },
-                          { label: 'Border color', key: 'borderColor', type: 'color', default: '#718096' },
-                          { label: 'Border px', key: 'borderWidth', type: 'number', default: 1 },
-                        ].map(({ label: fieldLabel, key, type, default: defaultVal }) => (
-                          <Box key={key}>
-                            <HStack spacing={1} mb="2px">
-                              <Checkbox
-                                isChecked={rule[key] != null}
-                                onChange={(e) => {
-                                  const updated = [...editStyle.conditionalStyles]
-                                  updated[idx] = { ...rule, [key]: e.target.checked ? defaultVal : null }
-                                  setEditStyle({ ...editStyle, conditionalStyles: updated })
-                                }}
-                                size="sm"
-                              />
-                              <Text fontSize="xs" color="gray.400">{fieldLabel}</Text>
-                            </HStack>
-                            <Input
-                              type={type}
-                              min={type === 'number' ? 0 : undefined}
-                              max={type === 'number' ? 10 : undefined}
-                              value={rule[key] ?? defaultVal}
-                              onChange={(e) => {
-                                const updated = [...editStyle.conditionalStyles]
-                                updated[idx] = { ...rule, [key]: type === 'number' ? (parseInt(e.target.value) || 0) : e.target.value }
-                                setEditStyle({ ...editStyle, conditionalStyles: updated })
-                              }}
-                              height="28px"
-                              p={type === 'color' ? '2px' : '4px'}
-                              width={type === 'color' ? '44px' : '52px'}
-                              isDisabled={rule[key] == null}
-                            />
-                          </Box>
-                        ))}
-                      </HStack>
-                    </Box>
-                  ))}
-                </VStack>
-              </Box>
+              <ConditionalStylesSection
+                rules={editStyle.conditionalStyles || []}
+                onChange={(rules) => setEditStyle({ ...editStyle, conditionalStyles: rules })}
+              />
             </VStack>
           )}
         </ModalBody>

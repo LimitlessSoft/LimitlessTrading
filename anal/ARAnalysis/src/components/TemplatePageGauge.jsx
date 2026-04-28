@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import {
   Box,
   Text,
@@ -20,9 +20,7 @@ import {
   useDisclosure
 } from '@chakra-ui/react'
 import { CloseIcon, SettingsIcon, AddIcon, DeleteIcon } from '@chakra-ui/icons'
-import { getConnectionStatus } from '../modules/dataService'
-import { useSymbolQuotes } from '../hooks/useSymbolQuotes'
-import { getExchangeTime, getExchangeStatus } from '../modules/exchangeService'
+import { useWidgetResolveText } from '../hooks/useWidgetResolveText'
 import WidgetTooltip from './WidgetTooltip'
 import WidgetTooltipEditor from './WidgetTooltipEditor'
 
@@ -223,9 +221,6 @@ function GaugeSVG({ value, min, max, segments, title }) {
   )
 }
 
-// Placeholder patterns
-const PLACEHOLDER_REGEX_GLOBAL = /\$\{(\w+)(?::(\d+))?\}/g
-const SYMBOL_QUOTE_REGEX = /@\{([A-Za-z0-9.^]+):(\w+)(?::(\d+))?\}/
 
 function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef }) {
   const [isResizing, setIsResizing] = useState(false)
@@ -233,7 +228,6 @@ function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const [previewPos, setPreviewPos] = useState(null)
   const [previewSize, setPreviewSize] = useState(null)
   const [editConfig, setEditConfig] = useState(null)
-  const [currentValue, setCurrentValue] = useState(null)
   const boxRef = useRef(null)
   const { isOpen, onOpen, onClose } = useDisclosure()
 
@@ -255,89 +249,16 @@ function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const displayX = previewPos?.x ?? x
   const displayY = previewPos?.y ?? layoutY ?? 0
 
-  // Detect placeholder types
-  const hasSystemPlaceholders = placeholder.includes('${')
+  const allText = [placeholder, ...tooltipRows.map(r => `${r.detail || ''} ${r.value || ''}`)].join(' ')
+  const { resolveText, resolvedValue } = useWidgetResolveText(allText)
 
-  const symbolQuoteMatch = placeholder ? placeholder.match(SYMBOL_QUOTE_REGEX) : null
-  const symbolQuoteInfo = symbolQuoteMatch ? {
-    symbol: symbolQuoteMatch[1].toUpperCase(),
-    property: symbolQuoteMatch[2].toLowerCase(),
-    interval: symbolQuoteMatch[3] ? parseInt(symbolQuoteMatch[3], 10) : 5
-  } : null
-
-  // Combine all texts that may contain @{} placeholders so useSymbolQuotes subscribes to everything
-  const allPlaceholderText = [
-    placeholder,
-    ...tooltipRows.map(r => `${r.detail || ''} ${r.value || ''}`)
-  ].join(' ')
-  const hasAnySymbolQuotes = allPlaceholderText.includes('@{')
-
-  const { getValue: getQuoteValue, resolveText: resolveSymbolText } = useSymbolQuotes(
-    hasAnySymbolQuotes ? allPlaceholderText : null
-  )
-
-  const symbolQuoteValue = symbolQuoteInfo
-    ? getQuoteValue(symbolQuoteInfo.symbol, symbolQuoteInfo.property)
-    : null
-
-  // Get min refresh interval from system placeholders
-  const getSystemRefreshInterval = useCallback(() => {
-    let minInterval = Infinity
-    for (const match of placeholder.matchAll(PLACEHOLDER_REGEX_GLOBAL)) {
-      const interval = match[2] ? parseInt(match[2], 10) : 5
-      if (interval < minInterval) minInterval = interval
-    }
-    return minInterval === Infinity ? null : minInterval
-  }, [placeholder])
-
-  const fetchSystemValue = useCallback(async () => {
-    if (!placeholder) return
-
-    if (placeholder.includes('tws_connection_status')) {
-      try {
-        const status = await getConnectionStatus()
-        setCurrentValue(status.connected ? `Connected (${status.port})` : 'Disconnected')
-      } catch {
-        setCurrentValue(null)
-      }
-      return
-    }
-
-    const match = placeholder.match(/^\s*\$\{([A-Za-z0-9]+):(time|status)/)
-    if (match) {
-      const exchange = match[1].toUpperCase()
-      const property = match[2]
-      setCurrentValue(property === 'time' ? getExchangeTime(exchange) : getExchangeStatus(exchange))
-    }
-  }, [placeholder])
-
-  useEffect(() => {
-    if (!hasSystemPlaceholders) return
-    const interval = getSystemRefreshInterval()
-    if (!interval) return
-    fetchSystemValue()
-    const id = setInterval(fetchSystemValue, interval * 1000)
-    return () => clearInterval(id)
-  }, [hasSystemPlaceholders, fetchSystemValue, getSystemRefreshInterval])
-
-  // Resolve the gauge's numeric value
-  const resolvedNumeric = (() => {
-    if (symbolQuoteValue !== null) {
-      const n = parseFloat(symbolQuoteValue)
-      return isNaN(n) ? null : n
-    }
-    if (currentValue !== null) {
-      const n = parseFloat(currentValue)
-      return isNaN(n) ? null : n
-    }
-    return null
-  })()
+  const resolvedNumeric = resolvedValue(placeholder)
 
   const displayValue = resolvedNumeric !== null
     ? (Number.isInteger(resolvedNumeric) ? String(resolvedNumeric) : resolvedNumeric.toFixed(2))
     : '--'
 
-  const resolveRowText = (text) => resolveSymbolText ? resolveSymbolText(text || '') : (text || '')
+  const resolveRowText = (text) => resolveText(text || '')
 
   // Sync preview state when label prop catches up
   useEffect(() => {

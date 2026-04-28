@@ -1,16 +1,16 @@
-# Chart Control
+# Chart Widget
 
-`TemplatePageChart` is a candlestick chart control that fetches historical OHLCV data from IBKR and renders it as an interactive SVG inside a template page.
+`TemplatePageChart` is a candlestick chart widget that fetches historical OHLCV data from IBKR and renders it as an interactive SVG inside a template page.
 
 ## Adding to a Template Page
 
-Select **Chart** from the Add Control menu in edit mode. The control requires a symbol and interval to be set before data is loaded.
+Select **Chart** from the Add Widget menu in edit mode. The widget requires a symbol and interval to be set before data is loaded.
 
 ---
 
 ## Configuration
 
-Opened via the settings (⚙) icon in the top-right corner of the control. Settings are per-chart unless marked **Global**.
+Opened via the settings (⚙) icon in the top-right corner of the widget. Settings are per-chart unless marked **Global**.
 
 ### Per-Chart Settings
 
@@ -21,7 +21,7 @@ Opened via the settings (⚙) icon in the top-right corner of the control. Setti
 
 ### Global Chart Settings
 
-Global settings apply to **all** chart controls on all pages simultaneously. They are persisted to `localStorage` under the key `ar_global_chart_settings`.
+Global settings apply to **all** chart widgets on all pages simultaneously. They are persisted to `localStorage` under the key `ar_global_chart_settings`.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -31,7 +31,6 @@ Global settings apply to **all** chart controls on all pages simultaneously. The
 | Volume Multiplier | `1` | Scale factor applied to volume bar heights. Values > 1 make bars taller; useful when volume is low relative to the chart area |
 | Invert Scroll | `false` | Reverses the pan direction of Ctrl+scroll |
 | Invert Drag | `false` | Reverses the pan direction of click-drag |
-| Clear All Caches | — | Wipes all cached price data from IndexedDB for all symbols and intervals |
 
 ---
 
@@ -78,9 +77,8 @@ Click the **symbol label** (e.g. `SPY`) in the top-left of the chart to edit it 
 | Button | Action |
 |--------|--------|
 | ↺ (Reload) | Fetches the last 30 days from IBKR and merges into cache. Fast — does not re-fetch full history |
-| ↺↺ (Full Reload) | Clears and re-fetches the full initial window from IBKR with a progress indicator |
 | ⚙ (Settings) | Opens per-chart and global settings dialog |
-| ✕ (Delete) | Removes the control (edit mode only) |
+| ✕ (Delete) | Removes the widget (edit mode only) |
 
 ---
 
@@ -152,7 +150,6 @@ As the user pans backward, older data is fetched automatically:
 ### Reload Behaviour
 
 - **Reload button (fast)**: calls `refreshRecentData` — fetches the last 30 days and merges, leaving older cache intact
-- **Full Reload button**: calls `loadHistoricalData` — re-fetches the full `initialDays` window from scratch
 
 ### IBKR Request Parameters
 
@@ -170,10 +167,8 @@ TemplatePageChart
   │    └─ fetchFromCache → if empty → loadHistoricalData
   ├─ on viewOffset / maxBars change (near left edge)
   │    └─ fetchOlderData (5 parallel chunks) → merge into cache → setData
-  ├─ Reload button
-  │    └─ refreshRecentData (last 30 days) → merge → setData
-  └─ Full Reload button
-       └─ loadHistoricalData (initialDays) → setData with progress
+  └─ Reload button
+       └─ refreshRecentData (last 30 days) → merge → setData
 ```
 
 ---

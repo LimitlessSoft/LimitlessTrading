@@ -22,8 +22,8 @@ anal/ARAnalysis/
 │   │   ├── LiveWatchlist.jsx       # Real-time streaming watchlist (SSE)
 │   │   ├── MarketClocks.jsx        # NYSE/LSE market hours display
 │   │   ├── TemplatePageLabel.jsx   # Resizable/styleable label for template pages
-│   │   ├── TemplatePagePanel.jsx   # Container control for nested layouts
-│   │   └── TemplatePageBadge.jsx   # Colored indicator control
+│   │   ├── TemplatePagePanel.jsx   # Container widget for nested layouts
+│   │   └── TemplatePageBadge.jsx   # Colored indicator widget
 │   ├── pages/
 │   │   └── TemplatePage.jsx        # Dynamic page template for custom routes
 │   ├── modules/

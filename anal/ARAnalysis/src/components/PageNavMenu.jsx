@@ -33,7 +33,7 @@ function PageNavMenu({
   borderColor = 'gray.700',
   headerControls = [],
   activeDrag = null,
-  onRenderControl,
+  onRenderWidget,
   headerRef: externalHeaderRef
 }) {
   const [routes, setRoutes] = useState([])
@@ -170,7 +170,7 @@ function PageNavMenu({
           {children}
           <Spacer />
           {/* Header controls - right side */}
-          {headerControls.length > 0 && onRenderControl && (() => {
+          {headerControls.length > 0 && onRenderWidget && (() => {
             const dropIndicatorX = isDropTarget && activeDrag?.mousePos && headerControlsRef.current
               ? activeDrag.mousePos.x - headerControlsRef.current.getBoundingClientRect().left
               : null
@@ -189,7 +189,7 @@ function PageNavMenu({
                     zIndex={10}
                   />
                 )}
-                {[...headerControls].sort((a, b) => (a.x || 0) - (b.x || 0)).map(control => onRenderControl(control))}
+                {[...headerControls].sort((a, b) => (a.x || 0) - (b.x || 0)).map(control => onRenderWidget(control))}
               </Flex>
             )
           })()}

@@ -1,6 +1,35 @@
-import { Box, Heading, Text, Code, Table, Thead, Tbody, Tr, Th, Td, VStack, HStack, IconButton } from '@chakra-ui/react'
+import {
+  Box, Heading, Text, Code, Table, Thead, Tbody, Tr, Th, Td,
+  VStack, HStack, IconButton, Tabs, TabList, TabPanels, Tab, TabPanel,
+  Alert, AlertIcon,
+} from '@chakra-ui/react'
 import { ArrowBackIcon } from '@chakra-ui/icons'
 import { useNavigate } from 'react-router-dom'
+
+function SectionTable({ headers, rows }) {
+  return (
+    <Table variant="simple" size="sm" bg="gray.800" borderRadius="md">
+      <Thead>
+        <Tr>
+          {headers.map(h => <Th key={h} color="gray.400">{h}</Th>)}
+        </Tr>
+      </Thead>
+      <Tbody>
+        {rows.map((row, i) => (
+          <Tr key={i}>
+            {row.map((cell, j) => (
+              <Td key={j}>{typeof cell === 'string' ? cell : cell}</Td>
+            ))}
+          </Tr>
+        ))}
+      </Tbody>
+    </Table>
+  )
+}
+
+function SubHeading({ children }) {
+  return <Heading size="sm" mb={3} mt={5}>{children}</Heading>
+}
 
 function PlaceholderDocsPage() {
   const navigate = useNavigate()
@@ -14,364 +43,191 @@ function PlaceholderDocsPage() {
           variant="ghost"
           onClick={() => navigate(-1)}
         />
-        <Heading size="lg">Placeholder API Documentation</Heading>
+        <Heading size="lg">Placeholder Reference</Heading>
       </HStack>
 
-      <VStack align="stretch" spacing={8} maxW="900px">
-        {/* System Placeholders Section */}
-        <Box>
-          <Heading size="md" mb={4}>System Placeholders</Heading>
-          <Text mb={3}>
-            Syntax: <Code>${'{name:seconds}'}</Code> where <Code>seconds</Code> is the refresh interval.
-          </Text>
+      <Box maxW="960px">
+        <Tabs variant="enclosed" colorScheme="blue">
+          <TabList>
+            <Tab>System</Tab>
+            <Tab>Exchange</Tab>
+            <Tab>Symbol Quotes</Tab>
+            <Tab>Formulas</Tab>
+          </TabList>
 
-          <Table variant="simple" size="sm" bg="gray.800" borderRadius="md">
-            <Thead>
-              <Tr>
-                <Th color="gray.400">Placeholder</Th>
-                <Th color="gray.400">Description</Th>
-                <Th color="gray.400">Example Output</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              <Tr>
-                <Td><Code>${'{tws_connection_status:5}'}</Code></Td>
-                <Td>TWS/IBKR connection status</Td>
-                <Td>Connected (7496) / Disconnected</Td>
-              </Tr>
-            </Tbody>
-          </Table>
-        </Box>
+          <TabPanels>
 
-        {/* Exchange Placeholders Section */}
-        <Box>
-          <Heading size="md" mb={4}>Exchange Placeholders</Heading>
-          <Text mb={2}>
-            Syntax: <Code>${'{EXCHANGE:property:seconds}'}</Code> — current time or market status for a stock exchange.
-          </Text>
-          <Text fontSize="sm" color="gray.400" mb={4}>
-            The <Code>:seconds</Code> refresh interval is optional and defaults to 5 s.
-          </Text>
+            {/* ── SYSTEM ── */}
+            <TabPanel>
+              <VStack align="stretch" spacing={4}>
+                <Box>
+                  <Text mb={1}>Syntax: <Code>${'{name:seconds}'}</Code> — system-level status values.</Text>
+                  <Text fontSize="sm" color="gray.400">The <Code>:seconds</Code> interval controls the refresh rate.</Text>
+                </Box>
+                <SectionTable
+                  headers={['Placeholder', 'Description', 'Example Output']}
+                  rows={[
+                    [<Code>${'{tws_connection_status:5}'}</Code>, 'TWS/IBKR connection status', 'Connected (7496) / Disconnected'],
+                  ]}
+                />
+                <Alert status="info" bg="gray.800" borderRadius="md" fontSize="sm">
+                  <AlertIcon />
+                  Mix system placeholders with other types in the same widget text. The smallest interval among all placeholders drives the poll rate.
+                </Alert>
+              </VStack>
+            </TabPanel>
 
-          <Heading size="sm" mb={3}>Properties</Heading>
-          <Table variant="simple" size="sm" bg="gray.800" borderRadius="md" mb={6}>
-            <Thead>
-              <Tr>
-                <Th color="gray.400">Property</Th>
-                <Th color="gray.400">Description</Th>
-                <Th color="gray.400">Example output</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              <Tr>
-                <Td><Code>time</Code></Td>
-                <Td>Current local time at the exchange</Td>
-                <Td>09:32 ET</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>status</Code></Td>
-                <Td>Current market session</Td>
-                <Td>Open / Pre-Market / After-Hours / Closed</Td>
-              </Tr>
-            </Tbody>
-          </Table>
+            {/* ── EXCHANGE ── */}
+            <TabPanel>
+              <VStack align="stretch" spacing={4}>
+                <Box>
+                  <Text mb={1}>Syntax: <Code>${'{EXCHANGE:property:seconds}'}</Code> — exchange time or market status.</Text>
+                  <Text fontSize="sm" color="gray.400">The <Code>:seconds</Code> interval is optional and defaults to 5 s.</Text>
+                </Box>
 
-          <Heading size="sm" mb={3}>Supported Exchanges</Heading>
-          <Table variant="simple" size="sm" bg="gray.800" borderRadius="md" mb={4}>
-            <Thead>
-              <Tr>
-                <Th color="gray.400">Key</Th>
-                <Th color="gray.400">Exchange</Th>
-                <Th color="gray.400">Timezone</Th>
-                <Th color="gray.400">Regular hours</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              <Tr><Td><Code>NYSE</Code></Td><Td>New York Stock Exchange</Td><Td>America/New_York</Td><Td>09:30–16:00 ET</Td></Tr>
-              <Tr><Td><Code>NASDAQ</Code></Td><Td>NASDAQ</Td><Td>America/New_York</Td><Td>09:30–16:00 ET</Td></Tr>
-              <Tr><Td><Code>LSE</Code></Td><Td>London Stock Exchange</Td><Td>Europe/London</Td><Td>08:00–16:30 GMT/BST</Td></Tr>
-              <Tr><Td><Code>XETRA</Code></Td><Td>Deutsche Börse XETRA</Td><Td>Europe/Berlin</Td><Td>09:00–17:30 CET/CEST</Td></Tr>
-              <Tr><Td><Code>TSX</Code></Td><Td>Toronto Stock Exchange</Td><Td>America/Toronto</Td><Td>09:30–16:00 ET</Td></Tr>
-              <Tr><Td><Code>JPX</Code></Td><Td>Japan Exchange Group</Td><Td>Asia/Tokyo</Td><Td>09:00–15:30 JST (lunch 11:30–12:30)</Td></Tr>
-              <Tr><Td><Code>HKEX</Code></Td><Td>Hong Kong Exchange</Td><Td>Asia/Hong_Kong</Td><Td>09:30–16:00 HKT (lunch 12:00–13:00)</Td></Tr>
-              <Tr><Td><Code>ASX</Code></Td><Td>Australian Securities Exchange</Td><Td>Australia/Sydney</Td><Td>10:00–16:00 AEST/AEDT</Td></Tr>
-              <Tr><Td><Code>SGX</Code></Td><Td>Singapore Exchange</Td><Td>Asia/Singapore</Td><Td>09:00–17:00 SGT</Td></Tr>
-            </Tbody>
-          </Table>
+                <SubHeading>Properties</SubHeading>
+                <SectionTable
+                  headers={['Property', 'Description', 'Example output']}
+                  rows={[
+                    [<Code>time</Code>, 'Current local time at the exchange', '09:32 ET'],
+                    [<Code>status</Code>, 'Current market session', 'Open / Pre-Market / After-Hours / Closed'],
+                  ]}
+                />
 
-          <Heading size="sm" mb={3}>Examples</Heading>
-          <Table variant="simple" size="sm" bg="gray.800" borderRadius="md">
-            <Thead>
-              <Tr>
-                <Th color="gray.400">Placeholder</Th>
-                <Th color="gray.400">Description</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              <Tr>
-                <Td><Code>${'{NYSE:time:1}'}</Code></Td>
-                <Td>NYSE local time, updates every second</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>${'{NYSE:status:10}'}</Code></Td>
-                <Td>NYSE market status, updates every 10 s</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>${'{LSE:time:30}'}</Code></Td>
-                <Td>LSE local time, updates every 30 s</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>${'{JPX:status}'}</Code></Td>
-                <Td>JPX status (default 5 s refresh). Returns "Closed" during lunch break.</Td>
-              </Tr>
-            </Tbody>
-          </Table>
-        </Box>
+                <SubHeading>Examples</SubHeading>
+                <SectionTable
+                  headers={['Placeholder', 'Description']}
+                  rows={[
+                    [<Code>${'{NYSE:time:1}'}</Code>, 'NYSE local time, updates every second'],
+                    [<Code>${'{NYSE:status:10}'}</Code>, 'NYSE market status, updates every 10 s'],
+                    [<Code>${'{LSE:time:30}'}</Code>, 'LSE local time, updates every 30 s'],
+                    [<Code>${'{JPX:status}'}</Code>, 'JPX status (default 5 s). Returns "Closed" during lunch break.'],
+                  ]}
+                />
 
-        {/* Symbol Quote Placeholders Section */}
-        <Box>
-          <Heading size="md" mb={4}>Symbol Quote Placeholders</Heading>
-          <Text mb={2}>
-            Syntax: <Code>@{'{SYMBOL:property:seconds}'}</Code> for real-time market data.
-          </Text>
-          <Text fontSize="sm" color="gray.400" mb={4}>
-            Intervals &le;5s use real-time streaming (SSE), &gt;5s use HTTP polling.
-          </Text>
+                <SubHeading>Supported Exchanges</SubHeading>
+                <SectionTable
+                  headers={['Key', 'Exchange', 'Timezone', 'Regular hours']}
+                  rows={[
+                    [<Code>NYSE</Code>, 'New York Stock Exchange', 'America/New_York', '09:30–16:00 ET'],
+                    [<Code>NASDAQ</Code>, 'NASDAQ', 'America/New_York', '09:30–16:00 ET'],
+                    [<Code>LSE</Code>, 'London Stock Exchange', 'Europe/London', '08:00–16:30 GMT/BST'],
+                    [<Code>XETRA</Code>, 'Deutsche Börse XETRA', 'Europe/Berlin', '09:00–17:30 CET/CEST'],
+                    [<Code>TSX</Code>, 'Toronto Stock Exchange', 'America/Toronto', '09:30–16:00 ET'],
+                    [<Code>JPX</Code>, 'Japan Exchange Group', 'Asia/Tokyo', '09:00–15:30 JST (lunch 11:30–12:30)'],
+                    [<Code>HKEX</Code>, 'Hong Kong Exchange', 'Asia/Hong_Kong', '09:30–16:00 HKT (lunch 12:00–13:00)'],
+                    [<Code>ASX</Code>, 'Australian Securities Exchange', 'Australia/Sydney', '10:00–16:00 AEST/AEDT'],
+                    [<Code>SGX</Code>, 'Singapore Exchange', 'Asia/Singapore', '09:00–17:00 SGT'],
+                  ]}
+                />
+              </VStack>
+            </TabPanel>
 
-          <Table variant="simple" size="sm" bg="gray.800" borderRadius="md" mb={6}>
-            <Thead>
-              <Tr>
-                <Th color="gray.400">Example</Th>
-                <Th color="gray.400">Description</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              <Tr>
-                <Td><Code>@{'{AAPL:last:5}'}</Code></Td>
-                <Td>AAPL last price, refreshing every 5 seconds</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>@{'{SPY:change:3}'}</Code></Td>
-                <Td>SPY price change (+/- format), refreshing every 3 seconds</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>@{'{VIX:last}'}</Code></Td>
-                <Td>VIX value (default 5s refresh)</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>@{'{MSFT:volume:10}'}</Code></Td>
-                <Td>MSFT volume (formatted as K/M/B), polling every 10 seconds</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>@{'{TSLA:changePercent:5}'}</Code></Td>
-                <Td>TSLA percentage change (+X.XX% format)</Td>
-              </Tr>
-            </Tbody>
-          </Table>
+            {/* ── SYMBOL QUOTES ── */}
+            <TabPanel>
+              <VStack align="stretch" spacing={4}>
+                <Box>
+                  <Text mb={3}>Syntax: <Code>{'@{SYMBOL:property-arg1-arg2:seconds}'}</Code></Text>
+                  <SectionTable
+                    headers={['Part', 'Description']}
+                    rows={[
+                      [<Code>SYMBOL</Code>, 'Ticker symbol, e.g. AAPL, SPY, VIX. Normalized to uppercase.'],
+                      [<Code>property</Code>, 'Data field to retrieve — see All Properties below.'],
+                      [<Code>-arg1-arg2</Code>, 'Optional dash-separated arguments for properties that accept them, e.g. close-20.'],
+                      [<Code>:seconds</Code>, 'Optional refresh interval. Defaults to 5. Values ≤5 stream via SSE; >5 use HTTP polling.'],
+                    ]}
+                  />
+                </Box>
 
-          <Heading size="sm" mb={3}>Available Properties</Heading>
-          <Table variant="simple" size="sm" bg="gray.800" borderRadius="md">
-            <Thead>
-              <Tr>
-                <Th color="gray.400">Property</Th>
-                <Th color="gray.400">Description</Th>
-                <Th color="gray.400">Format</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              <Tr>
-                <Td><Code>last</Code></Td>
-                <Td>Last traded price</Td>
-                <Td>2 decimals</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>bid</Code></Td>
-                <Td>Current bid price</Td>
-                <Td>2 decimals</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>ask</Code></Td>
-                <Td>Current ask price</Td>
-                <Td>2 decimals</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>open</Code></Td>
-                <Td>Opening price</Td>
-                <Td>2 decimals</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>high</Code></Td>
-                <Td>Day high</Td>
-                <Td>2 decimals</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>low</Code></Td>
-                <Td>Day low</Td>
-                <Td>2 decimals</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>close</Code></Td>
-                <Td>Closing price</Td>
-                <Td>2 decimals</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>prevClose</Code></Td>
-                <Td>Previous day close</Td>
-                <Td>2 decimals</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>vwap</Code></Td>
-                <Td>Volume-weighted average price</Td>
-                <Td>2 decimals</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>change</Code></Td>
-                <Td>Price change from previous close</Td>
-                <Td>+/- with 2 decimals</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>changePercent</Code></Td>
-                <Td>Percentage change from previous close</Td>
-                <Td>+X.XX%</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>volume</Code></Td>
-                <Td>Trading volume</Td>
-                <Td>K/M/B suffix</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>avgVolume</Code></Td>
-                <Td>Average volume</Td>
-                <Td>K/M/B suffix</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>bidSize</Code></Td>
-                <Td>Size at bid</Td>
-                <Td>K/M/B suffix</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>askSize</Code></Td>
-                <Td>Size at ask</Td>
-                <Td>K/M/B suffix</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>marketCap</Code></Td>
-                <Td>Market capitalization</Td>
-                <Td>$X.XXM/B/T</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>week52High</Code></Td>
-                <Td>52-week high</Td>
-                <Td>2 decimals</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>week52Low</Code></Td>
-                <Td>52-week low</Td>
-                <Td>2 decimals</Td>
-              </Tr>
-            </Tbody>
-          </Table>
-        </Box>
+                <SubHeading>Quick Examples</SubHeading>
+                <SectionTable
+                  headers={['Example', 'Description']}
+                  rows={[
+                    [<Code>@{'{AAPL:last:5}'}</Code>, 'AAPL last price, every 5 s'],
+                    [<Code>@{'{SPY:change:3}'}</Code>, 'SPY price change (+/- format), every 3 s'],
+                    [<Code>@{'{TSLA:changePercent:5}'}</Code>, 'TSLA % change (+X.XX%)'],
+                    [<Code>@{'{MSFT:volume:10}'}</Code>, 'MSFT volume (K/M/B), polled every 10 s'],
+                    [<Code>@{'{VIX:last}'}</Code>, 'VIX value (default 5 s refresh)'],
+                  ]}
+                />
 
-        {/* Badge Color Mappings Section */}
-        <Box>
-          <Heading size="md" mb={4}>Badge Color Mappings</Heading>
-          <Text mb={3}>
-            For badges, you can configure color mappings based on the value. Supports both string matching and numeric comparisons.
-          </Text>
+                <SubHeading>All Properties</SubHeading>
+                <SectionTable
+                  headers={['Property', 'Arguments', 'Description', 'Format']}
+                  rows={[
+                    [<Code>last</Code>, '—', 'Last traded price', '2 decimals'],
+                    [<Code>bid</Code>, '—', 'Current bid price', '2 decimals'],
+                    [<Code>ask</Code>, '—', 'Current ask price', '2 decimals'],
+                    [<Code>open</Code>, '—', 'Opening price', '2 decimals'],
+                    [<Code>high</Code>, '—', 'Day high', '2 decimals'],
+                    [<Code>low</Code>, '—', 'Day low', '2 decimals'],
+                    [<Code>close</Code>, '—', 'Closing price', '2 decimals'],
+                    [<HStack pl={4} spacing={1}><Text color="gray.500">└</Text><Code>close-N</Code></HStack>, <Text fontSize="xs"><Code>N</Code> — trading days back</Text>, 'Historical closing price N trading days ago. Cached server-side for 1 hour.', '2 decimals'],
+                    [<Code>prevClose</Code>, '—', 'Previous day close', '2 decimals'],
+                    [<Code>vwap</Code>, '—', 'Volume-weighted average price', '2 decimals'],
+                    [<Code>change</Code>, '—', 'Price change from prev close', '+/- 2 decimals'],
+                    [<Code>changePercent</Code>, '—', 'Percentage change from prev close', '+X.XX%'],
+                    [<Code>volume</Code>, '—', 'Trading volume', 'K/M/B suffix'],
+                    [<Code>avgVolume</Code>, '—', 'Average volume', 'K/M/B suffix'],
+                    [<Code>bidSize</Code>, '—', 'Size at bid', 'K/M/B suffix'],
+                    [<Code>askSize</Code>, '—', 'Size at ask', 'K/M/B suffix'],
+                    [<Code>marketCap</Code>, '—', 'Market capitalization', '$X.XXM/B/T'],
+                    [<Code>week52High</Code>, '—', '52-week high', '2 decimals'],
+                    [<Code>week52Low</Code>, '—', '52-week low', '2 decimals'],
+                    [<Code>close-N</Code>, <Text fontSize="xs"><Code>N</Code> — trading days back</Text>, 'Historical closing price N trading days ago. Cached server-side for 1 hour.', '2 decimals'],
+                  ]}
+                />
+              </VStack>
+            </TabPanel>
 
-          <Heading size="sm" mb={3}>String Matching</Heading>
-          <Table variant="simple" size="sm" bg="gray.800" borderRadius="md" mb={4}>
-            <Thead>
-              <Tr>
-                <Th color="gray.400">Mode</Th>
-                <Th color="gray.400">Example</Th>
-                <Th color="gray.400">Matches</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              <Tr>
-                <Td>Exact</Td>
-                <Td><Code>Disconnected</Code></Td>
-                <Td>Only "Disconnected" (case-insensitive)</Td>
-              </Tr>
-              <Tr>
-                <Td>Contains</Td>
-                <Td><Code>Connected</Code></Td>
-                <Td>"Connected (7496)", "Connected", etc.</Td>
-              </Tr>
-            </Tbody>
-          </Table>
+            {/* ── FORMULAS ── */}
+            <TabPanel>
+              <VStack align="stretch" spacing={4}>
+                <Box>
+                  <Text mb={1}>Syntax: <Code>%[expression:seconds]</Code> — arithmetic over live quote data.</Text>
+                  <Text fontSize="sm" color="gray.300" mb={1}>
+                    Reference ticker values as <Code>{'@{SYMBOL:property}'}</Code> (no per-ref interval — the formula's <Code>:seconds</Code> applies to all). Result is formatted to 2 decimal places. Shows <Code>--</Code> if any value is unavailable.
+                  </Text>
+                  <Text fontSize="sm" color="gray.400">
+                    Operators: <Code>+</Code> <Code>-</Code> <Code>*</Code> <Code>/</Code> <Code>**</Code> and grouping with <Code>()</Code>.
+                  </Text>
+                </Box>
 
-          <Heading size="sm" mb={3}>Numeric Comparisons</Heading>
-          <Text fontSize="sm" color="gray.400" mb={3}>
-            For numeric values (like quote data), use comparison operators. Exact match mode must be enabled (Contains unchecked).
-          </Text>
-          <Table variant="simple" size="sm" bg="gray.800" borderRadius="md">
-            <Thead>
-              <Tr>
-                <Th color="gray.400">Operator</Th>
-                <Th color="gray.400">Example</Th>
-                <Th color="gray.400">Description</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              <Tr>
-                <Td><Code>&gt;</Code></Td>
-                <Td><Code>&gt;20</Code></Td>
-                <Td>Greater than 20</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>&gt;=</Code></Td>
-                <Td><Code>&gt;=30</Code></Td>
-                <Td>Greater than or equal to 30</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>&lt;</Code></Td>
-                <Td><Code>&lt;15</Code></Td>
-                <Td>Less than 15</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>&lt;=</Code></Td>
-                <Td><Code>&lt;=10</Code></Td>
-                <Td>Less than or equal to 10</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>=</Code></Td>
-                <Td><Code>=25</Code></Td>
-                <Td>Exactly 25</Td>
-              </Tr>
-              <Tr>
-                <Td><Code>!=</Code></Td>
-                <Td><Code>!=0</Code></Td>
-                <Td>Not equal to 0</Td>
-              </Tr>
-            </Tbody>
-          </Table>
-        </Box>
+                <SubHeading>Examples</SubHeading>
+                <SectionTable
+                  headers={['Formula', 'Description']}
+                  rows={[
+                    [<Code>{'%[(@{AAPL:ask} + @{AAPL:bid}) / 2:3]'}</Code>, 'AAPL bid-ask midpoint'],
+                    [<Code>{'%[(@{SPY:last} / @{SPY:vwap} - 1) * 100:5]'}</Code>, 'SPY deviation from VWAP (%)'],
+                    [<Code>{'%[@{HYG:last} - @{LQD:last}:30]'}</Code>, 'Price spread: HYG minus LQD'],
+                    [<Code>{'%[(@{HYG:last} / @{LQD:last} - 1) * 100:30]'}</Code>, 'HYG vs LQD relative performance (%)'],
+                    [<Code>{'%[@{HYG:changePercent} - @{LQD:changePercent}:10]'}</Code>, 'Day % change spread: HYG vs LQD'],
+                    [<Code>{'%[@{AAPL:last} * 150 + @{MSFT:last} * 80:10]'}</Code>, 'Weighted position value (150 AAPL + 80 MSFT)'],
+                    [<Code>{'%[(@{HYG:last} / @{HYG:close-20} - 1) * 100:3600]'}</Code>, 'HYG 20-day return (%)'],
+                    [<Code>{'%[@{VIX:last} - @{VIX:close-20}:3600]'}</Code>, 'VIX change vs 20 days ago'],
+                    [<Code fontSize="xs">{'%[(@{HYG:last}/@{HYG:close-20}-1)*100 - (@{LQD:last}/@{LQD:close-20}-1)*100:3600]'}</Code>, 'HYG vs LQD 20-day relative performance'],
+                  ]}
+                />
 
-        {/* Usage Notes Section */}
-        <Box>
-          <Heading size="md" mb={4}>Usage Notes</Heading>
-          <VStack align="stretch" spacing={2} fontSize="sm" color="gray.300">
-            <Text>
-              • Both placeholder types can be mixed in the same label: <Code fontSize="xs">${'{tws_connection_status:5}'} | @{'{SPY:last:3}'}</Code>
-            </Text>
-            <Text>
-              • If multiple placeholders exist, the smallest interval determines the polling rate for system placeholders.
-            </Text>
-            <Text>
-              • Symbol quotes use the same backend as the Live Watchlist component.
-            </Text>
-            <Text>
-              • SSE connections are shared across all components using real-time quotes.
-            </Text>
-            <Text>
-              • Symbols are automatically normalized to uppercase.
-            </Text>
+                <Alert status="warning" bg="gray.800" borderRadius="md" fontSize="sm">
+                  <AlertIcon />
+                  When mixing <Code>close-N</Code> with real-time properties, use a slow interval (e.g. <Code>:3600</Code>) — historical closes only update once per trading day.
+                </Alert>
+              </VStack>
+            </TabPanel>
+
+          </TabPanels>
+        </Tabs>
+
+        <Box mt={6} p={4} bg="gray.800" borderRadius="md" fontSize="sm" color="gray.400">
+          <Text fontWeight="semibold" color="gray.300" mb={2}>General Notes</Text>
+          <VStack align="stretch" spacing={1}>
+            <Text>• Placeholder types can be mixed in the same widget: <Code fontSize="xs">${'{tws_connection_status:5}'} | @{'{SPY:last:3}'}</Code></Text>
+            <Text>• Symbols are automatically normalized to uppercase.</Text>
+            <Text>• SSE connections are shared across all components using real-time quotes.</Text>
           </VStack>
         </Box>
-      </VStack>
+      </Box>
     </Box>
   )
 }
