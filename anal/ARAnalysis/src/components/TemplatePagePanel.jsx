@@ -496,6 +496,50 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
     })
   }
 
+  // Grid uses wrapper Boxes so cell gaps are symmetric (4px edges, 8px between).
+  // The widget -8px width convention is absorbed by making each wrapper 8px wider than
+  // the visual cell, so: wrapper left = col/N*100% + 4px, wrapper width = 100%/N.
+  // Child renders at x=0,w=TOTAL_SEGMENTS → width = 100%-8px = visual cell width.
+  const renderGridChildren = () => {
+    const cols = Math.max(1, style.gridCols || 2)
+    const rows = Math.max(1, style.gridRows || 2)
+    const contentH = displayHeight - 2 * PADDING
+    const cellH = Math.max(40, (contentH - (rows - 1) * 8) / rows)
+    const childProps = {
+      onDelete: handleDeleteChild,
+      onUpdate: handleUpdateChildInLayout,
+      onExport,
+      onDragStateChange,
+      onMoveWidget,
+      activeDrag,
+      parentPanelId: label.id,
+      isEditing,
+      containerRef: childContainerRef,
+    }
+    return children.map((child, i) => {
+      const col = i % cols
+      const row = Math.floor(i / cols)
+      return (
+        <Box
+          key={child.id}
+          position="absolute"
+          left={`calc(${(col / cols) * 100}% + 4px)`}
+          top={`${row * (Math.round(cellH) + 8)}px`}
+          width={`${(1 / cols) * 100}%`}
+          height={`${Math.round(cellH)}px`}
+          overflow="hidden"
+        >
+          {renderWidget(child, {
+            key: child.id,
+            label: { ...child, x: 0, y: 0, width: TOTAL_SEGMENTS, height: Math.round(cellH) },
+            layoutY: 0,
+            ...childProps,
+          })}
+        </Box>
+      )
+    })
+  }
+
   return (
     <>
       <Box
@@ -580,7 +624,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
           overflow="auto"
           p={2}
         >
-          {children.map(renderChild)}
+          {layoutMode === 'grid' ? renderGridChildren() : children.map(renderChild)}
         </Box>
 
         {/* Resize handles */}
