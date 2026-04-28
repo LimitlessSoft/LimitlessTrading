@@ -49,19 +49,17 @@ const DEFAULT_STYLE = {
   borderWidth: 0
 }
 
-// Gauge arc spans -135° to +135° (270° total), same as FearGreedGauge
-const ARC_START = -135
-const ARC_END = 135
+// Gauge arc spans -90° to +90° (180° total) — top semicircle
+const ARC_START = -90
+const ARC_END = 90
 const ARC_TOTAL = ARC_END - ARC_START
 
-// Arc spans from bottom-left (-135°) through top (0°) to bottom-right (+135°).
-// Arc top sits at cy - r; endpoints sit at cy + r*sin(45°) = cy + r*0.707.
-// viewBox must satisfy: cy - r >= padding and cy + r*0.707 + labelRoom <= SVG_H.
+// Semicircle: top of arc at cy - r, endpoints at (cx ± r, cy).
 const SVG_W = 200
-const SVG_H = 160
+const SVG_H = 126
 const CX = 100
-const CY = 90   // top of arc = 90 - 78 = 12, endpoints y ≈ 145
-const RADIUS = 78
+const CY = 100  // top of arc = 100 - 88 = 12, endpoints at y = 100
+const RADIUS = 88
 const TRACK_W = 12
 
 function createArc(cx, cy, r, startDeg, endDeg) {
@@ -75,7 +73,7 @@ function createArc(cx, cy, r, startDeg, endDeg) {
   return `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`
 }
 
-function GaugeSVG({ value, min, max, segments, title }) {
+function GaugeSVG({ value, min, max, segments, title, showText = true }) {
   const cx = CX
   const cy = CY
   const radius = RADIUS
@@ -85,12 +83,19 @@ function GaugeSVG({ value, min, max, segments, title }) {
   const fraction = clampedValue !== null ? (clampedValue - min) / (max - min || 1) : null
   const needleAngle = fraction !== null ? ARC_START + fraction * ARC_TOTAL : ARC_START
 
-  const needleLen = radius - 18
+  const needleLen = radius - 14
   const needleRad = (needleAngle - 90) * Math.PI / 180
   const needleX = cx + needleLen * Math.cos(needleRad)
   const needleY = cy + needleLen * Math.sin(needleRad)
 
-  // Convert each segment's [from, to] range to arc degree positions
+  const perpX = -Math.sin(needleRad)
+  const perpY = Math.cos(needleRad)
+  const needlePoints = fraction !== null ? [
+    `${needleX},${needleY}`,
+    `${cx + perpX * 11},${cy + perpY * 11}`,
+    `${cx - perpX * 11},${cy - perpY * 11}`,
+  ].join(' ') : null
+
   const segsWithDeg = (segments && segments.length > 0 ? segments : DEFAULT_SEGMENTS).map(seg => {
     const fStart = (seg.from - min) / (max - min || 1)
     const fEnd = (seg.to - min) / (max - min || 1)
@@ -116,7 +121,7 @@ function GaugeSVG({ value, min, max, segments, title }) {
         d={createArc(cx, cy, radius, ARC_START, ARC_END)}
         fill="none"
         stroke="#2D3748"
-        strokeWidth={trackWidth + 2}
+        strokeWidth={trackWidth}
         strokeLinecap="round"
       />
 
@@ -128,87 +133,38 @@ function GaugeSVG({ value, min, max, segments, title }) {
           fill="none"
           stroke={seg.color}
           strokeWidth={trackWidth}
-          strokeLinecap={i === 0 ? 'round' : 'butt'}
+          strokeLinecap={i === 0 || i === segsWithDeg.length - 1 ? 'round' : 'butt'}
         />
       ))}
 
-      {/* Tick marks at 0%, 25%, 50%, 75%, 100% */}
-      {[0, 0.25, 0.5, 0.75, 1].map((t) => {
-        const deg = ARC_START + t * ARC_TOTAL
-        const rad = (deg - 90) * Math.PI / 180
-        const outerX = cx + (radius + 4) * Math.cos(rad)
-        const outerY = cy + (radius + 4) * Math.sin(rad)
-        const innerX = cx + (radius - trackWidth - 4) * Math.cos(rad)
-        const innerY = cy + (radius - trackWidth - 4) * Math.sin(rad)
-        return (
-          <line
-            key={t}
-            x1={innerX}
-            y1={innerY}
-            x2={outerX}
-            y2={outerY}
-            stroke="#4A5568"
-            strokeWidth="1.5"
-          />
-        )
-      })}
-
-      {/* Min / Max labels */}
-      <text
-        x={cx + (radius + 6) * Math.cos((ARC_START - 90) * Math.PI / 180)}
-        y={cy + (radius + 6) * Math.sin((ARC_START - 90) * Math.PI / 180) + 4}
-        textAnchor="middle"
-        fill="#718096"
-        fontSize="10"
-        fontFamily="monospace"
-      >
-        {min}
-      </text>
-      <text
-        x={cx + (radius + 6) * Math.cos((ARC_END - 90) * Math.PI / 180)}
-        y={cy + (radius + 6) * Math.sin((ARC_END - 90) * Math.PI / 180) + 4}
-        textAnchor="middle"
-        fill="#718096"
-        fontSize="10"
-        fontFamily="monospace"
-      >
-        {max}
-      </text>
-
       {/* Needle */}
-      {fraction !== null && (
-        <line
-          x1={cx}
-          y1={cy}
-          x2={needleX}
-          y2={needleY}
-          stroke="white"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-        />
+      {needlePoints && (
+        <polygon points={needlePoints} fill="white" opacity="0.9" />
       )}
 
       {/* Center dot */}
       <circle cx={cx} cy={cy} r="4" fill="white" />
 
       {/* Value text */}
-      <text
-        x={cx}
-        y={cy + 22}
-        textAnchor="middle"
-        fill="white"
-        fontSize="15"
-        fontWeight="bold"
-        fontFamily="monospace"
-      >
-        {displayValue}
-      </text>
-
-      {/* Title */}
-      {title && (
+      {showText && (
         <text
           x={cx}
-          y={SVG_H - 4}
+          y={cy + 16}
+          textAnchor="middle"
+          fill="white"
+          fontSize="15"
+          fontWeight="bold"
+          fontFamily="monospace"
+        >
+          {displayValue}
+        </text>
+      )}
+
+      {/* Title */}
+      {showText && title && (
+        <text
+          x={cx}
+          y={cy + 30}
           textAnchor="middle"
           fill="#A0AEC0"
           fontSize="11"
@@ -508,6 +464,7 @@ function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDra
                 max={max}
                 segments={segments}
                 title={null}
+                showText={false}
               />
             </Box>
             {isEditing && (
@@ -666,6 +623,7 @@ function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDra
             max={max}
             segments={segments}
             title={title}
+            showText={displayHeight >= 100}
           />
 
           {isEditing && (
