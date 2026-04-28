@@ -1158,22 +1158,6 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEdi
                         />
                       </HStack>
                     </FormControl>
-                    <FormControl pt={1}>
-                      <HStack justify="space-between">
-                        <FormLabel fontSize="sm" mb={0}>Clear All Caches</FormLabel>
-                        <Button
-                          size="xs"
-                          colorScheme="red"
-                          variant="outline"
-                          onClick={async () => {
-                            await clearAllCache()
-                            setData([])
-                          }}
-                        >
-                          Clear
-                        </Button>
-                      </HStack>
-                    </FormControl>
                   </VStack>
                 </Box>
               )}
@@ -1181,17 +1165,6 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEdi
           </ModalBody>
           <ModalFooter>
             <Button variant="ghost" mr={3} onClick={onClose}>Cancel</Button>
-            <Button
-              variant="ghost"
-              colorScheme="orange"
-              mr="auto"
-              leftIcon={<RepeatIcon />}
-              onClick={() => { onClose(); handleFullLoad() }}
-              isDisabled={!symbol}
-              title="Re-fetch full history from IBKR"
-            >
-              Full Reload
-            </Button>
             <Button colorScheme="blue" onClick={handleSaveSettings}
               isDisabled={!editSymbol.trim()}>
               Save
