@@ -29,15 +29,22 @@ const VALID_PROPERTIES = new Set([
   'marketCap', 'week52High', 'week52Low', 'change', 'changePercent'
 ])
 
-// close-20, close-5, close-17 etc. — closing price N trading days ago
+// close-20, close-5 etc. — closing price N trading days ago
 const CLOSE_ND_REGEX = /^close-(\d+)$/
 
+// high-252, low-252, avg-252 etc. — high/low/avg close over last N trading days
+const STATS_ND_REGEX = /^(high|low|avg)-(\d+)$/
+
 export function isValidProperty(property) {
-  return VALID_PROPERTIES.has(property) || CLOSE_ND_REGEX.test(property)
+  return VALID_PROPERTIES.has(property) || CLOSE_ND_REGEX.test(property) || STATS_ND_REGEX.test(property)
 }
 
 export function isHistoricalCloseProperty(property) {
   return CLOSE_ND_REGEX.test(property)
+}
+
+export function isHistoricalStatsProperty(property) {
+  return STATS_ND_REGEX.test(property)
 }
 
 // Threshold for SSE vs polling (seconds)
@@ -184,6 +191,11 @@ function getQuoteProperty(quote, property) {
     return quote[property] ?? null
   }
 
+  // Dynamic historical stats: high-252, low-252, avg-252 etc.
+  if (STATS_ND_REGEX.test(property)) {
+    return quote[property] ?? null
+  }
+
   return null
 }
 
@@ -293,8 +305,8 @@ function ensureSSEConnection() {
   eventSource = new EventSource('/api/stream-quotes')
 
   eventSource.onopen = () => {
-    console.log('[symbolQuoteService] SSE connection opened')
     isSSEConnected = true
+    notifySSEStatus(true)
   }
 
   eventSource.onmessage = (event) => {
@@ -310,14 +322,13 @@ function ensureSSEConnection() {
         // Real-time update for a single symbol
         handleQuoteUpdate(data.symbol, data.quote)
       }
-    } catch (err) {
-      console.error('[symbolQuoteService] Failed to parse SSE message:', err)
+    } catch {
     }
   }
 
-  eventSource.onerror = (err) => {
-    console.error('[symbolQuoteService] SSE error:', err)
+  eventSource.onerror = () => {
     isSSEConnected = false
+    notifySSEStatus(false)
     // EventSource will automatically reconnect
   }
 }
@@ -327,7 +338,6 @@ function ensureSSEConnection() {
  */
 function maybeCloseSSE() {
   if (sseSymbols.size === 0 && eventSource) {
-    console.log('[symbolQuoteService] Closing SSE connection (no SSE symbols)')
     eventSource.close()
     eventSource = null
     isSSEConnected = false
@@ -340,8 +350,7 @@ function maybeCloseSSE() {
 async function subscribeSymbolToBackend(symbol) {
   try {
     await api.post('/subscribe', { symbols: [symbol] })
-  } catch (err) {
-    console.error(`[symbolQuoteService] Failed to subscribe ${symbol}:`, err)
+  } catch {
   }
 }
 
@@ -351,8 +360,7 @@ async function subscribeSymbolToBackend(symbol) {
 async function unsubscribeSymbolFromBackend(symbol) {
   try {
     await api.post('/unsubscribe', { symbols: [symbol] })
-  } catch (err) {
-    console.error(`[symbolQuoteService] Failed to unsubscribe ${symbol}:`, err)
+  } catch {
   }
 }
 
@@ -365,14 +373,13 @@ function handleQuoteUpdate(symbol, quote) {
   const merged = { ...existing, ...quote }
   quoteCache.set(normalizedSymbol, merged)
 
-  // Notify all subscribers for this symbol
+  // Notify all subscribers for this symbol (pass merged, not just delta)
   const subs = subscribers.get(normalizedSymbol)
   if (subs) {
     for (const { callback } of subs.values()) {
       try {
-        callback(normalizedSymbol, quote)
-      } catch (err) {
-        console.error(`[symbolQuoteService] Subscriber callback error:`, err)
+        callback(normalizedSymbol, merged)
+      } catch {
       }
     }
   }
@@ -429,8 +436,7 @@ async function fetchPollingQuotes(interval) {
     for (const [symbol, quote] of Object.entries(response.data)) {
       handleQuoteUpdate(symbol, quote)
     }
-  } catch (err) {
-    console.error(`[symbolQuoteService] Polling fetch error:`, err)
+  } catch {
   }
 }
 
@@ -483,7 +489,6 @@ export function parseFormulaPlaceholders(text) {
       const property = refMatch[2].toLowerCase()
 
       const valid = isValidProperty(property)
-      console.log(`[formula:parse] symbol=${symbol} property=${property} valid=${valid} interval=${interval}`)
       if (valid) {
         placeholders.push({ symbol, property, interval })
       }
@@ -508,7 +513,6 @@ export function resolveFormulaText(text, quotes) {
     const substituted = expr.replace(/@\{([A-Za-z0-9.^]+):([A-Za-z]\w*(?:-[A-Za-z0-9]+)*)\}/g, (_, symbol, property) => {
       const quote = quotes.get(symbol.toUpperCase())
       const value = getQuoteProperty(quote, property.toLowerCase())
-      console.log(`[formula:resolve] symbol=${symbol} property=${property} value=${value} quoteKeys=${quote ? Object.keys(quote).join(',') : 'NO_QUOTE'}`)
       if (value === null || value === undefined) {
         hasUnavailable = true
         return '0'
@@ -560,28 +564,23 @@ export function subscribeHistoricalClose(symbol, days, interval) {
   const propertyKey = `close-${days}`
 
   const fetchClose = async () => {
-    console.log(`[historicalClose] fetching ${propertyKey} for ${upperSymbol}`)
     try {
       const res = await api.get(`/close-nd/${upperSymbol}?days=${days}`)
-      console.log(`[historicalClose] got ${propertyKey} for ${upperSymbol}:`, res.data)
       const existing = quoteCache.get(upperSymbol) || { symbol: upperSymbol }
       handleQuoteUpdate(upperSymbol, { ...existing, [propertyKey]: res.data.close })
-    } catch (err) {
-      console.error(`[historicalClose] fetch error for ${upperSymbol} ${propertyKey}:`, err)
+    } catch {
     }
   }
 
   const existing = historicalCloseSubs.get(key)
   if (existing) {
     existing.refCount++
-    console.log(`[historicalClose] reusing existing sub for ${key}, refCount=${existing.refCount}`)
     // Immediately deliver cached value if available
     const cached = quoteCache.get(upperSymbol)
     if (cached?.[propertyKey] !== undefined) {
       handleQuoteUpdate(upperSymbol, cached)
     }
   } else {
-    console.log(`[historicalClose] creating new sub for ${key}, interval=${interval}s`)
     fetchClose()
     const timerId = setInterval(fetchClose, interval * 1000)
     historicalCloseSubs.set(key, { refCount: 1, timerId })
@@ -596,6 +595,73 @@ export function subscribeHistoricalClose(symbol, days, interval) {
       historicalCloseSubs.delete(key)
     }
   }
+}
+
+// Historical stats subscriptions: `${symbol}:stats-${days}` → { refCount, timerId }
+const historicalStatsSubs = new Map()
+
+export function subscribeHistoricalStats(symbol, days, interval) {
+  const upperSymbol = symbol.toUpperCase()
+  const key = `${upperSymbol}:stats-${days}`
+
+  const fetchStats = async () => {
+    try {
+      const res = await api.get(`/stats-nd/${upperSymbol}?days=${days}`)
+      const existing = quoteCache.get(upperSymbol) || { symbol: upperSymbol }
+      handleQuoteUpdate(upperSymbol, {
+        ...existing,
+        [`high-${days}`]: res.data.high,
+        [`low-${days}`]: res.data.low,
+        [`avg-${days}`]: res.data.avg
+      })
+    } catch (err) {
+      console.error(`[historicalStats] fetch error for ${upperSymbol} days=${days}:`, err)
+    }
+  }
+
+  const existing = historicalStatsSubs.get(key)
+  if (existing) {
+    existing.refCount++
+    const cached = quoteCache.get(upperSymbol)
+    if (cached?.[`high-${days}`] !== undefined) {
+      handleQuoteUpdate(upperSymbol, cached)
+    }
+  } else {
+    fetchStats()
+    const timerId = setInterval(fetchStats, interval * 1000)
+    historicalStatsSubs.set(key, { refCount: 1, timerId })
+  }
+
+  return () => {
+    const sub = historicalStatsSubs.get(key)
+    if (!sub) return
+    sub.refCount--
+    if (sub.refCount <= 0) {
+      clearInterval(sub.timerId)
+      historicalStatsSubs.delete(key)
+    }
+  }
+}
+
+// SSE connection status subscribers
+const sseStatusSubscribers = new Set()
+
+function notifySSEStatus(connected) {
+  for (const cb of sseStatusSubscribers) {
+    try { cb(connected) } catch {}
+  }
+}
+
+/**
+ * Subscribe to SSE connection status changes.
+ * Callback is called immediately with current state, then on each change.
+ * @param {Function} callback - Called with (isConnected: boolean)
+ * @returns {Function} Unsubscribe function
+ */
+export function subscribeSSEStatus(callback) {
+  sseStatusSubscribers.add(callback)
+  callback(isSSEConnected)
+  return () => sseStatusSubscribers.delete(callback)
 }
 
 // Export for testing/debugging

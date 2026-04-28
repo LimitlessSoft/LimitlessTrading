@@ -1,3 +1,7 @@
+// OBSOLETE — superseded by /api/stats-nd which provides raw historical stats
+// (high-N, low-N, avg-N) for use in template formula placeholders.
+// To be deleted.
+
 import { Router } from 'express'
 import { getHistoricalData, getCurrentPrices, getConnectionStatus } from '../ibkrClient.js'
 

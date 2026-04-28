@@ -15,7 +15,9 @@ import {
   parseFormulaPlaceholders,
   subscribeQuote,
   subscribeHistoricalClose,
+  subscribeHistoricalStats,
   isHistoricalCloseProperty,
+  isHistoricalStatsProperty,
   resolveSymbolText,
   resolveFormulaText,
   getQuoteValue
@@ -74,16 +76,32 @@ export function useSymbolQuotes(text) {
       newUnsubscribes.push(subscribeQuote(symbol, interval, quoteCallback))
     }
 
-    // Subscribe to historical close fetches (close5d, close20d etc.)
+    // Subscribe to historical close fetches (close-20 etc.)
     for (const { symbol, property, interval } of placeholders) {
       if (!isHistoricalCloseProperty(property)) continue
       const days = parseInt(property.match(/^close-(\d+)$/)[1])
-      // Ensure symbol also has a quote subscription so the callback fires on update
       if (!liveSymbolIntervals.has(symbol)) {
         newUnsubscribes.push(subscribeQuote(symbol, interval, quoteCallback))
         liveSymbolIntervals.set(symbol, interval)
       }
       newUnsubscribes.push(subscribeHistoricalClose(symbol, days, interval))
+    }
+
+    // Subscribe to historical stats fetches (high-252, low-252, avg-252 etc.)
+    // Group by symbol+days so one request covers all three stat types
+    const statsFetched = new Set()
+    for (const { symbol, property, interval } of placeholders) {
+      if (!isHistoricalStatsProperty(property)) continue
+      const days = parseInt(property.match(/^(?:high|low|avg)-(\d+)$/)[1])
+      if (!liveSymbolIntervals.has(symbol)) {
+        newUnsubscribes.push(subscribeQuote(symbol, interval, quoteCallback))
+        liveSymbolIntervals.set(symbol, interval)
+      }
+      const statsKey = `${symbol}:${days}`
+      if (!statsFetched.has(statsKey)) {
+        statsFetched.add(statsKey)
+        newUnsubscribes.push(subscribeHistoricalStats(symbol, days, interval))
+      }
     }
 
     unsubscribesRef.current = newUnsubscribes

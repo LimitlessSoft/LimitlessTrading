@@ -26,6 +26,10 @@ const router = Router()
 const historicalCloseCache = new Map()
 const CLOSE_ND_TTL = 60 * 60 * 1000 // 1 hour
 
+// Server-side cache for stats-nd results: `${symbol}:${days}` → { high, low, avg, fetchedAt }
+const historicalStatsCache = new Map()
+const STATS_ND_TTL = 60 * 60 * 1000 // 1 hour
+
 // Interval to IBKR bar size/duration mapping
 const INTERVAL_CONFIG = {
   '1m':  { barSize: '1 min',   duration: '1 D',   years: 2 },
@@ -283,25 +287,60 @@ router.get('/close-nd/:symbol', async (req, res) => {
   }
 
   try {
-    // Request enough calendar days to cover N trading days (weekends/holidays ≈ 2× buffer)
     const calendarDays = Math.ceil(days * 2) + 10
-    console.log(`[close-nd] fetching ${upperSymbol} days=${days} calendarDays=${calendarDays}`)
     const bars = await getHistoricalData(upperSymbol, '1 day', `${calendarDays} D`)
-    console.log(`[close-nd] ${upperSymbol} got ${bars.length} bars, need >${days}`)
 
     if (bars.length <= days) {
-      console.warn(`[close-nd] not enough bars for ${upperSymbol}: got ${bars.length}, need >${days}`)
       return res.status(404).json({ error: 'Not enough historical data' })
     }
 
-    // bars[-1] = most recent trading day; bars[-1-days] = N trading days ago
     const targetBar = bars[bars.length - 1 - days]
-    console.log(`[close-nd] ${upperSymbol} day-${days} close=${targetBar.close} date=${targetBar.timestamp}`)
     historicalCloseCache.set(cacheKey, { close: targetBar.close, date: targetBar.timestamp, fetchedAt: Date.now() })
 
     res.json({ symbol: upperSymbol, days, close: targetBar.close, date: targetBar.timestamp })
   } catch (error) {
     console.error(`[close-nd] error for ${upperSymbol}:`, error.message)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Get high, low, avg close over last N trading days
+router.get('/stats-nd/:symbol', async (req, res) => {
+  const { symbol } = req.params
+  const days = parseInt(req.query.days)
+
+  if (!symbol || !days || days < 1 || days > 504) {
+    return res.status(400).json({ error: 'days must be between 1 and 504' })
+  }
+
+  const upperSymbol = symbol.toUpperCase()
+  const cacheKey = `${upperSymbol}:${days}`
+  const cached = historicalStatsCache.get(cacheKey)
+
+  if (cached && Date.now() - cached.fetchedAt < STATS_ND_TTL) {
+    return res.json({ symbol: upperSymbol, days, high: cached.high, low: cached.low, avg: cached.avg })
+  }
+
+  try {
+    const calendarDays = Math.ceil(days * 2) + 10
+    const duration = calendarDays > 365
+      ? `${Math.ceil(calendarDays / 365)} Y`
+      : `${calendarDays} D`
+    const bars = await getHistoricalData(upperSymbol, '1 day', duration)
+
+    if (bars.length < days) {
+      return res.status(404).json({ error: 'Not enough historical data' })
+    }
+
+    const closes = bars.slice(-days).map(b => b.close)
+    const high = Math.max(...closes)
+    const low = Math.min(...closes)
+    const avg = closes.reduce((a, b) => a + b, 0) / closes.length
+
+    historicalStatsCache.set(cacheKey, { high, low, avg, fetchedAt: Date.now() })
+    res.json({ symbol: upperSymbol, days, high, low, avg })
+  } catch (error) {
+    console.error(`[stats-nd] error for ${upperSymbol}:`, error.message)
     res.status(500).json({ error: error.message })
   }
 })
