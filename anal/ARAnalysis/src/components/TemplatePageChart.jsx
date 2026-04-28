@@ -36,11 +36,12 @@ const DownloadIcon = () => (
   </svg>
 )
 import { fetchFromCache, loadHistoricalData, refreshRecentData, fetchOlderData, clearAllCache, cacheNeedsRefresh, INTERVALS } from '../modules/dataService'
-import { subscribeQuote } from '../modules/symbolQuoteService'
+import { subscribeQuote, subscribeSSEStatus } from '../modules/symbolQuoteService'
 import {
   getGlobalChartSettings,
   saveGlobalChartSettings,
-  isRTHTimestamp
+  isRTHTimestamp,
+  isMarketOpen
 } from '../modules/globalChartSettings'
 
 const TOTAL_SEGMENTS = 20
@@ -62,7 +63,7 @@ const DEFAULT_STYLE = {
 // Candlestick SVG — renders inside the chart control
 function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRthBgColor, fontSize, volumeMultiplier,
   onSymbolClick, quickInputOpen, quickSymbol, quickInputRef, onQuickSymbolChange, onQuickSymbolKeyDown, onQuickSymbolCommit,
-  onIntervalChange, ohlcPosition }) {
+  onIntervalChange, ohlcPosition, liveConnected, marketOpen, showMarketIndicator }) {
   const [tooltip,    setTooltip]    = useState(null)
   const [crosshairY, setCrosshairY] = useState(null)
   const [mouseX,     setMouseX]     = useState(null)
@@ -173,6 +174,23 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
             </MenuList>
           </Portal>
         </Menu>
+        {showMarketIndicator && (
+          <Tooltip
+            label={marketOpen ? 'Market open' : 'Market closed'}
+            placement="bottom"
+            hasArrow
+            openDelay={300}
+          >
+            <Box
+              w="6px"
+              h="6px"
+              borderRadius="full"
+              bg={marketOpen ? 'green.400' : 'gray.600'}
+              flexShrink={0}
+              pointerEvents="auto"
+            />
+          </Tooltip>
+        )}
       </HStack>
       <svg
         width="100%"
@@ -314,7 +332,7 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
           const lastY = priceToY(lastPrice)
           if (lastY < padding.top || lastY > height - padding.bottom) return null
           const isUp = lastBar.close >= lastBar.open
-          const lineColor = isUp ? '#48bb78' : '#f56565'
+          const lineColor = liveConnected === false ? '#718096' : (isUp ? '#48bb78' : '#f56565')
           return (
             <g pointerEvents="none">
               <line x1={padding.left} y1={lastY} x2={padding.left + chartWidth} y2={lastY}
@@ -425,6 +443,8 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEdi
   const [maxBars,         setMaxBars]         = useState(DEFAULT_MAX_BARS)
   const [isFetchingOlder, setIsFetchingOlder] = useState(false)
   const [hasMoreHistory,  setHasMoreHistory]  = useState(true)
+  const [liveConnected,   setLiveConnected]   = useState(true)
+  const [marketOpen,      setMarketOpen]      = useState(isMarketOpen)
   const quickInputRef   = useRef(null)
   const boxRef          = useRef(null)
   const cancelRef       = useRef(null)
@@ -488,7 +508,6 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEdi
           },
           (err) => {
             if (gen !== loadGenRef.current) return
-            console.error('[TemplatePageChart] auto-load error', err)
             setLoading(false)
             setLoadProgress(null)
             cancelRef.current = null
@@ -504,7 +523,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEdi
               if (gen !== loadGenRef.current) return
               setData([...freshData].sort((a, b) => a.timestamp - b.timestamp))
             })
-            .catch(err => console.warn('[TemplatePageChart] background refresh failed', err))
+            .catch(() => {})
         }
       }
     })
@@ -532,6 +551,18 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEdi
     })
     return unsub
   }, [symbol, interval])
+
+  // Track SSE connection state for live-price indicator
+  useEffect(() => {
+    if (!INTRADAY_INTERVALS.includes(interval)) { setLiveConnected(true); return }
+    return subscribeSSEStatus(setLiveConnected)
+  }, [interval])
+
+  // Refresh market-open indicator every minute
+  useEffect(() => {
+    const timer = setInterval(() => setMarketOpen(isMarketOpen()), 60000)
+    return () => clearInterval(timer)
+  }, [])
 
   // Periodic fetch to pull in newly completed bars (every 60s)
   useEffect(() => {
@@ -714,10 +745,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEdi
         if (gen !== loadGenRef.current) return
         setData([...finalData].sort((a, b) => a.timestamp - b.timestamp))
       })
-      .catch(err => {
-        if (gen !== loadGenRef.current) return
-        console.error('[TemplatePageChart] refresh error', err)
-      })
+      .catch(() => {})
       .finally(() => {
         if (gen !== loadGenRef.current) return
         setLoading(false)
@@ -749,7 +777,6 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEdi
       },
       (err) => {
         if (gen !== loadGenRef.current) return
-        console.error('[TemplatePageChart] full load error', err)
         setLoading(false)
         setLoadProgress(null)
         cancelRef.current = null
@@ -782,8 +809,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEdi
         if (!hadData) setHasMoreHistory(false)
         olderCancelRef.current = null
       },
-      (err) => {
-        console.error('[TemplatePageChart] fetchOlderData error', err)
+      () => {
         setIsFetchingOlder(false)
         olderCancelRef.current = null
       }
@@ -975,6 +1001,9 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEdi
             fontSize={globalSettings.fontSize ?? 9}
             volumeMultiplier={globalSettings.volumeMultiplier ?? 1}
             ohlcPosition={globalSettings.ohlcPosition ?? 'mouse'}
+            liveConnected={liveConnected}
+            marketOpen={marketOpen}
+            showMarketIndicator={globalSettings.showMarketIndicator ?? true}
             onSymbolClick={handleSymbolLabelClick}
             quickInputOpen={quickInputOpen}
             quickSymbol={quickSymbol}
@@ -1200,6 +1229,16 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEdi
                             Reset
                           </Button>
                         </HStack>
+                      </HStack>
+                    </FormControl>
+                    <FormControl>
+                      <HStack justify="space-between">
+                        <FormLabel fontSize="sm" mb={0}>Market Indicator</FormLabel>
+                        <Switch
+                          isChecked={editGlobal.showMarketIndicator ?? true}
+                          onChange={(e) => setEditGlobal(g => ({ ...g, showMarketIndicator: e.target.checked }))}
+                          colorScheme="blue"
+                        />
                       </HStack>
                     </FormControl>
                     <FormControl>

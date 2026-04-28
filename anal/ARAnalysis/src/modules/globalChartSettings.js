@@ -7,7 +7,8 @@ export const DEFAULT_GLOBAL_CHART_SETTINGS = {
   invertScroll: false,
   invertDrag: false,
   volumeMultiplier: 1,
-  ohlcPosition: 'mouse'
+  ohlcPosition: 'mouse',
+  showMarketIndicator: true
 }
 
 export function getGlobalChartSettings() {
@@ -24,6 +25,19 @@ export function getGlobalChartSettings() {
 export function saveGlobalChartSettings(settings) {
   localStorage.setItem(KEY, JSON.stringify(settings))
   window.dispatchEvent(new CustomEvent('globalChartSettingsChanged', { detail: settings }))
+}
+
+// Returns true if the market is currently open (NYSE RTH, weekdays only)
+export function isMarketOpen() {
+  const now = Date.now()
+  const date = new Date(now)
+  const dayParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    weekday: 'short'
+  }).formatToParts(date)
+  const weekday = dayParts.find(p => p.type === 'weekday').value
+  if (weekday === 'Sat' || weekday === 'Sun') return false
+  return isRTHTimestamp(now)
 }
 
 // Returns true if timestamp falls within NYSE regular session (9:30–16:00 ET)
