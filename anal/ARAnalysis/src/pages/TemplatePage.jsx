@@ -54,6 +54,7 @@ function TemplatePage() {
   const containerRef = useRef(null)
   const headerRef = useRef(null)
   const fileInputRef = useRef(null)
+  const controlImportRef = useRef(null)
   const [dragPreview, setDragPreview] = useState(null)  // { id, x, y } during drag
   const [activeDrag, setActiveDrag] = useState(null)  // { controlId, mousePos } during drag
 
@@ -247,6 +248,48 @@ function TemplatePage() {
     }
   }
 
+  const regenerateIds = (control) => {
+    const result = { ...control, id: crypto.randomUUID() }
+    if (result.children) result.children = result.children.map(regenerateIds)
+    return result
+  }
+
+  const handleExportControl = (control) => {
+    const exportData = { version: 1, control }
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const name = control.text || control.symbol || control.type || 'control'
+    a.download = `${name.toLowerCase().replace(/\s+/g, '-')}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleImportControlFileChange = async (e) => {
+    const file = e.target.files[0]
+    if (!file || !pageInfo) return
+    e.target.value = ''
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      try {
+        const data = JSON.parse(event.target.result)
+        if (!data.control || typeof data.control !== 'object') {
+          throw new Error('Invalid control file — missing control object')
+        }
+        const control = regenerateIds({ ...data.control, x: 0, y: 0 })
+        const currentLabels = pageInfo.config?.labels || []
+        const updatedConfig = { ...pageInfo.config, labels: [...currentLabels, control] }
+        const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
+        setPageInfo(updatedRoute)
+        toast({ title: 'Control imported', status: 'success', duration: 2000 })
+      } catch (err) {
+        toast({ title: 'Import failed', description: err.message, status: 'error', duration: 3000 })
+      }
+    }
+    reader.readAsText(file)
+  }
+
   const handleExport = () => {
     if (!pageInfo) return
     const exportData = {
@@ -338,6 +381,7 @@ function TemplatePage() {
       label: control,
       onDelete: handleDeleteHeaderControl,
       onUpdate: handleUpdateHeaderControl,
+      onExport: handleExportControl,
       onDragStateChange: (dragging, mousePos) => setActiveDrag(dragging ? { controlId: control.id, mousePos } : null),
       onMoveControl: handleMoveControl,
       activeDrag: activeDrag,
@@ -429,6 +473,9 @@ function TemplatePage() {
             <MenuItem bg="gray.800" _hover={{ bg: 'gray.700' }} onClick={() => fileInputRef.current?.click()}>
               Import template
             </MenuItem>
+            <MenuItem bg="gray.800" _hover={{ bg: 'gray.700' }} onClick={() => controlImportRef.current?.click()}>
+              Import control
+            </MenuItem>
           </MenuList>
         </Menu>
         <input
@@ -437,6 +484,13 @@ function TemplatePage() {
           accept=".json"
           style={{ display: 'none' }}
           onChange={handleImportFileChange}
+        />
+        <input
+          ref={controlImportRef}
+          type="file"
+          accept=".json"
+          style={{ display: 'none' }}
+          onChange={handleImportControlFileChange}
         />
       </PageNavMenu>
       <Box p={8}>
@@ -457,6 +511,7 @@ function TemplatePage() {
                   layoutY: layoutPositions.get(label.id),
                   onDelete: handleDeleteLabel,
                   onUpdate: handleUpdateLabel,
+                  onExport: handleExportControl,
                   onDragPreview: (pos) => setDragPreview(pos ? { id: label.id, ...pos } : null),
                   onDragStateChange: (dragging, mousePos) => setActiveDrag(dragging ? { controlId: label.id, mousePos } : null),
                   onMoveControl: handleMoveControl,

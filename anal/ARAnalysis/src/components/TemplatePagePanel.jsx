@@ -17,9 +17,16 @@ import {
   HStack,
   VStack,
   Checkbox,
+  Tooltip,
   useDisclosure
 } from '@chakra-ui/react'
 import { CloseIcon, DragHandleIcon, SettingsIcon, AddIcon } from '@chakra-ui/icons'
+
+const DownloadIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+    <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 4v-2h14v2H5z" />
+  </svg>
+)
 import TemplatePageLabel from './TemplatePageLabel'
 import TemplatePageBadge from './TemplatePageBadge'
 
@@ -35,7 +42,7 @@ const DEFAULT_STYLE = {
   verticalAlign: 'top'
 }
 
-function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, onDragStateChange, onMoveControl, activeDrag, parentPanelId, isEditing, containerRef }) {
+function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveControl, activeDrag, parentPanelId, isEditing, containerRef }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -431,6 +438,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
       layoutY: (childLayoutPositions.get(child.id) || 0) + verticalOffset,
       onDelete: handleDeleteChild,
       onUpdate: handleUpdateChild,
+      onExport: onExport,
       onDragStateChange: onDragStateChange,
       onMoveControl: onMoveControl,
       activeDrag: activeDrag,
@@ -491,6 +499,17 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
               onClick={(e) => { e.stopPropagation(); onAddOpen() }}
               onMouseDown={(e) => e.stopPropagation()}
             />
+            <Tooltip label="Export panel" placement="top" hasArrow>
+              <IconButton
+                icon={<DownloadIcon />}
+                size="xs"
+                variant="ghost"
+                aria-label="Export panel"
+                onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
+                onMouseDown={(e) => e.stopPropagation()}
+                ml={1}
+              />
+            </Tooltip>
             <IconButton
               icon={<SettingsIcon />}
               size="xs"

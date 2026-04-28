@@ -25,9 +25,16 @@ import {
   MenuItem,
   Portal,
   Switch,
+  Tooltip,
   useDisclosure
 } from '@chakra-ui/react'
 import { CloseIcon, SettingsIcon, RepeatIcon } from '@chakra-ui/icons'
+
+const DownloadIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+    <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 4v-2h14v2H5z" />
+  </svg>
+)
 import { fetchFromCache, loadHistoricalData, refreshRecentData, fetchOlderData, clearAllCache, cacheNeedsRefresh, INTERVALS } from '../modules/dataService'
 import { subscribeQuote } from '../modules/symbolQuoteService'
 import {
@@ -354,7 +361,7 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
   )
 }
 
-function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, containerRef }) {
+function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, isEditing, containerRef }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving,   setIsMoving]   = useState(false)
   const [isPanning,  setIsPanning]  = useState(false)
@@ -943,16 +950,30 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, isEditing, cont
             onMouseDown={(e) => e.stopPropagation()}
           />
           {isEditing && (
-            <IconButton
-              icon={<CloseIcon />}
-              size="xs"
-              variant="ghost"
-              aria-label="Delete chart"
-              color="gray.400"
-              _hover={{ color: 'red.400', bg: 'whiteAlpha.200' }}
-              onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
-              onMouseDown={(e) => e.stopPropagation()}
-            />
+            <>
+              <Tooltip label="Export chart" placement="top" hasArrow>
+                <IconButton
+                  icon={<DownloadIcon />}
+                  size="xs"
+                  variant="ghost"
+                  aria-label="Export chart"
+                  color="gray.400"
+                  _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
+                  onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                />
+              </Tooltip>
+              <IconButton
+                icon={<CloseIcon />}
+                size="xs"
+                variant="ghost"
+                aria-label="Delete chart"
+                color="gray.400"
+                _hover={{ color: 'red.400', bg: 'whiteAlpha.200' }}
+                onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+                onMouseDown={(e) => e.stopPropagation()}
+              />
+            </>
           )}
         </HStack>
 

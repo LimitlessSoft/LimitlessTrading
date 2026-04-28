@@ -23,6 +23,12 @@ import {
   useDisclosure
 } from '@chakra-ui/react'
 import { CloseIcon, DragHandleIcon, SettingsIcon, AddIcon, DeleteIcon } from '@chakra-ui/icons'
+
+const DownloadIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+    <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 4v-2h14v2H5z" />
+  </svg>
+)
 import { getConnectionStatus } from '../modules/dataService'
 import { useSymbolQuotes, hasSymbolPlaceholders } from '../hooks/useSymbolQuotes'
 import { parseSymbolPlaceholders, formatQuoteValue } from '../modules/symbolQuoteService'
@@ -46,7 +52,7 @@ const PLACEHOLDER_REGEX_GLOBAL = /\$\{(\w+)(?::(\d+))?\}/g
 // Symbol quote placeholder pattern: @{SYMBOL:property:seconds}
 const SYMBOL_QUOTE_REGEX = /@\{([A-Za-z0-9.^]+):(\w+)(?::(\d+))?\}/
 
-function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, onDragStateChange, onMoveControl, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode }) {
+function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveControl, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -536,6 +542,17 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
           )}
           {isEditing && (
             <>
+              <Tooltip label="Export badge" placement="top" hasArrow>
+                <IconButton
+                  icon={<DownloadIcon />}
+                  size="xs"
+                  variant="ghost"
+                  aria-label="Export badge"
+                  onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  ml={1}
+                />
+              </Tooltip>
               <IconButton
                 icon={<SettingsIcon />}
                 size="xs"
@@ -756,6 +773,19 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onDragPreview, 
 
         {isEditing && (
           <>
+            <Tooltip label="Export badge" placement="top" hasArrow>
+              <IconButton
+                icon={<DownloadIcon />}
+                size="xs"
+                variant="ghost"
+                aria-label="Export badge"
+                onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
+                onMouseDown={(e) => e.stopPropagation()}
+                position="absolute"
+                top={0}
+                right={12}
+              />
+            </Tooltip>
             <IconButton
               icon={<SettingsIcon />}
               size="xs"

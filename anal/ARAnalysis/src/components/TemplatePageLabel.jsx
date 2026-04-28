@@ -22,6 +22,12 @@ import {
   useDisclosure
 } from '@chakra-ui/react'
 import { CloseIcon, DragHandleIcon, SettingsIcon, InfoOutlineIcon } from '@chakra-ui/icons'
+
+const DownloadIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+    <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 4v-2h14v2H5z" />
+  </svg>
+)
 import { useNavigate } from 'react-router-dom'
 import { getConnectionStatus } from '../modules/dataService'
 import { useSymbolQuotes, hasSymbolPlaceholders } from '../hooks/useSymbolQuotes'
@@ -47,7 +53,7 @@ const DEFAULT_STYLE = {
 // Placeholder pattern for template variables: ${name} or ${name:interval}
 const PLACEHOLDER_REGEX = /\$\{(\w+)(?::(\d+))?\}/g
 
-function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, onDragStateChange, onMoveControl, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode }) {
+function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveControl, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -451,6 +457,17 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
           </Text>
           {isEditing && (
             <>
+              <Tooltip label="Export label" placement="top" hasArrow>
+                <IconButton
+                  icon={<DownloadIcon />}
+                  size="xs"
+                  variant="ghost"
+                  aria-label="Export label"
+                  onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  ml={1}
+                />
+              </Tooltip>
               <IconButton
                 icon={<SettingsIcon />}
                 size="xs"
@@ -597,6 +614,18 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
         </Text>
         {isEditing && (
           <>
+            <Tooltip label="Export label" placement="top" hasArrow>
+              <IconButton
+                icon={<DownloadIcon />}
+                size="xs"
+                variant="ghost"
+                aria-label="Export label"
+                onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
+                onMouseDown={(e) => e.stopPropagation()}
+                ml={2}
+                flexShrink={0}
+              />
+            </Tooltip>
             <IconButton
               icon={<SettingsIcon />}
               size="xs"
@@ -604,7 +633,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onDragPreview, 
               aria-label="Edit label style"
               onClick={(e) => { e.stopPropagation(); handleOpenEdit() }}
               onMouseDown={(e) => e.stopPropagation()}
-              ml={2}
+              ml={1}
               flexShrink={0}
             />
             <IconButton
