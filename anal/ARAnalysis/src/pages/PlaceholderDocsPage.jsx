@@ -32,17 +32,10 @@ function SubHeading({ children }) {
 }
 
 function PlaceholderDocsPage() {
-  const navigate = useNavigate()
 
   return (
     <Box minH="100vh" bg="gray.900" color="white" p={8}>
       <HStack mb={6}>
-        <IconButton
-          icon={<ArrowBackIcon />}
-          aria-label="Go back"
-          variant="ghost"
-          onClick={() => navigate(-1)}
-        />
         <Heading size="lg">Placeholder Reference</Heading>
       </HStack>
 
@@ -174,7 +167,6 @@ function PlaceholderDocsPage() {
                     [<Code>marketCap</Code>, '—', 'Market capitalization', '$X.XXM/B/T'],
                     [<Code>week52High</Code>, '—', '52-week high', '2 decimals'],
                     [<Code>week52Low</Code>, '—', '52-week low', '2 decimals'],
-                    [<Code>close-N</Code>, <Text fontSize="xs"><Code>N</Code> — trading days back</Text>, 'Historical closing price N trading days ago. Cached server-side for 1 hour.', '2 decimals'],
                   ]}
                 />
               </VStack>
