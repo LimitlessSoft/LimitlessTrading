@@ -440,9 +440,10 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const [editSymbol,     setEditSymbol]     = useState('')
   const [editInterval,   setEditInterval]   = useState('5m')
   const [globalSettings, setGlobalSettings] = useState(getGlobalChartSettings)
-  const [editGlobal,     setEditGlobal]     = useState(null)
-  const [fontSizeDraft,  setFontSizeDraft]  = useState('')
-  const [volMultDraft,   setVolMultDraft]   = useState('')
+  const [editGlobal,      setEditGlobal]      = useState(null)
+  const [editOutsideRTH,  setEditOutsideRTH]  = useState('global')
+  const [fontSizeDraft,   setFontSizeDraft]   = useState('')
+  const [volMultDraft,    setVolMultDraft]    = useState('')
   const [containerWidth, setContainerWidth] = useState(400)
   const [viewOffset,      setViewOffset]      = useState(0)
   const [quickSymbol,     setQuickSymbol]     = useState('')
@@ -963,6 +964,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const handleOpenSettings = () => {
     setEditSymbol(symbol)
     setEditInterval(interval)
+    setEditOutsideRTH(label.outsideRTH ?? 'global')
     setEditGlobal({ ...globalSettings })
     setFontSizeDraft(String(globalSettings.fontSize ?? 9))
     setVolMultDraft(String(globalSettings.volumeMultiplier ?? 1))
@@ -994,7 +996,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const handleSaveSettings = () => {
     const newSymbol = editSymbol.trim().toUpperCase()
     if (!newSymbol) return
-    onUpdate(label.id, { symbol: newSymbol, interval: editInterval })
+    onUpdate(label.id, { symbol: newSymbol, interval: editInterval, outsideRTH: editOutsideRTH })
     if (editGlobal) {
       saveGlobalChartSettings(editGlobal)
       setGlobalSettings(editGlobal)
@@ -1007,6 +1009,11 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const endIdx   = data.length - clampedOffset
   const startIdx = Math.max(0, endIdx - maxBars)
   const visibleData = data.slice(startIdx, endIdx)
+
+  const resolvedOutsideRTH = (label.outsideRTH == null || label.outsideRTH === 'global')
+    ? (globalSettings.outsideRTH ?? true)
+    : label.outsideRTH
+  const displayData = resolvedOutsideRTH ? visibleData : visibleData.filter(b => isRTHTimestamp(b.timestamp))
 
   return (
     <>
@@ -1029,7 +1036,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
         opacity={isMoving ? 0.7 : 1}
         cursor={isEditing ? (isMoving ? 'grabbing' : 'move') : (isPanning ? 'grabbing' : 'grab')}
         zIndex={isMoving ? 100 : 1}
-        onMouseDown={isEditing && !isResizing ? handleMoveStart : (!isEditing && visibleData.length > 0 ? handlePanStart : undefined)}
+        onMouseDown={isEditing && !isResizing ? handleMoveStart : (!isEditing && displayData.length > 0 ? handlePanStart : undefined)}
       >
         {/* Chart content */}
         {loading ? (
@@ -1045,7 +1052,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
           <Center h="100%">
             <Text fontSize="xs" color="gray.600">No symbol — open settings</Text>
           </Center>
-        ) : visibleData.length === 0 ? (
+        ) : displayData.length === 0 ? (
           <Center h="100%">
             <VStack spacing={2}>
               <Text fontSize="xs" color="gray.600">No data for {symbol} ({interval})</Text>
@@ -1062,7 +1069,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
               </Box>
             )}
           <ChartSVG
-            data={visibleData}
+            data={displayData}
             width={containerWidth || 400}
             height={displayHeight}
             symbol={symbol}
@@ -1207,6 +1214,30 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
                   ))}
                 </Select>
               </FormControl>
+              <FormControl>
+                <HStack justify="space-between">
+                  <FormLabel fontSize="sm" mb={0}>Outside RTH</FormLabel>
+                  <HStack spacing={0} borderRadius="md" overflow="hidden" border="1px solid" borderColor="gray.600">
+                    {[['global', 'Global settings'], [true, 'True'], [false, 'False']].map(([val, optLabel]) => (
+                      <Button
+                        key={String(val)}
+                        size="xs"
+                        variant="unstyled"
+                        px={3}
+                        py={1}
+                        h="auto"
+                        borderRadius={0}
+                        bg={editOutsideRTH === val ? 'blue.600' : 'transparent'}
+                        color={editOutsideRTH === val ? 'white' : 'gray.400'}
+                        _hover={{ color: 'white' }}
+                        onClick={() => setEditOutsideRTH(val)}
+                      >
+                        {optLabel}
+                      </Button>
+                    ))}
+                  </HStack>
+                </HStack>
+              </FormControl>
 
               {/* Global chart settings */}
               {editGlobal && (
@@ -1320,6 +1351,16 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
                         <Switch
                           isChecked={editGlobal.showMarketIndicator ?? true}
                           onChange={(e) => setEditGlobal(g => ({ ...g, showMarketIndicator: e.target.checked }))}
+                          colorScheme="blue"
+                        />
+                      </HStack>
+                    </FormControl>
+                    <FormControl>
+                      <HStack justify="space-between">
+                        <FormLabel fontSize="sm" mb={0}>Outside RTH</FormLabel>
+                        <Switch
+                          isChecked={editGlobal.outsideRTH ?? true}
+                          onChange={(e) => setEditGlobal(g => ({ ...g, outsideRTH: e.target.checked }))}
                           colorScheme="blue"
                         />
                       </HStack>

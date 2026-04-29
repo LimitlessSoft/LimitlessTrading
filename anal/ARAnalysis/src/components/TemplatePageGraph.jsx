@@ -127,6 +127,9 @@ function GraphSVG({ seriesEntries, width, height, tooltipPosition = 'cursor' }) 
       : d.toLocaleDateString([], { month: 'short', day: 'numeric' })
   }
 
+  const barSeriesIds = seriesEntries.filter(e => e.config.viewType === 'bars').map(e => e.config.id)
+  const numBarSeries = barSeriesIds.length
+
   const rendered = seriesEntries.map(({ config, data }) => {
     if (!data.length) return { el: null, config, hoverVal: null, scale: null }
 
@@ -155,18 +158,19 @@ function GraphSVG({ seriesEntries, width, height, tooltipPosition = 'cursor' }) 
     if (config.viewType === 'bars') {
       const n = allTs.length
       const barSlot = chartW / n
-      const barW = Math.max(1, barSlot * 0.7)
+      const subSlotW = barSlot / Math.max(1, numBarSeries)
+      const barSeriesIdx = barSeriesIds.indexOf(config.id)
       el = (
         <g key={config.id}>
           {data.map(d => {
             const idx = allTs.indexOf(d.timestamp)
-            const cx = padding.left + (idx + 0.5) * barSlot
+            const x = padding.left + idx * barSlot + barSeriesIdx * subSlotW
             const y = valToY(d.value)
             const highlighted = hoverTs !== null && d.timestamp === hoverTs
             return (
               <rect key={d.timestamp}
-                x={cx - barW / 2} y={y}
-                width={barW} height={Math.max(1, padding.top + chartH - y)}
+                x={x} y={y}
+                width={Math.max(1, subSlotW)} height={Math.max(1, padding.top + chartH - y)}
                 fill={config.color} opacity={highlighted ? 1 : 0.75}
               />
             )

@@ -10,7 +10,8 @@ export const DEFAULT_GLOBAL_CHART_SETTINGS = {
   ohlcPosition: 'mouse',
   showMarketIndicator: true,
   shiftScrollZoom: true,
-  graphTooltipPosition: 'cursor'
+  graphTooltipPosition: 'cursor',
+  outsideRTH: true
 }
 
 export function getGlobalChartSettings() {
