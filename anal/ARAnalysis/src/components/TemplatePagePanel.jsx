@@ -22,6 +22,7 @@ import {
   useDisclosure
 } from '@chakra-ui/react'
 import { CloseIcon, DragHandleIcon, SettingsIcon, AddIcon } from '@chakra-ui/icons'
+import FillIcon from './FillIcon'
 
 const DownloadIcon = () => (
   <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
@@ -245,9 +246,56 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
     onUpdate(label.id, { children: updatedChildren })
   }
 
-  // In grid/flow modes, strip position/size changes so the layout algorithm stays in control
+  // In flow mode, position changes reorder the children array; in grid mode strip them
   const handleUpdateChildInLayout = (childId, changes) => {
     const { x, y, width, height, ...rest } = changes
+
+    if (layoutMode === 'flow' && (y !== undefined || x !== undefined)) {
+      const dragY = y ?? 0
+      const dragX = x ?? 0
+      const dir = style.flowDirection || 'row'
+
+      const others = children.filter(c => c.id !== childId).map(c => {
+        const layout = childLayoutMap.get(c.id) || { layoutY: 0, labelOverride: null }
+        const def = WIDGET_REGISTRY[c.type] || WIDGET_REGISTRY.label
+        const h = c.height ?? def.height
+        const w = c.width ?? def.width
+        return {
+          id: c.id,
+          rowY: layout.layoutY,
+          rowH: h,
+          cy: layout.layoutY + h / 2,
+          cx: (layout.labelOverride?.x ?? 0) + w / 2,
+        }
+      })
+
+      let newIndex = others.length
+      for (let i = 0; i < others.length; i++) {
+        const { cy, cx, rowY, rowH } = others[i]
+        if (dir === 'column') {
+          if (dragY < cy) { newIndex = i; break }
+        } else {
+          // Row flow: items on the same row share layoutY; compare cx within a row, cy across rows
+          const sameRow = dragY >= rowY && dragY < rowY + rowH
+          if (sameRow) {
+            if (dragX < cx) { newIndex = i; break }
+          } else if (dragY < cy) {
+            newIndex = i; break
+          }
+        }
+      }
+
+      const withoutDragged = children.filter(c => c.id !== childId)
+      const dragged = children.find(c => c.id === childId)
+      if (dragged) {
+        const reordered = [...withoutDragged.slice(0, newIndex), dragged, ...withoutDragged.slice(newIndex)]
+        if (reordered.some((c, i) => c.id !== children[i]?.id)) {
+          onUpdate(label.id, { children: reordered })
+          return
+        }
+      }
+    }
+
     if (Object.keys(rest).length > 0) handleUpdateChild(childId, rest)
   }
 
@@ -480,9 +528,13 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
 
   const renderChild = (child) => {
     const layout = childLayoutMap.get(child.id) || { layoutY: 0, labelOverride: null }
+    const fillOverride = child.dock === 'fill' && layoutMode === 'absolute'
+      ? { x: 0, y: 0, width: TOTAL_SEGMENTS, height: displayHeight - 2 * PADDING }
+      : null
+    const effectiveOverride = fillOverride || layout.labelOverride
     return renderWidget(child, {
       key: child.id,
-      label: layout.labelOverride ? { ...child, ...layout.labelOverride } : child,
+      label: effectiveOverride ? { ...child, ...effectiveOverride } : child,
       layoutY: layout.layoutY,
       onDelete: handleDeleteChild,
       onUpdate: layoutMode !== 'absolute' ? handleUpdateChildInLayout : handleUpdateChild,
@@ -496,15 +548,13 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
     })
   }
 
-  // Grid uses wrapper Boxes so cell gaps are symmetric (4px edges, 8px between).
-  // The widget -8px width convention is absorbed by making each wrapper 8px wider than
-  // the visual cell, so: wrapper left = col/N*100% + 4px, wrapper width = 100%/N.
-  // Child renders at x=0,w=TOTAL_SEGMENTS → width = 100%-8px = visual cell width.
   const renderGridChildren = () => {
-    const cols = Math.max(1, style.gridCols || 2)
-    const rows = Math.max(1, style.gridRows || 2)
-    const contentH = displayHeight - 2 * PADDING
-    const cellH = Math.max(40, (contentH - (rows - 1) * 8) / rows)
+    const gridAxis = style.gridAxis || 'columns'
+    const gridCount = Math.max(1, style.gridCount || 2)
+    const gridCellSize = Math.max(20, style.gridCellSize || 80)
+    const contentH = displayHeight - 2 * (style.borderWidth || 0)
+    const contentW = childContainerRef.current?.clientWidth || 0
+    const unit = style.gridCellSizeUnit || 'px'
     const childProps = {
       onDelete: handleDeleteChild,
       onUpdate: handleUpdateChildInLayout,
@@ -516,32 +566,123 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
       isEditing,
       containerRef: childContainerRef,
     }
-    return children.map((child, i) => {
-      const col = i % cols
-      const row = Math.floor(i / cols)
-      return (
-        <Box
-          key={child.id}
-          position="absolute"
-          left={`calc(${(col / cols) * 100}% + 4px)`}
-          top={`${row * (Math.round(cellH) + 8)}px`}
-          width={`${(1 / cols) * 100}%`}
-          height={`${Math.round(cellH)}px`}
-          overflow="hidden"
-        >
-          {renderWidget(child, {
-            key: child.id,
-            label: { ...child, x: 0, y: 0, width: TOTAL_SEGMENTS, height: Math.round(cellH) },
-            layoutY: 0,
-            ...childProps,
-          })}
-        </Box>
-      )
-    })
+
+    if (gridAxis === 'columns') {
+      const cols = gridCount
+      const visibleRows = unit === '%' ? Math.max(1, Math.floor(100 / gridCellSize)) : Math.max(1, Math.ceil(children.length / cols))
+      const availableH = contentH - (visibleRows - 1) * 8
+      const cellH = Math.max(20, unit === '%' ? availableH * gridCellSize / 100 : gridCellSize)
+      return children.map((child, i) => {
+        const col = i % cols
+        const row = Math.floor(i / cols)
+        return (
+          <Box
+            key={child.id}
+            position="absolute"
+            left={`calc(${(col / cols) * 100}% + 4px)`}
+            top={`${row * (cellH + 8)}px`}
+            width={`${(1 / cols) * 100}%`}
+            height={`${cellH}px`}
+            overflow="hidden"
+          >
+            {renderWidget(child, {
+              key: child.id,
+              label: { ...child, x: 0, y: 0, width: TOTAL_SEGMENTS, height: cellH },
+              layoutY: 0,
+              ...childProps,
+            })}
+          </Box>
+        )
+      })
+    } else {
+      const rows = gridCount
+      const visibleCols = unit === '%' ? Math.max(1, Math.floor(100 / gridCellSize)) : Math.max(1, Math.ceil(children.length / rows))
+      const cellH = Math.max(20, (contentH - (rows - 1) * 8) / rows)
+      const availableW = contentW - (visibleCols - 1) * 8
+      const cellW = Math.max(20, unit === '%' ? availableW * gridCellSize / 100 : gridCellSize)
+      return children.map((child, i) => {
+        const row = i % rows
+        const col = Math.floor(i / rows)
+        return (
+          <Box
+            key={child.id}
+            position="absolute"
+            left={`${col * (cellW + 8)}px`}
+            top={`${row * (Math.round(cellH) + 8)}px`}
+            width={`${cellW}px`}
+            height={`${Math.round(cellH)}px`}
+            overflow="hidden"
+          >
+            {renderWidget(child, {
+              key: child.id,
+              label: { ...child, x: 0, y: 0, width: TOTAL_SEGMENTS, height: Math.round(cellH) },
+              layoutY: 0,
+              ...childProps,
+            })}
+          </Box>
+        )
+      })
+    }
   }
 
   return (
     <>
+      {isEditing && (
+        <HStack
+          position="absolute"
+          top={`${displayY - 26}px`}
+          left={`calc(${((displayX + displayWidth) / TOTAL_SEGMENTS) * 100}% - 8px)`}
+          style={{ transform: 'translateX(-100%)' }}
+          spacing={0}
+          zIndex={isMoving ? 101 : 10}
+          bg="gray.700"
+          borderRadius="md"
+          px={1}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <IconButton
+            icon={<AddIcon />}
+            size="xs"
+            variant="ghost"
+            aria-label="Add child widget"
+            onClick={(e) => { e.stopPropagation(); onAddOpen() }}
+          />
+          <Tooltip label={label.dock === 'fill' ? 'Remove fill' : 'Fill parent'} placement="top" hasArrow>
+            <IconButton
+              icon={<FillIcon />}
+              size="xs"
+              variant="ghost"
+              aria-label="Fill parent"
+              color={label.dock === 'fill' ? 'blue.300' : 'gray.400'}
+              _hover={{ color: label.dock === 'fill' ? 'blue.200' : 'white', bg: 'whiteAlpha.200' }}
+              onClick={(e) => { e.stopPropagation(); onUpdate(label.id, { dock: label.dock === 'fill' ? undefined : 'fill' }) }}
+            />
+          </Tooltip>
+          <Tooltip label="Export panel" placement="top" hasArrow>
+            <IconButton
+              icon={<DownloadIcon />}
+              size="xs"
+              variant="ghost"
+              aria-label="Export panel"
+              onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
+            />
+          </Tooltip>
+          <IconButton
+            icon={<SettingsIcon />}
+            size="xs"
+            variant="ghost"
+            aria-label="Edit panel style"
+            onClick={(e) => { e.stopPropagation(); handleOpenStyleEdit() }}
+          />
+          <IconButton
+            icon={<CloseIcon />}
+            size="xs"
+            variant="ghost"
+            aria-label="Delete panel"
+            onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+          />
+        </HStack>
+      )}
       <Box
         ref={boxRef}
         data-panel-id={label.id}
@@ -567,62 +708,16 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
         onMouseDown={isEditing ? handleMoveStart : undefined}
         zIndex={isMoving ? 100 : 1}
       >
-        {/* Edit mode controls - absolutely positioned to not affect layout */}
-        {isEditing && (
-          <Box
-            position="absolute"
-            top={1}
-            right={4}
-            zIndex={10}
-            display="flex"
-          >
-            <IconButton
-              icon={<AddIcon />}
-              size="xs"
-              variant="ghost"
-              aria-label="Add child widget"
-              onClick={(e) => { e.stopPropagation(); onAddOpen() }}
-              onMouseDown={(e) => e.stopPropagation()}
-            />
-            <Tooltip label="Export panel" placement="top" hasArrow>
-              <IconButton
-                icon={<DownloadIcon />}
-                size="xs"
-                variant="ghost"
-                aria-label="Export panel"
-                onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
-                onMouseDown={(e) => e.stopPropagation()}
-                ml={1}
-              />
-            </Tooltip>
-            <IconButton
-              icon={<SettingsIcon />}
-              size="xs"
-              variant="ghost"
-              aria-label="Edit panel style"
-              onClick={(e) => { e.stopPropagation(); handleOpenStyleEdit() }}
-              onMouseDown={(e) => e.stopPropagation()}
-              ml={1}
-            />
-            <IconButton
-              icon={<CloseIcon />}
-              size="xs"
-              variant="ghost"
-              aria-label="Delete panel"
-              onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
-              onMouseDown={(e) => e.stopPropagation()}
-              ml={1}
-            />
-          </Box>
-        )}
 
         {/* Children container - relative positioning for absolute children */}
         <Box
           ref={childContainerRef}
           position="relative"
           flex={1}
-          overflow="auto"
-          p={2}
+          overflow={layoutMode === 'grid' ? 'hidden' : undefined}
+          overflowX={layoutMode !== 'grid' ? 'hidden' : undefined}
+          overflowY={layoutMode !== 'grid' ? 'auto' : undefined}
+          p={layoutMode === 'grid' ? 0 : 2}
         >
           {layoutMode === 'grid' ? renderGridChildren() : children.map(renderChild)}
         </Box>
@@ -698,24 +793,47 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
                   </Select>
                 </FormControl>
                 {editStyle.layoutMode === 'grid' && (
-                  <HStack width="100%" spacing={4}>
+                  <>
+                    <HStack width="100%" spacing={4}>
+                      <FormControl>
+                        <FormLabel fontSize="sm">Fix axis</FormLabel>
+                        <Select
+                          value={editStyle.gridAxis || 'columns'}
+                          onChange={(e) => setEditStyle({ ...editStyle, gridAxis: e.target.value })}
+                        >
+                          <option value="columns">Columns</option>
+                          <option value="rows">Rows</option>
+                        </Select>
+                      </FormControl>
+                      <FormControl>
+                        <FormLabel fontSize="sm">{(editStyle.gridAxis || 'columns') === 'columns' ? 'Columns' : 'Rows'}</FormLabel>
+                        <Input
+                          type="number" min={1} max={20}
+                          value={editStyle.gridCount || 2}
+                          onChange={(e) => setEditStyle({ ...editStyle, gridCount: Math.max(1, parseInt(e.target.value) || 2) })}
+                        />
+                      </FormControl>
+                    </HStack>
                     <FormControl>
-                      <FormLabel fontSize="sm">Columns</FormLabel>
-                      <Input
-                        type="number" min={1} max={20}
-                        value={editStyle.gridCols || 2}
-                        onChange={(e) => setEditStyle({ ...editStyle, gridCols: Math.max(1, parseInt(e.target.value) || 2) })}
-                      />
+                      <FormLabel fontSize="sm">{(editStyle.gridAxis || 'columns') === 'columns' ? 'Row height' : 'Column width'}</FormLabel>
+                      <HStack>
+                        <Input
+                          type="number" min={1}
+                          value={editStyle.gridCellSize || 80}
+                          onChange={(e) => setEditStyle({ ...editStyle, gridCellSize: Math.max(1, parseInt(e.target.value) || 80) })}
+                        />
+                        <Select
+                          value={editStyle.gridCellSizeUnit || 'px'}
+                          onChange={(e) => setEditStyle({ ...editStyle, gridCellSizeUnit: e.target.value })}
+                          width="80px"
+                          flexShrink={0}
+                        >
+                          <option value="px">px</option>
+                          <option value="%">%</option>
+                        </Select>
+                      </HStack>
                     </FormControl>
-                    <FormControl>
-                      <FormLabel fontSize="sm">Rows</FormLabel>
-                      <Input
-                        type="number" min={1} max={20}
-                        value={editStyle.gridRows || 2}
-                        onChange={(e) => setEditStyle({ ...editStyle, gridRows: Math.max(1, parseInt(e.target.value) || 2) })}
-                      />
-                    </FormControl>
-                  </HStack>
+                  </>
                 )}
                 {editStyle.layoutMode === 'flow' && (
                   <FormControl>
