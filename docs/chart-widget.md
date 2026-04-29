@@ -29,7 +29,8 @@ Global settings apply to **all** chart widgets on all pages simultaneously. They
 | Outside RTH Background | `#1a1a2e` | Background colour for pre/post-market bars |
 | Font Size | `9` | Axis label and top-bar font size (px) |
 | Volume Multiplier | `1` | Scale factor applied to volume bar heights. Values > 1 make bars taller; useful when volume is low relative to the chart area |
-| Invert Scroll | `false` | Reverses the pan direction of Ctrl+scroll |
+| Invert Scroll | `false` | Reverses the pan direction of scroll pan |
+| Shift+Scroll to Zoom | `true` | Requires Shift held to zoom; plain/Ctrl+scroll pans. Disable to restore plain-scroll-to-zoom |
 | Invert Drag | `false` | Reverses the pan direction of click-drag |
 
 ---
@@ -57,14 +58,15 @@ The interval is changed by clicking the interval label (e.g. `· 1h`) in the top
 
 | Action | Effect |
 |--------|--------|
-| Scroll wheel | Zoom in/out (fewer or more bars visible) |
+| Shift + scroll | Zoom in/out (fewer or more bars visible) — default |
 | Ctrl + scroll | Pan left/right along the time axis |
+| Scroll wheel | No action (passes through) — default |
 | Click + drag | Pan left/right along the time axis |
 | Hover over candle | Show OHLC tooltip in top bar and crosshair lines |
 
 Zoom range: 20–1000 visible bars (default 300). Each scroll tick scales by ~15%.
 
-Drag and scroll directions can be inverted in Global Chart Settings.
+Drag and scroll directions can be inverted in Global Chart Settings. The **Shift+Scroll to Zoom** global setting (default on) controls whether Shift is required to zoom — disable it to restore the old behaviour where plain scroll zooms.
 
 ### Symbol Editing
 

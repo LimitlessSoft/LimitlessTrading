@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useCallback, memo } from 'react'
 import {
   Box,
   Text,
@@ -29,6 +29,7 @@ import {
   useDisclosure
 } from '@chakra-ui/react'
 import { CloseIcon, SettingsIcon, RepeatIcon } from '@chakra-ui/icons'
+import FillIcon from './FillIcon'
 
 const DownloadIcon = () => (
   <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
@@ -61,7 +62,7 @@ const DEFAULT_STYLE = {
 }
 
 // Candlestick SVG — renders inside the chart control
-function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRthBgColor, fontSize, volumeMultiplier,
+const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRthBgColor, fontSize, volumeMultiplier,
   onSymbolClick, quickInputOpen, quickSymbol, quickInputRef, onQuickSymbolChange, onQuickSymbolKeyDown, onQuickSymbolCommit,
   onIntervalChange, ohlcPosition, liveConnected, marketOpen, showMarketIndicator }) {
   const [tooltip,    setTooltip]    = useState(null)
@@ -76,15 +77,19 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
   const volumeAreaH = chartHeight * 0.16
   const volumeTop   = padding.top + candleAreaH + chartHeight * 0.06
 
-  const prices = data.flatMap(d => [d.high, d.low])
-  const minP    = Math.min(...prices)
-  const maxP    = Math.max(...prices)
+  let minP = Infinity, maxP = -Infinity, maxVol = 0
+  for (const d of data) {
+    if (d.high > maxP) maxP = d.high
+    if (d.low  < minP) minP = d.low
+    const v = Math.max(0, d.volume ?? 0)
+    if (v > maxVol) maxVol = v
+  }
+  if (minP === Infinity) { minP = 0; maxP = 1 }
+  if (maxVol === 0) maxVol = 1
   const pRange  = (maxP - minP) || 1
   const pad     = pRange * 0.08
   const effectiveMin = minP - pad
   const effectiveRange = pRange + pad * 2
-
-  const maxVol = Math.max(...data.map(d => Math.max(0, d.volume ?? 0))) || 1
 
   const priceToY  = p  => padding.top + candleAreaH - ((p - effectiveMin) / effectiveRange) * candleAreaH
   const volToH    = v  => Math.min(volumeAreaH, (v / maxVol) * volumeAreaH * (volumeMultiplier ?? 1))
@@ -267,9 +272,7 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
         {data.map((bar, i) => {
           if (i === 0) return null
           const prev = data[i - 1]
-          const prevDay = new Date(prev.timestamp).toDateString()
-          const curDay  = new Date(bar.timestamp).toDateString()
-          if (prevDay === curDay) return null
+          if (Math.floor(prev.timestamp / 86400000) === Math.floor(bar.timestamp / 86400000)) return null
           const x = padding.left + i * spacing
           return (
             <line key={`day-${i}`}
@@ -311,18 +314,16 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
         })}
 
         {/* Time labels */}
-        {data
-          .filter((_, i) => i % Math.max(1, Math.ceil(data.length / 6)) === 0)
-          .map((bar) => {
-            const i = data.indexOf(bar)
-            const x = padding.left + i * spacing + spacing / 2
-            const label = isIntraday ? formatTime(bar.timestamp) : formatDate(bar.timestamp)
-            return (
-              <text key={`t-${i}`} x={x} y={height - 4} fill="#718096" fontSize={fontSize} textAnchor="middle">
-                {label}
-              </text>
-            )
-          })}
+        {data.map((bar, i) => {
+          if (i % Math.max(1, Math.ceil(data.length / 6)) !== 0) return null
+          const x = padding.left + i * spacing + spacing / 2
+          const label = isIntraday ? formatTime(bar.timestamp) : formatDate(bar.timestamp)
+          return (
+            <text key={`t-${i}`} x={x} y={height - 4} fill="#718096" fontSize={fontSize} textAnchor="middle">
+              {label}
+            </text>
+          )
+        })}
 
         {/* Last price line */}
         {(() => {
@@ -419,7 +420,7 @@ function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRt
       </svg>
     </Box>
   )
-}
+})
 
 function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef }) {
   const [isResizing, setIsResizing] = useState(false)
@@ -893,21 +894,39 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
 
   useEffect(() => { globalSettingsRef.current = globalSettings }, [globalSettings])
 
-  // Wheel: pan time axis; Ctrl+wheel: zoom (change visible bar count)
+  // Wheel: zoom or pan depending on shiftScrollZoom setting
+  // shiftScrollZoom=true (default): Shift+scroll=zoom, Ctrl+scroll=pan, plain=passthrough
+  // shiftScrollZoom=false: plain scroll=zoom, Ctrl+scroll=pan
   useEffect(() => {
     const el = boxRef.current
     if (!el) return
     const handler = (e) => {
-      e.preventDefault()
-      if (e.ctrlKey) {
-        const dir = globalSettingsRef.current.invertScroll ? -1 : 1
-        const step = Math.max(5, Math.round(DEFAULT_MAX_BARS * 0.08))
-        setViewOffset(prev => Math.max(0, prev + (e.deltaY > 0 ? -dir * step : dir * step)))
+      const s = globalSettingsRef.current
+      if (s.shiftScrollZoom) {
+        if (!e.shiftKey && !e.ctrlKey) return
+        e.preventDefault()
+        if (e.shiftKey) {
+          setMaxBars(prev => {
+            const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15
+            return Math.round(Math.min(MAX_BARS, Math.max(MIN_BARS, prev * factor)))
+          })
+        } else if (e.ctrlKey) {
+          const dir = s.invertScroll ? -1 : 1
+          const step = Math.max(5, Math.round(DEFAULT_MAX_BARS * 0.08))
+          setViewOffset(prev => Math.max(0, prev + (e.deltaY > 0 ? -dir * step : dir * step)))
+        }
       } else {
-        setMaxBars(prev => {
-          const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15
-          return Math.round(Math.min(MAX_BARS, Math.max(MIN_BARS, prev * factor)))
-        })
+        e.preventDefault()
+        if (e.ctrlKey) {
+          const dir = s.invertScroll ? -1 : 1
+          const step = Math.max(5, Math.round(DEFAULT_MAX_BARS * 0.08))
+          setViewOffset(prev => Math.max(0, prev + (e.deltaY > 0 ? -dir * step : dir * step)))
+        } else {
+          setMaxBars(prev => {
+            const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15
+            return Math.round(Math.min(MAX_BARS, Math.max(MIN_BARS, prev * factor)))
+          })
+        }
       }
     }
     el.addEventListener('wheel', handler, { passive: false })
@@ -1089,6 +1108,18 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
           />
           {isEditing && (
             <>
+              <Tooltip label={label.dock === 'fill' ? 'Remove fill' : 'Fill parent'} placement="top" hasArrow>
+                <IconButton
+                  icon={<FillIcon />}
+                  size="xs"
+                  variant="ghost"
+                  aria-label="Fill parent"
+                  color={label.dock === 'fill' ? 'blue.300' : 'gray.400'}
+                  _hover={{ color: label.dock === 'fill' ? 'blue.200' : 'white', bg: 'whiteAlpha.200' }}
+                  onClick={(e) => { e.stopPropagation(); onUpdate(label.id, { dock: label.dock === 'fill' ? undefined : 'fill' }) }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                />
+              </Tooltip>
               <Tooltip label="Export chart" placement="top" hasArrow>
                 <IconButton
                   icon={<DownloadIcon />}
@@ -1292,6 +1323,16 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
                         <Switch
                           isChecked={editGlobal.invertScroll ?? false}
                           onChange={(e) => setEditGlobal(g => ({ ...g, invertScroll: e.target.checked }))}
+                          colorScheme="blue"
+                        />
+                      </HStack>
+                    </FormControl>
+                    <FormControl>
+                      <HStack justify="space-between">
+                        <FormLabel fontSize="sm" mb={0}>Shift+Scroll to Zoom</FormLabel>
+                        <Switch
+                          isChecked={editGlobal.shiftScrollZoom ?? true}
+                          onChange={(e) => setEditGlobal(g => ({ ...g, shiftScrollZoom: e.target.checked }))}
                           colorScheme="blue"
                         />
                       </HStack>
