@@ -61,6 +61,8 @@ function PlaceholderDocsPage() {
                   headers={['Placeholder', 'Description', 'Example Output']}
                   rows={[
                     [<Code>${'{tws_connection_status:5}'}</Code>, 'TWS/IBKR connection status', 'Connected (7496) / Disconnected'],
+                    [<Code>${'{fomc_next:3600}'}</Code>, 'Next FOMC decision date', 'Jun 17 2026'],
+                    [<Code>${'{fomc_countdown:60}'}</Code>, 'Countdown to next FOMC decision', '49d 3h 22m / 2h 15m 30s'],
                   ]}
                 />
                 <Alert status="info" bg="gray.800" borderRadius="md" fontSize="sm">
@@ -141,6 +143,10 @@ function PlaceholderDocsPage() {
                     [<Code>@{'{TSLA:changePercent:5}'}</Code>, 'TSLA % change (+X.XX%)'],
                     [<Code>@{'{MSFT:volume:10}'}</Code>, 'MSFT volume (K/M/B), polled every 10 s'],
                     [<Code>@{'{VIX:last}'}</Code>, 'VIX value (default 5 s refresh)'],
+                    [<Code>@{'{SPY:callVol:300}'}</Code>, 'SPY total call volume (near-money sample), refreshed every 5 min'],
+                    [<Code>@{'{SPY:putVol:300}'}</Code>, 'SPY total put volume'],
+                    [<Code>@{'{SPY:pcRatio:300}'}</Code>, 'SPY put/call ratio (>1 = more put activity)'],
+                    [<Code fontSize="xs">{'%[@{SPY:putVol} / (@{SPY:callVol} + @{SPY:putVol}) * 100:300]'}</Code>, 'SPY put volume as % of total — useful as a graph series'],
                   ]}
                 />
 
@@ -167,6 +173,9 @@ function PlaceholderDocsPage() {
                     [<Code>marketCap</Code>, '—', 'Market capitalization', '$X.XXM/B/T'],
                     [<Code>week52High</Code>, '—', '52-week high', '2 decimals'],
                     [<Code>week52Low</Code>, '—', '52-week low', '2 decimals'],
+                    [<Code>callVol</Code>, '—', 'Total call volume across near-money options (2 nearest expirations, 15 closest strikes). Cached 5 min.', 'K/M suffix'],
+                    [<Code>putVol</Code>, '—', 'Total put volume across near-money options (same sample as callVol).', 'K/M suffix'],
+                    [<Code>pcRatio</Code>, '—', 'Put/call volume ratio (putVol ÷ callVol). Values >1 = more put activity; <1 = more call activity.', '2 decimals'],
                   ]}
                 />
               </VStack>

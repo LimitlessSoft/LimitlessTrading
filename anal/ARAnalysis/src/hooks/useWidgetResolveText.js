@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getConnectionStatus } from '../modules/dataService'
 import { getExchangeTime, getExchangeStatus } from '../modules/exchangeService'
+import { getNextFomcDecision, formatFomcDatetime, formatFomcCountdownText } from '../modules/fomcService'
 import { useSymbolQuotes } from './useSymbolQuotes'
 
 // Simple system placeholder: ${key} or ${key:seconds}
@@ -48,6 +49,22 @@ export function useWidgetResolveText(textSources) {
       }
     }
 
+    if (combined.includes('${fomc_next') || combined.includes('${fomc_countdown')) {
+      try {
+        const nextDate = await getNextFomcDecision()
+        if (nextDate) {
+          values.fomc_next = formatFomcDatetime(nextDate)
+          values.fomc_countdown = formatFomcCountdownText(nextDate)
+        } else {
+          values.fomc_next = 'N/A'
+          values.fomc_countdown = 'N/A'
+        }
+      } catch {
+        values.fomc_next = 'Unknown'
+        values.fomc_countdown = 'Unknown'
+      }
+    }
+
     for (const m of combined.matchAll(/\$\{([A-Za-z0-9]+):(time|status)(?::(\d+))?\}/g)) {
       const exchange = m[1].toUpperCase()
       const property = m[2]
@@ -86,7 +103,17 @@ export function useWidgetResolveText(textSources) {
   }, [systemValues, resolveSymbolText])
 
   const resolvedValue = useCallback((text) => {
-    const n = parseFloat(resolveText(text))
+    const str = resolveText(text).trim()
+    // Strip leading $, + for numeric parsing; trailing % is ignored
+    const clean = str.replace(/^[$+]+/, '')
+    // Handle K/M/B/T suffixes produced by formatQuoteValue (e.g. "450.3K", "1.2M", "$1.2B")
+    const last = clean[clean.length - 1]
+    const suffixMult = { K: 1e3, M: 1e6, B: 1e9, T: 1e12 }[last]
+    if (suffixMult) {
+      const n = parseFloat(clean)
+      return isNaN(n) ? null : n * suffixMult
+    }
+    const n = parseFloat(clean)
     return isNaN(n) ? null : n
   }, [resolveText])
 

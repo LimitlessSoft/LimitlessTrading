@@ -93,6 +93,29 @@ export function formatFomcLabel(date) {
 }
 
 /**
+ * Format a date as "Mon DD YYYY" for placeholder display
+ * @param {Date} date
+ * @returns {string}
+ */
+export function formatFomcDatetime(date) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return `${months[date.getMonth()]} ${date.getDate()} ${date.getFullYear()}`
+}
+
+/**
+ * Format countdown to target date as "Xd Yh Zm" or "Yh Zm Ws" when under a day
+ * @param {Date} target
+ * @returns {string}
+ */
+export function formatFomcCountdownText(target) {
+  const { days, hours, minutes, seconds, totalMs } = calculateCountdown(target)
+  if (totalMs <= 0) return 'Now'
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`
+  return `${minutes}m ${seconds}s`
+}
+
+/**
  * Calculate countdown from now to target date
  * @param {Date} target
  * @returns {{ days: number, hours: number, minutes: number, seconds: number, totalMs: number }}

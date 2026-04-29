@@ -66,6 +66,8 @@ Resolve fixed system values. The `:seconds` part sets the refresh interval; when
 | Placeholder | Description |
 |-------------|-------------|
 | `${tws_connection_status:5}` | TWS connection state — `"Connected (port)"` or `"Disconnected"` |
+| `${fomc_next:3600}` | Next FOMC decision date — e.g. `"Jun 17 2026"` |
+| `${fomc_countdown:60}` | Countdown to next FOMC decision — e.g. `"49d 3h 22m"` or `"2h 15m 30s"` |
 
 ### Exchange placeholders — `${EXCHANGE:property:seconds}`
 
