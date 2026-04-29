@@ -315,16 +315,21 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
         })}
 
         {/* Time labels */}
-        {data.map((bar, i) => {
-          if (i % Math.max(1, Math.ceil(data.length / 6)) !== 0) return null
-          const x = padding.left + i * spacing + spacing / 2
-          const label = isIntraday ? formatTime(bar.timestamp) : formatDate(bar.timestamp)
-          return (
-            <text key={`t-${i}`} x={x} y={height - 4} fill="#718096" fontSize={fontSize} textAnchor="middle">
-              {label}
-            </text>
-          )
-        })}
+        {(() => {
+          const labelW = fontSize * 5.5
+          const maxLabels = Math.max(2, Math.floor(chartWidth / (labelW * 1.5)))
+          const labelStep = Math.max(1, Math.ceil(data.length / maxLabels))
+          return data.map((bar, i) => {
+            if (i % labelStep !== 0) return null
+            const x = padding.left + i * spacing + spacing / 2
+            const label = isIntraday ? formatTime(bar.timestamp) : formatDate(bar.timestamp)
+            return (
+              <text key={`t-${i}`} x={x} y={height - 4} fill="#718096" fontSize={fontSize} textAnchor="middle">
+                {label}
+              </text>
+            )
+          })
+        })()}
 
         {/* Last price line */}
         {(() => {
