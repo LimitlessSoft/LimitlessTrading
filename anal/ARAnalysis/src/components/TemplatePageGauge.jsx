@@ -188,7 +188,7 @@ function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const [editConfig, setEditConfig] = useState(null)
   const boxRef = useRef(null)
   const { isOpen, onOpen, onClose } = useDisclosure()
-  const { requestDelete, ConfirmDeleteDialog } = useDeleteConfirm()
+  const { requestDelete, confirmDeleteDialog } = useDeleteConfirm()
 
   const width = label.width || DEFAULT_WIDTH
   const height = label.height || DEFAULT_HEIGHT
@@ -839,7 +839,7 @@ function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDra
           </ModalFooter>
         </ModalContent>
       </Modal>
-      <ConfirmDeleteDialog />
+      { confirmDeleteDialog }
     </>
   )
 }

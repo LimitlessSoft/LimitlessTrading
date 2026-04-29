@@ -35,7 +35,7 @@ export function useDeleteConfirm() {
     setPendingCallback(null)
   }
 
-  const ConfirmDeleteDialog = () => (
+  const confirmDeleteDialog = (
     <AlertDialog isOpen={isOpen} leastDestructiveRef={cancelRef} onClose={handleCancel} isCentered>
       <AlertDialogOverlay>
         <AlertDialogContent bg="gray.800" borderColor="gray.600" borderWidth="1px">
@@ -58,5 +58,5 @@ export function useDeleteConfirm() {
     </AlertDialog>
   )
 
-  return { requestDelete, ConfirmDeleteDialog }
+  return { requestDelete, confirmDeleteDialog }
 }

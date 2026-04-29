@@ -65,7 +65,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const { isOpen: isStyleOpen, onOpen: onStyleOpen, onClose: onStyleClose } = useDisclosure()
   const { isOpen: isAddOpen, onOpen: onAddOpen, onClose: onAddClose } = useDisclosure()
   const { isOpen: isGalleryOpen, onOpen: onGalleryOpen, onClose: onGalleryClose } = useDisclosure()
-  const { requestDelete, ConfirmDeleteDialog } = useDeleteConfirm()
+  const { requestDelete, confirmDeleteDialog } = useDeleteConfirm()
 
   const width = label.width || 8
   const height = label.height || DEFAULT_HEIGHT
@@ -112,7 +112,8 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
     return { positions, contentHeight }
   }
 
-  const { positions: childLayoutPositions, contentHeight } = calculateChildLayout(children)
+  const gap = style.gap ?? 8
+  const { positions: childLayoutPositions, contentHeight } = calculateChildLayout(children, gap)
 
   // Calculate vertical offset based on alignment
   // Note: children use absolute positioning, so top:0 is at the padding edge.
@@ -168,7 +169,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
           const def = WIDGET_REGISTRY[child.type] || WIDGET_REGISTRY.label
           const h = child.height ?? def.height
           const entry = { id: child.id, layoutY: curY, labelOverride: { x: 0, y: 0 } }
-          curY += h + 8
+          curY += h + gap
           return entry
         })
       }
@@ -177,7 +178,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
         const def = WIDGET_REGISTRY[child.type] || WIDGET_REGISTRY.label
         const w = child.width ?? def.width
         const h = child.height ?? def.height
-        if (curX + w > TOTAL_SEGMENTS && curX > 0) { curX = 0; curY += rowH + 8; rowH = 0 }
+        if (curX + w > TOTAL_SEGMENTS && curX > 0) { curX = 0; curY += rowH + gap; rowH = 0 }
         const entry = { id: child.id, layoutY: curY, labelOverride: { x: curX, y: 0 } }
         curX += w
         rowH = Math.max(rowH, h)
@@ -563,6 +564,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
     const gridCellSize = Math.max(20, style.gridCellSize || 80)
     const contentH = displayHeight - 2 * (style.borderWidth || 0)
     const unit = style.gridCellSizeUnit || 'px'
+    const cellGap = style.gap ?? 8
 
     setGridDragIdx(srcIdx)
     gridDropIdxRef.current = srcIdx
@@ -579,19 +581,19 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
       if (gridAxis === 'columns') {
         const cols = gridCount
         const visibleRows = unit === '%' ? Math.max(1, Math.floor(100 / gridCellSize)) : Math.max(1, Math.ceil(children.length / cols))
-        const availableH = contentH - (visibleRows - 1) * 8
+        const availableH = contentH - (visibleRows - 1) * cellGap
         const cellH = Math.max(20, unit === '%' ? availableH * gridCellSize / 100 : gridCellSize)
         const col = Math.min(cols - 1, Math.max(0, Math.floor((relX / rect.width) * cols)))
-        const row = Math.max(0, Math.floor(relY / (cellH + 8)))
+        const row = Math.max(0, Math.floor(relY / (cellH + cellGap)))
         newIdx = Math.min(children.length - 1, row * cols + col)
       } else {
         const rows = gridCount
-        const cellH = Math.max(20, (contentH - (rows - 1) * 8) / rows)
+        const cellH = Math.max(20, (contentH - (rows - 1) * cellGap) / rows)
         const contentW = rect.width
         const visibleCols = unit === '%' ? Math.max(1, Math.floor(100 / gridCellSize)) : Math.max(1, Math.ceil(children.length / rows))
-        const availableW = contentW - (visibleCols - 1) * 8
+        const availableW = contentW - (visibleCols - 1) * cellGap
         const cellW = Math.max(20, unit === '%' ? availableW * gridCellSize / 100 : gridCellSize)
-        const col = Math.max(0, Math.floor(relX / (cellW + 8)))
+        const col = Math.max(0, Math.floor(relX / (cellW + cellGap)))
         const row = Math.min(rows - 1, Math.max(0, Math.floor((relY / rect.height) * rows)))
         newIdx = Math.min(children.length - 1, col * rows + row)
       }
@@ -630,6 +632,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
     const contentH = displayHeight - 2 * (style.borderWidth || 0)
     const contentW = childContainerRef.current?.clientWidth || 0
     const unit = style.gridCellSizeUnit || 'px'
+    const cellGap = gap
     const childProps = {
       onDelete: handleDeleteChild,
       onUpdate: handleUpdateChildInLayout,
@@ -690,14 +693,14 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
     if (gridAxis === 'columns') {
       const cols = gridCount
       const visibleRows = unit === '%' ? Math.max(1, Math.floor(100 / gridCellSize)) : Math.max(1, Math.ceil(children.length / cols))
-      const availableH = contentH - (visibleRows - 1) * 8
+      const availableH = contentH - (visibleRows - 1) * cellGap
       const cellH = Math.max(20, unit === '%' ? availableH * gridCellSize / 100 : gridCellSize)
       return children.map((child, i) => {
         const col = i % cols
         const row = Math.floor(i / cols)
         return renderCell(child, i,
-          `calc(${(col / cols) * 100}% + 4px)`,
-          `${row * (cellH + 8)}px`,
+          `calc(${(col / cols) * 100}% + ${cellGap / 2}px)`,
+          `${row * (cellH + cellGap)}px`,
           `${(1 / cols) * 100}%`,
           cellH
         )
@@ -705,15 +708,15 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
     } else {
       const rows = gridCount
       const visibleCols = unit === '%' ? Math.max(1, Math.floor(100 / gridCellSize)) : Math.max(1, Math.ceil(children.length / rows))
-      const cellH = Math.max(20, (contentH - (rows - 1) * 8) / rows)
-      const availableW = contentW - (visibleCols - 1) * 8
+      const cellH = Math.max(20, (contentH - (rows - 1) * cellGap) / rows)
+      const availableW = contentW - (visibleCols - 1) * cellGap
       const cellW = Math.max(20, unit === '%' ? availableW * gridCellSize / 100 : gridCellSize)
       return children.map((child, i) => {
         const row = i % rows
         const col = Math.floor(i / rows)
         return renderCell(child, i,
-          `${col * (cellW + 8)}px`,
-          `${row * (Math.round(cellH) + 8)}px`,
+          `${col * (cellW + cellGap)}px`,
+          `${row * (Math.round(cellH) + cellGap)}px`,
           `${cellW}px`,
           Math.round(cellH)
         )
@@ -942,6 +945,18 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
                     </Select>
                   </FormControl>
                 )}
+                {(editStyle.layoutMode === 'grid' || editStyle.layoutMode === 'flow') && (
+                  <FormControl>
+                    <FormLabel fontSize="sm">Spacing (px)</FormLabel>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={editStyle.gap ?? 8}
+                      onChange={(e) => setEditStyle({ ...editStyle, gap: Math.max(0, parseInt(e.target.value) || 0) })}
+                    />
+                  </FormControl>
+                )}
                 <HStack width="100%" spacing={4}>
                   <FormControl>
                     <FormLabel fontSize="sm">Background Color</FormLabel>
@@ -1114,7 +1129,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
           )}
         </ModalContent>
       </Modal>
-      <ConfirmDeleteDialog />
+      { confirmDeleteDialog }
     </>
   )
 }

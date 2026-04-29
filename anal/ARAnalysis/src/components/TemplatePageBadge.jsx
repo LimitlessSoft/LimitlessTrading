@@ -61,7 +61,7 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const [editConfig, setEditConfig] = useState(null)
   const boxRef = useRef(null)
   const { isOpen, onOpen, onClose } = useDisclosure()
-  const { requestDelete, ConfirmDeleteDialog } = useDeleteConfirm()
+  const { requestDelete, confirmDeleteDialog } = useDeleteConfirm()
 
   const width = label.width || 2
   const height = label.height || DEFAULT_SIZE
@@ -499,7 +499,7 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onExport, onDra
       </Box>
 
       {renderEditModal()}
-      <ConfirmDeleteDialog />
+      { confirmDeleteDialog }
     </>
   )
 }

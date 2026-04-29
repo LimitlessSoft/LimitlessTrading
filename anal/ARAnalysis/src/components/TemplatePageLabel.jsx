@@ -62,7 +62,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const boxRef = useRef(null)
   const navigate = useNavigate()
   const { isOpen, onOpen, onClose } = useDisclosure()
-  const { requestDelete, ConfirmDeleteDialog } = useDeleteConfirm()
+  const { requestDelete, confirmDeleteDialog } = useDeleteConfirm()
 
   const conditionalPlaceholders = (label.style?.conditionalStyles || []).map(r => r.placeholder)
   const { resolveText } = useWidgetResolveText([label.text, ...conditionalPlaceholders])
@@ -587,7 +587,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
           )}
         </Box>
         {renderEditModal()}
-        <ConfirmDeleteDialog />
+        { confirmDeleteDialog }
       </>
     )
   }
@@ -733,7 +733,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
       </Box>
 
       {renderEditModal()}
-      <ConfirmDeleteDialog />
+      { confirmDeleteDialog }
     </>
   )
 }

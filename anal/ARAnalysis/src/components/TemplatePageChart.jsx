@@ -36,6 +36,7 @@ const DownloadIcon = () => (
     <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 4v-2h14v2H5z" />
   </svg>
 )
+import { useDeleteConfirm } from '../hooks/useDeleteConfirm'
 import { fetchFromCache, loadHistoricalData, refreshRecentData, fetchOlderData, clearAllCache, cacheNeedsRefresh, INTERVALS } from '../modules/dataService'
 import { subscribeQuote, subscribeSSEStatus } from '../modules/symbolQuoteService'
 import {
@@ -454,6 +455,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const loadGenRef      = useRef(0)
   const globalSettingsRef = useRef(globalSettings)
   const { isOpen, onOpen, onClose } = useDisclosure()
+  const { requestDelete, confirmDeleteDialog } = useDeleteConfirm()
 
   const symbol   = label.symbol   || ''
   const interval = label.interval || '5m'
@@ -1139,7 +1141,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
                 aria-label="Delete chart"
                 color="gray.400"
                 _hover={{ color: 'red.400', bg: 'whiteAlpha.200' }}
-                onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+                onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
                 onMouseDown={(e) => e.stopPropagation()}
               />
             </>
@@ -1385,6 +1387,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
           </ModalFooter>
         </ModalContent>
       </Modal>
+      { confirmDeleteDialog }
     </>
   )
 }

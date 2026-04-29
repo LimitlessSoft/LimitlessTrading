@@ -261,6 +261,7 @@ function TemplatePageGraph({
   const boxRef = useRef(null)
   const valuesRef = useRef([])
   const { isOpen, onOpen, onClose } = useDisclosure()
+  const { requestDelete, confirmDeleteDialog } = useDeleteConfirm()
 
   const width = label.width || DEFAULT_WIDTH
   const height = label.height || DEFAULT_HEIGHT
@@ -558,7 +559,7 @@ function TemplatePageGraph({
                 />
               </Tooltip>
               <IconButton icon={<CloseIcon />} size="xs" variant="ghost" aria-label="Delete graph"
-                onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+                onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
                 onMouseDown={(e) => e.stopPropagation()}
               />
             </>
@@ -681,6 +682,7 @@ function TemplatePageGraph({
           </ModalFooter>
         </ModalContent>
       </Modal>
+      { confirmDeleteDialog }
     </>
   )
 }
