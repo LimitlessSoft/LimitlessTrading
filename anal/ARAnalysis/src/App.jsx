@@ -149,32 +149,29 @@ function App() {
     cancelRef.current = cancel
   }, [connectionState.connected, cancelLoad, loadSecurities, toast])
 
-  // Auto-connect on startup
+  // Initialize: check connection status and load securities
   useEffect(() => {
-    const autoConnect = async () => {
-      if (initialConnectionAttempted) return
-      setInitialConnectionAttempted(true)
+    if (initialConnectionAttempted) return
+    setInitialConnectionAttempted(true)
 
-      // Get last used port from storage
+    const init = async () => {
       const savedPort = await getLastPort()
-      const port = savedPort || 7496
-      setLastUsedPort(port)
+      if (savedPort) setLastUsedPort(savedPort)
 
       try {
-        const status = await connectToIBKR(port)
+        const status = await getConnectionStatus()
         setConnectionState(status)
         if (!status.connected) {
-          setConnectionError(status.error || 'Connection failed')
+          setConnectionError(status.error || 'Not connected')
           setShowConnectionDialog(true)
         }
       } catch (error) {
         setConnectionError(error.message)
         setShowConnectionDialog(true)
-        setConnectionState({ connected: false, error: error.message })
       }
     }
 
-    autoConnect()
+    init()
     loadSecurities()
   }, [initialConnectionAttempted, loadSecurities])
 

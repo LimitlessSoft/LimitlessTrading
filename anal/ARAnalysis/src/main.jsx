@@ -6,12 +6,14 @@ import App from './App'
 import TemplatePage from './pages/TemplatePage'
 import PlaceholderDocsPage from './pages/PlaceholderDocsPage'
 import AlertOverlay from './components/AlertOverlay'
+import AutoConnect from './modules/AutoConnect'
 import theme from './theme'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ChakraProvider theme={theme}>
       <BrowserRouter>
+        <AutoConnect />
         <AlertOverlay />
         <Routes>
           <Route path="/" element={<App />} />
