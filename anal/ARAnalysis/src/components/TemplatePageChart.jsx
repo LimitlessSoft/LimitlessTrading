@@ -1227,7 +1227,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
                         py={1}
                         h="auto"
                         borderRadius={0}
-                        bg={editOutsideRTH === val ? 'blue.600' : 'transparent'}
+                        bg={editOutsideRTH === val ? (val === 'global' ? 'gray.600' : 'blue.600') : 'transparent'}
                         color={editOutsideRTH === val ? 'white' : 'gray.400'}
                         _hover={{ color: 'white' }}
                         onClick={() => setEditOutsideRTH(val)}
