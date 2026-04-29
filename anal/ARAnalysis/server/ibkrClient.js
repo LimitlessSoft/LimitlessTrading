@@ -1745,10 +1745,10 @@ export function clearBars(symbol, property, intervalMs) {
   if (state) {
     if (state.timer) clearInterval(state.timer)
     barsState.delete(key)
-    const all = {}
-    for (const [k, s] of barsState) all[k] = s.bars
-    saveBarsData(all)
   }
+  const persisted = loadBarsData()
+  delete persisted[key]
+  saveBarsData(persisted)
 }
 
 export { ib }

@@ -22,42 +22,39 @@ import {
   Stack,
   FormControl,
   FormLabel,
+  FormHelperText,
   Collapse,
   useToast,
 } from '@chakra-ui/react'
 import { BellIcon, AddIcon, DeleteIcon } from '@chakra-ui/icons'
-import { createAlert, removeAlert, listAlerts, subscribeToAlertList } from '../modules/alertService'
+import {
+  createAlert,
+  removeAlert,
+  listAlerts,
+  getNextRun,
+  isValidCron,
+  subscribeToAlertList,
+} from '../modules/alertService'
 
 const ACTION_COLORS = { message: 'blue', sound: 'purple', event: 'orange' }
 
-function nextAlignedTime(ms) {
-  const now = new Date()
-  const msIntoHour = (now.getMinutes() * 60 + now.getSeconds()) * 1000 + now.getMilliseconds()
-  const nextAligned = Math.ceil((msIntoHour + 1) / ms) * ms
-  const msUntilFirst = nextAligned - msIntoHour
-  const next = new Date(Date.now() + msUntilFirst)
-  return next.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+function formatNextRun(expression) {
+  const next = getNextRun(expression)
+  if (!next) return null
+  return next.toLocaleString([], {
+    month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  })
 }
 
-function scheduleDescription(schedule) {
-  if (!schedule) return '—'
-  if (schedule.type === 'interval') {
-    if (schedule.alignToHour) return 'Every hour, on the hour'
-    const s = schedule.ms / 1000
-    if (s < 60) return `Every ${s}s`
-    const m = s / 60
-    if (Number.isInteger(m) && m < 60) return `Every ${m} min · next ${nextAlignedTime(schedule.ms)}`
-    const h = m / 60
-    return `Every ${h % 1 === 0 ? h : h.toFixed(1)}h · next ${nextAlignedTime(schedule.ms)}`
-  }
-  return schedule.type
-}
+const CONDITION_TYPES = [
+  { value: 'cron', label: 'Cron schedule' },
+]
 
 const BLANK_FORM = {
   label: '',
-  scheduleType: 'on-the-hour',
-  intervalValue: '30',
-  intervalUnit: 'minutes',
+  conditionType: 'cron',
+  expression: '',
   actions: ['sound', 'message'],
   message: '',
   eventName: '',
@@ -73,6 +70,8 @@ export default function AlertsPanel({ isOpen, onClose }) {
 
   useEffect(() => subscribeToAlertList(refresh), [])
 
+  const cronValid = isValidCron(form.expression)
+
   const handleDelete = (id) => {
     removeAlert(id)
     refresh()
@@ -82,6 +81,10 @@ export default function AlertsPanel({ isOpen, onClose }) {
     const label = form.label.trim()
     if (!label) {
       toast({ title: 'Label is required', status: 'error', duration: 2000 })
+      return
+    }
+    if (form.conditionType === 'cron' && (!form.expression.trim() || !cronValid)) {
+      toast({ title: 'Enter a valid cron expression', status: 'error', duration: 2000 })
       return
     }
     if (form.actions.length === 0) {
@@ -97,23 +100,13 @@ export default function AlertsPanel({ isOpen, onClose }) {
       return
     }
 
-    let schedule
-    if (form.scheduleType === 'on-the-hour') {
-      schedule = { type: 'interval', alignToHour: true }
-    } else {
-      const val = parseInt(form.intervalValue, 10)
-      if (!val || val <= 0) {
-        toast({ title: 'Interval must be a positive number', status: 'error', duration: 2000 })
-        return
-      }
-      const ms = form.intervalUnit === 'minutes' ? val * 60_000 : val * 3_600_000
-      schedule = { type: 'interval', ms }
-    }
-
     const message = form.message.trim()
+    const condition = form.conditionType === 'cron'
+      ? { type: 'cron', expression: form.expression.trim() }
+      : { type: form.conditionType }
     createAlert({
       label,
-      schedule,
+      schedule: condition,
       actions: form.actions,
       message: message || undefined,
       getMessage: message ? () => message : undefined,
@@ -145,50 +138,58 @@ export default function AlertsPanel({ isOpen, onClose }) {
         <ModalCloseButton />
 
         <ModalBody pb={2}>
-          {/* Alert list */}
           {alerts.length === 0 ? (
             <Text color="gray.400" fontSize="sm">No alerts. Create one below.</Text>
           ) : (
             <VStack align="stretch" spacing={0} divider={<Divider borderColor="gray.700" />}>
-              {alerts.map(alert => (
-                <HStack key={alert.id} py={3} align="flex-start" justify="space-between">
-                  <Box>
-                    <Text fontWeight="semibold" fontSize="sm" color="white">
-                      {alert.label || alert.id}
-                    </Text>
-                    <Text fontSize="xs" color="gray.400" mt={0.5}>
-                      {scheduleDescription(alert.schedule)}
-                    </Text>
-                    {alert.eventName && (
-                      <Text fontSize="xs" color="gray.500" mt={0.5}>
-                        Event: <Text as="span" color="orange.300">{alert.eventName}</Text>
+              {alerts.map(alert => {
+                const next = alert.schedule?.expression
+                  ? formatNextRun(alert.schedule.expression)
+                  : null
+                return (
+                  <HStack key={alert.id} py={3} align="flex-start" justify="space-between">
+                    <Box>
+                      <Text fontWeight="semibold" fontSize="sm" color="white">
+                        {alert.label || alert.id}
                       </Text>
-                    )}
-                    <HStack spacing={1} mt={1.5}>
-                      {(alert.actions || []).map(action => (
-                        <Badge key={action} colorScheme={ACTION_COLORS[action] || 'gray'} fontSize="2xs">
-                          {action}
-                        </Badge>
-                      ))}
-                    </HStack>
-                  </Box>
-                  <IconButton
-                    icon={<DeleteIcon />}
-                    size="xs"
-                    variant="ghost"
-                    colorScheme="red"
-                    aria-label="Delete alert"
-                    onClick={() => handleDelete(alert.id)}
-                    mt={0.5}
-                  />
-                </HStack>
-              ))}
+                      <Text fontSize="xs" color="gray.400" mt={0.5} fontFamily="mono">
+                        {alert.schedule?.expression || '—'}
+                      </Text>
+                      {next && (
+                        <Text fontSize="xs" color="gray.500" mt={0.5}>
+                          Next: <Text as="span" color="blue.300">{next}</Text>
+                        </Text>
+                      )}
+                      {alert.eventName && (
+                        <Text fontSize="xs" color="gray.500" mt={0.5}>
+                          Event: <Text as="span" color="orange.300">{alert.eventName}</Text>
+                        </Text>
+                      )}
+                      <HStack spacing={1} mt={1.5}>
+                        {(alert.actions || []).map(action => (
+                          <Badge key={action} colorScheme={ACTION_COLORS[action] || 'gray'} fontSize="2xs">
+                            {action}
+                          </Badge>
+                        ))}
+                      </HStack>
+                    </Box>
+                    <IconButton
+                      icon={<DeleteIcon />}
+                      size="xs"
+                      variant="ghost"
+                      colorScheme="red"
+                      aria-label="Delete alert"
+                      onClick={() => handleDelete(alert.id)}
+                      mt={0.5}
+                    />
+                  </HStack>
+                )
+              })}
             </VStack>
           )}
 
           <Divider borderColor="gray.700" mt={alerts.length > 0 ? 2 : 0} mb={3} />
 
-          {/* Create form toggle */}
           {!showForm ? (
             <Button
               leftIcon={<AddIcon />}
@@ -215,36 +216,40 @@ export default function AlertsPanel({ isOpen, onClose }) {
                 </FormControl>
 
                 <FormControl>
-                  <FormLabel fontSize="xs" color="gray.400">Schedule</FormLabel>
+                  <FormLabel fontSize="xs" color="gray.400">Condition</FormLabel>
                   <Select
                     size="sm"
-                    value={form.scheduleType}
-                    onChange={e => setForm(f => ({ ...f, scheduleType: e.target.value }))}
+                    value={form.conditionType}
+                    onChange={e => setForm(f => ({ ...f, conditionType: e.target.value }))}
                   >
-                    <option value="on-the-hour">Every hour, on the hour</option>
-                    <option value="interval">Every N minutes / hours</option>
+                    {CONDITION_TYPES.map(ct => (
+                      <option key={ct.value} value={ct.value}>{ct.label}</option>
+                    ))}
                   </Select>
                 </FormControl>
 
-                {form.scheduleType === 'interval' && (
-                  <HStack>
+                {form.conditionType === 'cron' && (
+                  <FormControl isInvalid={form.expression !== '' && !cronValid}>
+                    <FormLabel fontSize="xs" color="gray.400">Cron expression</FormLabel>
                     <Input
                       size="sm"
-                      type="number"
-                      min={1}
-                      value={form.intervalValue}
-                      onChange={e => setForm(f => ({ ...f, intervalValue: e.target.value }))}
-                      w="80px"
+                      fontFamily="mono"
+                      placeholder="* * * * *"
+                      value={form.expression}
+                      onChange={e => setForm(f => ({ ...f, expression: e.target.value }))}
                     />
-                    <Select
-                      size="sm"
-                      value={form.intervalUnit}
-                      onChange={e => setForm(f => ({ ...f, intervalUnit: e.target.value }))}
-                    >
-                      <option value="minutes">Minutes</option>
-                      <option value="hours">Hours</option>
-                    </Select>
-                  </HStack>
+                    {cronValid && form.expression ? (
+                      <FormHelperText fontSize="xs" color="blue.300">
+                        Next: {formatNextRun(form.expression)}
+                      </FormHelperText>
+                    ) : form.expression !== '' ? (
+                      <FormHelperText fontSize="xs" color="red.400">Invalid expression</FormHelperText>
+                    ) : (
+                      <FormHelperText fontSize="xs" color="gray.500">
+                        min hour day month weekday — e.g. <Text as="span" fontFamily="mono">*/16 * * * *</Text>
+                      </FormHelperText>
+                    )}
+                  </FormControl>
                 )}
 
                 <FormControl>

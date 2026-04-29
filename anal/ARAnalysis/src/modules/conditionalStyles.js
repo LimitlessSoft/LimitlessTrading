@@ -4,6 +4,7 @@ function testRule(resolved, rule) {
   const ruleValue = rule.value || ''
 
   if (op === 'contains') return resolved.includes(ruleValue)
+  if (op === 'not-contains') return !resolved.includes(ruleValue)
   if (op === 'equals') return resolved === ruleValue
 
   // Numeric comparison operators

@@ -339,6 +339,11 @@ function TemplatePageGraph({
   const [editConfig, setEditConfig] = useState(null)
   const boxRef = useRef(null)
   const valuesRef = useRef([])
+  const clearedAtRef = useRef(null)
+  if (clearedAtRef.current === null) {
+    try { clearedAtRef.current = JSON.parse(localStorage.getItem(`ar_bars_cleared_${label.id}`) || '{}') }
+    catch { clearedAtRef.current = {} }
+  }
   const { isOpen, onOpen, onClose } = useDisclosure()
   const { requestDelete, confirmDeleteDialog } = useDeleteConfirm()
 
@@ -406,9 +411,10 @@ function TemplatePageGraph({
           if (!res.ok) return
           const data = await res.json()
           if (!Array.isArray(data)) return
+          const cleared = clearedAtRef.current[s.id] ?? 0
           const points = data
             .map(d => ({ timestamp: d.timestamp, value: d[valueKey] }))
-            .filter(d => d.timestamp != null && d.value != null && isFinite(d.value))
+            .filter(d => d.timestamp != null && d.value != null && isFinite(d.value) && d.timestamp > cleared)
           setHistory(prev => { const m = new Map(prev); m.set(s.id, points); return m })
         } catch (e) {
           console.error(`[graph snapshot] fetch error:`, e)
@@ -616,6 +622,9 @@ function TemplatePageGraph({
 
   const handleClearSnapshots = async () => {
     const snapshots = series.filter(s => s.mode === 'snapshot' && s.expression)
+    const now = Date.now()
+    snapshots.forEach(s => { clearedAtRef.current[s.id] = now })
+    localStorage.setItem(`ar_bars_cleared_${label.id}`, JSON.stringify(clearedAtRef.current))
     await Promise.allSettled(
       snapshots.map(s => {
         const parsed = parseSnapshotExpression(s.expression)

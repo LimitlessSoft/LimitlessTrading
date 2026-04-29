@@ -74,6 +74,7 @@ function ConditionalStylesSection({ rules, onChange, fields }) {
                 flexShrink={0}
               >
                 <option value="contains">contains</option>
+                <option value="not-contains">not contains</option>
                 <option value="equals">equals</option>
                 <option value=">">{'>'}</option>
                 <option value="<">{'<'}</option>
