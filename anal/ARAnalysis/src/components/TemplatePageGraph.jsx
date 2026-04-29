@@ -51,12 +51,16 @@ const DEFAULT_HEIGHT = 220
 const DEFAULT_WIDTH = 10
 const DEFAULT_MAX_HISTORY = 200
 const FONT_SIZE = 9
-function parseSnapshotExpression(expr) {
-  const match = expr?.match(/^@\{([^:}]+):([^:}]+)(?::(\d+))?\}$/)
+function parseSnapshotExpression(expr, interval) {
+  const match = expr?.match(/^@\{([^:}]+):([^:}]+)\}$/)
   if (!match) return null
-  const [, symbol, property, intervalStr] = match
-  const interval = parseInt(intervalStr) || 60
-  return { url: `/api/bars/${symbol}/${property}?interval=${interval}`, symbol, property, valueKey: 'value', interval }
+  const [, symbol, property] = match
+  const iv = interval || 300
+  return { url: `/api/bars/${symbol}/${property}?interval=${iv}`, symbol, property, valueKey: 'value', interval: iv }
+}
+
+function hasEmbeddedInterval(expr) {
+  return /^@\{[^:}]+:[^:}]+:\d+\}$/.test(expr ?? '')
 }
 
 const DEFAULT_STYLE = {
@@ -127,8 +131,22 @@ function GraphSVG({ seriesEntries, width, height, tooltipPosition = 'cursor' }) 
       : d.toLocaleDateString([], { month: 'short', day: 'numeric' })
   }
 
-  const barSeriesIds = seriesEntries.filter(e => e.config.viewType === 'bars').map(e => e.config.id)
+  const barSeriesEntries = seriesEntries.filter(e => e.config.viewType === 'bars' && e.data.length > 0)
+  const barSeriesIds = barSeriesEntries.map(e => e.config.id)
   const numBarSeries = barSeriesIds.length
+  // Align bar series by index: sort each by timestamp, take the min count across all
+  const minBarCount = numBarSeries > 0 ? Math.min(...barSeriesEntries.map(e => e.data.length)) : 0
+  const sortedBarData = new Map(
+    barSeriesEntries.map(e => [e.config.id, [...e.data].sort((a, b) => a.timestamp - b.timestamp).slice(-minBarCount)])
+  )
+  // Representative timestamps (from first series) for axis labels and hover
+  const barTs = numBarSeries > 0 ? (sortedBarData.get(barSeriesIds[0]) ?? []).map(d => d.timestamp) : []
+  const barSlotCount = barTs.length
+  const barSlotWidth = barSlotCount > 0 ? chartW / barSlotCount : chartW
+  // Hover slot index from mouse X
+  const hoverBarIdx = hoverX !== null && barSlotCount > 0
+    ? Math.max(0, Math.min(barSlotCount - 1, Math.floor((hoverX - padding.left) / barSlotWidth)))
+    : -1
 
   const rendered = seriesEntries.map(({ config, data }) => {
     if (!data.length) return { el: null, config, hoverVal: null, scale: null }
@@ -149,29 +167,24 @@ function GraphSVG({ seriesEntries, width, height, tooltipPosition = 'cursor' }) 
     const pointMap = new Map(data.map(d => [d.timestamp, d]))
 
     let hoverVal = null
-    if (hoverTs !== null) {
-      const pt = pointMap.get(hoverTs)
-      if (pt) hoverVal = pt.value
-    }
-
     let el
     if (config.viewType === 'bars') {
-      const n = allTs.length
-      const barSlot = chartW / n
-      const subSlotW = barSlot / Math.max(1, numBarSeries)
+      const aligned = sortedBarData.get(config.id) || []
       const barSeriesIdx = barSeriesIds.indexOf(config.id)
+      const groupW = barSlotWidth * 0.6
+      const subSlotW = groupW / Math.max(1, numBarSeries)
+      const groupOffset = (barSlotWidth - groupW) / 2
+      if (hoverBarIdx >= 0 && aligned[hoverBarIdx]) hoverVal = aligned[hoverBarIdx].value
       el = (
         <g key={config.id}>
-          {data.map(d => {
-            const idx = allTs.indexOf(d.timestamp)
-            const x = padding.left + idx * barSlot + barSeriesIdx * subSlotW
+          {aligned.map((d, idx) => {
+            const x = padding.left + idx * barSlotWidth + groupOffset + barSeriesIdx * subSlotW
             const y = valToY(d.value)
-            const highlighted = hoverTs !== null && d.timestamp === hoverTs
             return (
-              <rect key={d.timestamp}
+              <rect key={idx}
                 x={x} y={y}
                 width={Math.max(1, subSlotW)} height={Math.max(1, padding.top + chartH - y)}
-                fill={config.color} opacity={highlighted ? 1 : 0.75}
+                fill={config.color} opacity={hoverBarIdx === idx ? 1 : 0.75}
               />
             )
           })}
@@ -217,13 +230,17 @@ function GraphSVG({ seriesEntries, width, height, tooltipPosition = 'cursor' }) 
     return { el, config, hoverVal, scale: { effMin, effMax, effRange, valToY } }
   })
 
-  const hasBarSeries = seriesEntries.some(e => e.config.viewType === 'bars')
-  const slotX = (ts) => padding.left + (allTs.indexOf(ts) + 0.5) * (chartW / allTs.length)
-  const axisX = hasBarSeries ? slotX : tsToX
-
+  const hasBarSeries = numBarSeries > 0
+  const barHoverX = hoverBarIdx >= 0 ? padding.left + (hoverBarIdx + 0.5) * barSlotWidth : null
+  const barHoverTs = hoverBarIdx >= 0 ? barTs[hoverBarIdx] : null
+  // For axis labels: bars use barTs, lines use allTs
+  const displayTs = hasBarSeries ? barTs : allTs
   const maxLabels = Math.max(2, Math.floor(chartW / 80))
-  const step = Math.max(1, Math.ceil(allTs.length / maxLabels))
-  const axisTs = allTs.filter((_, i) => i % step === 0)
+  const step = Math.max(1, Math.ceil(displayTs.length / maxLabels))
+  const axisTs = displayTs.filter((_, i) => i % step === 0)
+  const axisX = hasBarSeries
+    ? (ts) => { const idx = barTs.indexOf(ts); return idx >= 0 ? padding.left + (idx + 0.5) * barSlotWidth : tsToX(ts) }
+    : tsToX
 
   // Compute Y grid ticks from the first rendered series that has scale info
   const refScale = rendered.find(r => r.scale)?.scale ?? null
@@ -269,15 +286,17 @@ function GraphSVG({ seriesEntries, width, height, tooltipPosition = 'cursor' }) 
 
       {rendered.map(({ el }) => el)}
 
-      {hoverTs !== null && (
+      {(hasBarSeries ? barHoverX : hoverTs !== null ? axisX(hoverTs) : null) !== null && (
         <line
-          x1={axisX(hoverTs)} y1={padding.top}
-          x2={axisX(hoverTs)} y2={padding.top + chartH}
+          x1={hasBarSeries ? barHoverX : axisX(hoverTs)} y1={padding.top}
+          x2={hasBarSeries ? barHoverX : axisX(hoverTs)} y2={padding.top + chartH}
           stroke="#718096" strokeWidth={1} strokeDasharray="3,3"
         />
       )}
 
-      {hoverTs !== null && (() => {
+      {(hasBarSeries ? barHoverTs : hoverTs) !== null && (() => {
+        const activeTs = hasBarSeries ? barHoverTs : hoverTs
+        const activeLx = hasBarSeries ? barHoverX : axisX(hoverTs)
         const rows = rendered.filter(r => r.hoverVal != null && isFinite(r.hoverVal))
         if (!rows.length) return null
         const lineH = FONT_SIZE + 4
@@ -288,15 +307,14 @@ function GraphSVG({ seriesEntries, width, height, tooltipPosition = 'cursor' }) 
           tx = padding.left + chartW - tw - 4
           ty = padding.top + 4
         } else {
-          const lx = axisX(hoverTs)
-          tx = lx + 10 + tw > width ? lx - tw - 10 : lx + 10
+          tx = activeLx + 10 + tw > width ? activeLx - tw - 10 : activeLx + 10
           ty = Math.min(Math.max((hoverY ?? padding.top) - th / 2, padding.top), padding.top + chartH - th)
         }
         return (
           <g pointerEvents="none">
             <rect x={tx} y={ty} width={tw} height={th} rx={3} fill="#1A202C" stroke="#4A5568" strokeWidth={1} opacity={0.95} />
             <text x={tx + 6} y={ty + FONT_SIZE + 2} fontSize={FONT_SIZE} fill="#718096">
-              {new Date(hoverTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              {new Date(activeTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </text>
             {rows.map((r, i) => (
               <g key={r.config.id}>
@@ -356,6 +374,7 @@ function TemplatePageGraph({
   const x = label.x || 0
   const series = label.series || []
   const maxHistory = label.maxHistory || DEFAULT_MAX_HISTORY
+  const snapshotInterval = label.snapshotInterval || 300
   const style = { ...DEFAULT_STYLE, ...label.style }
 
   const displayWidth = previewSize?.width ?? width
@@ -401,12 +420,12 @@ function TemplatePageGraph({
 
   // Snapshot series: parse expression to determine URL, fetch on interval
   const snapshotSeries = series.filter(s => s.mode === 'snapshot' && s.expression)
-  const snapshotKey = JSON.stringify(snapshotSeries.map(s => ({ id: s.id, expression: s.expression })))
+  const snapshotKey = JSON.stringify(snapshotSeries.map(s => ({ id: s.id, expression: s.expression }))) + snapshotInterval
   useEffect(() => {
     if (!snapshotSeries.length) return
     const timers = []
     snapshotSeries.forEach(s => {
-      const parsed = parseSnapshotExpression(s.expression)
+      const parsed = parseSnapshotExpression(s.expression, snapshotInterval)
       if (!parsed) return
       const { url, valueKey, interval } = parsed
       const fetchSnapshot = async () => {
@@ -419,6 +438,7 @@ function TemplatePageGraph({
           const points = data
             .map(d => ({ timestamp: d.timestamp, value: d[valueKey] }))
             .filter(d => d.timestamp != null && d.value != null && isFinite(d.value) && d.timestamp > cleared)
+            .slice(-maxHistory)
           setHistory(prev => { const m = new Map(prev); m.set(s.id, points); return m })
         } catch (e) {
           console.error(`[graph snapshot] fetch error:`, e)
@@ -587,15 +607,21 @@ function TemplatePageGraph({
     setEditConfig({
       series: series.map(s => ({ ...s })),
       maxHistory,
+      snapshotInterval,
+      title: label.title || '',
       style: { ...DEFAULT_STYLE, ...label.style }
     })
     onOpen()
   }
 
   const handleSaveConfig = () => {
+    const hasInvalid = editConfig.series.some(s => s.mode === 'snapshot' && hasEmbeddedInterval(s.expression))
+    if (hasInvalid) return
     onUpdate(label.id, {
       series: editConfig.series,
       maxHistory: editConfig.maxHistory,
+      snapshotInterval: Math.max(10, parseInt(editConfig.snapshotInterval) || 300),
+      title: editConfig.title,
       style: editConfig.style
     })
     onClose()
@@ -631,9 +657,9 @@ function TemplatePageGraph({
     localStorage.setItem(`ar_bars_cleared_${label.id}`, JSON.stringify(clearedAtRef.current))
     await Promise.allSettled(
       snapshots.map(s => {
-        const parsed = parseSnapshotExpression(s.expression)
-        if (!parsed) return Promise.resolve()
-        return fetch(`/api/bars/${parsed.symbol}/${parsed.property}?interval=${parsed.interval}`, { method: 'DELETE' })
+        const p = parseSnapshotExpression(s.expression, snapshotInterval)
+        if (!p) return Promise.resolve()
+        return fetch(`/api/bars/${p.symbol}/${p.property}?interval=${p.interval}`, { method: 'DELETE' })
       })
     )
     setHistory(prev => {
@@ -669,6 +695,16 @@ function TemplatePageGraph({
         onMouseDown={isEditing ? handleMoveStart : undefined}
         zIndex={isMoving ? 100 : 1}
       >
+        {label.title && (
+          <Box
+            position="absolute" top={0} left={0} right={0}
+            textAlign="center" pointerEvents="none" zIndex={5}
+            pt="2px"
+          >
+            <Text fontSize="xs" color="gray.400" noOfLines={1} px={6}>{label.title}</Text>
+          </Box>
+        )}
+
         {containerWidth > 0 && (
           <GraphSVG
             seriesEntries={seriesEntries}
@@ -808,13 +844,16 @@ function TemplatePageGraph({
                           />
                         </FormControl>
                       </HStack>
-                      <FormControl>
+                      <FormControl isInvalid={(s.mode || 'live') === 'snapshot' && hasEmbeddedInterval(s.expression)}>
                         <FormLabel fontSize="xs">Expression</FormLabel>
                         <Input size="sm" value={s.expression || ''}
                           onChange={e => updateSeries(s.id, { expression: e.target.value })}
-                          placeholder={(s.mode || 'live') === 'snapshot' ? '@{SPY:callVol:300}' : '@{SPY:last:5}  @{SPY:callVol:300}'}
+                          placeholder={(s.mode || 'live') === 'snapshot' ? '@{SPY:callVol}' : '@{SPY:last:5}'}
                           fontFamily="mono"
                         />
+                        {(s.mode || 'live') === 'snapshot' && hasEmbeddedInterval(s.expression) && (
+                          <Text fontSize="xs" color="red.400" mt={1}>Remove interval from expression — set it in Settings below</Text>
+                        )}
                       </FormControl>
                       <HStack>
                         <FormControl>
@@ -839,12 +878,28 @@ function TemplatePageGraph({
 
                 <Box borderTopWidth={1} borderColor="gray.600" pt={3}>
                   <Text fontSize="sm" fontWeight="medium" mb={2}>Settings</Text>
+                  <HStack align="flex-end" mb={2}>
+                    <FormControl>
+                      <FormLabel fontSize="xs">Title</FormLabel>
+                      <Input size="sm" value={editConfig.title}
+                        onChange={e => setEditConfig({ ...editConfig, title: e.target.value })}
+                        placeholder="Options Flow"
+                      />
+                    </FormControl>
+                  </HStack>
                   <HStack align="flex-end">
                     <FormControl maxW="120px">
                       <FormLabel fontSize="xs">Max history points</FormLabel>
                       <Input size="sm" type="number" min={10} max={2000}
                         value={editConfig.maxHistory}
                         onChange={e => setEditConfig({ ...editConfig, maxHistory: parseInt(e.target.value) || DEFAULT_MAX_HISTORY })}
+                      />
+                    </FormControl>
+                    <FormControl maxW="120px">
+                      <FormLabel fontSize="xs">Snapshot interval (s)</FormLabel>
+                      <Input size="sm" type="number" min={10}
+                        value={editConfig.snapshotInterval}
+                        onChange={e => setEditConfig({ ...editConfig, snapshotInterval: parseInt(e.target.value) || '' })}
                       />
                     </FormControl>
                     <FormControl>
