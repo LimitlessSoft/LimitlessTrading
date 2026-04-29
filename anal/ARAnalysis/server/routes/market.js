@@ -5,6 +5,7 @@ import {
   getHistoricalData,
   getConnectionStatus,
   getOptionsChain,
+  getOptionsFlow,
   getCurrentPrices,
   getOptionHistoricalData,
   getOptionParams,
@@ -29,6 +30,10 @@ const CLOSE_ND_TTL = 60 * 60 * 1000 // 1 hour
 // Server-side cache for stats-nd results: `${symbol}:${days}` → { high, low, avg, fetchedAt }
 const historicalStatsCache = new Map()
 const STATS_ND_TTL = 60 * 60 * 1000 // 1 hour
+
+// Server-side cache for options-flow results: symbol → { data, fetchedAt }
+const optionsFlowCache = new Map()
+const OPTIONS_FLOW_TTL = 5 * 60 * 1000 // 5 minutes
 
 // Interval to IBKR bar size/duration mapping
 const INTERVAL_CONFIG = {
@@ -436,6 +441,33 @@ router.get('/option-history/:symbol', async (req, res) => {
     res.json({ data })
   } catch (error) {
     console.error('Option history error:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Get aggregate call/put volume for a symbol's near-money options
+// Query params: price (optional current spot price for ATM centering)
+router.get('/options-flow/:symbol', async (req, res) => {
+  const { symbol } = req.params
+  const { price } = req.query
+
+  if (!symbol || symbol.trim() === '') {
+    return res.status(400).json({ error: 'Symbol is required' })
+  }
+
+  const upperSymbol = symbol.toUpperCase()
+  const cached = optionsFlowCache.get(upperSymbol)
+
+  if (cached && Date.now() - cached.fetchedAt < OPTIONS_FLOW_TTL) {
+    return res.json(cached.data)
+  }
+
+  try {
+    const flow = await getOptionsFlow(upperSymbol)
+    optionsFlowCache.set(upperSymbol, { data: flow, fetchedAt: Date.now() })
+    res.json(flow)
+  } catch (error) {
+    console.error(`[options-flow] error for ${upperSymbol}:`, error.message)
     res.status(500).json({ error: error.message })
   }
 })

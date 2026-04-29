@@ -20,6 +20,8 @@ import {
   useDisclosure
 } from '@chakra-ui/react'
 import { CloseIcon, SettingsIcon, AddIcon, DeleteIcon } from '@chakra-ui/icons'
+import FillIcon from './FillIcon'
+import { useDeleteConfirm } from '../hooks/useDeleteConfirm'
 import { useWidgetResolveText } from '../hooks/useWidgetResolveText'
 import WidgetTooltip from './WidgetTooltip'
 import WidgetTooltipEditor from './WidgetTooltipEditor'
@@ -186,6 +188,7 @@ function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const [editConfig, setEditConfig] = useState(null)
   const boxRef = useRef(null)
   const { isOpen, onOpen, onClose } = useDisclosure()
+  const { requestDelete, ConfirmDeleteDialog } = useDeleteConfirm()
 
   const width = label.width || DEFAULT_WIDTH
   const height = label.height || DEFAULT_HEIGHT
@@ -478,7 +481,7 @@ function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDra
                   onClick={(e) => { e.stopPropagation(); handleOpenEdit() }}
                   onMouseDown={(e) => e.stopPropagation()} ml={1} />
                 <IconButton icon={<CloseIcon />} size="xs" variant="ghost" aria-label="Delete gauge"
-                  onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+                  onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
                   onMouseDown={(e) => e.stopPropagation()} />
               </>
             )}
@@ -628,6 +631,21 @@ function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDra
 
           {isEditing && (
             <>
+              <Tooltip label={label.dock === 'fill' ? 'Remove fill' : 'Fill parent'} placement="top" hasArrow>
+                <IconButton
+                  icon={<FillIcon />}
+                  size="xs"
+                  variant="ghost"
+                  aria-label="Fill parent"
+                  color={label.dock === 'fill' ? 'blue.300' : 'gray.400'}
+                  _hover={{ color: label.dock === 'fill' ? 'blue.200' : 'white', bg: 'whiteAlpha.200' }}
+                  onClick={(e) => { e.stopPropagation(); onUpdate(label.id, { dock: label.dock === 'fill' ? undefined : 'fill' }) }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  position="absolute"
+                  top={0}
+                  right={18}
+                />
+              </Tooltip>
               <Tooltip label="Export gauge" placement="top" hasArrow>
                 <IconButton
                   icon={<DownloadIcon />}
@@ -657,7 +675,7 @@ function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDra
                 size="xs"
                 variant="ghost"
                 aria-label="Delete gauge"
-                onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+                onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
                 onMouseDown={(e) => e.stopPropagation()}
                 position="absolute"
                 top={0}
@@ -821,6 +839,7 @@ function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDra
           </ModalFooter>
         </ModalContent>
       </Modal>
+      <ConfirmDeleteDialog />
     </>
   )
 }

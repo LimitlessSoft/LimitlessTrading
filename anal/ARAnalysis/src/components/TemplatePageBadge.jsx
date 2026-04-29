@@ -22,6 +22,8 @@ import {
   useDisclosure
 } from '@chakra-ui/react'
 import { CloseIcon, DragHandleIcon, SettingsIcon } from '@chakra-ui/icons'
+import FillIcon from './FillIcon'
+import { useDeleteConfirm } from '../hooks/useDeleteConfirm'
 import { applyConditionalStyles } from '../modules/conditionalStyles'
 import { useWidgetResolveText } from '../hooks/useWidgetResolveText'
 import ConditionalStylesSection from './ConditionalStylesSection'
@@ -59,6 +61,7 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const [editConfig, setEditConfig] = useState(null)
   const boxRef = useRef(null)
   const { isOpen, onOpen, onClose } = useDisclosure()
+  const { requestDelete, ConfirmDeleteDialog } = useDeleteConfirm()
 
   const width = label.width || 2
   const height = label.height || DEFAULT_SIZE
@@ -404,7 +407,7 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onExport, onDra
                 onClick={(e) => { e.stopPropagation(); handleOpenEdit() }}
                 onMouseDown={(e) => e.stopPropagation()} ml={1} />
               <IconButton icon={<CloseIcon />} size="xs" variant="ghost" aria-label="Delete badge"
-                onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+                onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
                 onMouseDown={(e) => e.stopPropagation()} />
             </>
           )}
@@ -470,6 +473,13 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onExport, onDra
 
         {isEditing && (
           <>
+            <Tooltip label={label.dock === 'fill' ? 'Remove fill' : 'Fill parent'} placement="top" hasArrow>
+              <IconButton icon={<FillIcon />} size="xs" variant="ghost" aria-label="Fill parent"
+                color={label.dock === 'fill' ? 'blue.300' : 'gray.400'}
+                _hover={{ color: label.dock === 'fill' ? 'blue.200' : 'white', bg: 'whiteAlpha.200' }}
+                onClick={(e) => { e.stopPropagation(); onUpdate(label.id, { dock: label.dock === 'fill' ? undefined : 'fill' }) }}
+                onMouseDown={(e) => e.stopPropagation()} position="absolute" top={0} right={18} />
+            </Tooltip>
             <Tooltip label="Export badge" placement="top" hasArrow>
               <IconButton icon={<DownloadIcon />} size="xs" variant="ghost" aria-label="Export badge"
                 onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
@@ -479,7 +489,7 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onExport, onDra
               onClick={(e) => { e.stopPropagation(); handleOpenEdit() }}
               onMouseDown={(e) => e.stopPropagation()} position="absolute" top={0} right={6} />
             <IconButton icon={<CloseIcon />} size="xs" variant="ghost" aria-label="Delete badge"
-              onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+              onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
               onMouseDown={(e) => e.stopPropagation()} position="absolute" top={0} right={0} />
             <Box position="absolute" right={0} bottom={0} width="12px" height="12px"
               cursor="nwse-resize" bg="whiteAlpha.200" _hover={{ bg: 'whiteAlpha.400' }}
@@ -489,6 +499,7 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onExport, onDra
       </Box>
 
       {renderEditModal()}
+      <ConfirmDeleteDialog />
     </>
   )
 }

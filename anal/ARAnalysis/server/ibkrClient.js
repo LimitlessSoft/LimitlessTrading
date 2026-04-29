@@ -1045,6 +1045,128 @@ export async function getCurrentPrices(symbols) {
   return results
 }
 
+// Fetch volume for a single option contract — waits up to 3s specifically for the volume tick
+// Get today's cumulative volume for an option contract.
+// Uses snapshot mode so IBKR sends a one-time complete data packet including tick type 8 (volume).
+async function getOptionVolumeOnly(symbol, expiration, strike, right, exchange, multiplier) {
+  return new Promise((resolve) => {
+    const reqId = nextRequestId++
+    const contract = {
+      symbol, secType: 'OPT', exchange: exchange || 'SMART', currency: 'USD',
+      lastTradeDateOrContractMonth: expiration,
+      strike: parseFloat(strike), right,
+      multiplier: multiplier || '100'
+    }
+
+    let volume = 0
+    let resolved = false
+
+    const cleanup = () => {
+      if (resolved) return
+      resolved = true
+      ib.off(EventName.tickSize, onTickSize)
+      ib.off(EventName.tickSnapshotEnd, onSnapshotEnd)
+      pendingRequests.delete(reqId)
+      try { ib.cancelMktData(reqId) } catch (e) {}
+    }
+
+    const onTickSize = (rId, tickType, size) => {
+      if (rId !== reqId) return
+      // tick type 8 = daily volume
+      if (tickType === 8 && size > 0) volume = size
+    }
+
+    const onSnapshotEnd = (rId) => {
+      if (rId !== reqId) return
+      cleanup()
+      resolve(volume)
+    }
+
+    pendingRequests.set(reqId, { resolve, reject: () => { cleanup(); resolve(0) } })
+    ib.on(EventName.tickSize, onTickSize)
+    ib.on(EventName.tickSnapshotEnd, onSnapshotEnd)
+
+    // Fallback timeout in case tickSnapshotEnd never fires
+    setTimeout(() => {
+      if (!resolved) { cleanup(); resolve(volume) }
+    }, 5000)
+
+    try {
+      // snapshot=true: IBKR sends all current ticks once then stops
+      ib.reqMktData(reqId, contract, '', true, false, [])
+    } catch (err) {
+      cleanup()
+      resolve(0)
+    }
+  })
+}
+
+// Get aggregate options flow for a symbol using tick types 29/30 (OPTION_CALL_VOLUME /
+// OPTION_PUT_VOLUME) on the underlying contract. IBKR sends these as part of the
+// standard market data snapshot when genericTickList includes "100".
+export async function getOptionsFlow(symbol) {
+  if (!ib || !connectionState.connected) {
+    throw new Error('Not connected to IBKR')
+  }
+
+  console.log(`Fetching options flow for ${symbol}...`)
+
+  return new Promise((resolve) => {
+    const reqId = nextRequestId++
+    const indexConfig = INDEX_SYMBOLS[symbol.toUpperCase()]
+    const contract = indexConfig
+      ? { symbol, secType: 'IND', exchange: indexConfig.exchange, currency: 'USD' }
+      : { symbol, secType: 'STK', exchange: 'SMART', currency: 'USD' }
+
+    let callVol = 0
+    let putVol = 0
+    let resolved = false
+
+    const cleanup = () => {
+      if (resolved) return
+      resolved = true
+      ib.off(EventName.tickSize, onTick)
+      ib.off(EventName.tickGeneric, onTick)
+      pendingRequests.delete(reqId)
+      try { ib.cancelMktData(reqId) } catch (e) {}
+    }
+
+    const finish = () => {
+      const pcRatio = callVol > 0 ? putVol / callVol : null
+      console.log(`  Flow result: callVol=${callVol} putVol=${putVol} pcRatio=${pcRatio?.toFixed(2)}`)
+      resolve({ symbol, totalCallVol: callVol, totalPutVol: putVol, pcRatio, byExpiration: [] })
+    }
+
+    // OPTION_CALL_VOLUME=29 and OPTION_PUT_VOLUME=30 may arrive via tickSize OR tickGeneric
+    const onTick = (rId, tickType, value) => {
+      if (rId !== reqId) return
+      if (tickType === 29 && value > 0) callVol = Math.round(value)
+      if (tickType === 30 && value > 0) putVol = Math.round(value)
+    }
+
+    pendingRequests.set(reqId, { resolve, reject: () => { cleanup(); resolve({ symbol, totalCallVol: 0, totalPutVol: 0, pcRatio: null, byExpiration: [] }) } })
+    ib.on(EventName.tickSize, onTick)
+    ib.on(EventName.tickGeneric, onTick)
+
+    // snapshot=true is incompatible with genericTickList — use streaming + manual cancel
+    setTimeout(() => {
+      if (!resolved) {
+        cleanup()
+        console.log(`  Flow timeout: callVol=${callVol} putVol=${putVol}`)
+        finish()
+      }
+    }, 5000)
+
+    try {
+      // genericTickList "100" requests option volume ticks (29=call vol, 30=put vol)
+      ib.reqMktData(reqId, contract, '100', false, false, [])
+    } catch (err) {
+      cleanup()
+      resolve({ symbol, totalCallVol: 0, totalPutVol: 0, pcRatio: null, byExpiration: [] })
+    }
+  })
+}
+
 // Get options chain for a symbol
 export async function getOptionsChain(symbol, currentPrice) {
   if (!ib || !connectionState.connected) {

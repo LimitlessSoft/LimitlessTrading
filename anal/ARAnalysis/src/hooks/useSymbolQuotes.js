@@ -16,8 +16,10 @@ import {
   subscribeQuote,
   subscribeHistoricalClose,
   subscribeHistoricalStats,
+  subscribeOptionsFlow,
   isHistoricalCloseProperty,
   isHistoricalStatsProperty,
+  isOptionsFlowProperty,
   resolveSymbolText,
   resolveFormulaText,
   getQuoteValue
@@ -101,6 +103,20 @@ export function useSymbolQuotes(text) {
       if (!statsFetched.has(statsKey)) {
         statsFetched.add(statsKey)
         newUnsubscribes.push(subscribeHistoricalStats(symbol, days, interval))
+      }
+    }
+
+    // Subscribe to options flow fetches (callVol, putVol, pcRatio)
+    const flowFetched = new Set()
+    for (const { symbol, property, interval } of placeholders) {
+      if (!isOptionsFlowProperty(property)) continue
+      if (!liveSymbolIntervals.has(symbol)) {
+        newUnsubscribes.push(subscribeQuote(symbol, interval, quoteCallback))
+        liveSymbolIntervals.set(symbol, interval)
+      }
+      if (!flowFetched.has(symbol)) {
+        flowFetched.add(symbol)
+        newUnsubscribes.push(subscribeOptionsFlow(symbol, interval))
       }
     }
 

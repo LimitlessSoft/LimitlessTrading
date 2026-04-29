@@ -22,11 +22,12 @@ const api = axios.create({
 // Property allows word chars plus dash-separated args: last, close-20, someProperty-arg1-arg2
 const SYMBOL_QUOTE_REGEX = /@\{([A-Za-z0-9.^]+):([A-Za-z]\w*(?:-[A-Za-z0-9]+)*)(?::(\d+))?\}/g
 
-// Valid quote properties (static)
+// Valid quote properties — all lowercase (property is lowercased on parse)
 const VALID_PROPERTIES = new Set([
-  'bid', 'ask', 'last', 'high', 'low', 'open', 'prevClose', 'close',
-  'vwap', 'volume', 'avgVolume', 'bidSize', 'askSize',
-  'marketCap', 'week52High', 'week52Low', 'change', 'changePercent'
+  'bid', 'ask', 'last', 'high', 'low', 'open', 'prevclose', 'close',
+  'vwap', 'volume', 'avgvolume', 'bidsize', 'asksize',
+  'marketcap', 'week52high', 'week52low', 'change', 'changepercent',
+  'callvol', 'putvol', 'pcratio'
 ])
 
 // close-20, close-5 etc. — closing price N trading days ago
@@ -34,6 +35,9 @@ const CLOSE_ND_REGEX = /^close-(\d+)$/
 
 // high-252, low-252, avg-252 etc. — high/low/avg close over last N trading days
 const STATS_ND_REGEX = /^(high|low|avg)-(\d+)$/
+
+// Options flow properties — all lowercase
+const OPTIONS_FLOW_PROPS = new Set(['callvol', 'putvol', 'pcratio'])
 
 export function isValidProperty(property) {
   return VALID_PROPERTIES.has(property) || CLOSE_ND_REGEX.test(property) || STATS_ND_REGEX.test(property)
@@ -45,6 +49,10 @@ export function isHistoricalCloseProperty(property) {
 
 export function isHistoricalStatsProperty(property) {
   return STATS_ND_REGEX.test(property)
+}
+
+export function isOptionsFlowProperty(property) {
+  return OPTIONS_FLOW_PROPS.has(property)
 }
 
 // Threshold for SSE vs polling (seconds)
@@ -105,7 +113,7 @@ export function formatQuoteValue(property, value) {
   }
 
   // Volume and size formatting (K, M, B)
-  if (['volume', 'avgVolume', 'bidSize', 'askSize'].includes(property)) {
+  if (['volume', 'avgvolume', 'bidsize', 'asksize'].includes(property)) {
     if (value >= 1_000_000_000) {
       return `${(value / 1_000_000_000).toFixed(2)}B`
     }
@@ -119,7 +127,7 @@ export function formatQuoteValue(property, value) {
   }
 
   // Market cap formatting (with $ prefix)
-  if (property === 'marketCap') {
+  if (property === 'marketcap') {
     if (value >= 1_000_000_000_000) {
       return `$${(value / 1_000_000_000_000).toFixed(2)}T`
     }
@@ -133,7 +141,7 @@ export function formatQuoteValue(property, value) {
   }
 
   // Percentage formatting
-  if (property === 'changePercent') {
+  if (property === 'changepercent') {
     const sign = value >= 0 ? '+' : ''
     return `${sign}${value.toFixed(2)}%`
   }
@@ -142,6 +150,18 @@ export function formatQuoteValue(property, value) {
   if (property === 'change') {
     const sign = value >= 0 ? '+' : ''
     return `${sign}${value.toFixed(2)}`
+  }
+
+  // Options flow: volume as K/M
+  if (property === 'callvol' || property === 'putvol') {
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`
+    if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`
+    return value.toLocaleString()
+  }
+
+  // P/C ratio: 2 decimals
+  if (property === 'pcratio') {
+    return value.toFixed(2)
   }
 
   // Default: 2 decimal places for prices
@@ -162,6 +182,7 @@ function getQuoteProperty(quote, property) {
   if (!quote) return null
 
   // Map our property names to API response fields
+  // Keys are lowercase (property is always lowercased); values are the actual quote object fields
   const propertyMap = {
     bid: 'bid',
     ask: 'ask',
@@ -169,18 +190,21 @@ function getQuoteProperty(quote, property) {
     high: 'high',
     low: 'low',
     open: 'open',
-    prevClose: 'prevClose',
+    prevclose: 'prevClose',
     close: 'close',
     vwap: 'vwap',
     volume: 'volume',
-    avgVolume: 'avgVolume',
-    bidSize: 'bidSize',
-    askSize: 'askSize',
-    marketCap: 'marketCap',
-    week52High: 'week52High',
-    week52Low: 'week52Low',
+    avgvolume: 'avgVolume',
+    bidsize: 'bidSize',
+    asksize: 'askSize',
+    marketcap: 'marketCap',
+    week52high: 'week52High',
+    week52low: 'week52Low',
     change: 'change',
-    changePercent: 'changePercent'
+    changepercent: 'changePercent',
+    callvol: 'callVol',
+    putvol: 'putVol',
+    pcratio: 'pcRatio'
   }
 
   const apiField = propertyMap[property]
@@ -546,7 +570,10 @@ export function getQuoteValue(symbol, property, quotes) {
   return getQuoteProperty(quote, property.toLowerCase())
 }
 
-// Historical close subscriptions: `${symbol}:${days}` → { refCount, timerId }
+// Client-side TTL for historical data (matches server-side cache; close prices don't change intraday)
+const HISTORICAL_CLIENT_TTL = 60 * 60 * 1000 // 1 hour
+
+// Historical close subscriptions: `${symbol}:${days}` → { refCount, timerId, fetchedAt }
 const historicalCloseSubs = new Map()
 
 /**
@@ -564,10 +591,14 @@ export function subscribeHistoricalClose(symbol, days, interval) {
   const propertyKey = `close-${days}`
 
   const fetchClose = async () => {
+    const entry = historicalCloseSubs.get(key)
+    if (entry?.fetchedAt && Date.now() - entry.fetchedAt < HISTORICAL_CLIENT_TTL) return
     try {
       const res = await api.get(`/close-nd/${upperSymbol}?days=${days}`)
       const existing = quoteCache.get(upperSymbol) || { symbol: upperSymbol }
       handleQuoteUpdate(upperSymbol, { ...existing, [propertyKey]: res.data.close })
+      const e = historicalCloseSubs.get(key)
+      if (e) e.fetchedAt = Date.now()
     } catch {
     }
   }
@@ -581,9 +612,10 @@ export function subscribeHistoricalClose(symbol, days, interval) {
       handleQuoteUpdate(upperSymbol, cached)
     }
   } else {
+    historicalCloseSubs.set(key, { refCount: 1, timerId: null, fetchedAt: null })
     fetchClose()
     const timerId = setInterval(fetchClose, interval * 1000)
-    historicalCloseSubs.set(key, { refCount: 1, timerId })
+    historicalCloseSubs.get(key).timerId = timerId
   }
 
   return () => {
@@ -597,7 +629,7 @@ export function subscribeHistoricalClose(symbol, days, interval) {
   }
 }
 
-// Historical stats subscriptions: `${symbol}:stats-${days}` → { refCount, timerId }
+// Historical stats subscriptions: `${symbol}:stats-${days}` → { refCount, timerId, fetchedAt }
 const historicalStatsSubs = new Map()
 
 export function subscribeHistoricalStats(symbol, days, interval) {
@@ -605,6 +637,8 @@ export function subscribeHistoricalStats(symbol, days, interval) {
   const key = `${upperSymbol}:stats-${days}`
 
   const fetchStats = async () => {
+    const entry = historicalStatsSubs.get(key)
+    if (entry?.fetchedAt && Date.now() - entry.fetchedAt < HISTORICAL_CLIENT_TTL) return
     try {
       const res = await api.get(`/stats-nd/${upperSymbol}?days=${days}`)
       const existing = quoteCache.get(upperSymbol) || { symbol: upperSymbol }
@@ -614,6 +648,8 @@ export function subscribeHistoricalStats(symbol, days, interval) {
         [`low-${days}`]: res.data.low,
         [`avg-${days}`]: res.data.avg
       })
+      const e = historicalStatsSubs.get(key)
+      if (e) e.fetchedAt = Date.now()
     } catch (err) {
       console.error(`[historicalStats] fetch error for ${upperSymbol} days=${days}:`, err)
     }
@@ -627,9 +663,10 @@ export function subscribeHistoricalStats(symbol, days, interval) {
       handleQuoteUpdate(upperSymbol, cached)
     }
   } else {
+    historicalStatsSubs.set(key, { refCount: 1, timerId: null, fetchedAt: null })
     fetchStats()
     const timerId = setInterval(fetchStats, interval * 1000)
-    historicalStatsSubs.set(key, { refCount: 1, timerId })
+    historicalStatsSubs.get(key).timerId = timerId
   }
 
   return () => {
@@ -639,6 +676,58 @@ export function subscribeHistoricalStats(symbol, days, interval) {
     if (sub.refCount <= 0) {
       clearInterval(sub.timerId)
       historicalStatsSubs.delete(key)
+    }
+  }
+}
+
+// Options flow subscriptions: symbol → { refCount, timerId }
+const optionsFlowSubs = new Map()
+
+/**
+ * Subscribe to periodic fetches of aggregate call/put volume for a symbol.
+ * Results are merged into the quote cache as callVol, putVol, pcRatio.
+ * @param {string} symbol
+ * @param {number} interval - Refresh interval in seconds
+ * @returns {Function} Unsubscribe function
+ */
+export function subscribeOptionsFlow(symbol, interval) {
+  const upperSymbol = symbol.toUpperCase()
+  const key = upperSymbol
+
+  const fetchFlow = async () => {
+    try {
+      const spot = quoteCache.get(upperSymbol)?.last ?? null
+      const params = spot ? `?price=${spot}` : ''
+      const res = await api.get(`/options-flow/${upperSymbol}${params}`)
+      const existing = quoteCache.get(upperSymbol) || { symbol: upperSymbol }
+      handleQuoteUpdate(upperSymbol, {
+        ...existing,
+        callVol: res.data.totalCallVol,
+        putVol: res.data.totalPutVol,
+        pcRatio: res.data.pcRatio
+      })
+    } catch {
+    }
+  }
+
+  const existing = optionsFlowSubs.get(key)
+  if (existing) {
+    existing.refCount++
+    const cached = quoteCache.get(upperSymbol)
+    if (cached?.callVol !== undefined || cached?.callvol !== undefined) handleQuoteUpdate(upperSymbol, cached)
+  } else {
+    fetchFlow()
+    const timerId = setInterval(fetchFlow, interval * 1000)
+    optionsFlowSubs.set(key, { refCount: 1, timerId })
+  }
+
+  return () => {
+    const sub = optionsFlowSubs.get(key)
+    if (!sub) return
+    sub.refCount--
+    if (sub.refCount <= 0) {
+      clearInterval(sub.timerId)
+      optionsFlowSubs.delete(key)
     }
   }
 }

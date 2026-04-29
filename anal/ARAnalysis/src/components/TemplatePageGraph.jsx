@@ -21,6 +21,8 @@ import {
   useDisclosure
 } from '@chakra-ui/react'
 import { CloseIcon, SettingsIcon, AddIcon, DeleteIcon } from '@chakra-ui/icons'
+import FillIcon from './FillIcon'
+import { useDeleteConfirm } from '../hooks/useDeleteConfirm'
 import { useWidgetResolveText } from '../hooks/useWidgetResolveText'
 
 const DownloadIcon = () => (
@@ -58,7 +60,7 @@ function GraphSVG({ seriesEntries, width, height }) {
     ...new Set(seriesEntries.flatMap(({ data }) => data.map(d => d.timestamp)))
   ].sort((a, b) => a - b)
 
-  if (allTs.length < 2 || chartW <= 0 || chartH <= 0) {
+  if (allTs.length === 0 || chartW <= 0 || chartH <= 0) {
     return (
       <svg width={width} height={height}>
         <text x={width / 2} y={height / 2} textAnchor="middle" fill="#4A5568" fontSize={FONT_SIZE}>
@@ -72,11 +74,13 @@ function GraphSVG({ seriesEntries, width, height }) {
   const maxT = allTs[allTs.length - 1]
   const timeRange = maxT - minT
 
-  const tsToX = t => padding.left + ((t - minT) / timeRange) * chartW
+  const tsToX = t => timeRange === 0
+    ? padding.left + chartW / 2
+    : padding.left + ((t - minT) / timeRange) * chartW
 
   let hoverTs = null
   if (hoverX !== null) {
-    const t = minT + ((hoverX - padding.left) / chartW) * timeRange
+    const t = timeRange === 0 ? minT : minT + ((hoverX - padding.left) / chartW) * timeRange
     let bestIdx = 0, bestDist = Infinity
     allTs.forEach((ts, i) => {
       const d = Math.abs(ts - t)
@@ -156,8 +160,16 @@ function GraphSVG({ seriesEntries, width, height }) {
         return <circle cx={tsToX(hoverTs)} cy={valToY(d.value)} r={3} fill={config.color} />
       })() : null
 
+      // Single point: draw a dot since a polyline needs ≥2 points
+      const singleDot = allTs.length === 1 ? (() => {
+        const d = pointMap.get(allTs[0])
+        if (!d || !isFinite(d.value)) return null
+        return <circle cx={tsToX(allTs[0])} cy={valToY(d.value)} r={4} fill={config.color} />
+      })() : null
+
       el = (
         <g key={config.id}>
+          {singleDot}
           {segments.map((pts, i) => (
             <polyline key={i} points={pts.join(' ')} fill="none" stroke={config.color} strokeWidth={1.5} />
           ))}
@@ -536,10 +548,20 @@ function TemplatePageGraph({
             onMouseDown={(e) => e.stopPropagation()}
           />
           {isEditing && (
-            <IconButton icon={<CloseIcon />} size="xs" variant="ghost" aria-label="Delete graph"
-              onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
-              onMouseDown={(e) => e.stopPropagation()}
-            />
+            <>
+              <Tooltip label={label.dock === 'fill' ? 'Remove fill' : 'Fill parent'} placement="top" hasArrow>
+                <IconButton icon={<FillIcon />} size="xs" variant="ghost" aria-label="Fill parent"
+                  color={label.dock === 'fill' ? 'blue.300' : 'gray.400'}
+                  _hover={{ color: label.dock === 'fill' ? 'blue.200' : 'white', bg: 'whiteAlpha.200' }}
+                  onClick={(e) => { e.stopPropagation(); onUpdate(label.id, { dock: label.dock === 'fill' ? undefined : 'fill' }) }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                />
+              </Tooltip>
+              <IconButton icon={<CloseIcon />} size="xs" variant="ghost" aria-label="Delete graph"
+                onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+                onMouseDown={(e) => e.stopPropagation()}
+              />
+            </>
           )}
         </HStack>
         {isEditing && (
@@ -585,7 +607,7 @@ function TemplatePageGraph({
                         <FormLabel fontSize="xs">Expression</FormLabel>
                         <Input size="sm" value={s.expression || ''}
                           onChange={e => updateSeries(s.id, { expression: e.target.value })}
-                          placeholder="@{SPY:last:5} or %[@{HYG:last} - @{LQD:last}:30]"
+                          placeholder="@{SPY:last:5}  @{SPY:callVol:300}  %[@{SPY:putVol} / @{SPY:callVol}:300]"
                           fontFamily="mono"
                         />
                       </FormControl>

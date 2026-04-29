@@ -64,6 +64,7 @@ function TemplatePage() {
   const widgetImportRef = useRef(null)
   const [dragPreview, setDragPreview] = useState(null)  // { id, x, y } during drag
   const [activeDrag, setActiveDrag] = useState(null)  // { widgetId, mousePos } during drag
+  const [fillHeight, setFillHeight] = useState(null)
 
   useEffect(() => {
     const loadPageInfo = async () => {
@@ -81,6 +82,19 @@ function TemplatePage() {
   useEffect(() => {
     if (isOpen) setAddStage('pick')
   }, [isOpen])
+
+  useEffect(() => {
+    const compute = () => {
+      const header = headerRef.current
+      if (!header) return
+      const headerH = header.getBoundingClientRect().height
+      const padding = 12 // py={3} top + bottom
+      setFillHeight(window.innerHeight - headerH - padding * 2)
+    }
+    compute()
+    window.addEventListener('resize', compute)
+    return () => window.removeEventListener('resize', compute)
+  }, [])
 
   const handleAddWidget = async () => {
     if (WIDGET_REGISTRY[widgetType]?.needsText && !labelText.trim()) return
@@ -518,7 +532,7 @@ function TemplatePage() {
           onChange={handleImportWidgetFileChange}
         />
       </PageNavMenu>
-      <Box p={8}>
+      <Box pl={2} pr={0} py={3}>
         {pageInfo ? (
           <>
             <Box
@@ -527,9 +541,13 @@ function TemplatePage() {
               width="100%"
               minH={isEditing ? '200px' : '100px'}
             >
-              {labels.map((label) => renderWidget(label, {
+              {labels.map((label) => {
+                const effectiveLabel = label.dock === 'fill'
+                  ? { ...label, x: 0, width: 20, ...(fillHeight != null ? { height: fillHeight } : {}) }
+                  : label
+                return renderWidget(label, {
                 key: label.id,
-                label: label,
+                label: effectiveLabel,
                 layoutY: layoutPositions.get(label.id),
                 onDelete: handleDeleteLabel,
                 onUpdate: handleUpdateLabel,
@@ -541,7 +559,8 @@ function TemplatePage() {
                 parentPanelId: null,
                 isEditing: isEditing,
                 containerRef: containerRef,
-              }))}
+              })
+              })}
             </Box>
           </>
         ) : (

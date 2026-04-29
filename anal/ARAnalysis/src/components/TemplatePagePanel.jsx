@@ -29,6 +29,7 @@ const DownloadIcon = () => (
     <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 4v-2h14v2H5z" />
   </svg>
 )
+import { useDeleteConfirm } from '../hooks/useDeleteConfirm'
 import WidgetsGalleryModal from './WidgetsGalleryModal'
 import { WIDGET_REGISTRY, createWidget, renderWidget } from './widgetRenderer'
 import ConditionalStylesSection from './ConditionalStylesSection'
@@ -58,9 +59,13 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const [addStage, setAddStage] = useState('pick')
   const boxRef = useRef(null)
   const childContainerRef = useRef(null)
+  const [gridDragIdx, setGridDragIdx] = useState(null)
+  const [gridDropIdx, setGridDropIdx] = useState(null)
+  const gridDropIdxRef = useRef(null)
   const { isOpen: isStyleOpen, onOpen: onStyleOpen, onClose: onStyleClose } = useDisclosure()
   const { isOpen: isAddOpen, onOpen: onAddOpen, onClose: onAddClose } = useDisclosure()
   const { isOpen: isGalleryOpen, onOpen: onGalleryOpen, onClose: onGalleryClose } = useDisclosure()
+  const { requestDelete, ConfirmDeleteDialog } = useDeleteConfirm()
 
   const width = label.width || 8
   const height = label.height || DEFAULT_HEIGHT
@@ -548,6 +553,76 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
     })
   }
 
+  const handleGridCellDrag = (e, srcIdx) => {
+    if (!isEditing) return
+    e.preventDefault()
+    e.stopPropagation()
+
+    const gridAxis = style.gridAxis || 'columns'
+    const gridCount = Math.max(1, style.gridCount || 2)
+    const gridCellSize = Math.max(20, style.gridCellSize || 80)
+    const contentH = displayHeight - 2 * (style.borderWidth || 0)
+    const unit = style.gridCellSizeUnit || 'px'
+
+    setGridDragIdx(srcIdx)
+    gridDropIdxRef.current = srcIdx
+    setGridDropIdx(srcIdx)
+
+    const handleMouseMove = (moveEvent) => {
+      const container = childContainerRef.current
+      if (!container) return
+      const rect = container.getBoundingClientRect()
+      const relX = moveEvent.clientX - rect.left
+      const relY = moveEvent.clientY - rect.top
+
+      let newIdx
+      if (gridAxis === 'columns') {
+        const cols = gridCount
+        const visibleRows = unit === '%' ? Math.max(1, Math.floor(100 / gridCellSize)) : Math.max(1, Math.ceil(children.length / cols))
+        const availableH = contentH - (visibleRows - 1) * 8
+        const cellH = Math.max(20, unit === '%' ? availableH * gridCellSize / 100 : gridCellSize)
+        const col = Math.min(cols - 1, Math.max(0, Math.floor((relX / rect.width) * cols)))
+        const row = Math.max(0, Math.floor(relY / (cellH + 8)))
+        newIdx = Math.min(children.length - 1, row * cols + col)
+      } else {
+        const rows = gridCount
+        const cellH = Math.max(20, (contentH - (rows - 1) * 8) / rows)
+        const contentW = rect.width
+        const visibleCols = unit === '%' ? Math.max(1, Math.floor(100 / gridCellSize)) : Math.max(1, Math.ceil(children.length / rows))
+        const availableW = contentW - (visibleCols - 1) * 8
+        const cellW = Math.max(20, unit === '%' ? availableW * gridCellSize / 100 : gridCellSize)
+        const col = Math.max(0, Math.floor(relX / (cellW + 8)))
+        const row = Math.min(rows - 1, Math.max(0, Math.floor((relY / rect.height) * rows)))
+        newIdx = Math.min(children.length - 1, col * rows + row)
+      }
+
+      if (newIdx !== gridDropIdxRef.current) {
+        gridDropIdxRef.current = newIdx
+        setGridDropIdx(newIdx)
+      }
+    }
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+
+      const dropIdx = gridDropIdxRef.current
+      if (dropIdx !== null && dropIdx !== srcIdx) {
+        const reordered = [...children]
+        const [moved] = reordered.splice(srcIdx, 1)
+        reordered.splice(dropIdx, 0, moved)
+        onUpdate(label.id, { children: reordered })
+      }
+
+      setGridDragIdx(null)
+      setGridDropIdx(null)
+      gridDropIdxRef.current = null
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }
+
   const renderGridChildren = () => {
     const gridAxis = style.gridAxis || 'columns'
     const gridCount = Math.max(1, style.gridCount || 2)
@@ -567,6 +642,51 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
       containerRef: childContainerRef,
     }
 
+    const renderCell = (child, i, left, top, width, height) => {
+      const isDragging = gridDragIdx === i
+      const isDropTarget = gridDropIdx === i && gridDropIdx !== gridDragIdx
+      return (
+        <Box
+          key={child.id}
+          position="absolute"
+          left={left}
+          top={top}
+          width={width}
+          height={`${height}px`}
+          overflow="hidden"
+          opacity={isDragging ? 0.4 : 1}
+          boxShadow={isDropTarget ? 'inset 0 0 0 2px var(--chakra-colors-blue-400)' : undefined}
+          transition="opacity 0.1s"
+        >
+          {renderWidget(child, {
+            key: child.id,
+            label: { ...child, x: 0, y: 0, width: TOTAL_SEGMENTS, height },
+            layoutY: 0,
+            ...childProps,
+          })}
+          {isEditing && (
+            <Box
+              position="absolute"
+              top={0}
+              left={0}
+              right={0}
+              height="14px"
+              zIndex={10}
+              cursor="grab"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              bg="whiteAlpha.0"
+              _hover={{ bg: 'whiteAlpha.200' }}
+              onMouseDown={(e) => handleGridCellDrag(e, i)}
+            >
+              <DragHandleIcon boxSize={2} color="whiteAlpha.500" />
+            </Box>
+          )}
+        </Box>
+      )
+    }
+
     if (gridAxis === 'columns') {
       const cols = gridCount
       const visibleRows = unit === '%' ? Math.max(1, Math.floor(100 / gridCellSize)) : Math.max(1, Math.ceil(children.length / cols))
@@ -575,23 +695,11 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
       return children.map((child, i) => {
         const col = i % cols
         const row = Math.floor(i / cols)
-        return (
-          <Box
-            key={child.id}
-            position="absolute"
-            left={`calc(${(col / cols) * 100}% + 4px)`}
-            top={`${row * (cellH + 8)}px`}
-            width={`${(1 / cols) * 100}%`}
-            height={`${cellH}px`}
-            overflow="hidden"
-          >
-            {renderWidget(child, {
-              key: child.id,
-              label: { ...child, x: 0, y: 0, width: TOTAL_SEGMENTS, height: cellH },
-              layoutY: 0,
-              ...childProps,
-            })}
-          </Box>
+        return renderCell(child, i,
+          `calc(${(col / cols) * 100}% + 4px)`,
+          `${row * (cellH + 8)}px`,
+          `${(1 / cols) * 100}%`,
+          cellH
         )
       })
     } else {
@@ -603,23 +711,11 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
       return children.map((child, i) => {
         const row = i % rows
         const col = Math.floor(i / rows)
-        return (
-          <Box
-            key={child.id}
-            position="absolute"
-            left={`${col * (cellW + 8)}px`}
-            top={`${row * (Math.round(cellH) + 8)}px`}
-            width={`${cellW}px`}
-            height={`${Math.round(cellH)}px`}
-            overflow="hidden"
-          >
-            {renderWidget(child, {
-              key: child.id,
-              label: { ...child, x: 0, y: 0, width: TOTAL_SEGMENTS, height: Math.round(cellH) },
-              layoutY: 0,
-              ...childProps,
-            })}
-          </Box>
+        return renderCell(child, i,
+          `${col * (cellW + 8)}px`,
+          `${row * (Math.round(cellH) + 8)}px`,
+          `${cellW}px`,
+          Math.round(cellH)
         )
       })
     }
@@ -679,7 +775,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
             size="xs"
             variant="ghost"
             aria-label="Delete panel"
-            onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+            onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
           />
         </HStack>
       )}
@@ -1018,6 +1114,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
           )}
         </ModalContent>
       </Modal>
+      <ConfirmDeleteDialog />
     </>
   )
 }

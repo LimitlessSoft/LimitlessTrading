@@ -21,7 +21,9 @@ import {
   Tooltip,
   useDisclosure
 } from '@chakra-ui/react'
+import { useDeleteConfirm } from '../hooks/useDeleteConfirm'
 import { CloseIcon, DragHandleIcon, SettingsIcon, InfoOutlineIcon } from '@chakra-ui/icons'
+import FillIcon from './FillIcon'
 import { applyConditionalStyles } from '../modules/conditionalStyles'
 import { useWidgetResolveText } from '../hooks/useWidgetResolveText'
 import ConditionalStylesSection from './ConditionalStylesSection'
@@ -60,6 +62,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const boxRef = useRef(null)
   const navigate = useNavigate()
   const { isOpen, onOpen, onClose } = useDisclosure()
+  const { requestDelete, ConfirmDeleteDialog } = useDeleteConfirm()
 
   const conditionalPlaceholders = (label.style?.conditionalStyles || []).map(r => r.placeholder)
   const { resolveText } = useWidgetResolveText([label.text, ...conditionalPlaceholders])
@@ -93,6 +96,14 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
       }
     }
   }, [label.x, previewPos, isMoving, onDragPreview])
+
+  // When layout position changes externally (e.g. a flow reorder resolved), clear stale preview
+  useEffect(() => {
+    if (previewPos && !isMoving) {
+      setPreviewPos(null)
+      onDragPreview?.(null)
+    }
+  }, [layoutY])
 
   const getContainerInfo = () => {
     const container = containerRef?.current || boxRef.current?.parentElement
@@ -569,13 +580,14 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
                 size="xs"
                 variant="ghost"
                 aria-label="Delete label"
-                onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+                onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
                 onMouseDown={(e) => e.stopPropagation()}
               />
             </>
           )}
         </Box>
         {renderEditModal()}
+        <ConfirmDeleteDialog />
       </>
     )
   }
@@ -624,6 +636,20 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
         </Text>
         {isEditing && (
           <>
+            <Tooltip label={label.dock === 'fill' ? 'Remove fill' : 'Fill parent'} placement="top" hasArrow>
+              <IconButton
+                icon={<FillIcon />}
+                size="xs"
+                variant="ghost"
+                aria-label="Fill parent"
+                color={label.dock === 'fill' ? 'blue.300' : 'gray.400'}
+                _hover={{ color: label.dock === 'fill' ? 'blue.200' : 'white', bg: 'whiteAlpha.200' }}
+                onClick={(e) => { e.stopPropagation(); onUpdate(label.id, { dock: label.dock === 'fill' ? undefined : 'fill' }) }}
+                onMouseDown={(e) => e.stopPropagation()}
+                ml={1}
+                flexShrink={0}
+              />
+            </Tooltip>
             <Tooltip label="Export label" placement="top" hasArrow>
               <IconButton
                 icon={<DownloadIcon />}
@@ -651,7 +677,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
               size="xs"
               variant="ghost"
               aria-label="Delete label"
-              onClick={(e) => { e.stopPropagation(); onDelete(label.id) }}
+              onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
               onMouseDown={(e) => e.stopPropagation()}
               ml={1}
               flexShrink={0}
@@ -707,6 +733,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
       </Box>
 
       {renderEditModal()}
+      <ConfirmDeleteDialog />
     </>
   )
 }
