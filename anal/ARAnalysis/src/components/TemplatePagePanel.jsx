@@ -57,6 +57,8 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const [addType, setAddType] = useState('label')
   const [addText, setAddText] = useState('')
   const [addStage, setAddStage] = useState('pick')
+  const [childContainerWidth, setChildContainerWidth] = useState(0)
+  const [childContainerHeight, setChildContainerHeight] = useState(0)
   const boxRef = useRef(null)
   const childContainerRef = useRef(null)
   const [gridDragIdx, setGridDragIdx] = useState(null)
@@ -152,6 +154,16 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
     }
     return () => observer.disconnect()
   }, [children, style.verticalAlign, height, contentHeight])
+
+  useEffect(() => {
+    if (!childContainerRef.current) return
+    const ro = new ResizeObserver(entries => {
+      setChildContainerWidth(entries[0].contentRect.width)
+      setChildContainerHeight(entries[0].contentRect.height)
+    })
+    ro.observe(childContainerRef.current)
+    return () => ro.disconnect()
+  }, [])
 
   const displayWidth = previewSize?.width ?? width
   const displayHeight = previewSize?.height ?? height
@@ -561,9 +573,6 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
 
     const gridAxis = style.gridAxis || 'columns'
     const gridCount = Math.max(1, style.gridCount || 2)
-    const gridCellSize = Math.max(20, style.gridCellSize || 80)
-    const contentH = displayHeight - 2 * (style.borderWidth || 0)
-    const unit = style.gridCellSizeUnit || 'px'
     const cellGap = style.gap ?? 8
 
     setGridDragIdx(srcIdx)
@@ -580,19 +589,16 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
       let newIdx
       if (gridAxis === 'columns') {
         const cols = gridCount
-        const visibleRows = unit === '%' ? Math.max(1, Math.floor(100 / gridCellSize)) : Math.max(1, Math.ceil(children.length / cols))
-        const availableH = contentH - (visibleRows - 1) * cellGap
-        const cellH = Math.max(20, unit === '%' ? availableH * gridCellSize / 100 : gridCellSize)
+        const rows = Math.max(1, Math.ceil(children.length / cols))
+        const cellH = Math.max(20, (rect.height - (rows - 1) * cellGap) / rows)
         const col = Math.min(cols - 1, Math.max(0, Math.floor((relX / rect.width) * cols)))
         const row = Math.max(0, Math.floor(relY / (cellH + cellGap)))
         newIdx = Math.min(children.length - 1, row * cols + col)
       } else {
         const rows = gridCount
-        const cellH = Math.max(20, (contentH - (rows - 1) * cellGap) / rows)
-        const contentW = rect.width
-        const visibleCols = unit === '%' ? Math.max(1, Math.floor(100 / gridCellSize)) : Math.max(1, Math.ceil(children.length / rows))
-        const availableW = contentW - (visibleCols - 1) * cellGap
-        const cellW = Math.max(20, unit === '%' ? availableW * gridCellSize / 100 : gridCellSize)
+        const visibleCols = Math.max(1, Math.ceil(children.length / rows))
+        const cellH = Math.max(20, (rect.height - (rows - 1) * cellGap) / rows)
+        const cellW = Math.max(20, (rect.width - (visibleCols - 1) * cellGap) / visibleCols)
         const col = Math.max(0, Math.floor(relX / (cellW + cellGap)))
         const row = Math.min(rows - 1, Math.max(0, Math.floor((relY / rect.height) * rows)))
         newIdx = Math.min(children.length - 1, col * rows + row)
@@ -628,10 +634,8 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const renderGridChildren = () => {
     const gridAxis = style.gridAxis || 'columns'
     const gridCount = Math.max(1, style.gridCount || 2)
-    const gridCellSize = Math.max(20, style.gridCellSize || 80)
-    const contentH = displayHeight - 2 * (style.borderWidth || 0)
-    const contentW = childContainerRef.current?.clientWidth || 0
-    const unit = style.gridCellSizeUnit || 'px'
+    const contentW = childContainerWidth
+    const contentH = childContainerHeight
     const cellGap = gap
     const childProps = {
       onDelete: handleDeleteChild,
@@ -692,32 +696,31 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
 
     if (gridAxis === 'columns') {
       const cols = gridCount
-      const visibleRows = unit === '%' ? Math.max(1, Math.floor(100 / gridCellSize)) : Math.max(1, Math.ceil(children.length / cols))
-      const availableH = contentH - (visibleRows - 1) * cellGap
-      const cellH = Math.max(20, unit === '%' ? availableH * gridCellSize / 100 : gridCellSize)
+      const rows = Math.max(1, Math.ceil(children.length / cols))
+      const cellW = Math.max(20, (contentW - (cols - 1) * cellGap) / cols)
+      const cellH = Math.max(20, (contentH - (rows - 1) * cellGap) / rows)
       return children.map((child, i) => {
         const col = i % cols
         const row = Math.floor(i / cols)
         return renderCell(child, i,
-          `calc(${(col / cols) * 100}% + ${cellGap / 2}px)`,
+          `${col * (cellW + cellGap)}px`,
           `${row * (cellH + cellGap)}px`,
-          `${(1 / cols) * 100}%`,
+          `${cellW + 8}px`,
           cellH
         )
       })
     } else {
       const rows = gridCount
-      const visibleCols = unit === '%' ? Math.max(1, Math.floor(100 / gridCellSize)) : Math.max(1, Math.ceil(children.length / rows))
+      const visibleCols = Math.max(1, Math.ceil(children.length / rows))
       const cellH = Math.max(20, (contentH - (rows - 1) * cellGap) / rows)
-      const availableW = contentW - (visibleCols - 1) * cellGap
-      const cellW = Math.max(20, unit === '%' ? availableW * gridCellSize / 100 : gridCellSize)
+      const cellW = Math.max(20, (contentW - (visibleCols - 1) * cellGap) / visibleCols)
       return children.map((child, i) => {
         const row = i % rows
         const col = Math.floor(i / rows)
         return renderCell(child, i,
           `${col * (cellW + cellGap)}px`,
           `${row * (Math.round(cellH) + cellGap)}px`,
-          `${cellW}px`,
+          `${cellW + 8}px`,
           Math.round(cellH)
         )
       })
@@ -912,25 +915,6 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
                         />
                       </FormControl>
                     </HStack>
-                    <FormControl>
-                      <FormLabel fontSize="sm">{(editStyle.gridAxis || 'columns') === 'columns' ? 'Row height' : 'Column width'}</FormLabel>
-                      <HStack>
-                        <Input
-                          type="number" min={1}
-                          value={editStyle.gridCellSize || 80}
-                          onChange={(e) => setEditStyle({ ...editStyle, gridCellSize: Math.max(1, parseInt(e.target.value) || 80) })}
-                        />
-                        <Select
-                          value={editStyle.gridCellSizeUnit || 'px'}
-                          onChange={(e) => setEditStyle({ ...editStyle, gridCellSizeUnit: e.target.value })}
-                          width="80px"
-                          flexShrink={0}
-                        >
-                          <option value="px">px</option>
-                          <option value="%">%</option>
-                        </Select>
-                      </HStack>
-                    </FormControl>
                   </>
                 )}
                 {editStyle.layoutMode === 'flow' && (
