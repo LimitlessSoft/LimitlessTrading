@@ -131,6 +131,22 @@ db.version(9).stores({
   await tx.table('priceData').clear()
 })
 
+// Version 10: Add persistent alerts
+db.version(10).stores({
+  securities: 'symbol, name, exchange',
+  priceData: '++id, [symbol+interval+timestamp], symbol, interval, timestamp',
+  settings: 'key',
+  favorites: 'symbol',
+  conditionalFormats: '++id, name, enabled, groupId',
+  formatGroups: '++id, name',
+  analysisPresets: '++id, name',
+  watchgroups: '++id, name',
+  watchgroupMembers: '++id, [groupId+symbol], groupId, symbol',
+  screenerSymbols: 'symbol',
+  liveWatchlist: 'symbol, order',
+  alerts: 'id, label'
+})
+
 // Helper functions
 
 export async function getSetting(key) {
@@ -451,6 +467,20 @@ export async function getLiveWatchlistInterval() {
 
 export async function setLiveWatchlistInterval(seconds) {
   return setSetting('liveWatchlistInterval', seconds)
+}
+
+// Alerts persistence
+export async function getPersistedAlerts() {
+  return db.alerts.toArray()
+}
+
+export async function persistAlert(alertConfig) {
+  const { id, label, schedule, actions, message, eventName, sound } = alertConfig
+  await db.alerts.put({ id, label, schedule, actions, message, eventName, sound })
+}
+
+export async function deletePersistedAlert(id) {
+  await db.alerts.delete(id)
 }
 
 export default db

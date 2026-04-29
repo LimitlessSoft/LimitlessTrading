@@ -9,7 +9,8 @@ export const DEFAULT_GLOBAL_CHART_SETTINGS = {
   volumeMultiplier: 1,
   ohlcPosition: 'mouse',
   showMarketIndicator: true,
-  shiftScrollZoom: true
+  shiftScrollZoom: true,
+  graphTooltipPosition: 'cursor'
 }
 
 export function getGlobalChartSettings() {

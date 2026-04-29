@@ -902,7 +902,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
   useEffect(() => { globalSettingsRef.current = globalSettings }, [globalSettings])
 
   // Wheel: zoom or pan depending on shiftScrollZoom setting
-  // shiftScrollZoom=true (default): Shift+scroll=zoom, Ctrl+scroll=pan, plain=passthrough
+  // shiftScrollZoom=true (default): Ctrl+scroll=zoom, Shift+scroll=pan, plain=passthrough
   // shiftScrollZoom=false: plain scroll=zoom, Ctrl+scroll=pan
   useEffect(() => {
     const el = boxRef.current
@@ -912,12 +912,12 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
       if (s.shiftScrollZoom) {
         if (!e.shiftKey && !e.ctrlKey) return
         e.preventDefault()
-        if (e.shiftKey) {
+        if (e.ctrlKey) {
           setMaxBars(prev => {
             const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15
             return Math.round(Math.min(MAX_BARS, Math.max(MIN_BARS, prev * factor)))
           })
-        } else if (e.ctrlKey) {
+        } else if (e.shiftKey) {
           const dir = s.invertScroll ? -1 : 1
           const step = Math.max(5, Math.round(DEFAULT_MAX_BARS * 0.08))
           setViewOffset(prev => Math.max(0, prev + (e.deltaY > 0 ? -dir * step : dir * step)))
@@ -1336,7 +1336,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
                     </FormControl>
                     <FormControl>
                       <HStack justify="space-between">
-                        <FormLabel fontSize="sm" mb={0}>Shift+Scroll to Zoom</FormLabel>
+                        <FormLabel fontSize="sm" mb={0}>Ctrl+Scroll to Zoom</FormLabel>
                         <Switch
                           isChecked={editGlobal.shiftScrollZoom ?? true}
                           onChange={(e) => setEditGlobal(g => ({ ...g, shiftScrollZoom: e.target.checked }))}

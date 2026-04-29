@@ -1,5 +1,11 @@
 import pkg from '@stoqey/ib'
+import { readFileSync, writeFileSync, mkdirSync } from 'fs'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
 const { IBApi, EventName, SecType } = pkg
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 // Index symbols that need special contract handling
 const INDEX_SYMBOLS = {
@@ -1632,6 +1638,116 @@ export function getSubscribedSymbols() {
 export function unsubscribeAllMarketData() {
   for (const symbol of symbolToReqId.keys()) {
     unsubscribeMarketData(symbol)
+  }
+}
+
+// Generic bars accumulator — samples any property on an interval and stores bars
+// Cumulative properties (callVol, putVol, volume) store deltas; all others store raw values.
+
+const DELTA_PROPERTIES = new Set(['callVol', 'putVol', 'volume'])
+
+// Fetchers return a numeric value (or null) for a given symbol
+const PROPERTY_FETCHERS = {
+  callVol:   async (sym) => { const f = await getOptionsFlow(sym); return f.totalCallVol },
+  putVol:    async (sym) => { const f = await getOptionsFlow(sym); return f.totalPutVol },
+  pcRatio:   async (sym) => { const f = await getOptionsFlow(sym); return f.pcRatio },
+  last:      (sym) => getLatestQuote(sym)?.last ?? null,
+  bid:       (sym) => getLatestQuote(sym)?.bid ?? null,
+  ask:       (sym) => getLatestQuote(sym)?.ask ?? null,
+  high:      (sym) => getLatestQuote(sym)?.high ?? null,
+  low:       (sym) => getLatestQuote(sym)?.low ?? null,
+  volume:    (sym) => getLatestQuote(sym)?.volume ?? null,
+  vwap:      (sym) => getLatestQuote(sym)?.vwap ?? null,
+  prevClose: (sym) => getLatestQuote(sym)?.prevClose ?? null,
+}
+
+const BARS_PATH = join(__dirname, 'data/bars.json')
+
+function loadBarsData() {
+  try { return JSON.parse(readFileSync(BARS_PATH, 'utf-8')) } catch { return {} }
+}
+
+function saveBarsData(data) {
+  try {
+    mkdirSync(join(__dirname, 'data'), { recursive: true })
+    writeFileSync(BARS_PATH, JSON.stringify(data))
+  } catch (e) {
+    console.error('[bars] save error:', e.message)
+  }
+}
+
+const barsState = new Map() // `${symbol}:${property}:${intervalMs}` -> { bars, lastValue, timer }
+
+export function startBarsAccumulator(symbol, property, intervalMs) {
+  const upper = symbol.toUpperCase()
+  const key = `${upper}:${property}:${intervalMs}`
+  if (barsState.has(key)) return
+
+  const fetcher = PROPERTY_FETCHERS[property]
+  if (!fetcher) {
+    console.warn(`[bars] no fetcher for property "${property}"`)
+    return
+  }
+
+  const isDelta = DELTA_PROPERTIES.has(property)
+  const persisted = loadBarsData()
+  const state = { bars: persisted[key] || [], lastValue: null, timer: null }
+  barsState.set(key, state)
+
+  const sample = async () => {
+    if (!ib || !connectionState.connected) return
+    try {
+      const value = await fetcher(upper)
+      if (value == null || !isFinite(value)) return
+      const now = Date.now()
+      if (isDelta) {
+        if (state.lastValue !== null) {
+          const delta = Math.max(0, value - state.lastValue)
+          state.bars.push({ timestamp: now, value: delta })
+          if (state.bars.length > 200) state.bars.shift()
+          const all = {}; for (const [k, s] of barsState) all[k] = s.bars
+          saveBarsData(all)
+          console.log(`[bars] ${key} delta=${delta} (${state.bars.length} bars)`)
+        }
+      } else {
+        state.bars.push({ timestamp: now, value })
+        if (state.bars.length > 200) state.bars.shift()
+        const all = {}; for (const [k, s] of barsState) all[k] = s.bars
+        saveBarsData(all)
+      }
+      state.lastValue = value
+    } catch (e) {
+      console.error(`[bars] ${key} sample error:`, e.message)
+    }
+  }
+
+  sample()
+  state.timer = setInterval(sample, intervalMs)
+  console.log(`[bars] started ${key} every ${intervalMs / 1000}s (${state.bars.length} bars loaded)`)
+}
+
+export function getBars(symbol, property, intervalMs) {
+  const key = `${symbol.toUpperCase()}:${property}:${intervalMs}`
+  const state = barsState.get(key)
+  return state ? [...state.bars] : []
+}
+
+export function stopBarsAccumulator(symbol, property, intervalMs) {
+  const key = `${symbol.toUpperCase()}:${property}:${intervalMs}`
+  const state = barsState.get(key)
+  if (state?.timer) clearInterval(state.timer)
+  barsState.delete(key)
+}
+
+export function clearBars(symbol, property, intervalMs) {
+  const key = `${symbol.toUpperCase()}:${property}:${intervalMs}`
+  const state = barsState.get(key)
+  if (state) {
+    if (state.timer) clearInterval(state.timer)
+    barsState.delete(key)
+    const all = {}
+    for (const [k, s] of barsState) all[k] = s.bars
+    saveBarsData(all)
   }
 }
 

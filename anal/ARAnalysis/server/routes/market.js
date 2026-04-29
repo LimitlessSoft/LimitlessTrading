@@ -18,7 +18,10 @@ import {
   getSubscribedSymbols,
   unsubscribeAllMarketData,
   getRecentErrors,
-  isDelayedMode
+  isDelayedMode,
+  startBarsAccumulator,
+  getBars,
+  clearBars
 } from '../ibkrClient.js'
 
 const router = Router()
@@ -470,6 +473,29 @@ router.get('/options-flow/:symbol', async (req, res) => {
     console.error(`[options-flow] error for ${upperSymbol}:`, error.message)
     res.status(500).json({ error: error.message })
   }
+})
+
+// Generic bars endpoint — starts accumulator on first call, returns [{timestamp, value}].
+// Supports any property registered in PROPERTY_FETCHERS (callVol, putVol, pcRatio, last, etc.)
+// Cumulative properties (callVol, putVol, volume) return per-interval deltas; others return raw.
+router.get('/bars/:symbol/:property', (req, res) => {
+  const { symbol, property } = req.params
+  const interval = Math.max(10, parseInt(req.query.interval) || 300)
+
+  const { connected } = getConnectionStatus()
+  if (!connected) {
+    return res.status(503).json({ error: 'Not connected to IBKR' })
+  }
+
+  startBarsAccumulator(symbol.toUpperCase(), property, interval * 1000)
+  res.json(getBars(symbol.toUpperCase(), property, interval * 1000))
+})
+
+router.delete('/bars/:symbol/:property', (req, res) => {
+  const { symbol, property } = req.params
+  const interval = Math.max(10, parseInt(req.query.interval) || 300)
+  clearBars(symbol.toUpperCase(), property, interval * 1000)
+  res.json({ ok: true })
 })
 
 export default router

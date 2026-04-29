@@ -18,12 +18,25 @@ import {
   HStack,
   VStack,
   Tooltip,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
   useDisclosure
 } from '@chakra-ui/react'
 import { CloseIcon, SettingsIcon, AddIcon, DeleteIcon } from '@chakra-ui/icons'
+
+const DotsIcon = () => (
+  <svg viewBox="0 0 16 16" width="1em" height="1em" fill="currentColor">
+    <circle cx="8" cy="3" r="1.5" />
+    <circle cx="8" cy="8" r="1.5" />
+    <circle cx="8" cy="13" r="1.5" />
+  </svg>
+)
 import FillIcon from './FillIcon'
 import { useDeleteConfirm } from '../hooks/useDeleteConfirm'
 import { useWidgetResolveText } from '../hooks/useWidgetResolveText'
+import { getGlobalChartSettings, saveGlobalChartSettings } from '../modules/globalChartSettings'
 
 const DownloadIcon = () => (
   <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
@@ -38,6 +51,13 @@ const DEFAULT_HEIGHT = 220
 const DEFAULT_WIDTH = 10
 const DEFAULT_MAX_HISTORY = 200
 const FONT_SIZE = 9
+function parseSnapshotExpression(expr) {
+  const match = expr?.match(/^@\{([^:}]+):([^:}]+)(?::(\d+))?\}$/)
+  if (!match) return null
+  const [, symbol, property, intervalStr] = match
+  const interval = parseInt(intervalStr) || 60
+  return { url: `/api/bars/${symbol}/${property}?interval=${interval}`, symbol, property, valueKey: 'value', interval }
+}
 
 const DEFAULT_STYLE = {
   bgColor: '#1a202c',
@@ -46,13 +66,22 @@ const DEFAULT_STYLE = {
 }
 
 const SERIES_COLORS = ['#4299E1', '#48BB78', '#F6AD55', '#F56565', '#9F7AEA', '#ED64A6']
+const LEGEND_HEIGHT = 18
+
+function fmtY(v) {
+  const abs = Math.abs(v)
+  if (abs >= 1e6) return (v / 1e6).toFixed(1) + 'M'
+  if (abs >= 1e3) return (v / 1e3).toFixed(1) + 'K'
+  return Number.isInteger(v) ? String(v) : v.toFixed(2)
+}
 
 // Pure SVG renderer — each series has { timestamp, value }[] and is normalized independently
-function GraphSVG({ seriesEntries, width, height }) {
+function GraphSVG({ seriesEntries, width, height, tooltipPosition = 'cursor' }) {
   const [hoverX, setHoverX] = useState(null)
+  const [hoverY, setHoverY] = useState(null)
   const svgRef = useRef(null)
 
-  const padding = { top: 24, right: FONT_SIZE * 5, bottom: 28, left: 8 }
+  const padding = { top: 8, right: FONT_SIZE * 5, bottom: 28, left: 8 }
   const chartW = width - padding.left - padding.right
   const chartH = height - padding.top - padding.bottom
 
@@ -99,17 +128,18 @@ function GraphSVG({ seriesEntries, width, height }) {
   }
 
   const rendered = seriesEntries.map(({ config, data }) => {
-    if (!data.length) return { el: null, config, hoverVal: null }
+    if (!data.length) return { el: null, config, hoverVal: null, scale: null }
 
     const vals = data.map(d => d.value).filter(isFinite)
-    if (!vals.length) return { el: null, config, hoverVal: null }
+    if (!vals.length) return { el: null, config, hoverVal: null, scale: null }
 
     const minV = Math.min(...vals)
     const maxV = Math.max(...vals)
-    const vRange = (maxV - minV) || 1
-    const pad = vRange * 0.08
-    const effMin = minV - pad
-    const effRange = vRange + pad * 2
+    const isBars = config.viewType === 'bars'
+    // Bars always start from 0; lines use min–max with padding
+    const effMin = isBars ? 0 : minV - ((maxV - minV) || 1) * 0.08
+    const effMax = isBars ? maxV * 1.08 : maxV + ((maxV - minV) || 1) * 0.08
+    const effRange = (effMax - effMin) || 1
 
     const valToY = v => padding.top + chartH - ((v - effMin) / effRange) * chartH
 
@@ -123,12 +153,14 @@ function GraphSVG({ seriesEntries, width, height }) {
 
     let el
     if (config.viewType === 'bars') {
-      const barSlot = chartW / allTs.length
+      const n = allTs.length
+      const barSlot = chartW / n
       const barW = Math.max(1, barSlot * 0.7)
       el = (
         <g key={config.id}>
           {data.map(d => {
-            const cx = tsToX(d.timestamp)
+            const idx = allTs.indexOf(d.timestamp)
+            const cx = padding.left + (idx + 0.5) * barSlot
             const y = valToY(d.value)
             const highlighted = hoverTs !== null && d.timestamp === hoverTs
             return (
@@ -178,20 +210,34 @@ function GraphSVG({ seriesEntries, width, height }) {
       )
     }
 
-    return { el, config, hoverVal }
+    return { el, config, hoverVal, scale: { effMin, effMax, effRange, valToY } }
   })
+
+  const hasBarSeries = seriesEntries.some(e => e.config.viewType === 'bars')
+  const slotX = (ts) => padding.left + (allTs.indexOf(ts) + 0.5) * (chartW / allTs.length)
+  const axisX = hasBarSeries ? slotX : tsToX
 
   const maxLabels = Math.max(2, Math.floor(chartW / 80))
   const step = Math.max(1, Math.ceil(allTs.length / maxLabels))
   const axisTs = allTs.filter((_, i) => i % step === 0)
 
-  const legendItems = rendered.map(({ config, hoverVal }, i) => {
-    const data = seriesEntries[i]?.data
-    const latestVal = data?.length ? data[data.length - 1].value : null
-    const displayVal = hoverVal !== null && hoverVal !== undefined ? hoverVal : latestVal
-    const formatted = displayVal != null && isFinite(displayVal) ? Number(displayVal).toFixed(2) : '—'
-    return { config, formatted }
-  })
+  // Compute Y grid ticks from the first rendered series that has scale info
+  const refScale = rendered.find(r => r.scale)?.scale ?? null
+  const gridTicks = (() => {
+    if (!refScale) return []
+    const { effMin, effMax } = refScale
+    const range = effMax - effMin
+    const rough = range / 4
+    const mag = Math.pow(10, Math.floor(Math.log10(rough || 1)))
+    const step = [1, 2, 2.5, 5, 10].map(c => c * mag).find(c => c >= rough) || rough
+    const start = Math.ceil(effMin / step) * step
+    const ticks = []
+    for (let t = start; t <= effMax + step * 0.01; t = Math.round((t + step) * 1e10) / 1e10) {
+      ticks.push(t)
+      if (ticks.length > 8) break
+    }
+    return ticks
+  })()
 
   return (
     <svg
@@ -202,46 +248,72 @@ function GraphSVG({ seriesEntries, width, height }) {
       onMouseMove={e => {
         const rect = svgRef.current.getBoundingClientRect()
         setHoverX(e.clientX - rect.left)
+        setHoverY(e.clientY - rect.top)
       }}
-      onMouseLeave={() => setHoverX(null)}
+      onMouseLeave={() => { setHoverX(null); setHoverY(null) }}
     >
-      {[0, 0.25, 0.5, 0.75, 1.0].map(f => (
-        <line key={f}
-          x1={padding.left} y1={padding.top + chartH * f}
-          x2={padding.left + chartW} y2={padding.top + chartH * f}
-          stroke="#2D3748" strokeWidth={1}
-        />
-      ))}
-      <line x1={padding.left + chartW} y1={padding.top}
-        x2={padding.left + chartW} y2={padding.top + chartH}
-        stroke="#2D3748" strokeWidth={1} />
+      {gridTicks.map(tick => {
+        const y = refScale.valToY(tick)
+        if (y < padding.top - 1 || y > padding.top + chartH + 1) return null
+        return (
+          <g key={tick}>
+            <line x1={padding.left} y1={y} x2={padding.left + chartW} y2={y} stroke="#2D3748" strokeWidth={1} />
+            <text x={padding.left + chartW + 3} y={y + 3} fontSize={FONT_SIZE} fill="#4A5568" textAnchor="start">{fmtY(tick)}</text>
+          </g>
+        )
+      })}
 
       {rendered.map(({ el }) => el)}
 
       {hoverTs !== null && (
         <line
-          x1={tsToX(hoverTs)} y1={padding.top}
-          x2={tsToX(hoverTs)} y2={padding.top + chartH}
+          x1={axisX(hoverTs)} y1={padding.top}
+          x2={axisX(hoverTs)} y2={padding.top + chartH}
           stroke="#718096" strokeWidth={1} strokeDasharray="3,3"
         />
       )}
 
+      {hoverTs !== null && (() => {
+        const rows = rendered.filter(r => r.hoverVal != null && isFinite(r.hoverVal))
+        if (!rows.length) return null
+        const lineH = FONT_SIZE + 4
+        const tw = 110
+        const th = lineH * (rows.length + 1) + 8
+        let tx, ty
+        if (tooltipPosition === 'corner') {
+          tx = padding.left + chartW - tw - 4
+          ty = padding.top + 4
+        } else {
+          const lx = axisX(hoverTs)
+          tx = lx + 10 + tw > width ? lx - tw - 10 : lx + 10
+          ty = Math.min(Math.max((hoverY ?? padding.top) - th / 2, padding.top), padding.top + chartH - th)
+        }
+        return (
+          <g pointerEvents="none">
+            <rect x={tx} y={ty} width={tw} height={th} rx={3} fill="#1A202C" stroke="#4A5568" strokeWidth={1} opacity={0.95} />
+            <text x={tx + 6} y={ty + FONT_SIZE + 2} fontSize={FONT_SIZE} fill="#718096">
+              {new Date(hoverTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </text>
+            {rows.map((r, i) => (
+              <g key={r.config.id}>
+                <rect x={tx + 6} y={ty + lineH * (i + 1) + 6} width={6} height={6} fill={r.config.color} rx={1} />
+                <text x={tx + 16} y={ty + lineH * (i + 1) + FONT_SIZE + 2} fontSize={FONT_SIZE} fill="#CBD5E0">
+                  {(r.config.name || r.config.expression || '?') + ': ' + fmtY(r.hoverVal)}
+                </text>
+              </g>
+            ))}
+          </g>
+        )
+      })()}
+
       {axisTs.map(ts => (
-        <text key={ts} x={tsToX(ts)} y={height - 6}
+        <text key={ts} x={axisX(ts)} y={height - 6}
           textAnchor="middle" fontSize={FONT_SIZE} fill="#718096"
         >
           {formatAxisTs(ts)}
         </text>
       ))}
 
-      {legendItems.map(({ config, formatted }, i) => (
-        <g key={config.id}>
-          <rect x={i * 100 + padding.left} y={5} width={8} height={8} fill={config.color} rx={1} />
-          <text x={i * 100 + padding.left + 11} y={13} fontSize={FONT_SIZE} fill="#CBD5E0">
-            {(config.name || config.expression || '?') + ' ' + formatted}
-          </text>
-        </g>
-      ))}
     </svg>
   )
 }
@@ -257,6 +329,13 @@ function TemplatePageGraph({
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
   const [previewSize, setPreviewSize] = useState(null)
+  const [globalSettings, setGlobalSettings] = useState(getGlobalChartSettings)
+
+  useEffect(() => {
+    const handler = (e) => setGlobalSettings(e.detail)
+    window.addEventListener('globalChartSettingsChanged', handler)
+    return () => window.removeEventListener('globalChartSettingsChanged', handler)
+  }, [])
   const [editConfig, setEditConfig] = useState(null)
   const boxRef = useRef(null)
   const valuesRef = useRef([])
@@ -275,12 +354,13 @@ function TemplatePageGraph({
   const displayX = previewPos?.x ?? x
   const displayY = previewPos?.y ?? layoutY ?? 0
 
-  // Build combined expression text for the resolver — includes all series expressions
-  const allExpressions = series.map(s => s.expression).filter(Boolean).join(' ')
+  // Build combined expression text for the resolver — live series only
+  const liveSeries = series.filter(s => s.mode !== 'snapshot')
+  const allExpressions = liveSeries.map(s => s.expression).filter(Boolean).join(' ')
   const { resolvedValue } = useWidgetResolveText(allExpressions || null)
 
-  // Compute current values and sample into rolling history when they change
-  const currentValues = series.map(s => s.expression ? resolvedValue(s.expression) : null)
+  // Compute current values and sample into rolling history when they change (live series only)
+  const currentValues = liveSeries.map(s => s.expression ? resolvedValue(s.expression) : null)
   const valuesKey = currentValues.map(v => v ?? 'x').join(',')
 
   useEffect(() => {
@@ -288,7 +368,7 @@ function TemplatePageGraph({
     setHistory(prev => {
       const updated = new Map(prev)
       let changed = false
-      series.forEach((s, i) => {
+      liveSeries.forEach((s, i) => {
         const val = currentValues[i]
         if (val === null || !isFinite(val)) return
         const existing = updated.get(s.id) || []
@@ -303,12 +383,43 @@ function TemplatePageGraph({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [valuesKey])
 
-  // Reset history when series configurations change (expressions changed)
-  const seriesConfigKey = JSON.stringify(series.map(s => ({ id: s.id, expression: s.expression })))
+  // Reset history when series configurations change
+  const seriesConfigKey = JSON.stringify(series.map(s => ({ id: s.id, mode: s.mode, expression: s.expression })))
   useEffect(() => {
     setHistory(new Map())
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seriesConfigKey])
+
+  // Snapshot series: parse expression to determine URL, fetch on interval
+  const snapshotSeries = series.filter(s => s.mode === 'snapshot' && s.expression)
+  const snapshotKey = JSON.stringify(snapshotSeries.map(s => ({ id: s.id, expression: s.expression })))
+  useEffect(() => {
+    if (!snapshotSeries.length) return
+    const timers = []
+    snapshotSeries.forEach(s => {
+      const parsed = parseSnapshotExpression(s.expression)
+      if (!parsed) return
+      const { url, valueKey, interval } = parsed
+      const fetchSnapshot = async () => {
+        try {
+          const res = await fetch(url)
+          if (!res.ok) return
+          const data = await res.json()
+          if (!Array.isArray(data)) return
+          const points = data
+            .map(d => ({ timestamp: d.timestamp, value: d[valueKey] }))
+            .filter(d => d.timestamp != null && d.value != null && isFinite(d.value))
+          setHistory(prev => { const m = new Map(prev); m.set(s.id, points); return m })
+        } catch (e) {
+          console.error(`[graph snapshot] fetch error:`, e)
+        }
+      }
+      fetchSnapshot()
+      timers.push(setInterval(fetchSnapshot, Math.max(10, interval) * 1000))
+    })
+    return () => timers.forEach(clearInterval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshotKey])
 
   // Track rendered pixel width
   useEffect(() => {
@@ -484,6 +595,7 @@ function TemplatePageGraph({
     const newS = {
       id: crypto.randomUUID(),
       name: '',
+      mode: 'live',
       expression: '',
       color: SERIES_COLORS[editConfig.series.length % SERIES_COLORS.length],
       viewType: 'line'
@@ -499,6 +611,24 @@ function TemplatePageGraph({
 
   const deleteSeries = (id) =>
     setEditConfig({ ...editConfig, series: editConfig.series.filter(s => s.id !== id) })
+
+  const hasSnapshotSeries = series.some(s => s.mode === 'snapshot')
+
+  const handleClearSnapshots = async () => {
+    const snapshots = series.filter(s => s.mode === 'snapshot' && s.expression)
+    await Promise.allSettled(
+      snapshots.map(s => {
+        const parsed = parseSnapshotExpression(s.expression)
+        if (!parsed) return Promise.resolve()
+        return fetch(`/api/bars/${parsed.symbol}/${parsed.property}?interval=${parsed.interval}`, { method: 'DELETE' })
+      })
+    )
+    setHistory(prev => {
+      const m = new Map(prev)
+      snapshots.forEach(s => m.set(s.id, []))
+      return m
+    })
+  }
 
   const seriesEntries = series.map(s => ({ config: s, data: history.get(s.id) || [] }))
 
@@ -530,8 +660,52 @@ function TemplatePageGraph({
           <GraphSVG
             seriesEntries={seriesEntries}
             width={containerWidth}
-            height={displayHeight - style.borderWidth * 2}
+            height={displayHeight - style.borderWidth * 2 - LEGEND_HEIGHT}
+            tooltipPosition={globalSettings.graphTooltipPosition ?? 'cursor'}
           />
+        )}
+
+        <HStack
+          position="absolute" bottom={`${style.borderWidth}px`} left={0} right={0}
+          height={`${LEGEND_HEIGHT}px`} px={2} spacing={3}
+          pointerEvents="none"
+        >
+          {seriesEntries.map(({ config, data }) => {
+            const latestVal = data.length ? data[data.length - 1].value : null
+            const formatted = latestVal != null && isFinite(latestVal) ? fmtY(latestVal) : '—'
+            return (
+              <HStack key={config.id} spacing={1}>
+                <Box w="8px" h="8px" bg={config.color} borderRadius="sm" flexShrink={0} />
+                <Text fontSize={`${FONT_SIZE}px`} color="gray.300" whiteSpace="nowrap">
+                  {(config.name || config.expression || '?') + ' ' + formatted}
+                </Text>
+              </HStack>
+            )
+          })}
+        </HStack>
+
+        {hasSnapshotSeries && (
+          <Box position="absolute" top="2px" left="2px" zIndex={10} onMouseDown={e => e.stopPropagation()}>
+            <Menu placement="bottom-start" size="sm">
+              <MenuButton
+                as={IconButton}
+                icon={<DotsIcon />}
+                size="xs"
+                variant="ghost"
+                color="gray.400"
+                _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
+                aria-label="Snapshot actions"
+                onClick={e => e.stopPropagation()}
+              />
+              <MenuList minW="140px" bg="gray.800" borderColor="gray.600" fontSize="sm">
+                <MenuItem bg="gray.800" _hover={{ bg: 'gray.700' }} color="red.300"
+                  onClick={handleClearSnapshots}
+                >
+                  Clear snapshots
+                </MenuItem>
+              </MenuList>
+            </Menu>
+          </Box>
         )}
 
         <HStack position="absolute" top="2px" right="2px" spacing={0} zIndex={10}>
@@ -604,22 +778,32 @@ function TemplatePageGraph({
                       />
                     </HStack>
                     <VStack spacing={2} align="stretch">
-                      <FormControl>
-                        <FormLabel fontSize="xs">Expression</FormLabel>
-                        <Input size="sm" value={s.expression || ''}
-                          onChange={e => updateSeries(s.id, { expression: e.target.value })}
-                          placeholder="@{SPY:last:5}  @{SPY:callVol:300}  %[@{SPY:putVol} / @{SPY:callVol}:300]"
-                          fontFamily="mono"
-                        />
-                      </FormControl>
                       <HStack>
+                        <FormControl maxW="120px">
+                          <FormLabel fontSize="xs">Mode</FormLabel>
+                          <Select size="sm" value={s.mode || 'live'}
+                            onChange={e => updateSeries(s.id, { mode: e.target.value })}>
+                            <option value="live">Live</option>
+                            <option value="snapshot">Snapshot</option>
+                          </Select>
+                        </FormControl>
                         <FormControl>
                           <FormLabel fontSize="xs">Name (optional)</FormLabel>
                           <Input size="sm" value={s.name || ''}
                             onChange={e => updateSeries(s.id, { name: e.target.value })}
-                            placeholder="SPY last"
+                            placeholder="Call Vol 5m"
                           />
                         </FormControl>
+                      </HStack>
+                      <FormControl>
+                        <FormLabel fontSize="xs">Expression</FormLabel>
+                        <Input size="sm" value={s.expression || ''}
+                          onChange={e => updateSeries(s.id, { expression: e.target.value })}
+                          placeholder={(s.mode || 'live') === 'snapshot' ? '@{SPY:callVol:300}' : '@{SPY:last:5}  @{SPY:callVol:300}'}
+                          fontFamily="mono"
+                        />
+                      </FormControl>
+                      <HStack>
                         <FormControl>
                           <FormLabel fontSize="xs">View</FormLabel>
                           <Select size="sm" value={s.viewType || 'line'}
@@ -672,6 +856,25 @@ function TemplatePageGraph({
                       />
                     </FormControl>
                   </HStack>
+                </Box>
+
+                <Box borderTopWidth={1} borderColor="gray.600" pt={3}>
+                  <Text fontSize="sm" fontWeight="medium" mb={2}>Global</Text>
+                  <FormControl>
+                    <FormLabel fontSize="xs">Tooltip position</FormLabel>
+                    <HStack spacing={1}>
+                      {['cursor', 'corner'].map(opt => (
+                        <Button key={opt} size="xs"
+                          bg={(globalSettings.graphTooltipPosition ?? 'cursor') === opt ? 'blue.600' : 'transparent'}
+                          color={(globalSettings.graphTooltipPosition ?? 'cursor') === opt ? 'white' : 'gray.400'}
+                          borderWidth={1} borderColor="gray.600"
+                          onClick={() => saveGlobalChartSettings({ ...globalSettings, graphTooltipPosition: opt })}
+                        >
+                          {opt}
+                        </Button>
+                      ))}
+                    </HStack>
+                  </FormControl>
                 </Box>
               </VStack>
             )}

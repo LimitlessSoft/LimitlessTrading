@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Modal,
   ModalOverlay,
@@ -26,9 +26,18 @@ import {
   useToast,
 } from '@chakra-ui/react'
 import { BellIcon, AddIcon, DeleteIcon } from '@chakra-ui/icons'
-import { createAlert, removeAlert, listAlerts } from '../modules/alertService'
+import { createAlert, removeAlert, listAlerts, subscribeToAlertList } from '../modules/alertService'
 
 const ACTION_COLORS = { message: 'blue', sound: 'purple', event: 'orange' }
+
+function nextAlignedTime(ms) {
+  const now = new Date()
+  const msIntoHour = (now.getMinutes() * 60 + now.getSeconds()) * 1000 + now.getMilliseconds()
+  const nextAligned = Math.ceil((msIntoHour + 1) / ms) * ms
+  const msUntilFirst = nextAligned - msIntoHour
+  const next = new Date(Date.now() + msUntilFirst)
+  return next.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
 
 function scheduleDescription(schedule) {
   if (!schedule) return '—'
@@ -37,9 +46,9 @@ function scheduleDescription(schedule) {
     const s = schedule.ms / 1000
     if (s < 60) return `Every ${s}s`
     const m = s / 60
-    if (Number.isInteger(m) && m < 60) return `Every ${m} min`
+    if (Number.isInteger(m) && m < 60) return `Every ${m} min · next ${nextAlignedTime(schedule.ms)}`
     const h = m / 60
-    return `Every ${h % 1 === 0 ? h : h.toFixed(1)}h`
+    return `Every ${h % 1 === 0 ? h : h.toFixed(1)}h · next ${nextAlignedTime(schedule.ms)}`
   }
   return schedule.type
 }
@@ -61,6 +70,8 @@ export default function AlertsPanel({ isOpen, onClose }) {
   const toast = useToast()
 
   const refresh = () => setAlerts(listAlerts())
+
+  useEffect(() => subscribeToAlertList(refresh), [])
 
   const handleDelete = (id) => {
     removeAlert(id)

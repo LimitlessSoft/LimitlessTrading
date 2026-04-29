@@ -30,11 +30,46 @@
  * }
  */
 
+import { getPersistedAlerts, persistAlert, deletePersistedAlert } from '../db/database'
+
 const alerts = new Map()
 const eventSubscribers = new Map()  // eventName -> Set<callback>
 const messageSubscribers = new Set()
+const listSubscribers = new Set()
+
+function notifyListChange() {
+  for (const cb of listSubscribers) {
+    try { cb() } catch {}
+  }
+}
 
 let nextAlertId = 1
+
+// Restore persisted alerts on module load
+;(async () => {
+  try {
+    const saved = await getPersistedAlerts()
+    for (const config of saved) {
+      const alert = {
+        ...config,
+        getMessage: config.message ? () => config.message : undefined,
+        _intervalId: null,
+        _timeoutId: null,
+      }
+      alerts.set(alert.id, alert)
+      scheduleAlert(alert)
+      // Keep nextAlertId above any numeric suffixes from saved IDs
+      const match = alert.id.match(/^alert-(\d+)$/)
+      if (match) {
+        const n = parseInt(match[1], 10)
+        if (n >= nextAlertId) nextAlertId = n + 1
+      }
+    }
+    notifyListChange()
+  } catch {
+    // DB unavailable — start with no alerts
+  }
+})()
 
 function playBeep({ frequency = 520, duration = 0.4, volume = 0.25 } = {}) {
   try {
@@ -125,9 +160,24 @@ function scheduleAlert(alert) {
       alert._timeoutId = timeout
       alert._intervalId = null
     } else {
-      const intervalId = setInterval(() => fireAlert(alert), schedule.ms)
-      alert._intervalId = intervalId
-      alert._timeoutId = null
+      // Align first fire to the next clock multiple (e.g. "every 16 min" fires at :00, :16, :32, :48)
+      const now = new Date()
+      const msIntoHour = (now.getMinutes() * 60 + now.getSeconds()) * 1000 + now.getMilliseconds()
+      const nextAligned = Math.ceil((msIntoHour + 1) / schedule.ms) * schedule.ms
+      const msUntilFirst = nextAligned - msIntoHour
+
+      const timeout = setTimeout(() => {
+        fireAlert(alert)
+        const intervalId = setInterval(() => fireAlert(alert), schedule.ms)
+        const stored = alerts.get(alert.id)
+        if (stored) {
+          stored._intervalId = intervalId
+          stored._timeoutId = null
+        }
+      }, msUntilFirst)
+
+      alert._timeoutId = timeout
+      alert._intervalId = null
     }
   }
 }
@@ -142,6 +192,8 @@ export function createAlert(config) {
   const alert = { ...config, id, _intervalId: null, _timeoutId: null }
   alerts.set(id, alert)
   scheduleAlert(alert)
+  persistAlert(alert).catch(() => {})
+  notifyListChange()
   return id
 }
 
@@ -155,6 +207,8 @@ export function removeAlert(id) {
   if (alert._intervalId) clearInterval(alert._intervalId)
   if (alert._timeoutId) clearTimeout(alert._timeoutId)
   alerts.delete(id)
+  deletePersistedAlert(id).catch(() => {})
+  notifyListChange()
 }
 
 /**
@@ -195,5 +249,15 @@ export function subscribeToEvent(eventName, callback) {
 export function subscribeToMessages(callback) {
   messageSubscribers.add(callback)
   return () => messageSubscribers.delete(callback)
+}
+
+/**
+ * Subscribe to alert list changes (create, remove, initial DB load).
+ * @param {Function} callback
+ * @returns {Function} Unsubscribe
+ */
+export function subscribeToAlertList(callback) {
+  listSubscribers.add(callback)
+  return () => listSubscribers.delete(callback)
 }
 
