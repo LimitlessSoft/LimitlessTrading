@@ -1,4 +1,4 @@
-import { Cron } from 'croner'
+import { Cron, CronPattern } from 'croner'
 import { getPersistedAlerts, persistAlert, deletePersistedAlert } from '../db/database'
 
 const alerts = new Map()
@@ -92,6 +92,7 @@ function fireAlert(alert) {
 }
 
 function scheduleAlert(alert) {
+  if (alert.enabled === false) return
   const { schedule } = alert
   if (!schedule?.expression) return
   try {
@@ -103,12 +104,23 @@ function scheduleAlert(alert) {
 
 export function createAlert(config) {
   const id = config.id || `alert-${nextAlertId++}`
-  const alert = { ...config, id, _cronJob: null }
+  const alert = { ...config, id, enabled: config.enabled !== false, _cronJob: null }
   alerts.set(id, alert)
   scheduleAlert(alert)
   persistAlert(alert).catch(() => {})
   notifyListChange()
   return id
+}
+
+export function setAlertEnabled(id, enabled) {
+  const alert = alerts.get(id)
+  if (!alert) return
+  alert._cronJob?.stop()
+  alert._cronJob = null
+  alert.enabled = enabled
+  if (enabled) scheduleAlert(alert)
+  persistAlert(alert).catch(() => {})
+  notifyListChange()
 }
 
 export function removeAlert(id) {
@@ -121,22 +133,24 @@ export function removeAlert(id) {
 }
 
 export function listAlerts() {
-  return Array.from(alerts.values()).map(({ id, label, schedule, actions, eventName }) => ({
-    id, label, schedule, actions, eventName
+  return Array.from(alerts.values()).map(({ id, label, schedule, actions, eventName, enabled }) => ({
+    id, label, schedule, actions, eventName, enabled
   }))
 }
 
 export function getNextRun(expression) {
+  if (!expression) return null
   try {
-    return new Cron(expression).nextRun()
+    return new Cron(expression, { paused: true }).nextRun()
   } catch {
     return null
   }
 }
 
 export function isValidCron(expression) {
+  if (!expression) return false
   try {
-    new Cron(expression)
+    new CronPattern(expression)
     return true
   } catch {
     return false

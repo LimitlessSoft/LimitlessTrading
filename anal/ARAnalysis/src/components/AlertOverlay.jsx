@@ -35,11 +35,12 @@ export default function AlertOverlay() {
     <Portal>
       <VStack
         position="fixed"
-        top={4}
-        right={4}
+        bottom={4}
+        left="50%"
+        transform="translateX(-50%)"
         zIndex={9999}
         spacing={2}
-        align="flex-end"
+        align="center"
         pointerEvents="none"
       >
         {notifications.map(n => (

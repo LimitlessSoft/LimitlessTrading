@@ -17,6 +17,7 @@ import {
   IconButton,
   Input,
   Select,
+  Switch,
   Checkbox,
   CheckboxGroup,
   Stack,
@@ -30,6 +31,7 @@ import { BellIcon, AddIcon, DeleteIcon } from '@chakra-ui/icons'
 import {
   createAlert,
   removeAlert,
+  setAlertEnabled,
   listAlerts,
   getNextRun,
   isValidCron,
@@ -148,14 +150,14 @@ export default function AlertsPanel({ isOpen, onClose }) {
                   : null
                 return (
                   <HStack key={alert.id} py={3} align="flex-start" justify="space-between">
-                    <Box>
+                    <Box flex={1} opacity={alert.enabled === false ? 0.45 : 1}>
                       <Text fontWeight="semibold" fontSize="sm" color="white">
                         {alert.label || alert.id}
                       </Text>
                       <Text fontSize="xs" color="gray.400" mt={0.5} fontFamily="mono">
                         {alert.schedule?.expression || '—'}
                       </Text>
-                      {next && (
+                      {alert.enabled !== false && next && (
                         <Text fontSize="xs" color="gray.500" mt={0.5}>
                           Next: <Text as="span" color="blue.300">{next}</Text>
                         </Text>
@@ -173,15 +175,22 @@ export default function AlertsPanel({ isOpen, onClose }) {
                         ))}
                       </HStack>
                     </Box>
-                    <IconButton
-                      icon={<DeleteIcon />}
-                      size="xs"
-                      variant="ghost"
-                      colorScheme="red"
-                      aria-label="Delete alert"
-                      onClick={() => handleDelete(alert.id)}
-                      mt={0.5}
-                    />
+                    <HStack spacing={1} mt={0.5}>
+                      <Switch
+                        size="sm"
+                        isChecked={alert.enabled !== false}
+                        onChange={e => { setAlertEnabled(alert.id, e.target.checked); refresh() }}
+                        colorScheme="blue"
+                      />
+                      <IconButton
+                        icon={<DeleteIcon />}
+                        size="xs"
+                        variant="ghost"
+                        colorScheme="red"
+                        aria-label="Delete alert"
+                        onClick={() => handleDelete(alert.id)}
+                      />
+                    </HStack>
                   </HStack>
                 )
               })}
