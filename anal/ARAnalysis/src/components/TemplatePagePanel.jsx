@@ -714,9 +714,8 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
           ref={childContainerRef}
           position="relative"
           flex={1}
-          overflow={layoutMode === 'grid' ? 'hidden' : undefined}
-          overflowX={layoutMode !== 'grid' ? 'hidden' : undefined}
-          overflowY={layoutMode !== 'grid' ? 'auto' : undefined}
+          overflowX={layoutMode === 'grid' && style.gridAxis === 'rows' ? 'auto' : 'hidden'}
+          overflowY={layoutMode === 'grid' && style.gridAxis !== 'rows' ? 'auto' : layoutMode !== 'grid' ? 'auto' : 'hidden'}
           p={layoutMode === 'grid' ? 0 : 2}
         >
           {layoutMode === 'grid' ? renderGridChildren() : children.map(renderChild)}
