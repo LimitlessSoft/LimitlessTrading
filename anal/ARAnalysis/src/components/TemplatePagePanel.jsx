@@ -634,7 +634,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
           left={`calc(${((displayX + displayWidth) / TOTAL_SEGMENTS) * 100}% - 8px)`}
           style={{ transform: 'translateX(-100%)' }}
           spacing={0}
-          zIndex={isMoving ? 101 : 10}
+          zIndex={isMoving ? 1101 : 1001}
           bg="gray.700"
           borderRadius="md"
           px={1}
