@@ -158,15 +158,19 @@ function TemplatePage() {
 
   const addWidgetFromAI = async (widgetDef) => {
     if (!pageInfo) return
+    if (isAtWidgetLimit()) {
+      toast({ title: 'Widget limit reached — upgrade to Pro to add more widgets', status: 'warning', duration: 4000, isClosable: true })
+      return
+    }
     try {
       const currentLabels = pageInfo.config?.labels || []
       const maxY = currentLabels.reduce((m, l) => Math.max(m, l.y || 0), -1)
       const newWidget = {
+        ...widgetDef,
         id: crypto.randomUUID(),
         createdAt: Date.now(),
         x: 0,
-        y: maxY + 1,
-        ...widgetDef
+        y: maxY + 1
       }
       const updatedConfig = {
         ...pageInfo.config,
