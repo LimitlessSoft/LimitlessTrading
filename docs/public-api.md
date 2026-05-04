@@ -49,7 +49,7 @@ k8s/
 ├── namespaces/lt-api-namespace.yaml    # namespace: lt-api-namespace
 ├── deployments/lt-api-deployment.yaml  # image: limitlesssoft/limitless-trading-api
 ├── services/lt-api-service.yaml        # NodePort 80 → 8080
-└── ingress/lt-api-ingress.yaml         # host: api.${DEPLOY_ENV}.aleksaristic.com
+└── ingress/lt-api-ingress.yaml         # host: api.limitlessworkstation.com
 ```
 
 Apply manually:

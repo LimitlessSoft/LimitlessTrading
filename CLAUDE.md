@@ -14,4 +14,5 @@ When asked to add a task or to-do item, create a markdown file in the `todo/` di
 - [Chart widget](docs/chart-widget.md)
 - [Data flow & database](docs/data.md)
 - [LT Public API](docs/public-api.md)
+- [LT Web](docs/web.md)
 - [AI Assistant](docs/ai-assistant.md)
