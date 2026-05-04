@@ -39,7 +39,7 @@ const DownloadIcon = () => (
 import { useDeleteConfirm } from '../hooks/useDeleteConfirm'
 import { fetchFromCache, loadHistoricalData, refreshRecentData, fetchOlderData, clearAllCache, cacheNeedsRefresh, INTERVALS } from '../modules/dataService'
 import { subscribeQuote, subscribeSSEStatus } from '../modules/symbolQuoteService'
-import { listAlerts, subscribeToAlertList } from '../modules/alertService'
+import { listAlerts, subscribeToAlertList, updateAlertPrice } from '../modules/alertService'
 import {
   getGlobalChartSettings,
   saveGlobalChartSettings,
@@ -73,13 +73,15 @@ function getTickerAlertLines(symbol) {
     if (alert.enabled === false) continue
     const { schedule } = alert
     if (!schedule) continue
-    const conditions = schedule.type === 'combined' ? schedule.conditions : [schedule]
-    for (const c of conditions) {
+    const isSimple = schedule.type !== 'combined'
+    const conditions = isSimple ? [schedule] : schedule.conditions
+    for (let ci = 0; ci < conditions.length; ci++) {
+      const c = conditions[ci]
       if (c.type !== 'expression') continue
       if (!symbolRe.test(c.expression)) continue
       const price = parseFloat(c.value)
       if (isNaN(price)) continue
-      result.push({ alertId: alert.id, label: alert.label || '', price, operator: c.operator })
+      result.push({ alertId: alert.id, conditionIndex: isSimple ? -1 : ci, label: alert.label || '', price, operator: c.operator })
     }
   }
   return result
@@ -88,10 +90,13 @@ function getTickerAlertLines(symbol) {
 // Candlestick SVG — renders inside the chart control
 const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRthBgColor, fontSize, volumeMultiplier,
   onSymbolClick, quickInputOpen, quickSymbol, quickInputRef, onQuickSymbolChange, onQuickSymbolKeyDown, onQuickSymbolCommit,
-  onIntervalChange, ohlcPosition, liveConnected, marketOpen, showMarketIndicator, alertLines }) {
+  onIntervalChange, ohlcPosition, liveConnected, marketOpen, showMarketIndicator, alertLines, onAlertPriceChange }) {
   const [tooltip,    setTooltip]    = useState(null)
   const [crosshairY, setCrosshairY] = useState(null)
   const [mouseX,     setMouseX]     = useState(null)
+  const [dragging,   setDragging]   = useState(null) // { alertId, conditionIndex, y }
+  const draggingRef    = useRef(null)
+  const chartMetricsRef = useRef(null)
 
   const padding = { top: 40, right: fontSize * 4 + 4, bottom: 28, left: 8 }
   const axisGap = 6
@@ -124,6 +129,25 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
   const formatTime  = ts => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const formatDate  = ts => new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric' })
   const isIntraday  = ['1m','2m','3m','5m','15m','30m','1h'].includes(interval)
+
+  draggingRef.current = dragging
+  chartMetricsRef.current = { effectiveMin, effectiveRange, candleAreaH, paddingTop: padding.top }
+
+  function commitDrag() {
+    const d = draggingRef.current
+    if (!d || !onAlertPriceChange) return
+    const { effectiveMin: eMin, effectiveRange: eRange, candleAreaH: cAreaH, paddingTop: pTop } = chartMetricsRef.current
+    const price = eMin + eRange * (1 - (d.y - pTop) / cAreaH)
+    onAlertPriceChange(d.alertId, d.conditionIndex, price)
+    setDragging(null)
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!dragging) return
+    window.addEventListener('mouseup', commitDrag)
+    return () => window.removeEventListener('mouseup', commitDrag)
+  }, [!!dragging])
 
   return (
     <Box position="relative" w="100%" h="100%">
@@ -226,13 +250,18 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
         height={height}
         viewBox={`0 0 ${width} ${height}`}
         preserveAspectRatio="xMinYMin meet"
-        style={{ display: 'block' }}
+        style={{ display: 'block', cursor: dragging ? 'ns-resize' : undefined }}
         onMouseMove={(e) => {
           const rect = e.currentTarget.getBoundingClientRect()
           const scaleX = width / rect.width
           const scaleY = height / rect.height
           const svgX = (e.clientX - rect.left) * scaleX
           const svgY = (e.clientY - rect.top) * scaleY
+          if (dragging) {
+            const clampedY = Math.max(padding.top, Math.min(padding.top + candleAreaH, svgY))
+            setDragging(prev => prev ? { ...prev, y: clampedY } : null)
+            return
+          }
           setMouseX(svgX)
           if (svgY >= padding.top && svgY <= height - padding.bottom) {
             setCrosshairY(svgY)
@@ -240,7 +269,10 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
             setCrosshairY(null)
           }
         }}
-        onMouseLeave={() => { setCrosshairY(null); setTooltip(null); setMouseX(null) }}
+        onMouseUp={commitDrag}
+        onMouseLeave={() => {
+          if (!dragging) { setCrosshairY(null); setTooltip(null); setMouseX(null) }
+        }}
       >
         {/* Base background — full chart area including header/price label strips */}
         <rect x={0} y={0} width={width} height={height} fill="#1a202c" />
@@ -294,28 +326,46 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
 
         {/* Alert price lines */}
         {alertLines && alertLines.map((al) => {
-          const y = priceToY(al.price)
-          if (y < padding.top || y > height - padding.bottom) return null
+          const isDragging = dragging?.alertId === al.alertId && dragging?.conditionIndex === al.conditionIndex
+          const y = isDragging ? dragging.y : priceToY(al.price)
+          if (!isDragging && (y < padding.top || y > height - padding.bottom)) return null
           const labelText = al.label || `${al.operator} ${al.price}`
           const charW = fontSize * 0.62
           const labelW = Math.max(labelText.length * charW + 8, 20)
+          const dragPrice = isDragging
+            ? effectiveMin + effectiveRange * (1 - (dragging.y - padding.top) / candleAreaH)
+            : null
           return (
-            <g key={al.alertId} pointerEvents="none">
+            <g key={`${al.alertId}-${al.conditionIndex}`}>
               <line
                 x1={padding.left} y1={y} x2={padding.left + chartWidth} y2={y}
-                stroke="#ed8936" strokeWidth={1} strokeDasharray="4 3" opacity={0.75}
+                stroke="#ed8936" strokeWidth={isDragging ? 2 : 1} strokeDasharray="4 3" opacity={isDragging ? 1 : 0.75}
+                pointerEvents="none"
               />
               <rect
                 x={padding.left + 2} y={y - fontSize * 0.9}
                 width={labelW} height={fontSize * 1.8}
                 fill="#7b341e" rx={2} opacity={0.88}
+                pointerEvents="none"
               />
               <text
                 x={padding.left + 6} y={y + fontSize * 0.45}
                 fill="#fbd38d" fontSize={fontSize - 1}
+                pointerEvents="none"
               >
                 {labelText}
               </text>
+              {isDragging && (
+                <>
+                  <rect x={width - padding.right} y={y - fontSize * 0.8}
+                    width={padding.right - 2} height={fontSize * 1.6}
+                    fill="#ed8936" rx={2} pointerEvents="none" />
+                  <text x={width - padding.right + 3} y={y + fontSize * 0.45}
+                    fill="#1a202c" fontSize={fontSize - 1} fontWeight="bold" pointerEvents="none">
+                    {dragPrice.toFixed(2)}
+                  </text>
+                </>
+              )}
             </g>
           )
         })}
@@ -362,6 +412,28 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
               <rect x={x - spacing / 2} y={padding.top} width={spacing} height={candleAreaH}
                 fill="transparent" style={{ cursor: 'crosshair' }} />
             </g>
+          )
+        })}
+
+        {/* Alert drag hit areas — rendered after candlesticks so they sit on top */}
+        {alertLines && alertLines.map((al) => {
+          const isDragging = dragging?.alertId === al.alertId && dragging?.conditionIndex === al.conditionIndex
+          const y = isDragging ? dragging.y : priceToY(al.price)
+          if (!isDragging && (y < padding.top || y > height - padding.bottom)) return null
+          return (
+            <rect
+              key={`hit-${al.alertId}-${al.conditionIndex}`}
+              x={padding.left} y={y - 5}
+              width={chartWidth} height={10}
+              fill="transparent"
+              style={{ cursor: 'ns-resize' }}
+              onMouseDown={(e) => {
+                e.stopPropagation()
+                setCrosshairY(null)
+                setTooltip(null)
+                setDragging({ alertId: al.alertId, conditionIndex: al.conditionIndex, y })
+              }}
+            />
           )
         })}
 
@@ -1167,6 +1239,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onLinkSync, onE
             onQuickSymbolCommit={handleQuickSymbolCommit}
             onIntervalChange={handleIntervalChange}
             alertLines={alertLines}
+            onAlertPriceChange={(alertId, conditionIndex, price) => updateAlertPrice(alertId, conditionIndex, price)}
           />
           </>
         )}

@@ -189,6 +189,20 @@ export function removeAlert(id) {
   notifyListChange()
 }
 
+export function updateAlertPrice(alertId, conditionIndex, newPrice) {
+  const alert = alerts.get(alertId)
+  if (!alert?.schedule) return
+  const priceStr = String(parseFloat(newPrice.toFixed(2)))
+  if (conditionIndex === -1) {
+    alert.schedule.value = priceStr
+  } else {
+    if (!alert.schedule.conditions?.[conditionIndex]) return
+    alert.schedule.conditions[conditionIndex].value = priceStr
+  }
+  persistAlert(alert).catch(() => {})
+  notifyListChange()
+}
+
 export function listAlerts() {
   return Array.from(alerts.values()).map(({ id, label, schedule, actions, eventName, enabled }) => ({
     id, label, schedule, actions, eventName, enabled
