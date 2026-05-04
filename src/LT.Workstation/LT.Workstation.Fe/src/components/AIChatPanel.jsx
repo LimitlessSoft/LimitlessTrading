@@ -10,6 +10,7 @@ import { createAlert, removeAlert, listAlerts, subscribeToAlertList } from '../m
 import LicenseModal from './LicenseModal'
 import { useLicense } from '../modules/LicenseContext'
 import WhisperSetupModal from './WhisperSetupModal'
+import { useWidgetCallback } from '../modules/WidgetContext'
 
 const api = axios.create({ baseURL: '/api', timeout: 60000 })
 
@@ -436,6 +437,7 @@ export default function AIChatPanel() {
   const { isOpen: isWhisperOpen, onOpen: onWhisperOpen, onClose: onWhisperClose } = useDisclosure()
 
   const { isPro } = useLicense()
+  const { onCreateWidget, getPageContext } = useWidgetCallback()
 
   const activeThread = threads.find(t => t.id === activeThreadId) ?? threads[0]
 
@@ -512,7 +514,8 @@ export default function AIChatPanel() {
     setPendingMessage(text)
 
     try {
-      const res = await api.post('/ai/chat', { message: text, history, alerts })
+      const pageContext = getPageContext()
+      const res = await api.post('/ai/chat', { message: text, history, alerts, pageContext })
       setThreads(prev => prev.map(t =>
         t.id === threadId
           ? { ...t, messages: [...t.messages, { role: 'assistant', content: res.data.response }] }
@@ -530,6 +533,11 @@ export default function AIChatPanel() {
           if (target) {
             removeAlert(target.id)
             toast({ title: `Alert removed: ${target.label}`, status: 'info', duration: 3000, isClosable: true })
+          }
+        } else if (action.type === 'create_widget') {
+          if (onCreateWidget) {
+            onCreateWidget(action.widgetDef)
+            toast({ title: 'Widget added to page', status: 'success', duration: 3000, isClosable: true })
           }
         }
       }

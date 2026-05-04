@@ -110,8 +110,8 @@ function TemplatePage() {
 
   useEffect(() => {
     if (!pageInfo) return
-    setOnCreateWidget(addWidgetFromAI)
-    return () => setOnCreateWidget(null)
+    setOnCreateWidget(addWidgetFromAI, pageInfo)
+    return () => setOnCreateWidget(null, null)
   }, [pageInfo])
 
   const isAtWidgetLimit = () => {
