@@ -72,7 +72,7 @@ function formatAlertCondition(schedule) {
   return schedule.expression || ''
 }
 
-async function buildContext(messages, alerts = []) {
+async function buildContext(messages, alerts = [], pageContext = null) {
   const parts = []
 
   // Connection status
@@ -136,6 +136,47 @@ async function buildContext(messages, alerts = []) {
     }
   }
 
+  // Widget creation context
+  if (pageContext?.type === 'template') {
+    const widgetSummary = (pageContext.widgets || [])
+      .map(w => `  ${w.type}${w.text ? `: "${w.text}"` : w.symbol ? `: ${w.symbol}` : w.placeholder ? `: ${w.placeholder}` : ''}`)
+      .join('\n')
+
+    parts.push(
+      `== CREATING WIDGETS ==\n` +
+      `Current template page: "${pageContext.name}"\n` +
+      `Existing widgets:\n${widgetSummary || '  (none)'}\n\n` +
+      `When the user asks to add a widget, output a <create_widget> block. ` +
+      `This is NOT a tool call — it is structured output the app reads. ` +
+      `Output ONE block per widget. Strip the block from your response text.\n\n` +
+      `Output format:\n` +
+      `<create_widget>\n` +
+      `{"type":"label","text":"@{SPY:last:5}","width":4,"height":60,"style":{"bgColor":"#2D3748","borderColor":"#4A5568","borderWidth":1,"textColor":"#FFFFFF","fontWeight":"normal","fontStyle":"normal","fontSize":1,"textAlign":"left","verticalAlign":"center"}}\n` +
+      `</create_widget>\n\n` +
+      `Widget types and required fields:\n` +
+      `  label   → text (string with placeholders), width, height, style\n` +
+      `  badge   → placeholder, width, height, style\n` +
+      `  gauge   → placeholder, min, max, segments ([{from,to,color}]), title, width, height\n` +
+      `  graph   → series ([{name,expression,color,viewType}]), maxHistory, snapshotInterval, width, height\n` +
+      `  chart   → symbol (ticker), width, height\n` +
+      `  panel   → width, height, style, children:[]\n\n` +
+      `Placeholder syntax:\n` +
+      `  @{SYMBOL:property:seconds}  → live quote (last, bid, ask, change, changePercent, volume, vwap, open, high, low, close, prevClose, week52High, week52Low)\n` +
+      `  @{SYMBOL:close-N:seconds}   → closing price N trading days ago\n` +
+      `  #{field:seconds}            → account value (NetLiquidation, BuyingPower, TotalCashValue, UnrealizedPnL, DailyPnL, RealizedPnL, etc.)\n` +
+      `  \${name:seconds}            → system value (tws_connection_status, fomc_next, fomc_countdown) or \${EXCHANGE:time|status:seconds}\n` +
+      `  %[expression:seconds]       → formula e.g. %[@{HYG:last} - @{LQD:last}:30]\n\n` +
+      `Default style: {"bgColor":"#2D3748","borderColor":"#4A5568","borderWidth":1,"textColor":"#FFFFFF","fontWeight":"normal","fontStyle":"normal","fontSize":1,"textAlign":"left","verticalAlign":"center"}\n\n` +
+      `After the <create_widget> block, confirm the widget was added (type and what it shows).`
+    )
+  } else {
+    parts.push(
+      `== CREATING WIDGETS ==\n` +
+      `The user is not currently on a template page. If they ask to add a widget, ` +
+      `tell them to navigate to a template page first. Do NOT output any <create_widget> block.`
+    )
+  }
+
   return parts.join('\n\n')
 }
 
@@ -146,9 +187,9 @@ function formatHistory(messages) {
   return history.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n')
 }
 
-export async function chat({ model, messages, alerts = [] }) {
+export async function chat({ model, messages, alerts = [], pageContext = null }) {
   const [context, historyText] = await Promise.all([
-    buildContext(messages, alerts),
+    buildContext(messages, alerts, pageContext),
     Promise.resolve(formatHistory(messages))
   ])
 
@@ -210,7 +251,14 @@ export async function chat({ model, messages, alerts = [] }) {
 
 function parseCliResponse(raw) {
   const actions = []
-  let text = raw.replace(/<create_alert>([\s\S]*?)<\/create_alert>/g, (_, json) => {
+  let text = raw.replace(/<create_widget>([\s\S]*?)<\/create_widget>/g, (_, json) => {
+    try {
+      const widgetDef = JSON.parse(json.trim())
+      actions.push({ type: 'create_widget', widgetDef })
+    } catch {}
+    return ''
+  })
+  text = text.replace(/<create_alert>([\s\S]*?)<\/create_alert>/g, (_, json) => {
     try {
       const input = JSON.parse(json.trim())
       actions.push({ type: 'create_alert', config: buildAlertConfig(input) })
