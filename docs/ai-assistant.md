@@ -93,9 +93,16 @@ anal/ARAnalysis/
   "history": [
     { "role": "user", "content": "..." },
     { "role": "assistant", "content": "..." }
-  ]
+  ],
+  "pageContext": {
+    "type": "template",
+    "name": "Dashboard",
+    "widgets": [{ "type": "label", "text": "@{SPY:last:5}" }]
+  }
 }
 ```
+
+`pageContext.type` is `"template"` when on a template page, `null` otherwise. When `null`, the AI responds that it cannot add widgets. The field is optional — omit it when not on a template page.
 
 **Response:**
 ```json
@@ -118,6 +125,21 @@ When the AI creates an alert, `actions` contains entries like:
 }
 ```
 The frontend passes `config` directly to `createAlert()` from `alertService.js`.
+
+When the AI creates a widget, `actions` contains:
+```json
+{
+  "type": "create_widget",
+  "widgetDef": {
+    "type": "label",
+    "text": "@{SPY:last:5}",
+    "width": 4,
+    "height": 60,
+    "style": { "bgColor": "#2D3748", "borderColor": "#4A5568", "borderWidth": 1, "textColor": "#FFFFFF", "fontWeight": "normal", "fontStyle": "normal", "fontSize": 1, "textAlign": "left", "verticalAlign": "center" }
+  }
+}
+```
+The frontend passes `widgetDef` to `addWidgetFromAI()` in `TemplatePage`, which generates `id` and `createdAt` and appends the widget to the page.
 
 Errors return `{ "error": "..." }` with an appropriate status code.
 
