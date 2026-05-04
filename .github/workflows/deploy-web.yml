@@ -1,0 +1,29 @@
+name: Deploy lt-web to cluster
+
+on:
+  workflow_call:
+    inputs:
+      env:
+        required: true
+        type: string
+
+jobs:
+  apply-resources:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env }}
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set K8s context
+      uses: ossrs/k8s-set-context-action@v1
+      with:
+        kubeconfig: '${{ secrets.KUBE_CONFIG_PURE }}'
+
+    - name: Deploy lt-web to cluster
+      run: |-
+        export DEPLOY_ENV=${{ inputs.env }}
+        envsubst < k8s/namespaces/lt-web-namespace.yaml | kubectl apply -f -
+        envsubst < k8s/services/lt-web-service.yaml | kubectl apply -f -
+        envsubst < k8s/deployments/lt-web-deployment.yaml | kubectl apply -f -
+        envsubst < k8s/ingress/lt-web-ingress.yaml | kubectl apply -f -
+        kubectl rollout restart -n lt-web-namespace deployment ${{ inputs.env }}-lt-web-deployment
