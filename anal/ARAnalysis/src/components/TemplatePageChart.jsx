@@ -39,6 +39,7 @@ const DownloadIcon = () => (
 import { useDeleteConfirm } from '../hooks/useDeleteConfirm'
 import { fetchFromCache, loadHistoricalData, refreshRecentData, fetchOlderData, clearAllCache, cacheNeedsRefresh, INTERVALS } from '../modules/dataService'
 import { subscribeQuote, subscribeSSEStatus } from '../modules/symbolQuoteService'
+import { listAlerts, subscribeToAlertList } from '../modules/alertService'
 import {
   getGlobalChartSettings,
   saveGlobalChartSettings,
@@ -63,10 +64,31 @@ const DEFAULT_STYLE = {
   borderWidth: 1
 }
 
+function getTickerAlertLines(symbol) {
+  if (!symbol) return []
+  const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const symbolRe = new RegExp(`@\\{${escaped}[:\\}]`, 'i')
+  const result = []
+  for (const alert of listAlerts()) {
+    if (alert.enabled === false) continue
+    const { schedule } = alert
+    if (!schedule) continue
+    const conditions = schedule.type === 'combined' ? schedule.conditions : [schedule]
+    for (const c of conditions) {
+      if (c.type !== 'expression') continue
+      if (!symbolRe.test(c.expression)) continue
+      const price = parseFloat(c.value)
+      if (isNaN(price)) continue
+      result.push({ alertId: alert.id, label: alert.label || '', price, operator: c.operator })
+    }
+  }
+  return result
+}
+
 // Candlestick SVG — renders inside the chart control
 const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRthBgColor, fontSize, volumeMultiplier,
   onSymbolClick, quickInputOpen, quickSymbol, quickInputRef, onQuickSymbolChange, onQuickSymbolKeyDown, onQuickSymbolCommit,
-  onIntervalChange, ohlcPosition, liveConnected, marketOpen, showMarketIndicator }) {
+  onIntervalChange, ohlcPosition, liveConnected, marketOpen, showMarketIndicator, alertLines }) {
   const [tooltip,    setTooltip]    = useState(null)
   const [crosshairY, setCrosshairY] = useState(null)
   const [mouseX,     setMouseX]     = useState(null)
@@ -270,6 +292,34 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
           )
         })}
 
+        {/* Alert price lines */}
+        {alertLines && alertLines.map((al) => {
+          const y = priceToY(al.price)
+          if (y < padding.top || y > height - padding.bottom) return null
+          const labelText = al.label || `${al.operator} ${al.price}`
+          const charW = fontSize * 0.62
+          const labelW = Math.max(labelText.length * charW + 8, 20)
+          return (
+            <g key={al.alertId} pointerEvents="none">
+              <line
+                x1={padding.left} y1={y} x2={padding.left + chartWidth} y2={y}
+                stroke="#ed8936" strokeWidth={1} strokeDasharray="4 3" opacity={0.75}
+              />
+              <rect
+                x={padding.left + 2} y={y - fontSize * 0.9}
+                width={labelW} height={fontSize * 1.8}
+                fill="#7b341e" rx={2} opacity={0.88}
+              />
+              <text
+                x={padding.left + 6} y={y + fontSize * 0.45}
+                fill="#fbd38d" fontSize={fontSize - 1}
+              >
+                {labelText}
+              </text>
+            </g>
+          )
+        })}
+
         {/* Day separators */}
         {data.map((bar, i) => {
           if (i === 0) return null
@@ -454,6 +504,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onLinkSync, onE
   const [hasMoreHistory,  setHasMoreHistory]  = useState(true)
   const [liveConnected,   setLiveConnected]   = useState(true)
   const [marketOpen,      setMarketOpen]      = useState(isMarketOpen)
+  const [alertLines,      setAlertLines]      = useState(() => getTickerAlertLines(label.symbol || ''))
   const quickInputRef   = useRef(null)
   const boxRef          = useRef(null)
   const cancelRef       = useRef(null)
@@ -574,6 +625,12 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onLinkSync, onE
     const timer = setInterval(() => setMarketOpen(isMarketOpen()), 60000)
     return () => clearInterval(timer)
   }, [])
+
+  // Sync alert lines for the current symbol
+  useEffect(() => {
+    setAlertLines(getTickerAlertLines(symbol || ''))
+    return subscribeToAlertList(() => setAlertLines(getTickerAlertLines(symbol || '')))
+  }, [symbol])
 
   // Periodic fetch to pull in newly completed bars (every 60s)
   useEffect(() => {
@@ -1109,6 +1166,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onLinkSync, onE
             onQuickSymbolKeyDown={handleQuickSymbolKeyDown}
             onQuickSymbolCommit={handleQuickSymbolCommit}
             onIntervalChange={handleIntervalChange}
+            alertLines={alertLines}
           />
           </>
         )}
