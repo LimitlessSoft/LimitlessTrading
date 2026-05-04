@@ -423,7 +423,7 @@ function TemplatePage() {
       if (parentPanelId === 'header') {
         const idxMap = new Map(newOrderedIds.map((id, i) => [id, i]))
         currentHeaderControls = currentHeaderControls.map(w =>
-          idxMap.has(w.id) ? { ...w, y: idxMap.get(w.id) } : w
+          idxMap.has(w.id) ? { ...w, x: idxMap.get(w.id) } : w
         )
       } else if (parentPanelId === null) {
         const idxMap = new Map(newOrderedIds.map((id, i) => [id, i]))
