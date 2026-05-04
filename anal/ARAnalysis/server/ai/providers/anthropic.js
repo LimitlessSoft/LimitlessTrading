@@ -1,13 +1,34 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { TOOL_DEFINITIONS, executeTool, buildAlertConfig } from '../tools.js'
 
-const SYSTEM_PROMPT =
+const SYSTEM_PROMPT_BASE =
   'You are a trading assistant built into this application. ' +
   'Use your tools to fetch real-time account data and market quotes — never guess values. ' +
   'Format currency values clearly (e.g. $1.23M, $450K). Keep answers short and direct. ' +
   'SCOPE: Only operate within this application. NEVER mention Interactive Brokers, IBKR, TWS, ' +
   'IBKR Mobile, brokerage platforms, or any external system. ' +
-  'When creating alerts, call create_alert directly — you have this capability.'
+  'When creating alerts, call create_alert directly — you have this capability. ' +
+  'When deleting alerts, call delete_alert with the alert ID from the Active Alerts list.'
+
+function formatAlertCondition(schedule) {
+  if (!schedule) return ''
+  if (schedule.type === 'expression') {
+    const m = schedule.expression?.match(/@\{(\w+):(\w+):(\d+)\}/)
+    if (m) return `${m[1]} ${m[2]} ${schedule.operator} ${schedule.value}`
+  }
+  return schedule.expression || ''
+}
+
+function buildSystemPrompt(alerts = []) {
+  const alertSection = alerts.length > 0
+    ? `\n\nActive Alerts (${alerts.length}):\n` + alerts.map(a => {
+        const cond = formatAlertCondition(a.schedule)
+        const status = a.enabled === false ? 'disabled' : 'enabled'
+        return `  ${a.id} | ${a.label}${cond ? ` | ${cond}` : ''} | ${status}`
+      }).join('\n')
+    : '\n\nActive Alerts: none'
+  return SYSTEM_PROMPT_BASE + alertSection
+}
 
 function toAnthropicTools(defs) {
   return defs.map(d => ({
@@ -17,7 +38,7 @@ function toAnthropicTools(defs) {
   }))
 }
 
-export async function chat({ apiKey, model, messages }) {
+export async function chat({ apiKey, model, messages, alerts = [] }) {
   const client = new Anthropic({ apiKey })
   const tools = toAnthropicTools(TOOL_DEFINITIONS)
 
@@ -28,7 +49,7 @@ export async function chat({ apiKey, model, messages }) {
     const response = await client.messages.create({
       model,
       max_tokens: 1024,
-      system: SYSTEM_PROMPT,
+      system: buildSystemPrompt(alerts),
       tools,
       messages: anthropicMessages
     })
@@ -45,6 +66,10 @@ export async function chat({ apiKey, model, messages }) {
           const config = buildAlertConfig(block.input)
           pendingActions.push({ type: 'create_alert', config })
           result = { success: true, message: `Alert "${config.label}" will be created.` }
+        } else if (block.name === 'delete_alert') {
+          const { id, label } = block.input
+          pendingActions.push({ type: 'delete_alert', id, label })
+          result = { success: true, message: `Alert will be deleted.` }
         } else {
           try {
             result = await executeTool(block.name, block.input)

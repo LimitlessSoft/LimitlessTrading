@@ -39,7 +39,7 @@ const DownloadIcon = () => (
 import { useDeleteConfirm } from '../hooks/useDeleteConfirm'
 import { fetchFromCache, loadHistoricalData, refreshRecentData, fetchOlderData, clearAllCache, cacheNeedsRefresh, INTERVALS } from '../modules/dataService'
 import { subscribeQuote, subscribeSSEStatus } from '../modules/symbolQuoteService'
-import { listAlerts, subscribeToAlertList, updateAlertPrice } from '../modules/alertService'
+import { listAlerts, subscribeToAlertList, updateAlertPrice, removeAlert } from '../modules/alertService'
 import {
   getGlobalChartSettings,
   saveGlobalChartSettings,
@@ -90,7 +90,7 @@ function getTickerAlertLines(symbol) {
 // Candlestick SVG — renders inside the chart control
 const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRthBgColor, fontSize, volumeMultiplier,
   onSymbolClick, quickInputOpen, quickSymbol, quickInputRef, onQuickSymbolChange, onQuickSymbolKeyDown, onQuickSymbolCommit,
-  onIntervalChange, ohlcPosition, liveConnected, marketOpen, showMarketIndicator, alertLines, onAlertPriceChange }) {
+  onIntervalChange, ohlcPosition, liveConnected, marketOpen, showMarketIndicator, alertLines, onAlertPriceChange, onAlertRemove }) {
   const [tooltip,    setTooltip]    = useState(null)
   const [crosshairY, setCrosshairY] = useState(null)
   const [mouseX,     setMouseX]     = useState(null)
@@ -330,8 +330,9 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
           const y = isDragging ? dragging.y : priceToY(al.price)
           if (!isDragging && (y < padding.top || y > height - padding.bottom)) return null
           const labelText = al.label || `${al.operator} ${al.price}`
-          const charW = fontSize * 0.62
-          const labelW = Math.max(labelText.length * charW + 8, 20)
+          const charW = fontSize * 0.52
+          const closeW = fontSize
+          const labelW = Math.max(labelText.length * charW + 6 + closeW, 20)
           const dragPrice = isDragging
             ? effectiveMin + effectiveRange * (1 - (dragging.y - padding.top) / candleAreaH)
             : null
@@ -343,14 +344,14 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
                 pointerEvents="none"
               />
               <rect
-                x={padding.left + 2} y={y - fontSize * 0.9}
-                width={labelW} height={fontSize * 1.8}
-                fill="#7b341e" rx={2} opacity={0.88}
+                x={padding.left + 2} y={y - fontSize * 0.7}
+                width={labelW} height={fontSize * 1.4}
+                fill="#1a202c" fillOpacity={0.85} stroke="#ed8936" strokeWidth={0.75} rx={2}
                 pointerEvents="none"
               />
               <text
-                x={padding.left + 6} y={y + fontSize * 0.45}
-                fill="#fbd38d" fontSize={fontSize - 1}
+                x={padding.left + 6} y={y + fontSize * 0.38}
+                fill="#ed8936" fontSize={fontSize - 1}
                 pointerEvents="none"
               >
                 {labelText}
@@ -434,6 +435,27 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
                 setDragging({ alertId: al.alertId, conditionIndex: al.conditionIndex, y })
               }}
             />
+          )
+        })}
+
+        {/* Alert remove buttons — rendered last so they sit above the drag hit areas */}
+        {onAlertRemove && alertLines && alertLines.map((al) => {
+          const isDragging = dragging?.alertId === al.alertId && dragging?.conditionIndex === al.conditionIndex
+          const y = isDragging ? dragging.y : priceToY(al.price)
+          if (!isDragging && (y < padding.top || y > height - padding.bottom)) return null
+          const labelText = al.label || `${al.operator} ${al.price}`
+          const labelW = Math.max(labelText.length * fontSize * 0.52 + 6 + fontSize, 20)
+          return (
+            <text
+              key={`close-${al.alertId}-${al.conditionIndex}`}
+              x={padding.left + 2 + labelW - 3} y={y + fontSize * 0.38}
+              fill="#718096" fontSize={fontSize + 3} textAnchor="end"
+              style={{ cursor: 'pointer' }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => onAlertRemove(al.alertId)}
+            >
+              ×
+            </text>
           )
         })}
 
@@ -1240,6 +1262,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onLinkSync, onE
             onIntervalChange={handleIntervalChange}
             alertLines={alertLines}
             onAlertPriceChange={(alertId, conditionIndex, price) => updateAlertPrice(alertId, conditionIndex, price)}
+            onAlertRemove={(alertId) => removeAlert(alertId)}
           />
           </>
         )}

@@ -1,5 +1,5 @@
 import { spawn } from 'child_process'
-import { executeTool, buildAlertConfig } from '../tools.js'
+import { executeTool, buildAlertConfig, isConnected } from '../tools.js'
 
 const SYSTEM_PROMPT_BASE =
   'You are a trading assistant built into this application. You have access to live account data ' +
@@ -75,13 +75,19 @@ function formatAlertCondition(schedule) {
 async function buildContext(messages, alerts = []) {
   const parts = []
 
+  // Connection status
+  if (!isConnected()) {
+    parts.push('Market Data Connection: DISCONNECTED — live quotes and historical data are unavailable. Tell the user the app is not connected to the market data feed and they should reconnect.')
+    return parts.join('\n\n')
+  }
+
   // Account summary
   try {
     const summary = await executeTool('get_account_summary', {})
     const lines = Object.entries(summary).map(([k, { value }]) => `  ${k}: ${formatValue(value)}`)
     parts.push(`Account Summary:\n${lines.join('\n')}`)
   } catch {
-    parts.push('Account Summary: unavailable (IBKR not connected)')
+    parts.push('Account Summary: unavailable')
   }
 
   // Active alerts
@@ -102,17 +108,31 @@ async function buildContext(messages, alerts = []) {
 
   if (tickers.length > 0) {
     const quoteLines = []
-    for (const ticker of tickers) {
-      try {
-        const q = await executeTool('get_live_quote', { symbol: ticker })
-        if (!q.error) {
-          const sign = (q.change ?? 0) >= 0 ? '+' : ''
-          quoteLines.push(`  ${ticker}: $${q.last?.toFixed(2) ?? 'N/A'}, change ${sign}${q.change?.toFixed(2) ?? 'N/A'} (${sign}${q.changePercent?.toFixed(2) ?? 'N/A'}%)`)
-        }
-      } catch {}
-    }
+    const historyBlocks = []
+    await Promise.all(tickers.map(async ticker => {
+      const [quoteResult, barsResult] = await Promise.allSettled([
+        executeTool('get_live_quote', { symbol: ticker }),
+        executeTool('get_historical_bars', { symbol: ticker, bar_size: '1 day', duration: '20 D' })
+      ])
+
+      if (quoteResult.status === 'fulfilled' && !quoteResult.value.error) {
+        const q = quoteResult.value
+        const sign = (q.change ?? 0) >= 0 ? '+' : ''
+        quoteLines.push(`  ${ticker}: $${q.last?.toFixed(2) ?? 'N/A'}, change ${sign}${q.change?.toFixed(2) ?? 'N/A'} (${sign}${q.changePercent?.toFixed(2) ?? 'N/A'}%)`)
+      }
+
+      if (barsResult.status === 'fulfilled' && !barsResult.value.error && Array.isArray(barsResult.value)) {
+        const bars = barsResult.value
+        const closes = bars.map(b => `${new Date(b.t).toISOString().slice(0, 10)} $${b.c.toFixed(2)}`).join(', ')
+        historyBlocks.push(`  ${ticker} daily closes (oldest→newest): ${closes}`)
+      }
+    }))
+
     if (quoteLines.length > 0) {
       parts.push(`Live Quotes:\n${quoteLines.join('\n')}`)
+    }
+    if (historyBlocks.length > 0) {
+      parts.push(`Recent Daily Price History:\n${historyBlocks.join('\n')}`)
     }
   }
 

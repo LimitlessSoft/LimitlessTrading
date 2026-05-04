@@ -1,3 +1,5 @@
+/home/parpil/source/ARTradingTools/AR.Public.Api/AR.Public.Api/obj/Debug/net9.0/rpswa.dswa.cache.json
+/home/parpil/source/ARTradingTools/AR.Public.Api/AR.Public.Api/obj/Debug/net9.0/AR.Public.Api.GeneratedMSBuildEditorConfig.editorconfig
 /home/parpil/source/ARTradingTools/AR.Public.Api/AR.Public.Api/bin/Debug/net9.0/appsettings.Development.json
 /home/parpil/source/ARTradingTools/AR.Public.Api/AR.Public.Api/bin/Debug/net9.0/appsettings.json
 /home/parpil/source/ARTradingTools/AR.Public.Api/AR.Public.Api/bin/Debug/net9.0/AR.Public.Api.staticwebassets.endpoints.json
@@ -6,8 +8,6 @@
 /home/parpil/source/ARTradingTools/AR.Public.Api/AR.Public.Api/bin/Debug/net9.0/AR.Public.Api.runtimeconfig.json
 /home/parpil/source/ARTradingTools/AR.Public.Api/AR.Public.Api/bin/Debug/net9.0/AR.Public.Api.dll
 /home/parpil/source/ARTradingTools/AR.Public.Api/AR.Public.Api/bin/Debug/net9.0/AR.Public.Api.pdb
-/home/parpil/source/ARTradingTools/AR.Public.Api/AR.Public.Api/obj/Debug/net9.0/rpswa.dswa.cache.json
-/home/parpil/source/ARTradingTools/AR.Public.Api/AR.Public.Api/obj/Debug/net9.0/AR.Public.Api.GeneratedMSBuildEditorConfig.editorconfig
 /home/parpil/source/ARTradingTools/AR.Public.Api/AR.Public.Api/obj/Debug/net9.0/AR.Public.Api.AssemblyInfoInputs.cache
 /home/parpil/source/ARTradingTools/AR.Public.Api/AR.Public.Api/obj/Debug/net9.0/AR.Public.Api.AssemblyInfo.cs
 /home/parpil/source/ARTradingTools/AR.Public.Api/AR.Public.Api/obj/Debug/net9.0/AR.Public.Api.csproj.CoreCompileInputs.cache
