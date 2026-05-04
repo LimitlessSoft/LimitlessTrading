@@ -1751,4 +1751,70 @@ export function clearBars(symbol, property, intervalMs) {
   saveBarsData(persisted)
 }
 
+const ACCOUNT_SUMMARY_TAGS = [
+  'NetLiquidation', 'TotalCashValue', 'GrossPositionValue',
+  'BuyingPower', 'AvailableFunds', 'ExcessLiquidity',
+  'RealizedPnL', 'UnrealizedPnL', 'DailyPnL',
+  'MaintMarginReq', 'InitMarginReq'
+].join(',')
+
+export async function getAccountSummary(tags = ACCOUNT_SUMMARY_TAGS) {
+  if (!ib || !connectionState.connected) {
+    throw new Error('Not connected to IBKR')
+  }
+
+  return new Promise((resolve, reject) => {
+    const reqId = nextRequestId++
+    const summary = {}
+    let resolved = false
+
+    const onAccountSummary = (rId, account, tag, value, currency) => {
+      if (rId !== reqId) return
+      const numeric = parseFloat(value)
+      summary[tag] = { value: isNaN(numeric) ? value : numeric, currency }
+    }
+
+    const onAccountSummaryEnd = (rId) => {
+      if (rId !== reqId) return
+      cleanup()
+      resolve(summary)
+    }
+
+    const cleanup = () => {
+      if (resolved) return
+      resolved = true
+      try { ib.off(EventName.accountSummary, onAccountSummary) } catch (e) {}
+      try { ib.off(EventName.accountSummaryEnd, onAccountSummaryEnd) } catch (e) {}
+      pendingRequests.delete(reqId)
+      try { ib.cancelAccountSummary(reqId) } catch (e) {}
+    }
+
+    pendingRequests.set(reqId, {
+      resolve,
+      reject: (err) => { cleanup(); reject(err) }
+    })
+
+    ib.on(EventName.accountSummary, onAccountSummary)
+    ib.on(EventName.accountSummaryEnd, onAccountSummaryEnd)
+
+    setTimeout(() => {
+      if (!resolved) {
+        cleanup()
+        if (Object.keys(summary).length > 0) {
+          resolve(summary)
+        } else {
+          reject(new Error('Account summary timeout'))
+        }
+      }
+    }, 10000)
+
+    try {
+      ib.reqAccountSummary(reqId, 'All', tags)
+    } catch (err) {
+      cleanup()
+      reject(err)
+    }
+  })
+}
+
 export { ib }

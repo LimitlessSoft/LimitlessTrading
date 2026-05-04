@@ -3,6 +3,7 @@ import { getConnectionStatus } from '../modules/dataService'
 import { getExchangeTime, getExchangeStatus } from '../modules/exchangeService'
 import { getNextFomcDecision, formatFomcDatetime, formatFomcCountdownText } from '../modules/fomcService'
 import { useSymbolQuotes } from './useSymbolQuotes'
+import { parseAccountPlaceholders, subscribeAccount, resolveAccountText } from '../modules/accountService'
 
 // Simple system placeholder: ${key} or ${key:seconds}
 // Does NOT match exchange patterns like ${NYSE:status:10} (those have non-numeric after the colon)
@@ -32,6 +33,7 @@ export function useWidgetResolveText(textSources) {
     .join(' ')
 
   const [systemValues, setSystemValues] = useState({})
+  const [accountCache, setAccountCache] = useState(new Map())
   const hasSystem = combined.includes('${')
 
   const fetchValues = useCallback(async () => {
@@ -85,6 +87,18 @@ export function useWidgetResolveText(textSources) {
     return () => clearInterval(timer)
   }, [hasSystem, combined, fetchValues])
 
+  // Account placeholders: #{field:seconds}
+  useEffect(() => {
+    if (!combined.includes('#{')) return
+    const placeholders = parseAccountPlaceholders(combined)
+    if (placeholders.length === 0) return
+
+    // Group by the minimum interval across all fields in this text
+    const minInterval = placeholders.reduce((min, { interval }) => Math.min(min, interval), Infinity)
+    const unsub = subscribeAccount(minInterval, (cache) => setAccountCache(new Map(cache)))
+    return unsub
+  }, [combined])
+
   const { resolveText: resolveSymbolText } = useSymbolQuotes(
     combined.includes('@{') || combined.includes('%[') ? combined : null
   )
@@ -99,8 +113,9 @@ export function useWidgetResolveText(textSources) {
         const key = `${exchange.toUpperCase()}_${property}`
         return systemValues[key] !== undefined ? systemValues[key] : match
       })
+    resolved = resolveAccountText(resolved, accountCache)
     return resolveSymbolText(resolved)
-  }, [systemValues, resolveSymbolText])
+  }, [systemValues, accountCache, resolveSymbolText])
 
   const resolvedValue = useCallback((text) => {
     const str = resolveText(text).trim()
