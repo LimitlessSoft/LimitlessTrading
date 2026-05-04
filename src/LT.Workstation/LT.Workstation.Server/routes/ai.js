@@ -70,7 +70,7 @@ router.get('/subscription-status', (req, res) => {
 })
 
 router.post('/chat', async (req, res) => {
-  const { message, history = [], alerts = [] } = req.body
+  const { message, history = [], alerts = [], pageContext = null } = req.body
   if (!message?.trim()) return res.status(400).json({ error: 'message required' })
 
   const { valid: isPro } = getCachedLicenseStatus()
@@ -100,11 +100,11 @@ router.post('/chat', async (req, res) => {
     let result
 
     if (provider === 'claude_subscription') {
-      result = await cliChat({ model, messages, alerts })
+      result = await cliChat({ model, messages, alerts, pageContext })
     } else if (provider === 'anthropic') {
       const apiKey = settings['ai.anthropic.apiKey']
       if (!apiKey) return res.status(400).json({ error: 'No API key configured. Open AI settings to add one.' })
-      result = await anthropicChat({ apiKey, model, messages, alerts })
+      result = await anthropicChat({ apiKey, model, messages, alerts, pageContext })
     } else {
       return res.status(400).json({ error: `Provider "${provider}" is not yet supported.` })
     }
