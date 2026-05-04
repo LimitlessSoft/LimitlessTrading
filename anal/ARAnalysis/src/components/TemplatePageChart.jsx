@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback, memo } from 'react'
+import { useRef, useState, useEffect, useLayoutEffect, useCallback, memo } from 'react'
 import {
   Box,
   Text,
@@ -476,8 +476,9 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const displayY      = previewPos?.y ?? layoutY ?? 0
 
   // Track control width for the chart SVG viewBox
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!boxRef.current) return
+    setContainerWidth(boxRef.current.getBoundingClientRect().width)
     const ro = new ResizeObserver(entries => {
       setContainerWidth(entries[0].contentRect.width)
     })

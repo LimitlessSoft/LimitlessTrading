@@ -1,4 +1,4 @@
-function testRule(resolved, rule) {
+export function testRule(resolved, rule) {
   // Backward compat: old rules used contains: true/false
   const op = rule.operator ?? (rule.contains ? 'contains' : 'equals')
   const ruleValue = rule.value || ''

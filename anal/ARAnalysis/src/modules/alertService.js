@@ -91,14 +91,45 @@ function fireAlert(alert) {
   }
 }
 
+let _combinedCronCallback = null
+export function setCombinedCronCallback(fn) { _combinedCronCallback = fn }
+
+function scheduleCronCondition(alert, expression, onFire) {
+  try {
+    return new Cron(expression, onFire)
+  } catch {
+    return null
+  }
+}
+
 function scheduleAlert(alert) {
   if (alert.enabled === false) return
   const { schedule } = alert
-  if (!schedule?.expression) return
-  try {
-    alert._cronJob = new Cron(schedule.expression, () => fireAlert(alert))
-  } catch {
-    // Invalid cron expression — skip
+  if (!schedule) return
+
+  if (schedule.type === 'cron') {
+    if (!schedule.expression) return
+    try {
+      alert._cronJob = new Cron(schedule.expression, () => fireAlert(alert))
+    } catch {}
+    return
+  }
+
+  if (schedule.type === 'combined') {
+    alert._cronJobs = []
+    for (const c of schedule.conditions) {
+      if (c.type !== 'cron' || !c.expression) continue
+      const job = scheduleCronCondition(alert, c.expression, () => {
+        if (schedule.combinator === 'or') {
+          fireAlert(alert)
+        } else {
+          // AND: let the watcher evaluate expression conditions at this moment
+          if (_combinedCronCallback) _combinedCronCallback(alert.id)
+          else fireAlert(alert) // fallback if watcher not mounted
+        }
+      })
+      if (job) alert._cronJobs.push(job)
+    }
   }
 }
 
@@ -112,21 +143,33 @@ export function createAlert(config) {
   return id
 }
 
+function stopAlert(alert) {
+  alert._cronJob?.stop()
+  alert._cronJob = null
+  alert._cronJobs?.forEach(j => j.stop())
+  alert._cronJobs = []
+}
+
 export function setAlertEnabled(id, enabled) {
   const alert = alerts.get(id)
   if (!alert) return
-  alert._cronJob?.stop()
-  alert._cronJob = null
+  stopAlert(alert)
   alert.enabled = enabled
   if (enabled) scheduleAlert(alert)
   persistAlert(alert).catch(() => {})
   notifyListChange()
 }
 
+export function triggerAlert(id) {
+  const alert = alerts.get(id)
+  if (!alert || alert.enabled === false) return
+  fireAlert(alert)
+}
+
 export function removeAlert(id) {
   const alert = alerts.get(id)
   if (!alert) return
-  alert._cronJob?.stop()
+  stopAlert(alert)
   alerts.delete(id)
   deletePersistedAlert(id).catch(() => {})
   notifyListChange()
