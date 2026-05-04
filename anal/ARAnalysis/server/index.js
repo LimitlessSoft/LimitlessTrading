@@ -1,5 +1,6 @@
 import express from 'express'
 import cors from 'cors'
+import { createRequire } from 'module'
 import marketRoutes from './routes/market.js'
 import fomcRoutes from './routes/fomc.js'
 import treasuryRoutes from './routes/treasury.js'
@@ -10,6 +11,9 @@ import accountRoutes from './routes/account.js'
 import aiRoutes from './routes/ai.js'
 import licenseRoutes from './routes/license.js'
 import { getConnectionStatus } from './ibkrClient.js'
+
+const require = createRequire(import.meta.url)
+const { version } = require('../package.json')
 
 const app = express()
 const PORT = process.env.PORT || 8744
@@ -27,6 +31,9 @@ app.use('/api/user-data', userDataRoutes)
 app.use('/api/account', accountRoutes)
 app.use('/api/ai', aiRoutes)
 app.use('/api/license', licenseRoutes)
+
+// Version
+app.get('/api/version', (_req, res) => res.json({ version }))
 
 // Health check
 app.get('/health', (req, res) => {

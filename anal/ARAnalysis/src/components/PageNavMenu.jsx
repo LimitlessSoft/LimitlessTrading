@@ -21,10 +21,11 @@ import {
   Input,
   FormControl,
   FormLabel,
+  Text,
   useDisclosure,
   useToast
 } from '@chakra-ui/react'
-import { HamburgerIcon, AddIcon, BellIcon } from '@chakra-ui/icons'
+import { HamburgerIcon, AddIcon, BellIcon, InfoOutlineIcon } from '@chakra-ui/icons'
 import { fetchRoutes, createRoute } from '../modules/routesService'
 import { useLicense } from '../modules/LicenseContext'
 import { FREE_LIMITS } from '../modules/freeLimits'
@@ -45,11 +46,13 @@ function PageNavMenu({
   const [newName, setNewName] = useState('')
   const [newPath, setNewPath] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+  const [appVersion, setAppVersion] = useState(null)
   const { isPro } = useLicense()
   const canAddTemplate = isPro || routes.length < FREE_LIMITS.templates
   const { isOpen, onOpen, onClose } = useDisclosure()
   const { isOpen: isAlertsOpen, onOpen: onAlertsOpen, onClose: onAlertsClose } = useDisclosure()
   const { isOpen: isLicenseOpen, onOpen: onLicenseOpen, onClose: onLicenseClose } = useDisclosure()
+  const { isOpen: isAboutOpen, onOpen: onAboutOpen, onClose: onAboutClose } = useDisclosure()
   const navigate = useNavigate()
   const toast = useToast()
   const internalHeaderRef = useRef(null)
@@ -74,6 +77,13 @@ function PageNavMenu({
   useEffect(() => {
     loadRoutes()
   }, [refreshKey])
+
+  useEffect(() => {
+    fetch('/api/version')
+      .then(r => r.json())
+      .then(d => setAppVersion(d.version))
+      .catch(() => {})
+  }, [])
 
   const handleNavigate = (path) => {
     navigate(path)
@@ -153,17 +163,6 @@ function PageNavMenu({
               >
                 Home
               </MenuItem>
-              {routes.length > 0 && <MenuDivider />}
-              {routes.map((route) => (
-                <MenuItem
-                  key={route.id}
-                  onClick={() => handleNavigate(route.path)}
-                  bg="gray.800"
-                  _hover={{ bg: 'gray.700' }}
-                >
-                  {route.name} ({route.path})
-                </MenuItem>
-              ))}
               <MenuDivider />
               <MenuItem
                 icon={<BellIcon />}
@@ -174,6 +173,16 @@ function PageNavMenu({
                 Alerts
               </MenuItem>
               <MenuDivider />
+              {routes.map((route) => (
+                <MenuItem
+                  key={route.id}
+                  onClick={() => handleNavigate(route.path)}
+                  bg="gray.800"
+                  _hover={{ bg: 'gray.700' }}
+                >
+                  {route.name} ({route.path})
+                </MenuItem>
+              ))}
               <MenuItem
                 icon={<AddIcon />}
                 onClick={() => canAddTemplate ? onOpen() : onLicenseOpen()}
@@ -182,6 +191,15 @@ function PageNavMenu({
               >
                 Add New Page
                 {!canAddTemplate && ' (Pro)'}
+              </MenuItem>
+              <MenuDivider />
+              <MenuItem
+                icon={<InfoOutlineIcon />}
+                onClick={onAboutOpen}
+                bg="gray.800"
+                _hover={{ bg: 'gray.700' }}
+              >
+                About
               </MenuItem>
             </MenuList>
           </Menu>
@@ -216,6 +234,23 @@ function PageNavMenu({
 
       <AlertsPanel isOpen={isAlertsOpen} onClose={onAlertsClose} />
       <LicenseModal isOpen={isLicenseOpen} onClose={onLicenseClose} />
+
+      <Modal isOpen={isAboutOpen} onClose={onAboutClose} isCentered size="sm">
+        <ModalOverlay />
+        <ModalContent bg="gray.800">
+          <ModalHeader>About ARAnalysis</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            <Text color="gray.300" mb={4}>
+              Trading analysis toolkit for Interactive Brokers.
+            </Text>
+            <Text fontSize="sm" color="gray.500">
+              Version{' '}
+              <Text as="span" color="gray.300">{appVersion ?? '—'}</Text>
+            </Text>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
 
       <Modal isOpen={isOpen} onClose={handleModalClose}>
         <ModalOverlay />
