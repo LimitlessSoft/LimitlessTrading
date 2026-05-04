@@ -20,40 +20,37 @@ Toggle via the pencil icon button in the page header.
 
 ## Positioning
 
-Widgets use absolute positioning with automatic vertical stacking on a 20-segment horizontal grid.
+Widgets use absolute positioning on a 20-segment horizontal grid with a flow layout that wraps to the next row.
 
-- **x**: horizontal position (0–19 segments), snaps to grid
-- **y**: sort order hint — lower values appear higher; actual pixel position is calculated
+- **y**: sort order hint — lower values appear earlier in the flow
 - **width**: `calc(segments/20 * 100% - 8px)` — the 8px gap keeps widgets from touching
-- **Vertical stacking**: widgets that overlap horizontally are stacked with an 8px gap; no overlapping
+- **Flow wrapping**: widgets fill left-to-right; when the next widget doesn't fit in the current row it wraps to the next row with an 8px vertical gap
 
-In edit mode, drag to move:
-- Horizontal drag changes `x` (snaps to segment boundaries)
-- Vertical drag updates the `y` sort hint; layout recalculates
+The stored `x` value on a widget is ignored at the root level — horizontal position is entirely determined by the flow. Use the Widget Tree panel or drag vertically to reorder.
 
 ### Layout Algorithm
 
-Used in `TemplatePage` for top-level widgets and in `TemplatePagePanel` for children:
+Used in `TemplatePage` for top-level widgets:
 
 ```js
 const calculateLayout = (widgets, gap = 8) => {
   const sorted = [...widgets].sort((a, b) => (a.y || 0) - (b.y || 0))
   const positions = new Map()
-  const placed = []
+  let curX = 0, curY = 0, rowH = 0
 
   for (const widget of sorted) {
-    let y = 0
-    for (const p of placed) {
-      if (widget.x < p.x + p.width && widget.x + widget.width > p.x) {
-        y = Math.max(y, p.y + p.height + gap)
-      }
-    }
-    positions.set(widget.id, y)
-    placed.push({ ...widget, y })
+    const w = widget.width
+    const h = widget.height
+    if (curX > 0 && curX + w > 20) { curY += rowH + gap; curX = 0; rowH = 0 }
+    positions.set(widget.id, { x: curX, y: curY })
+    curX += w
+    rowH = Math.max(rowH, h)
   }
   return positions
 }
 ```
+
+`TemplatePagePanel` children use the same algorithm when `style.layoutMode === 'flow'`.
 
 ## Placeholders
 
@@ -281,3 +278,55 @@ Colored circle that reflects a placeholder value.
 4. Gate all edit UI behind `isEditing`
 5. Keep local preview state during drag; clear it once `label` prop catches up
 6. Register the new type in `TemplatePage.jsx` render switch and in the Add Widget modal
+
+## Widget Tree Panel
+
+The widget tree panel is a 260 px sidebar that slides in from the right edge of the page. It gives a structured, hierarchical view of every widget — useful for navigating dense layouts without hunting on the canvas.
+
+### Opening the panel
+
+- Click the **Widget tree** button in the edit-mode toolbar (top-right when editing), or
+- Use the **Widget tree** item in the page action menu.
+
+The button appears highlighted (solid blue) while the panel is open. Click **Hide tree** / **Hide widget tree**, or the × in the panel header, to close it.
+
+### Layout of the tree
+
+Widgets are shown in two labeled sections:
+
+| Section | Contents | Sort order |
+|---------|----------|------------|
+| **Page** | Top-level page widgets (`config.labels`) | `y` ascending |
+| **Header** | Header widgets (`config.headerControls`) | `x` ascending |
+
+Panel children appear as indented nodes beneath their parent, connected by a vertical guide line. Panels with children show a **chevron** that collapses or expands that branch.
+
+Each row shows:
+- A **type icon** in a color unique to that type (blue = label, purple = panel, green = badge, amber = chart, cyan = gauge, pink = graph)
+- The widget **type name**
+- A **snippet** — a short preview of the widget's content:
+  - `label` → up to 30 chars of label text
+  - `panel` → child count (e.g. `3 children`)
+  - `badge` / `gauge` → up to 30 chars of the placeholder expression
+  - `chart` → ticker symbol
+  - `graph` → series count (e.g. `2 series`)
+- A **settings icon** that appears on hover to open the widget's settings dialog
+- A **grip icon** that appears on hover to indicate the row is draggable
+
+Clicking a row selects it (highlighted background); clicking again deselects it. Selection is visual only and does not open a settings dialog.
+
+### Reordering via drag-and-drop
+
+Rows within the same section or panel can be reordered by dragging. A blue drop-line marks the insertion point.
+
+Constraints:
+- Only siblings can be reordered — dragging across sections or into/out of a panel is not supported.
+
+When a drop completes, `handleReorderWidgets` in `TemplatePage.jsx` assigns updated `y` values (page widgets and panel children) or `x` values (header widgets) and persists the change immediately via `updateRoute`.
+
+### Adding a type to the tree
+
+When adding a new widget type, register it in `WidgetTreePanel.jsx`:
+1. Add an SVG entry to the `ICONS` map.
+2. Add a hex color to `TYPE_COLORS`.
+3. Add a case to the `snippet` function to return a meaningful preview string.

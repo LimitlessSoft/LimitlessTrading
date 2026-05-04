@@ -10,7 +10,7 @@ import TemplatePageGraph from './TemplatePageGraph'
 // 2. Create the TemplatePage[Name].jsx component
 export const WIDGET_REGISTRY = {
   label: { displayName: 'Label',  width: 4,  height: 60,  Component: TemplatePageLabel, needsText: true  },
-  panel: { displayName: 'Panel',  width: 8,  height: 120, Component: TemplatePagePanel, children: []     },
+  panel: { displayName: 'Panel',  width: 20, height: 120, Component: TemplatePagePanel, children: []     },
   badge: { displayName: 'Badge',  width: 2,  height: 40,  Component: TemplatePageBadge                  },
   chart: { displayName: 'Chart',  width: 10, height: 220, Component: TemplatePageChart, symbol: '', interval: '5m' },
   gauge: { displayName: 'Gauge',  width: 6,  height: 160, Component: TemplatePageGauge,

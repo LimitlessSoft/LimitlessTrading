@@ -68,6 +68,7 @@ function TemplatePage() {
   const [fillHeight, setFillHeight] = useState(null)
   const [isTreeOpen, setIsTreeOpen] = useState(false)
   const [headerHeight, setHeaderHeight] = useState(0)
+  const [openSettingsForId, setOpenSettingsForId] = useState(null)
 
   useEffect(() => {
     const loadPageInfo = async () => {
@@ -106,8 +107,9 @@ function TemplatePage() {
 
     setIsSaving(true)
     try {
-      const newControl = createWidget(widgetType, labelText.trim())
       const currentLabels = pageInfo.config?.labels || []
+      const maxY = currentLabels.reduce((m, l) => Math.max(m, l.y || 0), -1)
+      const newControl = { ...createWidget(widgetType, labelText.trim()), y: maxY + 1 }
       const updatedConfig = {
         ...pageInfo.config,
         labels: [...currentLabels, newControl]
@@ -319,8 +321,9 @@ function TemplatePage() {
         if (!data.control || typeof data.control !== 'object') {
           throw new Error('Invalid widget file — missing widget object')
         }
-        const widget = regenerateIds({ ...data.control, x: 0, y: 0 })
         const currentLabels = pageInfo.config?.labels || []
+        const maxY = currentLabels.reduce((m, l) => Math.max(m, l.y || 0), -1)
+        const widget = regenerateIds({ ...data.control, x: 0, y: maxY + 1 })
         const updatedConfig = { ...pageInfo.config, labels: [...currentLabels, widget] }
         const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
         setPageInfo(updatedRoute)
@@ -414,6 +417,9 @@ function TemplatePage() {
   const labels = pageInfo?.config?.labels || []
   const headerControls = pageInfo?.config?.headerControls || []
 
+  const handleOpenSettingsFromTree = (id) => setOpenSettingsForId(id)
+  const handleSettingsOpened = () => setOpenSettingsForId(null)
+
   const handleReorderWidgets = async (newOrderedIds, parentPanelId) => {
     if (!pageInfo) return
     try {
@@ -493,7 +499,9 @@ function TemplatePage() {
       parentPanelId: 'header',
       isEditing: isEditing,
       isHeaderMode: true,
-      containerRef: headerRef
+      containerRef: headerRef,
+      openSettingsForId,
+      onSettingsOpened: handleSettingsOpened,
     }
 
     if (widget.type === 'badge') {
@@ -507,45 +515,41 @@ function TemplatePage() {
     return null
   }
 
-  // Calculate layout positions - prevents overlap, maintains consistent gaps
-  const calculateLayout = (widgets, preview, gap = 8) => {
+  // Flow layout: widgets fill left-to-right, wrapping to the next row when they overflow
+  const calculateLayout = (widgets, preview, effectiveFillHeight, gap = 8) => {
     if (!widgets.length) return new Map()
 
-    // Apply preview position if dragging
-    const withPreview = widgets.map(c => {
-      if (preview && c.id === preview.id) {
-        return { ...c, x: preview.x, y: preview.y }
-      }
-      return c
-    })
-
-    // Sort by y (order hint), then by x
-    const sorted = [...withPreview].sort((a, b) => (a.y || 0) - (b.y || 0) || (a.x || 0) - (b.x || 0))
+    const withPreview = widgets.map(c =>
+      preview && c.id === preview.id ? { ...c, y: preview.y } : c
+    )
+    const sorted = [...withPreview].sort((a, b) => (a.y || 0) - (b.y || 0))
 
     const positions = new Map()
-    const placed = []
+    const TOTAL_SEGMENTS = 20
+    let curX = 0, curY = 0, rowH = 0
 
     for (const widget of sorted) {
       const def = WIDGET_REGISTRY[widget.type] || WIDGET_REGISTRY.label
-      const x = widget.x || 0
-      const width = widget.width || def.width
-      const height = widget.height || def.height
+      const w = widget.dock === 'fill' ? TOTAL_SEGMENTS : (widget.width || def.width)
+      const h = widget.dock === 'fill' && effectiveFillHeight != null
+        ? effectiveFillHeight
+        : (widget.height || def.height)
 
-      let y = 0
-      for (const p of placed) {
-        if (x < p.x + p.width && x + width > p.x) {
-          y = Math.max(y, p.y + p.height + gap)
-        }
+      if (curX > 0 && curX + w > TOTAL_SEGMENTS) {
+        curY += rowH + gap
+        curX = 0
+        rowH = 0
       }
 
-      positions.set(widget.id, y)
-      placed.push({ x, width, y, height })
+      positions.set(widget.id, { x: curX, y: curY })
+      curX += w
+      rowH = Math.max(rowH, h)
     }
 
     return positions
   }
 
-  const layoutPositions = calculateLayout(labels, dragPreview)
+  const layoutPositions = calculateLayout(labels, dragPreview, fillHeight)
 
   return (
     <Box minH="100vh" bg="gray.900">
@@ -613,13 +617,14 @@ function TemplatePage() {
               minH={isEditing ? '200px' : '100px'}
             >
               {labels.map((label) => {
+                const flowPos = layoutPositions.get(label.id) || { x: 0, y: 0 }
                 const effectiveLabel = label.dock === 'fill'
                   ? { ...label, x: 0, width: 20, ...(fillHeight != null ? { height: fillHeight } : {}) }
-                  : label
+                  : { ...label, x: flowPos.x }
                 return renderWidget(label, {
                 key: label.id,
                 label: effectiveLabel,
-                layoutY: layoutPositions.get(label.id),
+                layoutY: flowPos.y,
                 onDelete: handleDeleteLabel,
                 onUpdate: handleUpdateLabel,
                 onExport: handleExportWidget,
@@ -631,6 +636,8 @@ function TemplatePage() {
                 parentPanelId: null,
                 isEditing: isEditing,
                 containerRef: containerRef,
+                openSettingsForId,
+                onSettingsOpened: handleSettingsOpened,
               })
               })}
             </Box>
@@ -680,6 +687,7 @@ function TemplatePage() {
           topOffset={headerHeight}
           onClose={() => setIsTreeOpen(false)}
           onReorder={handleReorderWidgets}
+          onOpenSettings={handleOpenSettingsFromTree}
         />
       )}
 
