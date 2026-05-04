@@ -78,9 +78,22 @@ Click the **symbol label** (e.g. `SPY`) in the top-left of the chart to edit it 
 
 | Button | Action |
 |--------|--------|
+| ● (Link) | Opens the link group picker — assign the chart to a group (1–5) or unlink it |
 | ↺ (Reload) | Fetches the last 30 days from IBKR and merges into cache. Fast — does not re-fetch full history |
 | ⚙ (Settings) | Opens per-chart and global settings dialog |
 | ✕ (Delete) | Removes the widget (edit mode only) |
+
+---
+
+## Link Groups
+
+Charts can be linked so that changing the ticker on one instantly updates all others in the same group.
+
+- **Groups**: 1–5, each with a distinct color (blue, green, yellow, red, purple)
+- **Assign**: Click the colored circle (●) in the top-right toolbar and pick a group
+- **Unlink**: Click the circle and choose **Unlink**
+- **Linked property**: `symbol` — changing a ticker on any linked chart propagates to the whole group
+- **Interval and other settings** remain per-chart even when linked
 
 ---
 
@@ -183,6 +196,7 @@ TemplatePageChart
   type: "chart",
   symbol: "SPY",
   interval: "1h",
+  linkGroup: 1,        // optional — 1–5, or null/omitted if unlinked
   width: 10,           // 1–20 segments
   height: 220,         // pixels (min 100)
   x: 0,

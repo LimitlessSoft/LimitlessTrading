@@ -39,6 +39,7 @@ import TemplatePageBadge from '../components/TemplatePageBadge'
 import TemplatePageGauge from '../components/TemplatePageGauge'
 import { WIDGET_REGISTRY, createWidget, renderWidget } from '../components/widgetRenderer'
 import WidgetsGalleryModal from '../components/WidgetsGalleryModal'
+import WidgetTreePanel from '../components/WidgetTreePanel'
 
 function TemplatePage() {
   const location = useLocation()
@@ -65,6 +66,8 @@ function TemplatePage() {
   const [dragPreview, setDragPreview] = useState(null)  // { id, x, y } during drag
   const [activeDrag, setActiveDrag] = useState(null)  // { widgetId, mousePos } during drag
   const [fillHeight, setFillHeight] = useState(null)
+  const [isTreeOpen, setIsTreeOpen] = useState(false)
+  const [headerHeight, setHeaderHeight] = useState(0)
 
   useEffect(() => {
     const loadPageInfo = async () => {
@@ -90,6 +93,7 @@ function TemplatePage() {
       const headerH = header.getBoundingClientRect().height
       const padding = 12 // py={3} top + bottom
       setFillHeight(window.innerHeight - headerH - padding * 2)
+      setHeaderHeight(headerH)
     }
     compute()
     window.addEventListener('resize', compute)
@@ -154,6 +158,32 @@ function TemplatePage() {
         status: 'error',
         duration: 3000
       })
+    }
+  }
+
+  // Sync a linked property across all widgets that share the same linkGroup.
+  // linkedChanges: applied to every widget in the group (e.g. { symbol: 'AAPL' })
+  // sourceId / sourceExtraChanges: non-linked per-source changes (e.g. { interval, outsideRTH })
+  const handleLinkSync = async (groupId, linkedChanges, sourceId, sourceExtraChanges = {}) => {
+    if (!pageInfo) return
+    const applyToWidget = (w) => {
+      if (w.linkGroup !== groupId) return w
+      const changes = { ...linkedChanges }
+      if (w.id === sourceId) Object.assign(changes, sourceExtraChanges)
+      return { ...w, ...changes }
+    }
+    const updateWidgets = (widgets) => widgets.map(w => {
+      const updated = applyToWidget(w)
+      if (updated.children) return { ...updated, children: updateWidgets(updated.children) }
+      return updated
+    })
+    try {
+      const updatedLabels = updateWidgets(pageInfo.config?.labels || [])
+      const updatedConfig = { ...pageInfo.config, labels: updatedLabels }
+      const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
+      setPageInfo(updatedRoute)
+    } catch (err) {
+      toast({ title: 'Failed to sync linked widgets', description: err.message, status: 'error', duration: 3000 })
     }
   }
 
@@ -384,6 +414,43 @@ function TemplatePage() {
   const labels = pageInfo?.config?.labels || []
   const headerControls = pageInfo?.config?.headerControls || []
 
+  const handleReorderWidgets = async (newOrderedIds, parentPanelId) => {
+    if (!pageInfo) return
+    try {
+      let currentLabels = [...(pageInfo.config?.labels || [])]
+      let currentHeaderControls = [...(pageInfo.config?.headerControls || [])]
+
+      if (parentPanelId === 'header') {
+        const idxMap = new Map(newOrderedIds.map((id, i) => [id, i]))
+        currentHeaderControls = currentHeaderControls.map(w =>
+          idxMap.has(w.id) ? { ...w, y: idxMap.get(w.id) } : w
+        )
+      } else if (parentPanelId === null) {
+        const idxMap = new Map(newOrderedIds.map((id, i) => [id, i]))
+        currentLabels = currentLabels.map(w =>
+          idxMap.has(w.id) ? { ...w, y: idxMap.get(w.id) } : w
+        )
+      } else {
+        const idxMap = new Map(newOrderedIds.map((id, i) => [id, i]))
+        currentLabels = currentLabels.map(panel => {
+          if (panel.id !== parentPanelId || !panel.children) return panel
+          return {
+            ...panel,
+            children: panel.children.map(w =>
+              idxMap.has(w.id) ? { ...w, y: idxMap.get(w.id) } : w
+            )
+          }
+        })
+      }
+
+      const updatedConfig = { ...pageInfo.config, labels: currentLabels, headerControls: currentHeaderControls }
+      const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
+      setPageInfo(updatedRoute)
+    } catch (err) {
+      toast({ title: 'Failed to reorder widgets', description: err.message, status: 'error', duration: 3000 })
+    }
+  }
+
   // Header widget handlers
   const handleDeleteHeaderWidget = async (widgetId) => {
     if (!pageInfo) return
@@ -419,6 +486,7 @@ function TemplatePage() {
       onDelete: handleDeleteHeaderWidget,
       onUpdate: handleUpdateHeaderWidget,
       onExport: handleExportWidget,
+      onLinkSync: handleLinkSync,
       onDragStateChange: (dragging, mousePos) => setActiveDrag(dragging ? { widgetId: widget.id, mousePos } : null),
       onMoveWidget: handleMoveWidget,
       activeDrag: activeDrag,
@@ -506,6 +574,9 @@ function TemplatePage() {
             <MenuItem bg="gray.800" _hover={{ bg: 'gray.700' }} onClick={() => setIsEditing(!isEditing)}>
               {isEditing ? 'Stop editing' : 'Edit layout'}
             </MenuItem>
+            <MenuItem bg="gray.800" _hover={{ bg: 'gray.700' }} onClick={() => setIsTreeOpen(v => !v)}>
+              {isTreeOpen ? 'Hide widget tree' : 'Widget tree'}
+            </MenuItem>
             <MenuItem bg="gray.800" _hover={{ bg: 'gray.700' }} onClick={onOpen}>
               Add widget
             </MenuItem>
@@ -552,6 +623,7 @@ function TemplatePage() {
                 onDelete: handleDeleteLabel,
                 onUpdate: handleUpdateLabel,
                 onExport: handleExportWidget,
+                onLinkSync: handleLinkSync,
                 onDragPreview: (pos) => setDragPreview(pos ? { id: label.id, ...pos } : null),
                 onDragStateChange: (dragging, mousePos) => setActiveDrag(dragging ? { widgetId: label.id, mousePos } : null),
                 onMoveWidget: handleMoveWidget,
@@ -587,10 +659,28 @@ function TemplatePage() {
           boxShadow="0 4px 24px rgba(0,0,0,0.5)"
         >
           <Text fontSize="sm" color="blue.200" fontWeight="medium">Edit mode</Text>
+          <Button
+            size="sm"
+            colorScheme={isTreeOpen ? 'blue' : 'blue'}
+            variant={isTreeOpen ? 'solid' : 'outline'}
+            onClick={() => setIsTreeOpen(v => !v)}
+          >
+            {isTreeOpen ? 'Hide tree' : 'Widget tree'}
+          </Button>
           <Button size="sm" colorScheme="blue" variant="solid" onClick={() => setIsEditing(false)}>
             Stop editing
           </Button>
         </Box>
+      )}
+
+      {isTreeOpen && (
+        <WidgetTreePanel
+          widgets={labels}
+          headerWidgets={headerControls}
+          topOffset={headerHeight}
+          onClose={() => setIsTreeOpen(false)}
+          onReorder={handleReorderWidgets}
+        />
       )}
 
       <Modal isOpen={isOpen} onClose={onClose}>

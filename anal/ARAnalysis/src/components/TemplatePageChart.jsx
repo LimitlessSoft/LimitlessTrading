@@ -45,6 +45,7 @@ import {
   isRTHTimestamp,
   isMarketOpen
 } from '../modules/globalChartSettings'
+import { LINK_GROUPS, getLinkGroupColor } from '../modules/widgetLinkService'
 
 const TOTAL_SEGMENTS = 20
 const MIN_SEGMENTS = 4
@@ -428,7 +429,7 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
   )
 })
 
-function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef }) {
+function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onLinkSync, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving,   setIsMoving]   = useState(false)
   const [isPanning,  setIsPanning]  = useState(false)
@@ -981,7 +982,13 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
 
   const handleQuickSymbolCommit = () => {
     const s = quickSymbol.trim().toUpperCase()
-    if (s && s !== symbol) onUpdate(label.id, { symbol: s })
+    if (s && s !== symbol) {
+      if (label.linkGroup && onLinkSync) {
+        onLinkSync(label.linkGroup, { symbol: s }, label.id)
+      } else {
+        onUpdate(label.id, { symbol: s })
+      }
+    }
     setQuickInputOpen(false)
   }
 
@@ -997,7 +1004,11 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
   const handleSaveSettings = () => {
     const newSymbol = editSymbol.trim().toUpperCase()
     if (!newSymbol) return
-    onUpdate(label.id, { symbol: newSymbol, interval: editInterval, outsideRTH: editOutsideRTH })
+    if (label.linkGroup && onLinkSync && newSymbol !== symbol) {
+      onLinkSync(label.linkGroup, { symbol: newSymbol }, label.id, { interval: editInterval, outsideRTH: editOutsideRTH })
+    } else {
+      onUpdate(label.id, { symbol: newSymbol, interval: editInterval, outsideRTH: editOutsideRTH })
+    }
     if (editGlobal) {
       saveGlobalChartSettings(editGlobal)
       setGlobalSettings(editGlobal)
@@ -1098,6 +1109,48 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onExport, onDra
         {/* Edit mode controls */}
         {/* Settings always visible */}
         <HStack position="absolute" top="2px" right="2px" spacing={0} zIndex={10}>
+          <Menu isLazy>
+            <Tooltip label={label.linkGroup ? `Linked — Group ${label.linkGroup}` : 'Link group'} placement="top" hasArrow>
+              <MenuButton
+                as={IconButton}
+                size="xs"
+                variant="ghost"
+                aria-label="Link group"
+                onMouseDown={(e) => e.stopPropagation()}
+                icon={
+                  <Box
+                    w="10px" h="10px" borderRadius="full"
+                    bg={getLinkGroupColor(label.linkGroup) ?? 'transparent'}
+                    border="1.5px solid"
+                    borderColor={getLinkGroupColor(label.linkGroup) ?? 'gray.500'}
+                  />
+                }
+                _hover={{ bg: 'whiteAlpha.200' }}
+              />
+            </Tooltip>
+            <MenuList bg="gray.800" borderColor="gray.700" minW="120px" fontSize="sm" zIndex={200}>
+              {Object.entries(LINK_GROUPS).map(([id, group]) => (
+                <MenuItem
+                  key={id}
+                  bg="gray.800"
+                  _hover={{ bg: 'gray.700' }}
+                  onClick={(e) => { e.stopPropagation(); onUpdate(label.id, { linkGroup: Number(id) }) }}
+                  icon={<Box w="10px" h="10px" borderRadius="full" bg={group.color} flexShrink={0} />}
+                >
+                  Group {id}
+                </MenuItem>
+              ))}
+              {label.linkGroup != null && (
+                <MenuItem
+                  bg="gray.800"
+                  _hover={{ bg: 'gray.700' }}
+                  onClick={(e) => { e.stopPropagation(); onUpdate(label.id, { linkGroup: null }) }}
+                >
+                  Unlink
+                </MenuItem>
+              )}
+            </MenuList>
+          </Menu>
           {symbol && (
             <IconButton
               icon={<RepeatIcon />}

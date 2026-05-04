@@ -48,7 +48,7 @@ const DEFAULT_STYLE = {
   verticalAlign: 'top'
 }
 
-function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef }) {
+function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onLinkSync, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -557,6 +557,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
       onDelete: handleDeleteChild,
       onUpdate: layoutMode !== 'absolute' ? handleUpdateChildInLayout : handleUpdateChild,
       onExport: onExport,
+      onLinkSync: onLinkSync,
       onDragStateChange: onDragStateChange,
       onMoveWidget: onMoveWidget,
       activeDrag: activeDrag,
@@ -641,6 +642,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onDra
       onDelete: handleDeleteChild,
       onUpdate: handleUpdateChildInLayout,
       onExport,
+      onLinkSync,
       onDragStateChange,
       onMoveWidget,
       activeDrag,
