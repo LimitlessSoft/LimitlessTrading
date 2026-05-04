@@ -1,0 +1,90 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import Ticker from '@components/Ticker.astro';
+import HeroSection from '@components/HeroSection.astro';
+import FeatureCard from '@components/FeatureCard.astro';
+
+const features = [
+  {
+    number: '01',
+    title: 'Widgets & Expressions',
+    description: 'Write expressions that fetch live data from your broker. Attach them to any widget — charts, tables, alerts, or custom displays you build yourself.',
+  },
+  {
+    number: '02',
+    title: 'Templates & Gallery',
+    description: 'Save your dashboard layouts as templates. Share them with the community gallery, or import layouts built by other traders in seconds.',
+  },
+  {
+    number: '03',
+    title: 'Self-Hosted & Private',
+    description: 'Everything runs on your machine. Market data, watchlists, preferences — none of it leaves your computer. No accounts, no cloud, no subscriptions.',
+  },
+];
+
+const stats = [
+  { value: '100%', label: 'Self-Hosted' },
+  { value: '$0', label: 'Subscription Fee' },
+  { value: '∞', label: 'Customization' },
+  { value: 'IBKR+', label: 'Broker Support' },
+];
+---
+
+<BaseLayout title="Home">
+  <Ticker />
+  <HeroSection />
+
+  <!-- Stats bar -->
+  <div class="grid grid-cols-4 border-t border-ls-border">
+    {stats.map(stat => (
+      <div class="px-12 py-7 border-r border-ls-border last:border-r-0">
+        <p class="text-4xl font-black tracking-[-1px] text-white">{stat.value}</p>
+        <p class="text-[10px] tracking-[0.2em] uppercase text-ls-text-dim mt-1">{stat.label}</p>
+      </div>
+    ))}
+  </div>
+
+  <!-- Feature highlights -->
+  <section class="px-12 py-20">
+    <p class="text-[11px] tracking-[0.3em] uppercase text-ls-text-dim mb-4">Why Limitless Trading</p>
+    <h2 class="text-4xl font-black uppercase tracking-[-1px] text-white mb-12">
+      BUILD ANY<br /><span class="text-ls-blue">DASHBOARD</span>
+    </h2>
+    <div class="grid grid-cols-3 gap-0.5">
+      {features.map(f => <FeatureCard number={f.number} title={f.title} description={f.description} />)}
+    </div>
+  </section>
+
+  <!-- Demo embed placeholder -->
+  <section class="px-12 pb-20">
+    <p class="text-[11px] tracking-[0.3em] uppercase text-ls-text-dim mb-4 text-center">See it in action</p>
+    <h2 class="text-3xl font-black uppercase tracking-[-1px] text-white mb-10 text-center">LIVE DEMO</h2>
+    <div class="border border-ls-border bg-white/[0.02] flex items-center justify-center h-80 max-w-4xl mx-auto">
+      <p class="text-xs tracking-[0.2em] uppercase text-ls-text-dim">Demo video coming soon</p>
+    </div>
+    <div class="text-center mt-8">
+      <a href="/demos" class="text-xs tracking-[0.15em] uppercase text-ls-blue border-b border-ls-blue/40 pb-0.5 hover:border-ls-blue transition-colors">
+        View all demos →
+      </a>
+    </div>
+  </section>
+
+  <!-- CTA banner -->
+  <section class="border-t border-ls-border px-12 py-20 grid-bg">
+    <div class="max-w-2xl">
+      <h2 class="text-5xl font-black uppercase tracking-[-1.5px] text-white leading-[0.95] mb-8">
+        NO SUBSCRIPTIONS.<br />
+        NO DATA SHARING.<br />
+        <span class="text-ls-blue">NO LIMITS.</span>
+      </h2>
+      <div class="flex gap-4 items-center">
+        <a href="/downloads" class="bg-ls-blue text-white px-8 py-3.5 text-xs font-bold tracking-[0.2em] uppercase hover:bg-blue-500 transition-colors">
+          Download Free
+        </a>
+        <a href="/whats-new" class="text-xs tracking-[0.15em] uppercase text-ls-text border-b border-ls-border pb-0.5 hover:text-white hover:border-white transition-colors">
+          What's New →
+        </a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
