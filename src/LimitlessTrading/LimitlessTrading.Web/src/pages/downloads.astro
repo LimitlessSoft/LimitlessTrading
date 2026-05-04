@@ -1,0 +1,85 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import DownloadCard from '@components/DownloadCard.astro';
+import { platformReleases, CURRENT_VERSION } from '@data/releases';
+
+const requirements = [
+  'Interactive Brokers TWS or IB Gateway (paper or live)',
+  'Windows 10+, macOS 12+, or Ubuntu 20.04+',
+  'Node.js 18+ (bundled in installer)',
+  '4 GB RAM minimum recommended',
+];
+
+const steps = [
+  'Download the installer for your platform',
+  'Run the installer and follow the prompts',
+  'Open Interactive Brokers TWS or IB Gateway',
+  'Launch Limitless Trading — it connects automatically',
+];
+
+const checksums = platformReleases.map(r => ({ platform: r.platform, checksum: r.checksum }));
+---
+
+<BaseLayout title="Downloads" description="Download Limitless Trading for Windows, macOS, or Linux.">
+  <div class="px-12 py-20 grid-bg">
+
+    <div class="mb-16">
+      <p class="text-[11px] tracking-[0.3em] uppercase text-ls-text-dim mb-4">Current Release</p>
+      <h1 class="text-5xl font-black uppercase tracking-[-1.5px] text-white mb-2">
+        DOWNLOAD <span class="text-ls-blue">v{CURRENT_VERSION}</span>
+      </h1>
+      <p class="text-sm text-ls-text">Free. Self-hosted. No account required.</p>
+    </div>
+
+    <div class="grid grid-cols-3 gap-0.5 mb-20 max-w-4xl">
+      {platformReleases.map(r => <DownloadCard release={r} />)}
+    </div>
+
+    <div class="mb-16 max-w-2xl">
+      <h2 class="text-lg font-black uppercase tracking-[-0.3px] text-white mb-6">Requirements</h2>
+      <ul class="flex flex-col gap-3">
+        {requirements.map(req => (
+          <li class="flex items-start gap-3 text-sm text-ls-text">
+            <span class="text-ls-blue mt-0.5 flex-shrink-0">—</span>
+            {req}
+          </li>
+        ))}
+      </ul>
+    </div>
+
+    <div class="mb-16 max-w-2xl">
+      <h2 class="text-lg font-black uppercase tracking-[-0.3px] text-white mb-6">Quick Start</h2>
+      <ol class="flex flex-col gap-4">
+        {steps.map((step, i) => (
+          <li class="flex items-start gap-4">
+            <span class="text-xs font-black tracking-widest text-ls-blue flex-shrink-0 mt-0.5">
+              0{i + 1}
+            </span>
+            <span class="text-sm text-ls-text">{step}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+
+    <div class="max-w-2xl">
+      <details class="border border-ls-border">
+        <summary class="px-6 py-4 text-xs font-bold tracking-[0.2em] uppercase text-ls-text cursor-pointer hover:text-white transition-colors">
+          SHA256 Checksums
+        </summary>
+        <div class="px-6 pb-6 pt-2 flex flex-col gap-3">
+          {checksums.map(c => (
+            <div class="flex items-start gap-4">
+              <span class="text-[10px] tracking-widest uppercase text-ls-text-dim w-20 flex-shrink-0 mt-0.5">
+                {c.platform}
+              </span>
+              <code class="text-xs font-mono text-ls-text break-all">
+                {c.checksum === '—' ? 'Available with first binary release' : c.checksum}
+              </code>
+            </div>
+          ))}
+        </div>
+      </details>
+    </div>
+
+  </div>
+</BaseLayout>
