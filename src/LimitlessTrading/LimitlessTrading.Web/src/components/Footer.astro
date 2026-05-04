@@ -1,0 +1,27 @@
+---
+// src/LimitlessTrading/LimitlessTrading.Web/src/components/Footer.astro
+import { CURRENT_VERSION } from '@data/releases';
+---
+
+<footer class="border-t border-ls-border px-12 py-8">
+  <div class="flex items-center justify-between">
+    <a href="/" class="text-sm font-bold tracking-[0.2em] uppercase text-white">
+      LIMITLESS<span class="text-ls-blue">TRADING</span>
+    </a>
+
+    <div class="flex gap-8 text-xs tracking-widest uppercase text-ls-text">
+      <a href="/features" class="hover:text-white transition-colors">Features</a>
+      <a href="/demos" class="hover:text-white transition-colors">Demos</a>
+      <a href="/whats-new" class="hover:text-white transition-colors">What's New</a>
+      <a href="/downloads" class="hover:text-white transition-colors">Downloads</a>
+      <a href="/about" class="hover:text-white transition-colors">About</a>
+    </div>
+
+    <div class="flex items-center gap-6 text-xs text-ls-text-dim tracking-widest uppercase">
+      <span>v{CURRENT_VERSION}</span>
+      <a href="https://limitlesssoft.com" target="_blank" rel="noopener" class="hover:text-white transition-colors">
+        LimitlessSoft
+      </a>
+    </div>
+  </div>
+</footer>

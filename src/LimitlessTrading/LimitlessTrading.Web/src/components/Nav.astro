@@ -1,0 +1,37 @@
+---
+// src/LimitlessTrading/LimitlessTrading.Web/src/components/Nav.astro
+const links = [
+  { label: 'Features', href: '/features' },
+  { label: 'Demos', href: '/demos' },
+  { label: "What's New", href: '/whats-new' },
+  { label: 'Downloads', href: '/downloads' },
+];
+---
+
+<header class="sticky top-0 z-50 border-b border-ls-border backdrop-blur-sm bg-ls-bg/90">
+  <nav class="flex items-center justify-between px-12 py-6">
+    <a href="/" class="text-sm font-bold tracking-[0.2em] uppercase text-white">
+      LIMITLESS<span class="text-ls-blue">TRADING</span>
+    </a>
+
+    <ul class="flex gap-9 list-none">
+      {links.map(link => (
+        <li>
+          <a
+            href={link.href}
+            class="text-xs tracking-[0.15em] uppercase text-ls-text hover:text-white transition-colors"
+          >
+            {link.label}
+          </a>
+        </li>
+      ))}
+    </ul>
+
+    <a
+      href="/downloads"
+      class="bg-ls-blue text-white px-6 py-2.5 text-xs font-bold tracking-[0.15em] uppercase hover:bg-blue-500 transition-colors"
+    >
+      Download Free
+    </a>
+  </nav>
+</header>
