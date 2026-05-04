@@ -480,8 +480,8 @@ export async function getPersistedAlerts() {
 }
 
 export async function persistAlert(alertConfig) {
-  const { id, label, schedule, actions, message, eventName, sound } = alertConfig
-  await db.alerts.put({ id, label, schedule, actions, message, eventName, sound })
+  const { id, label, schedule, actions, message, eventName, sound, enabled } = alertConfig
+  await db.alerts.put({ id, label, schedule, actions, message, eventName, sound, enabled })
 }
 
 export async function deletePersistedAlert(id) {
