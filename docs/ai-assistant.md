@@ -1,6 +1,6 @@
 # AI Assistant
 
-A floating chat panel available on every page of ARAnalysis. It answers natural language questions about the user's IBKR account and live market data.
+A floating chat panel available on every page of ARAnalysis. It answers natural language questions about the user's account and live market data, and can create alerts on request.
 
 ## UI
 
@@ -31,20 +31,23 @@ Uses the local `claude` CLI (`~/.local/bin/claude`) as a subprocess. Requires Cl
 **How it works:**
 
 1. Server reads credentials from `~/.claude/.credentials.json` and checks `expiresAt`
-2. Alert creation: the system prompt instructs the model to emit `<create_alert>{...}</create_alert>` blocks. The server parses these out of the response and returns them as `actions` in the API response. The frontend then calls `createAlert()` client-side and strips the block from the displayed text.
-3. Before each request, the server pre-fetches live context data from IBKR:
+2. Before each request, the server pre-fetches live context data:
    - **Account summary** — always fetched (NetLiquidation, TotalCashValue, BuyingPower, etc.)
    - **Live quotes** — ticker symbols detected in the user's message (up to 5) are fetched
 3. Context data is injected into the `--system-prompt` passed to the CLI
 4. The CLI is invoked non-interactively:
    ```
-   claude --print --output-format json --no-session-persistence --tools "" --model <model> --system-prompt <context> <message>
+   claude --print --output-format json --no-session-persistence \
+     --tools "" --mcp-config '{"mcpServers":{}}' --strict-mcp-config \
+     --model <model> --system-prompt <context> <message>
    ```
-5. The JSON response (`result.result`) is returned to the frontend
+5. The JSON response (`result.result`) is parsed by `parseCliResponse()`, which extracts any `<create_alert>` blocks into `actions` and returns `{ text, actions }`
 
 Conversation history is formatted as a plain transcript and prepended to the current message so the CLI has full context without native session persistence.
 
-The `--tools ""` flag disables all Claude Code built-in tools (Bash, Edit, etc.) — the assistant only uses the pre-fetched context data provided in the system prompt.
+**Isolation flags:** `--tools ""` disables built-in tools. `--mcp-config '{"mcpServers":{}}'` + `--strict-mcp-config` block all MCP servers. `CLAUDECODE` and `CLAUDE_CODE_*` env vars are stripped from the subprocess environment to prevent the parent Claude Code session's tool context (Figma, LSP, etc.) from bleeding into the assistant.
+
+**Alert creation:** The system prompt instructs the model to emit `<create_alert>{...}</create_alert>` blocks when asked to create an alert. `parseCliResponse()` extracts these, converts them to `createAlert()` configs via `buildAlertConfig()`, and returns them as `actions`. The block is stripped from the displayed text.
 
 ### Anthropic API (`anthropic`)
 
@@ -53,15 +56,16 @@ Uses the `@anthropic-ai/sdk` directly with a user-supplied API key from `console
 **How it works:**
 
 Uses an agentic tool-use loop (`server/ai/providers/anthropic.js`):
-1. Sends the conversation to the Anthropic API with two tools defined
+1. Sends the conversation to the Anthropic API with all tools defined
 2. If Claude calls a tool, the server executes it and sends the result back
-3. Loop continues until Claude returns a final text response
+3. `create_alert` calls are not executed server-side — the config is built via `buildAlertConfig()` and collected as a pending action
+4. Loop continues until Claude returns a final text response, then returns `{ text, actions }`
 
 Tools available in this mode:
 
 | Tool | Description |
 |------|-------------|
-| `get_account_summary` | Fetches all IBKR account fields via `getAccountSummary()` |
+| `get_account_summary` | Fetches all account fields via `getAccountSummary()` |
 | `get_live_quote` | Fetches a live quote for a ticker via `getDetailedQuote()` |
 | `create_alert` | Creates a price/data alert for a ticker (executed client-side) |
 
@@ -137,7 +141,7 @@ Both providers currently expose the same Claude model list:
 
 ## Adding a New Provider
 
-1. Create `server/ai/providers/<name>.js` exporting `async function chat({ model, messages }): string`
+1. Create `server/ai/providers/<name>.js` exporting `async function chat({ model, messages }): { text: string, actions: Action[] }`
 2. Add the provider case to the `if/else` block in `server/routes/ai.js`
 3. Add `{ id: '<name>', label: '...' }` to `PROVIDERS` in `AIChatPanel.jsx`
 4. Add the provider's model list to `MODELS_BY_PROVIDER` in `AIChatPanel.jsx`

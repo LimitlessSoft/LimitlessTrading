@@ -44,6 +44,64 @@ function SendIcon() {
   )
 }
 
+const LOADING_STEPS = {
+  alert: [
+    { text: 'Analyzing your request…', ms: 700 },
+    { text: 'Fetching live market data…', ms: 1800 },
+    { text: 'Setting up alert…', ms: 2500 },
+    { text: 'Finalizing…', ms: Infinity },
+  ],
+  quote: [
+    { text: 'Analyzing your request…', ms: 700 },
+    { text: 'Fetching live market data…', ms: 2000 },
+    { text: 'Processing…', ms: Infinity },
+  ],
+  account: [
+    { text: 'Analyzing your request…', ms: 700 },
+    { text: 'Fetching account data…', ms: 2000 },
+    { text: 'Processing…', ms: Infinity },
+  ],
+  default: [
+    { text: 'Analyzing your request…', ms: 900 },
+    { text: 'Processing…', ms: Infinity },
+  ],
+}
+
+function detectStepType(message) {
+  if (/alert|notify|notif|when.*(above|below|goes|reaches|hits|over|under)/i.test(message)) return 'alert'
+  if (/account|balance|portfolio|equity|pnl|p&l|margin|liquidat|buying.?power|cash/i.test(message)) return 'account'
+  if (/quote|price|last|bid|ask|change|volume|chart|\b[A-Z]{2,5}\b/.test(message)) return 'quote'
+  return 'default'
+}
+
+function LoadingStatus({ message }) {
+  const steps = LOADING_STEPS[detectStepType(message)]
+  const [idx, setIdx] = useState(0)
+
+  useEffect(() => {
+    setIdx(0)
+    const timers = []
+    let elapsed = 0
+    for (let i = 0; i < steps.length - 1; i++) {
+      elapsed += steps[i].ms
+      const next = i + 1
+      timers.push(setTimeout(() => setIdx(next), elapsed))
+    }
+    return () => timers.forEach(clearTimeout)
+  }, [message])
+
+  return (
+    <Flex justify="flex-start" w="100%">
+      <Box px={3} py={2} borderRadius="lg" bg="gray.700" fontSize="sm">
+        <HStack spacing={2}>
+          <Spinner size="xs" color="blue.400" />
+          <Text color="gray.300">{steps[idx].text}</Text>
+        </HStack>
+      </Box>
+    </Flex>
+  )
+}
+
 function Message({ role, content }) {
   const isUser = role === 'user'
   return (
@@ -250,6 +308,7 @@ export default function AIChatPanel() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [pendingMessage, setPendingMessage] = useState('')
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
   const toast = useToast()
@@ -271,6 +330,7 @@ export default function AIChatPanel() {
     setMessages(prev => [...prev, userMsg])
     setInput('')
     setLoading(true)
+    setPendingMessage(text)
 
     try {
       const res = await api.post('/ai/chat', { message: text, history })
@@ -391,13 +451,7 @@ export default function AIChatPanel() {
                   {messages.map((m, i) => (
                     <Message key={i} role={m.role} content={m.content} />
                   ))}
-                  {loading && (
-                    <Flex justify="flex-start">
-                      <Box px={3} py={2} borderRadius="lg" bg="gray.700">
-                        <Spinner size="xs" color="gray.400" />
-                      </Box>
-                    </Flex>
-                  )}
+                  {loading && <LoadingStatus message={pendingMessage} />}
                   <div ref={messagesEndRef} />
                 </VStack>
 

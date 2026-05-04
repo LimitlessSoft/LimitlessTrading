@@ -469,14 +469,16 @@ export async function setLiveWatchlistInterval(seconds) {
   return setSetting('liveWatchlistInterval', seconds)
 }
 
-// Alerts persistence — only return cron-type alerts (purge legacy interval ones)
+const VALID_SCHEDULE_TYPES = new Set(['cron', 'expression', 'combined'])
+
+// Purge legacy interval-based alerts (pre-cron era), keep all valid types
 export async function getPersistedAlerts() {
   const all = await db.alerts.toArray()
-  const legacy = all.filter(a => a.schedule?.type !== 'cron')
+  const legacy = all.filter(a => !VALID_SCHEDULE_TYPES.has(a.schedule?.type))
   if (legacy.length > 0) {
     await db.alerts.bulkDelete(legacy.map(a => a.id))
   }
-  return all.filter(a => a.schedule?.type === 'cron')
+  return all.filter(a => VALID_SCHEDULE_TYPES.has(a.schedule?.type))
 }
 
 export async function persistAlert(alertConfig) {
