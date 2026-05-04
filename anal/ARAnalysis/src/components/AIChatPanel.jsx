@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import {
   Box, VStack, HStack, Text, Input, InputGroup, InputRightElement,
-  IconButton, Select, FormControl, FormLabel, Flex, Spinner, Badge,
-  useToast
+  IconButton, Select, FormControl, FormLabel, Flex, Spinner, Button,
+  useToast, useDisclosure
 } from '@chakra-ui/react'
 import { CloseIcon, SettingsIcon, CheckCircleIcon, WarningIcon } from '@chakra-ui/icons'
 import axios from 'axios'
 import { createAlert } from '../modules/alertService'
+import LicenseModal from './LicenseModal'
 
 const api = axios.create({ baseURL: '/api', timeout: 60000 })
 
@@ -102,8 +103,18 @@ function LoadingStatus({ message }) {
   )
 }
 
-function Message({ role, content }) {
+function Message({ role, content, onUpgrade }) {
   const isUser = role === 'user'
+  if (role === 'limit') {
+    return (
+      <Flex justify="flex-start" w="100%">
+        <Box px={3} py={2} borderRadius="lg" bg="orange.900" borderWidth={1} borderColor="orange.600" fontSize="sm">
+          <Text color="orange.200" mb={2}>{content}</Text>
+          <Button size="xs" colorScheme="orange" onClick={onUpgrade}>Upgrade to Pro</Button>
+        </Box>
+      </Flex>
+    )
+  }
   return (
     <Flex justify={isUser ? 'flex-end' : 'flex-start'} w="100%">
       <Box
@@ -309,9 +320,11 @@ export default function AIChatPanel() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [pendingMessage, setPendingMessage] = useState('')
+  const [limitReached, setLimitReached] = useState(false)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
   const toast = useToast()
+  const { isOpen: isLicenseOpen, onOpen: onLicenseOpen, onClose: onLicenseClose } = useDisclosure()
 
   useEffect(() => {
     if (open && view === 'chat') inputRef.current?.focus()
@@ -342,10 +355,15 @@ export default function AIChatPanel() {
         }
       }
     } catch (err) {
-      const msg = err.response?.data?.error || 'Request failed'
-      toast({ title: msg, status: 'error', duration: 4000, isClosable: true })
-      setMessages(prev => prev.slice(0, -1))
-      setInput(text)
+      if (err.response?.data?.error === 'daily_limit_reached') {
+        setLimitReached(true)
+        setMessages(prev => [...prev, { role: 'limit', content: err.response.data.message }])
+      } else {
+        const msg = err.response?.data?.error || 'Request failed'
+        toast({ title: msg, status: 'error', duration: 4000, isClosable: true })
+        setMessages(prev => prev.slice(0, -1))
+        setInput(text)
+      }
     } finally {
       setLoading(false)
     }
@@ -360,6 +378,7 @@ export default function AIChatPanel() {
 
   return (
     <>
+      <LicenseModal isOpen={isLicenseOpen} onClose={onLicenseClose} />
       <Box position="fixed" bottom={6} right={6} zIndex={1000}>
         {!open && (
           <Box
@@ -449,7 +468,7 @@ export default function AIChatPanel() {
                     </Text>
                   )}
                   {messages.map((m, i) => (
-                    <Message key={i} role={m.role} content={m.content} />
+                    <Message key={i} role={m.role} content={m.content} onUpgrade={onLicenseOpen} />
                   ))}
                   {loading && <LoadingStatus message={pendingMessage} />}
                   <div ref={messagesEndRef} />
@@ -461,11 +480,12 @@ export default function AIChatPanel() {
                     size="sm"
                     bg="gray.700"
                     borderColor="gray.600"
-                    placeholder="Ask a question…"
+                    placeholder={limitReached ? 'Daily limit reached — upgrade to continue' : 'Ask a question…'}
                     value={input}
                     onChange={e => setInput(e.target.value)}
                     onKeyDown={onKeyDown}
                     borderRadius="md"
+                    isDisabled={limitReached}
                     _focus={{ borderColor: 'blue.500', boxShadow: 'none' }}
                   />
                   <IconButton
@@ -474,7 +494,7 @@ export default function AIChatPanel() {
                     colorScheme="blue"
                     onClick={send}
                     isLoading={loading}
-                    isDisabled={!input.trim()}
+                    isDisabled={!input.trim() || limitReached}
                     aria-label="Send"
                     borderRadius="md"
                   />

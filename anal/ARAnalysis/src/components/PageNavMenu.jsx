@@ -26,7 +26,10 @@ import {
 } from '@chakra-ui/react'
 import { HamburgerIcon, AddIcon, BellIcon } from '@chakra-ui/icons'
 import { fetchRoutes, createRoute } from '../modules/routesService'
+import { useLicense } from '../modules/LicenseContext'
+import { FREE_LIMITS } from '../modules/freeLimits'
 import AlertsPanel from './AlertsPanel'
+import LicenseModal from './LicenseModal'
 
 function PageNavMenu({
   children,
@@ -42,8 +45,11 @@ function PageNavMenu({
   const [newName, setNewName] = useState('')
   const [newPath, setNewPath] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+  const { isPro } = useLicense()
+  const canAddTemplate = isPro || routes.length < FREE_LIMITS.templates
   const { isOpen, onOpen, onClose } = useDisclosure()
   const { isOpen: isAlertsOpen, onOpen: onAlertsOpen, onClose: onAlertsClose } = useDisclosure()
+  const { isOpen: isLicenseOpen, onOpen: onLicenseOpen, onClose: onLicenseClose } = useDisclosure()
   const navigate = useNavigate()
   const toast = useToast()
   const internalHeaderRef = useRef(null)
@@ -170,11 +176,12 @@ function PageNavMenu({
               <MenuDivider />
               <MenuItem
                 icon={<AddIcon />}
-                onClick={onOpen}
+                onClick={() => canAddTemplate ? onOpen() : onLicenseOpen()}
                 bg="gray.800"
                 _hover={{ bg: 'gray.700' }}
               >
                 Add New Page
+                {!canAddTemplate && ' (Pro)'}
               </MenuItem>
             </MenuList>
           </Menu>
@@ -208,6 +215,7 @@ function PageNavMenu({
       </Box>
 
       <AlertsPanel isOpen={isAlertsOpen} onClose={onAlertsClose} />
+      <LicenseModal isOpen={isLicenseOpen} onClose={onLicenseClose} />
 
       <Modal isOpen={isOpen} onClose={handleModalClose}>
         <ModalOverlay />

@@ -1,10 +1,11 @@
 import express from 'express'
-import { readFileSync } from 'fs'
+import { readFileSync, writeFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import { homedir } from 'os'
 import { chat as anthropicChat } from '../ai/providers/anthropic.js'
 import { chat as cliChat } from '../ai/providers/claude-cli.js'
+import { getCachedLicenseStatus } from './license.js'
 
 const router = express.Router()
 
@@ -13,13 +14,42 @@ const __dirname = dirname(__filename)
 const DATA_PATH = join(__dirname, '../data/user-data.json')
 const CLAUDE_CREDENTIALS_PATH = join(homedir(), '.claude', '.credentials.json')
 
-function readSettings() {
+const AI_DAILY_LIMIT = 10
+
+function readData() {
   try {
-    const data = JSON.parse(readFileSync(DATA_PATH, 'utf-8'))
-    return data.settings || {}
+    return JSON.parse(readFileSync(DATA_PATH, 'utf-8'))
   } catch {
     return {}
   }
+}
+
+function writeData(data) {
+  writeFileSync(DATA_PATH, JSON.stringify(data, null, 2))
+}
+
+function readSettings() {
+  return readData().settings || {}
+}
+
+function todayString() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function getDailyUsage() {
+  const data = readData()
+  const usage = data.settings?.['ai.dailyUsage']
+  if (usage?.date === todayString()) return { data, count: usage.count }
+  return { data, count: 0 }
+}
+
+function incrementDailyUsage(data) {
+  const today = todayString()
+  const existing = data.settings?.['ai.dailyUsage']
+  const count = existing?.date === today ? existing.count + 1 : 1
+  data.settings = data.settings ?? {}
+  data.settings['ai.dailyUsage'] = { date: today, count }
+  writeData(data)
 }
 
 function readClaudeOAuth() {
@@ -42,6 +72,21 @@ router.get('/subscription-status', (req, res) => {
 router.post('/chat', async (req, res) => {
   const { message, history = [] } = req.body
   if (!message?.trim()) return res.status(400).json({ error: 'message required' })
+
+  const { valid: isPro } = getCachedLicenseStatus()
+
+  if (!isPro) {
+    const { data, count } = getDailyUsage()
+    if (count >= AI_DAILY_LIMIT) {
+      return res.status(429).json({
+        error: 'daily_limit_reached',
+        message: `You've used all ${AI_DAILY_LIMIT} free messages for today. Upgrade to Pro for unlimited access.`,
+        used: count,
+        limit: AI_DAILY_LIMIT
+      })
+    }
+    incrementDailyUsage(data)
+  }
 
   const settings = readSettings()
   const provider = settings['ai.provider'] || 'claude_subscription'

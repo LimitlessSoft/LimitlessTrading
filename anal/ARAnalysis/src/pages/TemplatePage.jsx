@@ -33,6 +33,9 @@ const KebabIcon = () => (
   </svg>
 )
 import { fetchRoutes, updateRoute } from '../modules/routesService'
+import { useLicense } from '../modules/LicenseContext'
+import { FREE_LIMITS } from '../modules/freeLimits'
+import LicenseModal from '../components/LicenseModal'
 import PageNavMenu from '../components/PageNavMenu'
 import TemplatePageLabel from '../components/TemplatePageLabel'
 import TemplatePageBadge from '../components/TemplatePageBadge'
@@ -55,6 +58,8 @@ function TemplatePage() {
   const { isOpen: isImportOpen, onOpen: onImportOpen, onClose: onImportClose } = useDisclosure()
   const { isOpen: isGalleryOpen, onOpen: onGalleryOpen, onClose: onGalleryClose } = useDisclosure()
   const { isOpen: isInfoOpen, onOpen: onInfoOpen, onClose: onInfoClose } = useDisclosure()
+  const { isOpen: isLicenseOpen, onOpen: onLicenseOpen, onClose: onLicenseClose } = useDisclosure()
+  const { isPro } = useLicense()
   const [infoName, setInfoName] = useState('')
   const [infoPath, setInfoPath] = useState('')
   const [routesVersion, setRoutesVersion] = useState(0)
@@ -101,9 +106,16 @@ function TemplatePage() {
     return () => window.removeEventListener('resize', compute)
   }, [])
 
+  const isAtWidgetLimit = () => {
+    if (isPro) return false
+    const count = (pageInfo?.config?.labels || []).length
+    return count >= FREE_LIMITS.widgetsPerPage
+  }
+
   const handleAddWidget = async () => {
     if (WIDGET_REGISTRY[widgetType]?.needsText && !labelText.trim()) return
     if (!pageInfo) return
+    if (isAtWidgetLimit()) { onClose(); onLicenseOpen(); return }
 
     setIsSaving(true)
     try {
@@ -314,6 +326,7 @@ function TemplatePage() {
     const file = e.target.files[0]
     if (!file || !pageInfo) return
     e.target.value = ''
+    if (isAtWidgetLimit()) { onLicenseOpen(); return }
     const reader = new FileReader()
     reader.onload = async (event) => {
       try {
@@ -798,6 +811,7 @@ function TemplatePage() {
         </ModalContent>
       </Modal>
       <WidgetsGalleryModal isOpen={isGalleryOpen} onClose={onGalleryClose} />
+      <LicenseModal isOpen={isLicenseOpen} onClose={onLicenseClose} />
       <Modal isOpen={isImportOpen} onClose={onImportClose}>
         <ModalOverlay />
         <ModalContent bg="gray.800">

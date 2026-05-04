@@ -31,7 +31,8 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
-# Environment files
+# Environment files and secrets
+appsettings.Development.json
 .env
 .env.local
 .env.development.local
