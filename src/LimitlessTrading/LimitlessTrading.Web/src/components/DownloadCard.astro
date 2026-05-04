@@ -9,7 +9,7 @@ const { release } = Astro.props;
 
 const icons: Record<string, string> = {
   Windows: '⊞',
-  macOS: '',
+  macOS: '⌘',
   Linux: '🐧',
 };
 ---
@@ -25,15 +25,20 @@ const icons: Record<string, string> = {
     <p class="text-xs text-ls-text">{release.size}</p>
   )}
 
-  <a
-    href={release.url}
-    class={`text-center py-3 text-xs font-bold tracking-[0.2em] uppercase transition-colors ${
-      release.url === '#'
-        ? 'bg-white/5 text-white/30 cursor-not-allowed border border-ls-border'
-        : 'bg-ls-blue text-white hover:bg-blue-500'
-    }`}
-    aria-disabled={release.url === '#'}
-  >
-    {release.url === '#' ? 'Coming Soon' : `Download ${release.ext}`}
-  </a>
+  {release.url === '#' ? (
+    <span
+      class="block text-center py-3 text-xs font-bold tracking-[0.2em] uppercase bg-white/5 text-white/30 border border-ls-border cursor-not-allowed"
+      role="link"
+      aria-disabled="true"
+    >
+      Coming Soon
+    </span>
+  ) : (
+    <a
+      href={release.url}
+      class="block text-center py-3 text-xs font-bold tracking-[0.2em] uppercase bg-ls-blue text-white hover:bg-blue-500 transition-colors"
+    >
+      Download {release.ext}
+    </a>
+  )}
 </div>
