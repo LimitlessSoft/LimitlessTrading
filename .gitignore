@@ -73,3 +73,6 @@ credentials/
 
 # Brainstorm / planning files
 .superpowers/
+
+# Playwright MCP artifacts
+.playwright-mcp/
