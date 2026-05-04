@@ -1,4 +1,4 @@
-name: Deploy ar-trading-tools-api to cluster
+name: Deploy limitless-trading-api to cluster
 
 on:
   workflow_call:
@@ -19,11 +19,11 @@ jobs:
       with:
         kubeconfig: '${{ secrets.KUBE_CONFIG_PURE }}'
 
-    - name: Deploy ar-trading-tools-api to cluster
+    - name: Deploy limitless-trading-api to cluster
       run: |-
         export DEPLOY_ENV=${{ inputs.env }}
-        envsubst < k8s/namespaces/ar-api-namespace.yaml | kubectl apply -f -
-        envsubst < k8s/services/ar-api-service.yaml | kubectl apply -f -
-        envsubst < k8s/deployments/ar-api-deployment.yaml | kubectl apply -f -
-        envsubst < k8s/ingress/ar-api-ingress.yaml | kubectl apply -f -
-        kubectl rollout restart -n ar-api-namespace deployment ${{ inputs.env }}-ar-api-deployment
+        envsubst < k8s/namespaces/lt-api-namespace.yaml | kubectl apply -f -
+        envsubst < k8s/services/lt-api-service.yaml | kubectl apply -f -
+        envsubst < k8s/deployments/lt-api-deployment.yaml | kubectl apply -f -
+        envsubst < k8s/ingress/lt-api-ingress.yaml | kubectl apply -f -
+        kubectl rollout restart -n lt-api-namespace deployment ${{ inputs.env }}-lt-api-deployment
