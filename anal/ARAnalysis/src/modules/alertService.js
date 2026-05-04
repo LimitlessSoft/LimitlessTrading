@@ -37,22 +37,36 @@ let nextAlertId = 1
   }
 })()
 
+let _audioCtx = null
+
+function getAudioCtx() {
+  const AudioCtx = window.AudioContext || window.webkitAudioContext
+  if (!AudioCtx) return null
+  if (!_audioCtx || _audioCtx.state === 'closed') _audioCtx = new AudioCtx()
+  return _audioCtx
+}
+
 function playBeep({ frequency = 520, duration = 0.4, volume = 0.25 } = {}) {
   try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext
-    if (!AudioCtx) return
-    const ctx = new AudioCtx()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.type = 'sine'
-    osc.frequency.value = frequency
-    gain.gain.setValueAtTime(volume, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration)
-    osc.start(ctx.currentTime)
-    osc.stop(ctx.currentTime + duration)
-    setTimeout(() => ctx.close(), (duration + 0.5) * 1000)
+    const ctx = getAudioCtx()
+    if (!ctx) return
+    const play = () => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.type = 'sine'
+      osc.frequency.value = frequency
+      gain.gain.setValueAtTime(volume, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration)
+      osc.start(ctx.currentTime)
+      osc.stop(ctx.currentTime + duration)
+    }
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(play).catch(() => {})
+    } else {
+      play()
+    }
   } catch {
     // Web Audio not supported or blocked
   }

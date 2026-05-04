@@ -42,5 +42,6 @@ export function createWidget(type, text) {
 export function renderWidget(widget, props) {
   const def = WIDGET_REGISTRY[widget.type]
   const Component = def?.Component ?? TemplatePageLabel
-  return <Component {...props} />
+  const { key, ...rest } = props
+  return <Component key={key} {...rest} />
 }

@@ -504,12 +504,13 @@ function TemplatePage() {
       onSettingsOpened: handleSettingsOpened,
     }
 
+    const { key, ...restProps } = commonProps
     if (widget.type === 'badge') {
-      return <TemplatePageBadge {...commonProps} />
+      return <TemplatePageBadge key={key} {...restProps} />
     } else if (widget.type === 'label') {
-      return <TemplatePageLabel {...commonProps} />
+      return <TemplatePageLabel key={key} {...restProps} />
     } else if (widget.type === 'gauge') {
-      return <TemplatePageGauge {...commonProps} />
+      return <TemplatePageGauge key={key} {...restProps} />
     }
     // Panels and charts not supported in header
     return null
