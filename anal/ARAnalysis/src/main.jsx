@@ -8,6 +8,7 @@ import PlaceholderDocsPage from './pages/PlaceholderDocsPage'
 import AlertOverlay from './components/AlertOverlay'
 import AlertExpressionWatcher from './components/AlertExpressionWatcher'
 import AutoConnect from './modules/AutoConnect'
+import AIChatPanel from './components/AIChatPanel'
 import theme from './theme'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -17,6 +18,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <AutoConnect />
         <AlertOverlay />
         <AlertExpressionWatcher />
+        <AIChatPanel />
         <Routes>
           <Route path="/" element={<App />} />
           <Route path="/docs/placeholders" element={<PlaceholderDocsPage />} />

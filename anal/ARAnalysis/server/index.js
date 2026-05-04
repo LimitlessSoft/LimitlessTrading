@@ -7,6 +7,7 @@ import fearGreedRoutes from './routes/fearGreed.js'
 import routesRoutes from './routes/routes.js'
 import userDataRoutes from './routes/userData.js'
 import accountRoutes from './routes/account.js'
+import aiRoutes from './routes/ai.js'
 import { getConnectionStatus } from './ibkrClient.js'
 
 const app = express()
@@ -23,6 +24,7 @@ app.use('/api/fear-greed', fearGreedRoutes)
 app.use('/api/routes', routesRoutes)
 app.use('/api/user-data', userDataRoutes)
 app.use('/api/account', accountRoutes)
+app.use('/api/ai', aiRoutes)
 
 // Health check
 app.get('/health', (req, res) => {
