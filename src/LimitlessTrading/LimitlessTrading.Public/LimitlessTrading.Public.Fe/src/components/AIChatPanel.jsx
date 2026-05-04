@@ -49,6 +49,22 @@ function SendIcon() {
   )
 }
 
+function CopyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+      <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
+    </svg>
+  )
+}
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+    </svg>
+  )
+}
+
 const LOADING_STEPS = {
   alert: [
     { text: 'Analyzing your request…', ms: 700 },
@@ -341,6 +357,7 @@ export default function AIChatPanel() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [pendingMessage, setPendingMessage] = useState('')
+  const [copied, setCopied] = useState(false)
   const [alerts, setAlerts] = useState(() => listAlerts())
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
@@ -453,6 +470,16 @@ export default function AIChatPanel() {
     }
   }
 
+  async function copyConversation() {
+    const text = activeThread.messages
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => `[${m.role === 'user' ? 'User' : 'Assistant'}]\n${m.content}`)
+      .join('\n\n')
+    await navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   function onKeyDown(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -537,16 +564,29 @@ export default function AIChatPanel() {
             <Text fontSize="sm" fontWeight="bold" color="white" letterSpacing="0.02em">
               {view === 'settings' ? 'AI Settings' : 'AI Assistant'}
             </Text>
-            <IconButton
-              icon={<SettingsIcon />}
-              size="sm"
-              variant="ghost"
-              color={view === 'settings' ? 'blue.400' : 'gray.400'}
-              bg={view === 'settings' ? 'blue.900' : 'transparent'}
-              onClick={() => setView(v => v === 'chat' ? 'settings' : 'chat')}
-              aria-label="Settings"
-              _hover={{ color: 'white', bg: 'gray.700' }}
-            />
+            <HStack spacing={1}>
+              {activeThread.messages.length > 0 && view === 'chat' && (
+                <IconButton
+                  icon={copied ? <CheckIcon /> : <CopyIcon />}
+                  size="sm"
+                  variant="ghost"
+                  color={copied ? 'green.400' : 'gray.400'}
+                  onClick={copyConversation}
+                  aria-label="Copy conversation"
+                  _hover={{ color: 'white', bg: 'gray.700' }}
+                />
+              )}
+              <IconButton
+                icon={<SettingsIcon />}
+                size="sm"
+                variant="ghost"
+                color={view === 'settings' ? 'blue.400' : 'gray.400'}
+                bg={view === 'settings' ? 'blue.900' : 'transparent'}
+                onClick={() => setView(v => v === 'chat' ? 'settings' : 'chat')}
+                aria-label="Settings"
+                _hover={{ color: 'white', bg: 'gray.700' }}
+              />
+            </HStack>
           </Flex>
 
           {view === 'settings' ? (
