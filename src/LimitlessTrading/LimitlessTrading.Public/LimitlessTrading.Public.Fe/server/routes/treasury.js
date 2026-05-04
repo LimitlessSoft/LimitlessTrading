@@ -23,7 +23,7 @@ async function fetchTreasuryYields() {
 
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ARAnalysis/1.0)',
+        'User-Agent': 'Mozilla/5.0 (compatible; LimitlessTrading/1.0)',
         'Accept': 'application/xml, text/xml, */*'
       }
     })

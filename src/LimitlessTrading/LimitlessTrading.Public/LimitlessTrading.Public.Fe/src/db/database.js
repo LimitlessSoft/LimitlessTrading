@@ -1,6 +1,6 @@
 import Dexie from 'dexie'
 
-const db = new Dexie('ARAnalysisDB')
+const db = new Dexie('LimitlessTradingDB')
 
 db.version(1).stores({
   securities: 'symbol, name, exchange',

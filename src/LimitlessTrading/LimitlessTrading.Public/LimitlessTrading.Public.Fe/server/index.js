@@ -53,6 +53,6 @@ app.use((err, req, res, next) => {
 })
 
 app.listen(PORT, () => {
-  console.log(`ARAnalysis server running on port ${PORT}`)
+  console.log(`Limitless Trading server running on port ${PORT}`)
   console.log(`API available at http://localhost:${PORT}/api`)
 })

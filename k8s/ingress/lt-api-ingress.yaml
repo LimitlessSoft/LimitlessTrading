@@ -1,8 +1,8 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: ${DEPLOY_ENV}-ar-api-ingress
-  namespace: ar-api-namespace
+  name: ${DEPLOY_ENV}-lt-api-ingress
+  namespace: lt-api-namespace
   annotations:
     kubernetes.io/ingress.class: nginx
 spec:
@@ -14,6 +14,6 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: ${DEPLOY_ENV}-ar-api-service
+            name: ${DEPLOY_ENV}-lt-api-service
             port:
               number: 80

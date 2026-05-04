@@ -57,7 +57,7 @@ function LicenseModal({ isOpen, onClose }) {
         <ModalHeader>
           <HStack>
             <StarIcon color="yellow.400" />
-            <Text>ARAnalysis Pro</Text>
+            <Text>Limitless Trading Pro</Text>
           </HStack>
         </ModalHeader>
         <ModalCloseButton />

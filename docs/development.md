@@ -21,14 +21,14 @@ bash scripts/link-obsidian.sh
 
 The script:
 1. Finds all Obsidian vaults under `$HOME` (prompts if more than one is found)
-2. Creates an `ARTradingTools/` subdirectory inside the vault
+2. Creates an `LimitlessTrading/` subdirectory inside the vault
 3. Creates symlinks from that subdirectory into the repo:
 
 | Vault path | Repo path | Contents |
 |---|---|---|
-| `ARTradingTools/docs` | `docs/` | Technical documentation |
-| `ARTradingTools/planning` | `planning/` | Planning and marketing docs |
-| `ARTradingTools/todo` | `todo/` | Tasks and to-do notes |
+| `LimitlessTrading/docs` | `docs/` | Technical documentation |
+| `LimitlessTrading/planning` | `planning/` | Planning and marketing docs |
+| `LimitlessTrading/todo` | `todo/` | Tasks and to-do notes |
 
 Because these are symlinks, any edits made in Obsidian write directly to the repo files, and any edits made in the repo are immediately visible in Obsidian. There is no sync step.
 
@@ -48,7 +48,7 @@ Re-running the script is safe — existing up-to-date symlinks are skipped.
 ## Commands
 
 ```bash
-cd anal/ARAnalysis
+cd src/LimitlessTrading/LimitlessTrading.Public/LimitlessTrading.Public.Fe
 
 # Start both frontend and backend
 npm start

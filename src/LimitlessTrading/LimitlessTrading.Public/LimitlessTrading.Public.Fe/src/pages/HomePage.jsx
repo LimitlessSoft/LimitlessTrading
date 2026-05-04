@@ -7,7 +7,7 @@ function HomePage() {
       <PageNavMenu />
       <Box px={8} py={12}>
         <VStack spacing={4} align="flex-start" maxW="600px">
-          <Heading size="xl" color="blue.300">ARAnalysis</Heading>
+          <Heading size="xl" color="blue.300">Limitless Trading</Heading>
           <Text color="gray.300" fontSize="lg">
             Trading analysis toolkit for Interactive Brokers.
           </Text>

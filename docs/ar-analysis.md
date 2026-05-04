@@ -1,11 +1,11 @@
-# ARAnalysis
+# Limitless Trading App
 
-ARAnalysis is the main trading analysis app — a React frontend (Vite) with a Node.js/Express backend that connects to Interactive Brokers (IBKR) for market data. Both the frontend and backend run locally on the user's machine. All data (market data, user preferences, watchlists, route configurations) is stored locally and never sent to a remote server.
+Limitless Trading is the main trading analysis app — a React frontend (Vite) with a Node.js/Express backend that connects to Interactive Brokers (IBKR) for market data. Both the frontend and backend run locally on the user's machine. All data (market data, user preferences, watchlists, route configurations) is stored locally and never sent to a remote server.
 
 ## File Structure
 
 ```
-anal/ARAnalysis/
+app/
 ├── src/                    # React frontend (Vite)
 │   ├── main.jsx            # App entry, routing setup (BrowserRouter)
 │   ├── App.jsx             # Main dashboard, manages state and data loading

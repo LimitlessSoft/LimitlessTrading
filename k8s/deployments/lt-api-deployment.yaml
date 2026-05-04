@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ${DEPLOY_ENV}-ar-api-deployment
-  namespace: ar-api-namespace
+  name: ${DEPLOY_ENV}-lt-api-deployment
+  namespace: lt-api-namespace
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: ${DEPLOY_ENV}-ar-api
+      app: ${DEPLOY_ENV}-lt-api
   template:
     metadata:
       labels:
-        app: ${DEPLOY_ENV}-ar-api
+        app: ${DEPLOY_ENV}-lt-api
     spec:
       containers:
-      - name: ${DEPLOY_ENV}-ar-api
-        image: limitlesssoft/ar-trading-tools-api:${DEPLOY_ENV}
+      - name: ${DEPLOY_ENV}-lt-api
+        image: limitlesssoft/limitless-trading-api:${DEPLOY_ENV}
         imagePullPolicy: Always
         ports:
         - containerPort: 8080

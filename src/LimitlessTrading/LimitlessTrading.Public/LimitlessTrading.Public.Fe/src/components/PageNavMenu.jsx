@@ -238,7 +238,7 @@ function PageNavMenu({
       <Modal isOpen={isAboutOpen} onClose={onAboutClose} isCentered size="sm">
         <ModalOverlay />
         <ModalContent bg="gray.800">
-          <ModalHeader>About ARAnalysis</ModalHeader>
+          <ModalHeader>About Limitless Trading</ModalHeader>
           <ModalCloseButton />
           <ModalBody pb={6}>
             <Text color="gray.300" mb={4}>

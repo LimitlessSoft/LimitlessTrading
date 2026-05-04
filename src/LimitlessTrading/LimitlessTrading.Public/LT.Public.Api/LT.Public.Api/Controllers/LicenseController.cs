@@ -3,7 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
-namespace AR.Public.Api.Controllers;
+namespace LT.Public.Api.Controllers;
 
 [ApiController]
 [Route("[controller]")]

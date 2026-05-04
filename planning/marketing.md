@@ -1,6 +1,6 @@
 # Marketing Plan
 
-ARTradingTools is a self-hosted trading dashboard builder targeting day traders, retail traders, and general investors. This document is a step-by-step execution plan for building a marketing presence online.
+Limitless Trading is a self-hosted trading dashboard builder targeting day traders, retail traders, and general investors. This document is a step-by-step execution plan for building a marketing presence online.
 
 **Note:** The repository is private. Distribution links point to the landing page, not GitHub. The repo will only be made public if/when that decision is made deliberately.
 
@@ -34,7 +34,7 @@ Put this sentence everywhere: landing page headline, Reddit bio, Twitter bio, Yo
 - Community gallery of pre-built widgets and templates so you don't start from scratch
 
 **Positioning statement:**
-> "ARTradingTools is a trading dashboard builder for day traders and investors — connect your broker API, build any UI with widgets and templates, share with the community, and keep all your data on your own machine. No subscriptions, no data sharing, no limits."
+> "Limitless Trading is a trading dashboard builder for day traders and investors — connect your broker API, build any UI with widgets and templates, share with the community, and keep all your data on your own machine. No subscriptions, no data sharing, no limits."
 
 - [x] Positioning statement confirmed (2026-05-04)
 
@@ -102,7 +102,7 @@ Rules:
 
 Twitter has an active fintech and dev-trader community (fintwit). It compounds slowly but is worth starting now.
 
-- Create or clean up your account with a clear bio: "Building trading tools for IBKR users | @ARTradingTools"
+- Create or clean up your account with a clear bio: "Building trading tools for IBKR users | @Limitless Trading"
 - Tweet the demo video with a short description thread:
   - Tweet 1: hook — "I built a self-hosted IBKR trading dashboard. Here's what it looks like:"
   - Tweet 2: key features (bullet list)
@@ -137,7 +137,7 @@ YouTube is the best long-term channel for a dev tool because videos rank on Goog
 
 Video ideas in order of production effort (start easy):
 
-1. **"How I set up ARTradingTools with IBKR TWS"** — screen recording walkthrough, 5–10 min
+1. **"How I set up Limitless Trading with IBKR TWS"** — screen recording walkthrough, 5–10 min
 2. **"How I track my watchlist in real-time with my own dashboard"** — demo + explanation
 3. **"Building a custom trading alert system in JavaScript"** — technical deep-dive
 4. **"My IBKR trading setup in 2026"** — broader appeal, can go viral in fintwit
@@ -153,7 +153,7 @@ Target keyword: **"ibkr trading dashboard"** or **"interactive brokers custom da
 Article outline:
 - Why the default IBKR TWS interface is limiting
 - What a custom dashboard can do (real-time data, alerts, custom charts)
-- How to set up ARTradingTools step by step
+- How to set up Limitless Trading step by step
 - Screenshots throughout
 
 Publish options:

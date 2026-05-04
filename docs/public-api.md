@@ -1,14 +1,14 @@
-# AR Public API
+# LT Public API
 
-ARTradingTools includes a .NET 9 Web API (`AR.Public.Api`) that runs alongside the existing Node/Express backend and is deployed to Kubernetes.
+Limitless Trading includes a .NET 9 Web API (`LT.Public.Api`) that runs alongside the existing Node/Express backend and is deployed to Kubernetes.
 
 ## File Structure
 
 ```
-AR.Public.Api/
-├── AR.Public.Api.sln
-└── AR.Public.Api/
-    ├── AR.Public.Api.csproj
+LT.Public.Api/
+├── LT.Public.Api.sln
+└── LT.Public.Api/
+    ├── LT.Public.Api.csproj
     ├── Program.cs
     ├── Dockerfile
     ├── appsettings.json
@@ -28,15 +28,15 @@ AR.Public.Api/
 ## Development
 
 ```bash
-cd AR.Public.Api
+cd LT.Public.Api
 
 # Run locally
-dotnet run --project AR.Public.Api/AR.Public.Api.csproj
+dotnet run --project LT.Public.Api/LT.Public.Api.csproj
 # → http://localhost:5000/health
 
 # Build Docker image
-docker build -f AR.Public.Api/Dockerfile -t ar-trading-tools-api:local .
-docker run -p 8080:8080 ar-trading-tools-api:local
+docker build -f LT.Public.Api/Dockerfile -t limitless-trading-api:local .
+docker run -p 8080:8080 limitless-trading-api:local
 # → http://localhost:8080/health
 ```
 
@@ -46,19 +46,19 @@ Manifests live in `k8s/` and use `envsubst` for environment substitution:
 
 ```
 k8s/
-├── namespaces/ar-api-namespace.yaml    # namespace: ar-api-namespace
-├── deployments/ar-api-deployment.yaml  # image: limitlesssoft/ar-trading-tools-api
-├── services/ar-api-service.yaml        # NodePort 80 → 8080
-└── ingress/ar-api-ingress.yaml         # host: api.${DEPLOY_ENV}.aleksaristic.com
+├── namespaces/lt-api-namespace.yaml    # namespace: lt-api-namespace
+├── deployments/lt-api-deployment.yaml  # image: limitlesssoft/limitless-trading-api
+├── services/lt-api-service.yaml        # NodePort 80 → 8080
+└── ingress/lt-api-ingress.yaml         # host: api.${DEPLOY_ENV}.aleksaristic.com
 ```
 
 Apply manually:
 ```bash
 export DEPLOY_ENV=production
-envsubst < k8s/namespaces/ar-api-namespace.yaml | kubectl apply -f -
-envsubst < k8s/services/ar-api-service.yaml | kubectl apply -f -
-envsubst < k8s/deployments/ar-api-deployment.yaml | kubectl apply -f -
-envsubst < k8s/ingress/ar-api-ingress.yaml | kubectl apply -f -
+envsubst < k8s/namespaces/lt-api-namespace.yaml | kubectl apply -f -
+envsubst < k8s/services/lt-api-service.yaml | kubectl apply -f -
+envsubst < k8s/deployments/lt-api-deployment.yaml | kubectl apply -f -
+envsubst < k8s/ingress/lt-api-ingress.yaml | kubectl apply -f -
 ```
 
 ## CI/CD

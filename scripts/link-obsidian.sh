@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-TARGET_SUBDIR="ARTradingTools"
+TARGET_SUBDIR="LimitlessTrading"
 
 SYMLINKS=(
   "docs:$REPO_ROOT/docs"
