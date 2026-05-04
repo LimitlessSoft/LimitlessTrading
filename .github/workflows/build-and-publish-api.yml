@@ -28,7 +28,7 @@ jobs:
       run: docker push limitlesssoft/limitless-trading-api:${{ inputs.env }}
 
   deploy:
-    uses: AleksaRistic216/LimitlessTrading/.github/workflows/deploy-api.yml@master
+    uses: LimitlessSoft/LimitlessTrading/.github/workflows/deploy-api.yml@master
     needs: [ build-and-push-api ]
     secrets: inherit
     with:

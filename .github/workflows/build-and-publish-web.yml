@@ -28,7 +28,7 @@ jobs:
       run: docker push limitlesssoft/lt-web:${{ inputs.env }}
 
   deploy:
-    uses: AleksaRistic216/LimitlessTrading/.github/workflows/deploy-web.yml@master
+    uses: LimitlessSoft/LimitlessTrading/.github/workflows/deploy-web.yml@master
     needs: [ build-and-push-web ]
     secrets: inherit
     with:
