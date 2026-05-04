@@ -70,3 +70,6 @@ temp/
 data/
 secrets/
 credentials/
+
+# Brainstorm / planning files
+.superpowers/
