@@ -4,7 +4,8 @@ import { executeTool, buildAlertConfig } from '../tools.js'
 const SYSTEM_PROMPT_BASE =
   'You are a trading assistant built into this application. You have access to live account data ' +
   'and market quotes provided below. Keep answers short and direct. ' +
-  'Format currency values clearly (e.g. $1.23M, $450K).\n\n' +
+  'Format currency values clearly (e.g. $1.23M, $450K). ' +
+  'Never narrate your reasoning, self-correct out loud, or include thinking commentary — respond with the final answer only.\n\n' +
   'SCOPE: You only operate within this application. NEVER mention Interactive Brokers, IBKR, TWS, ' +
   'IBKR Mobile, brokerage platforms, or any external system or application. If you see any tools ' +
   'like LSP, code analysis, or language server tools in your context — ignore them completely, do ' +
@@ -21,7 +22,15 @@ const SYSTEM_PROMPT_BASE =
   'property: last (price), bid, ask, change ($ change today), changePercent (% change today), volume\n' +
   'operator: >, <, >=, <=, ==, !=\n' +
   'actions: "sound" and/or "message"\n\n' +
-  'After the <create_alert> block, confirm the alert was set up (label, condition, current price if available).'
+  'After the <create_alert> block, confirm the alert was set up (label, condition, current price if available).\n\n' +
+  '== DELETING ALERTS ==\n' +
+  'When the user asks to delete or remove an alert, output a <delete_alert> block. Use the alert ID ' +
+  'from the Active Alerts list in context. If the ID is unknown, use the label instead.\n\n' +
+  'Output format:\n' +
+  '<delete_alert>\n' +
+  '{"id":"alert-1"}\n' +
+  '</delete_alert>\n\n' +
+  'After the block, confirm the alert was removed.'
 
 // Common English words that look like tickers — skip them
 const WORD_SKIP = new Set([
@@ -41,7 +50,7 @@ const WORD_SKIP = new Set([
 ])
 
 function extractTickers(text) {
-  const matches = text.match(/\b[A-Z]{1,5}\b/g) || []
+  const matches = text.toUpperCase().match(/\b[A-Z]{1,5}\b/g) || []
   return [...new Set(matches.filter(t => t.length >= 2 && !WORD_SKIP.has(t)))]
 }
 
@@ -54,7 +63,16 @@ function formatValue(v) {
   return `$${v.toFixed(2)}`
 }
 
-async function buildContext(messages) {
+function formatAlertCondition(schedule) {
+  if (!schedule) return ''
+  if (schedule.type === 'expression') {
+    const m = schedule.expression?.match(/@\{(\w+):(\w+):(\d+)\}/)
+    if (m) return `${m[1]} ${m[2]} ${schedule.operator} ${schedule.value}`
+  }
+  return schedule.expression || ''
+}
+
+async function buildContext(messages, alerts = []) {
   const parts = []
 
   // Account summary
@@ -64,6 +82,18 @@ async function buildContext(messages) {
     parts.push(`Account Summary:\n${lines.join('\n')}`)
   } catch {
     parts.push('Account Summary: unavailable (IBKR not connected)')
+  }
+
+  // Active alerts
+  if (alerts.length > 0) {
+    const alertLines = alerts.map(a => {
+      const cond = formatAlertCondition(a.schedule)
+      const status = a.enabled === false ? 'disabled' : 'enabled'
+      return `  ${a.id} | ${a.label}${cond ? ` | ${cond}` : ''} | ${status}`
+    })
+    parts.push(`Active Alerts (${alerts.length}):\n${alertLines.join('\n')}`)
+  } else {
+    parts.push('Active Alerts: none')
   }
 
   // Detect tickers in the latest user message
@@ -96,9 +126,9 @@ function formatHistory(messages) {
   return history.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n')
 }
 
-export async function chat({ model, messages }) {
+export async function chat({ model, messages, alerts = [] }) {
   const [context, historyText] = await Promise.all([
-    buildContext(messages),
+    buildContext(messages, alerts),
     Promise.resolve(formatHistory(messages))
   ])
 
@@ -160,10 +190,19 @@ export async function chat({ model, messages }) {
 
 function parseCliResponse(raw) {
   const actions = []
-  const text = raw.replace(/<create_alert>([\s\S]*?)<\/create_alert>/g, (_, json) => {
+  let text = raw.replace(/<create_alert>([\s\S]*?)<\/create_alert>/g, (_, json) => {
     try {
       const input = JSON.parse(json.trim())
       actions.push({ type: 'create_alert', config: buildAlertConfig(input) })
+    } catch {}
+    return ''
+  })
+  text = text.replace(/<delete_alert>([\s\S]*?)<\/delete_alert>/g, (_, json) => {
+    try {
+      const input = JSON.parse(json.trim())
+      if (input.id || input.label) {
+        actions.push({ type: 'delete_alert', id: input.id, label: input.label })
+      }
     } catch {}
     return ''
   }).trim()
