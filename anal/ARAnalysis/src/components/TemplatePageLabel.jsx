@@ -52,7 +52,7 @@ const DEFAULT_STYLE = {
   verticalAlign: 'top'
 }
 
-function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode }) {
+function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode, openSettingsForId, onSettingsOpened }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -117,6 +117,13 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
     setEditText(label.text || '')
     onOpen()
   }
+
+  useEffect(() => {
+    if (openSettingsForId === label.id) {
+      handleOpenEdit()
+      onSettingsOpened?.()
+    }
+  }, [openSettingsForId])
 
   const handleSaveStyle = () => {
     onUpdate(label.id, { style: editStyle, text: editText })

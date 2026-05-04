@@ -17,6 +17,8 @@ Toggle via the pencil icon button in the page header.
 | `panel` | `TemplatePagePanel` | Container holding child widgets |
 | `badge` | `TemplatePageBadge` | Colored circle indicator |
 | `chart` | `TemplatePageChart` | Interactive candlestick chart fed from IBKR — see [chart-widget.md](chart-widget.md) |
+| `gauge` | `TemplatePageGauge` | Semicircle speedometer with configurable colored segments |
+| `graph` | `TemplatePageGraph` | Multi-series rolling time-series chart (line or bar) |
 
 ## Positioning
 
@@ -124,7 +126,31 @@ Result is formatted to 2 decimal places. Displays `--` if any referenced value i
 
 Formula placeholders are resolved before standalone symbol quotes, so their internal `@{...}` refs are not double-processed.
 
-All placeholder types can be mixed in the same label text: `${tws_connection_status:5} | @{SPY:last:3} | Spread: %[@{HYG:last} - @{LQD:last}:30]`.
+All placeholder types can be mixed in the same label text: `${tws_connection_status:5} | @{SPY:last:3} | #{NetLiquidation:30} | Spread: %[@{HYG:last} - @{LQD:last}:30]`.
+
+### Account placeholders — `#{field:seconds}`
+
+Resolve IBKR account summary fields. Polled from `/api/account/summary` (10s server-side cache).
+
+Syntax: `#{field}` or `#{field:seconds}`. Default refresh interval is 30s.
+
+Supported fields:
+
+| Field | Description |
+|-------|-------------|
+| `NetLiquidation` | Total net liquidation value |
+| `TotalCashValue` | Total cash balance |
+| `GrossPositionValue` | Total gross position value |
+| `BuyingPower` | Available buying power |
+| `AvailableFunds` | Available funds |
+| `ExcessLiquidity` | Excess liquidity |
+| `RealizedPnL` | Realized P&L |
+| `UnrealizedPnL` | Unrealized P&L |
+| `DailyPnL` | Day P&L |
+| `MaintMarginReq` | Maintenance margin requirement |
+| `InitMarginReq` | Initial margin requirement |
+
+Example: `#{NetLiquidation:30}` — refreshes every 30s.
 
 Unknown placeholders are displayed as-is.
 
@@ -227,6 +253,69 @@ When implementing a new placeholder resolver, also add it to the in-app document
 }
 ```
 
+### Gauge
+
+```js
+{
+  id: "uuid",
+  type: "gauge",
+  width: 4,             // segments
+  height: 120,          // pixels
+  x: 0,
+  y: 0,
+  placeholder: "@{VIX:last:5}",  // value provider (any placeholder expression)
+  min: 0,               // gauge scale minimum (default 0)
+  max: 100,             // gauge scale maximum (default 100)
+  title: "VIX",         // optional label below the needle
+  segments: [           // colored arc bands (default: green/yellow/orange/red quartiles)
+    { from: 0, to: 25, color: "#48BB78" },
+    { from: 25, to: 50, color: "#ECC94B" },
+    { from: 50, to: 75, color: "#ED8936" },
+    { from: 75, to: 100, color: "#F56565" }
+  ],
+  style: {
+    bgColor: "transparent",
+    borderColor: "#718096",
+    borderWidth: 0
+  }
+}
+```
+
+### Graph
+
+```js
+{
+  id: "uuid",
+  type: "graph",
+  width: 8,             // segments
+  height: 160,          // pixels
+  x: 0,
+  y: 0,
+  title: "",            // optional title shown in the widget header
+  maxHistory: 200,      // max data points retained per series (default 200)
+  snapshotInterval: 300, // fetch interval in seconds for snapshot series (default 300)
+  series: [             // one entry per data series
+    {
+      id: "uuid",
+      name: "SPY",                      // legend label
+      mode: "live",                     // "live" (SSE/polling) or "snapshot" (periodic fetch)
+      expression: "@{SPY:last:5}",      // placeholder for live; @{SYMBOL:property} for snapshot
+      color: "#4299E1",
+      viewType: "line"                  // "line" or "bars"
+    }
+  ],
+  style: {
+    bgColor: "#1a202c",
+    borderColor: "#4A5568",
+    borderWidth: 1
+  }
+}
+```
+
+**Live series** use any `@{SYMBOL:property:seconds}` expression; the value is sampled into rolling history on each update.
+
+**Snapshot series** use `@{SYMBOL:property}` (no interval) and fetch from `/api/bars/:symbol/:property` on the shared `snapshotInterval`. Use `viewType: "bars"` to show periodic values as a bar chart aligned by index.
+
 ## Component Reference
 
 All widget components share the same props interface:
@@ -263,6 +352,23 @@ Colored circle that reflects a placeholder value.
 
 - Badge color driven by `style.badgeColor` (default) overridden by conditional styles rules
 - Tooltip shows the current resolved value on hover
+
+### TemplatePageGauge
+
+Semicircle speedometer rendering a single numeric placeholder value.
+
+- Arc divided into colored segments defined by `min`/`max`-relative `from`/`to` ranges
+- Needle position tracks the live resolved value; shows `--` when unavailable
+- Title and current value displayed below the arc
+
+### TemplatePageGraph
+
+Multi-series rolling chart that accumulates live or snapshot data points over time.
+
+- **Live series**: samples a placeholder expression on each resolved update into a rolling buffer (`maxHistory` points)
+- **Snapshot series**: periodically fetches `/api/bars/:symbol/:property` and appends bar values
+- Each series can render as `line` or `bars`; multiple series share the same time axis
+- Hover tooltip shows values from all series at the hovered timestamp
 
 ## Adding a New Widget Type
 

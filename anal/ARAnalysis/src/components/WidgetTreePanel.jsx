@@ -5,14 +5,14 @@ const sortByY = (arr) => [...arr].sort((a, b) => (a.y ?? 0) - (b.y ?? 0))
 const sortByX = (arr) => [...arr].sort((a, b) => (a.x ?? 0) - (b.x ?? 0))
 
 const CloseIcon = () => (
-  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
     <line x1="18" y1="6" x2="6" y2="18" />
     <line x1="6" y1="6" x2="18" y2="18" />
   </svg>
 )
 
 const GripIcon = () => (
-  <svg viewBox="0 0 10 14" width="9" height="12" fill="currentColor">
+  <svg viewBox="0 0 10 14" width="11" height="14" fill="currentColor">
     <circle cx="3" cy="3"  r="1.1" />
     <circle cx="7" cy="3"  r="1.1" />
     <circle cx="3" cy="7"  r="1.1" />
@@ -22,11 +22,17 @@ const GripIcon = () => (
   </svg>
 )
 
+const TreeSettingsIcon = () => (
+  <svg viewBox="0 0 14 14" width="16" height="16" fill="currentColor">
+    <path fillRule="evenodd" d="M5.96 1.09A6 6 0 0 1 8.04 1.09L7.78 2.57A4.5 4.5 0 0 1 10.45 4.11L11.60 3.14A6 6 0 0 1 12.64 4.95L11.23 5.46A4.5 4.5 0 0 1 11.23 8.54L12.64 9.05A6 6 0 0 1 11.60 10.86L10.45 9.89A4.5 4.5 0 0 1 7.78 11.43L8.04 12.91A6 6 0 0 1 5.96 12.91L6.22 11.43A4.5 4.5 0 0 1 3.55 9.89L2.40 10.86A6 6 0 0 1 1.36 9.05L2.77 8.54A4.5 4.5 0 0 1 2.77 5.46L1.36 4.95A6 6 0 0 1 2.40 3.14L3.55 4.11A4.5 4.5 0 0 1 6.22 2.57ZM9.3 7A2.3 2.3 0 1 0 4.7 7A2.3 2.3 0 1 0 9.3 7Z" />
+  </svg>
+)
+
 const ChevronIcon = ({ collapsed }) => (
   <svg
     viewBox="0 0 8 8"
-    width="8"
-    height="8"
+    width="10"
+    height="10"
     fill="none"
     stroke="currentColor"
     strokeWidth="1.8"
@@ -40,36 +46,36 @@ const ChevronIcon = ({ collapsed }) => (
 
 const ICONS = {
   label: () => (
-    <svg viewBox="0 0 14 14" width="13" height="13" fill="currentColor">
+    <svg viewBox="0 0 14 14" width="15" height="15" fill="currentColor">
       <text x="1" y="11" fontSize="10" fontFamily="Georgia, serif" fontWeight="bold">T</text>
     </svg>
   ),
   panel: () => (
-    <svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.4">
+    <svg viewBox="0 0 14 14" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.4">
       <rect x="1.5" y="1.5" width="11" height="11" rx="1" />
       <line x1="1.5" y1="5" x2="12.5" y2="5" />
     </svg>
   ),
   badge: () => (
-    <svg viewBox="0 0 14 14" width="13" height="13" fill="currentColor">
+    <svg viewBox="0 0 14 14" width="15" height="15" fill="currentColor">
       <circle cx="7" cy="7" r="4.5" />
     </svg>
   ),
   chart: () => (
-    <svg viewBox="0 0 14 14" width="13" height="13" fill="currentColor">
+    <svg viewBox="0 0 14 14" width="15" height="15" fill="currentColor">
       <rect x="1" y="5" width="2.5" height="8" rx="0.5" />
       <rect x="5.5" y="2" width="2.5" height="11" rx="0.5" />
       <rect x="10" y="7" width="2.5" height="6" rx="0.5" />
     </svg>
   ),
   gauge: () => (
-    <svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+    <svg viewBox="0 0 14 14" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
       <path d="M2.5 11 A5.5 5.5 0 0 1 11.5 11" />
       <line x1="7" y1="11" x2="10" y2="6.5" />
     </svg>
   ),
   graph: () => (
-    <svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <svg viewBox="0 0 14 14" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="1,11 4.5,6.5 8,8.5 13,3" />
     </svg>
   ),
@@ -115,7 +121,7 @@ function DropLine() {
   )
 }
 
-function TreeNode({ widget, siblings, parentId, depth, drag, onDragStart, onDragOver, onDrop, onDragEnd, selectedId, onSelect, collapsedIds, onToggleCollapse }) {
+function TreeNode({ widget, siblings, parentId, depth, drag, onDragStart, onDragOver, onDrop, onDragEnd, selectedId, onSelect, collapsedIds, onToggleCollapse, onOpenSettings }) {
   const Icon = ICONS[widget.type] ?? ICONS.label
   const color = TYPE_COLORS[widget.type] ?? '#A0AEC0'
   const isDragging = drag.id === widget.id
@@ -158,10 +164,10 @@ function TreeNode({ widget, siblings, parentId, depth, drag, onDragStart, onDrag
         role="group"
         display="flex"
         alignItems="center"
-        gap="4px"
-        pl={`${8 + depth * 14}px`}
-        pr="26px"
-        py="4px"
+        gap="6px"
+        pl={`${10 + depth * 16}px`}
+        pr="8px"
+        py="6px"
         cursor="grab"
         draggable
         onDragStart={handleDragStart}
@@ -191,26 +197,35 @@ function TreeNode({ widget, siblings, parentId, depth, drag, onDragStart, onDrag
         <Box color={color} flexShrink={0} lineHeight={0}>
           <Icon />
         </Box>
-        <Text fontSize="12px" color="gray.300" flexShrink={0} lineHeight="1.4">
+        <Text fontSize="13px" color="gray.300" flexShrink={0} lineHeight="1.4">
           {widget.type}
         </Text>
         {info && (
-          <Text fontSize="11px" color="gray.500" flex={1} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap" lineHeight="1.4">
+          <Text fontSize="12px" color="gray.500" flex={1} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap" lineHeight="1.4">
             {info}
           </Text>
         )}
         <Box
-          position="absolute"
-          right="4px"
-          top="50%"
-          transform="translateY(-50%)"
-          color="gray.600"
+          display="flex"
+          alignItems="center"
+          gap="3px"
+          ml="auto"
+          flexShrink={0}
           opacity={0}
           _groupHover={{ opacity: 1 }}
-          lineHeight={0}
-          pointerEvents="none"
         >
-          <GripIcon />
+          <Box
+            as="button"
+            color="gray.600"
+            lineHeight={0}
+            _hover={{ color: 'gray.300' }}
+            onClick={(e) => { e.stopPropagation(); onOpenSettings?.(widget.id) }}
+          >
+            <TreeSettingsIcon />
+          </Box>
+          <Box color="gray.600" lineHeight={0} pointerEvents="none">
+            <GripIcon />
+          </Box>
         </Box>
       </Box>
 
@@ -220,7 +235,7 @@ function TreeNode({ widget, siblings, parentId, depth, drag, onDragStart, onDrag
         <Box position="relative">
           <Box
             position="absolute"
-            left={`${8 + depth * 14 + 3}px`}
+            left={`${10 + depth * 16 + 3}px`}
             top={0}
             bottom="4px"
             width="1px"
@@ -243,6 +258,7 @@ function TreeNode({ widget, siblings, parentId, depth, drag, onDragStart, onDrag
               onSelect={onSelect}
               collapsedIds={collapsedIds}
               onToggleCollapse={onToggleCollapse}
+              onOpenSettings={onOpenSettings}
             />
           ))}
         </Box>
@@ -251,7 +267,7 @@ function TreeNode({ widget, siblings, parentId, depth, drag, onDragStart, onDrag
   )
 }
 
-function WidgetTreePanel({ widgets = [], headerWidgets = [], topOffset = 0, onClose, onReorder }) {
+function WidgetTreePanel({ widgets = [], headerWidgets = [], topOffset = 0, onClose, onReorder, onOpenSettings }) {
   const [selectedId, setSelectedId] = useState(null)
   const [drag, setDrag] = useState({ id: null, parentId: null, overId: null, before: true })
   const [collapsedIds, setCollapsedIds] = useState(new Set())
@@ -302,7 +318,7 @@ function WidgetTreePanel({ widgets = [], headerWidgets = [], topOffset = 0, onCl
       top={`${topOffset}px`}
       right={0}
       bottom={0}
-      width="260px"
+      width="300px"
       bg="gray.800"
       borderLeft="1px solid"
       borderColor="gray.700"
@@ -315,16 +331,16 @@ function WidgetTreePanel({ widgets = [], headerWidgets = [], topOffset = 0, onCl
         display="flex"
         alignItems="center"
         px={3}
-        py="8px"
+        py="10px"
         borderBottom="1px solid"
         borderColor="gray.700"
         flexShrink={0}
         gap={2}
       >
-        <Text fontSize="13px" fontWeight="semibold" color="gray.100" flex={1}>
+        <Text fontSize="14px" fontWeight="semibold" color="gray.100" flex={1}>
           Widget Tree
         </Text>
-        <Text fontSize="11px" color="gray.500">
+        <Text fontSize="12px" color="gray.500">
           {total} {total === 1 ? 'widget' : 'widgets'}
         </Text>
         <IconButton
@@ -333,8 +349,8 @@ function WidgetTreePanel({ widgets = [], headerWidgets = [], topOffset = 0, onCl
           variant="ghost"
           aria-label="Close"
           color="gray.500"
-          minW="22px"
-          h="22px"
+          minW="26px"
+          h="26px"
           _hover={{ color: 'gray.200', bg: 'whiteAlpha.100' }}
           onClick={onClose}
         />
@@ -356,7 +372,7 @@ function WidgetTreePanel({ widgets = [], headerWidgets = [], topOffset = 0, onCl
           <>
             {widgets.length > 0 && (() => { const sorted = sortByY(widgets); return (
               <Box mb={2}>
-                <Text fontSize="10px" fontWeight="600" color="gray.500" textTransform="uppercase" letterSpacing="0.08em" px={3} py="6px">
+                <Text fontSize="11px" fontWeight="600" color="gray.500" textTransform="uppercase" letterSpacing="0.08em" px={3} py="8px">
                   Page · {widgets.length}
                 </Text>
                 {sorted.map(w => (
@@ -375,6 +391,7 @@ function WidgetTreePanel({ widgets = [], headerWidgets = [], topOffset = 0, onCl
                     onSelect={setSelectedId}
                     collapsedIds={collapsedIds}
                     onToggleCollapse={handleToggleCollapse}
+                    onOpenSettings={onOpenSettings}
                   />
                 ))}
               </Box>
@@ -383,8 +400,8 @@ function WidgetTreePanel({ widgets = [], headerWidgets = [], topOffset = 0, onCl
             {headerWidgets.length > 0 && (() => { const sorted = sortByX(headerWidgets); return (
               <Box>
                 <Text
-                  fontSize="10px" fontWeight="600" color="gray.500" textTransform="uppercase" letterSpacing="0.08em"
-                  px={3} pt={widgets.length > 0 ? '10px' : '6px'} pb="6px"
+                  fontSize="11px" fontWeight="600" color="gray.500" textTransform="uppercase" letterSpacing="0.08em"
+                  px={3} pt={widgets.length > 0 ? '12px' : '8px'} pb="8px"
                   borderTop={widgets.length > 0 ? '1px solid' : 'none'} borderColor="gray.700"
                 >
                   Header · {headerWidgets.length}
@@ -405,6 +422,7 @@ function WidgetTreePanel({ widgets = [], headerWidgets = [], topOffset = 0, onCl
                     onSelect={setSelectedId}
                     collapsedIds={collapsedIds}
                     onToggleCollapse={handleToggleCollapse}
+                    onOpenSettings={onOpenSettings}
                   />
                 ))}
               </Box>

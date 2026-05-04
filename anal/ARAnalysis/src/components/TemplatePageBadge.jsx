@@ -53,7 +53,7 @@ const BADGE_CONDITIONAL_FIELDS = [
   { label: 'Border px', key: 'borderWidth', type: 'number', default: 1 },
 ]
 
-function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode }) {
+function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode, openSettingsForId, onSettingsOpened }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -118,6 +118,13 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onExport, onDra
     })
     onOpen()
   }
+
+  useEffect(() => {
+    if (openSettingsForId === label.id) {
+      handleOpenEdit()
+      onSettingsOpened?.()
+    }
+  }, [openSettingsForId])
 
   const handleSaveConfig = () => {
     onUpdate(label.id, {

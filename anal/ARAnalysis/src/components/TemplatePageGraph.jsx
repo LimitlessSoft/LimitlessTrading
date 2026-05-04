@@ -343,7 +343,8 @@ function GraphSVG({ seriesEntries, width, height, tooltipPosition = 'cursor' }) 
 function TemplatePageGraph({
   label, layoutY, onDelete, onUpdate, onExport,
   onDragPreview, onDragStateChange, onMoveWidget,
-  activeDrag, parentPanelId, isEditing, containerRef
+  activeDrag, parentPanelId, isEditing, containerRef,
+  openSettingsForId, onSettingsOpened
 }) {
   const [history, setHistory] = useState(new Map()) // seriesId -> { timestamp, value }[]
   const [containerWidth, setContainerWidth] = useState(0)
@@ -613,6 +614,13 @@ function TemplatePageGraph({
     })
     onOpen()
   }
+
+  useEffect(() => {
+    if (openSettingsForId === label.id) {
+      handleOpenEdit()
+      onSettingsOpened?.()
+    }
+  }, [openSettingsForId])
 
   const handleSaveConfig = () => {
     const hasInvalid = editConfig.series.some(s => s.mode === 'snapshot' && hasEmbeddedInterval(s.expression))

@@ -48,7 +48,7 @@ const DEFAULT_STYLE = {
   verticalAlign: 'top'
 }
 
-function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onLinkSync, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef }) {
+function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onLinkSync, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, openSettingsForId, onSettingsOpened }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -234,6 +234,13 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onLin
     setEditStyle({ ...DEFAULT_STYLE, ...label.style })
     onStyleOpen()
   }
+
+  useEffect(() => {
+    if (openSettingsForId === label.id) {
+      handleOpenStyleEdit()
+      onSettingsOpened?.()
+    }
+  }, [openSettingsForId])
 
   const handleSaveStyle = () => {
     onUpdate(label.id, { style: editStyle })
@@ -564,6 +571,8 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onLin
       parentPanelId: label.id,
       isEditing: isEditing,
       containerRef: childContainerRef,
+      openSettingsForId,
+      onSettingsOpened,
     })
   }
 
@@ -649,6 +658,8 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onLin
       parentPanelId: label.id,
       isEditing,
       containerRef: childContainerRef,
+      openSettingsForId,
+      onSettingsOpened,
     }
 
     const renderCell = (child, i, left, top, width, height) => {

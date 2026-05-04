@@ -429,7 +429,7 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
   )
 })
 
-function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onLinkSync, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef }) {
+function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onLinkSync, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, openSettingsForId, onSettingsOpened }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving,   setIsMoving]   = useState(false)
   const [isPanning,  setIsPanning]  = useState(false)
@@ -972,6 +972,13 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onLinkSync, onE
     setVolMultDraft(String(globalSettings.volumeMultiplier ?? 1))
     onOpen()
   }
+
+  useEffect(() => {
+    if (openSettingsForId === label.id) {
+      handleOpenSettings()
+      onSettingsOpened?.()
+    }
+  }, [openSettingsForId])
 
   const handleSymbolLabelClick = (e) => {
     e.stopPropagation()
