@@ -2,15 +2,15 @@
 
 Limitless Trading is a trading analysis toolkit. It consists of two independent backends and one frontend:
 
-| Component | Stack | Purpose |
-|-----------|-------|---------|
-| **Limitless Trading frontend** | React + Vite | Trading analysis UI |
-| **Limitless Trading backend** | Node.js / Express | IBKR data proxy, user data persistence |
-| **LT Public API** | .NET 9 Web API | Publicly deployed API, hosted on Kubernetes |
+| Component | Stack | Location | Purpose |
+|-----------|-------|----------|---------|
+| **LT Workstation frontend** | React + Vite | `src/LT.Workstation/LT.Workstation.Fe/` | Trading analysis UI |
+| **LT Workstation server** | Node.js / Express | `src/LT.Workstation/LT.Workstation.Server/` | IBKR data proxy, user data persistence |
+| **LT Public API** | .NET 9 Web API | `src/LimitlessTrading/LimitlessTrading.Public/LT.Public.Api/` | Publicly deployed API, hosted on Kubernetes |
 
-**Limitless Trading** (both frontend and backend) runs entirely on the user's local machine. All market data fetched from IBKR, user preferences, watchlists, and route configurations are stored locally and never leave the machine. The Express backend is a local process — there is no remote Limitless Trading server.
+**LT Workstation** (both frontend and server) runs entirely on the user's local machine. All market data fetched from IBKR, user preferences, watchlists, and route configurations are stored locally and never leave the machine. The Express server is a local process — there is no remote Workstation server.
 
-**LT Public API** is the only component deployed to remote infrastructure, hosted on Kubernetes at `api.<env>.aleksaristic.com`. It is an independent service with no access to the local Limitless Trading data.
+**LT Public API** is the only component deployed to remote infrastructure, hosted on Kubernetes at `api.<env>.aleksaristic.com`. It is an independent service with no access to the local Workstation data.
 
 ## Data Source Support
 

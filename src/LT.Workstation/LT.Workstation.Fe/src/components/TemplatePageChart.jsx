@@ -36,6 +36,13 @@ const DownloadIcon = () => (
     <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 4v-2h14v2H5z" />
   </svg>
 )
+
+const DuplicateIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+    <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
+  </svg>
+)
+
 import { useDeleteConfirm } from '../hooks/useDeleteConfirm'
 import { fetchFromCache, loadHistoricalData, refreshRecentData, fetchOlderData, clearAllCache, cacheNeedsRefresh, INTERVALS } from '../modules/dataService'
 import { subscribeQuote, subscribeSSEStatus } from '../modules/symbolQuoteService'
@@ -573,7 +580,7 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
   )
 })
 
-function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onLinkSync, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, openSettingsForId, onSettingsOpened }) {
+function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, onLinkSync, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, openSettingsForId, onSettingsOpened }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving,   setIsMoving]   = useState(false)
   const [isPanning,  setIsPanning]  = useState(false)
@@ -1358,6 +1365,18 @@ function TemplatePageChart({ label, layoutY, onDelete, onUpdate, onLinkSync, onE
                   color="gray.400"
                   _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
                   onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                />
+              </Tooltip>
+              <Tooltip label="Duplicate chart" placement="top" hasArrow>
+                <IconButton
+                  icon={<DuplicateIcon />}
+                  size="xs"
+                  variant="ghost"
+                  aria-label="Duplicate chart"
+                  color="gray.400"
+                  _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
+                  onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
                   onMouseDown={(e) => e.stopPropagation()}
                 />
               </Tooltip>

@@ -44,6 +44,12 @@ const DownloadIcon = () => (
   </svg>
 )
 
+const DuplicateIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+    <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
+  </svg>
+)
+
 const TOTAL_SEGMENTS = 20
 const MIN_SEGMENTS = 4
 const MIN_HEIGHT = 100
@@ -341,7 +347,7 @@ function GraphSVG({ seriesEntries, width, height, tooltipPosition = 'cursor' }) 
 }
 
 function TemplatePageGraph({
-  label, layoutY, onDelete, onUpdate, onExport,
+  label, layoutY, onDelete, onDuplicate, onUpdate, onExport,
   onDragPreview, onDragStateChange, onMoveWidget,
   activeDrag, parentPanelId, isEditing, containerRef,
   openSettingsForId, onSettingsOpened
@@ -786,6 +792,12 @@ function TemplatePageGraph({
                   color={label.dock === 'fill' ? 'blue.300' : 'gray.400'}
                   _hover={{ color: label.dock === 'fill' ? 'blue.200' : 'white', bg: 'whiteAlpha.200' }}
                   onClick={(e) => { e.stopPropagation(); onUpdate(label.id, { dock: label.dock === 'fill' ? undefined : 'fill' }) }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                />
+              </Tooltip>
+              <Tooltip label="Duplicate graph" placement="top" hasArrow>
+                <IconButton icon={<DuplicateIcon />} size="xs" variant="ghost" aria-label="Duplicate graph"
+                  onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
                   onMouseDown={(e) => e.stopPropagation()}
                 />
               </Tooltip>

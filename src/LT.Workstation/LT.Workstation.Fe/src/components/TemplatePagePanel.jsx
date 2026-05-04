@@ -29,6 +29,13 @@ const DownloadIcon = () => (
     <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 4v-2h14v2H5z" />
   </svg>
 )
+
+const DuplicateIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+    <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
+  </svg>
+)
+
 import { useDeleteConfirm } from '../hooks/useDeleteConfirm'
 import WidgetsGalleryModal from './WidgetsGalleryModal'
 import { WIDGET_REGISTRY, createWidget, renderWidget } from './widgetRenderer'
@@ -48,7 +55,7 @@ const DEFAULT_STYLE = {
   verticalAlign: 'top'
 }
 
-function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onLinkSync, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, openSettingsForId, onSettingsOpened }) {
+function TemplatePagePanel({ label, layoutY, onDelete, onDuplicate, onUpdate, onExport, onLinkSync, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, openSettingsForId, onSettingsOpened }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -259,9 +266,22 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onLin
     onAddClose()
   }
 
+  const regenerateIds = (widget) => {
+    const result = { ...widget, id: crypto.randomUUID() }
+    if (result.children) result.children = result.children.map(regenerateIds)
+    return result
+  }
+
   const handleDeleteChild = (childId) => {
     const updatedChildren = children.filter(c => c.id !== childId)
     onUpdate(label.id, { children: updatedChildren })
+  }
+
+  const handleDuplicateChild = (childId) => {
+    const original = children.find(c => c.id === childId)
+    if (!original) return
+    const clone = { ...regenerateIds(original), y: (original.y || 0) + 0.5 }
+    onUpdate(label.id, { children: [...children, clone] })
   }
 
   const handleUpdateChild = (childId, changes) => {
@@ -562,6 +582,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onLin
       label: effectiveOverride ? { ...child, ...effectiveOverride } : child,
       layoutY: layout.layoutY,
       onDelete: handleDeleteChild,
+      onDuplicate: handleDuplicateChild,
       onUpdate: layoutMode !== 'absolute' ? handleUpdateChildInLayout : handleUpdateChild,
       onExport: onExport,
       onLinkSync: onLinkSync,
@@ -649,6 +670,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onLin
     const cellGap = gap
     const childProps = {
       onDelete: handleDeleteChild,
+      onDuplicate: handleDuplicateChild,
       onUpdate: handleUpdateChildInLayout,
       onExport,
       onLinkSync,
@@ -789,6 +811,15 @@ function TemplatePagePanel({ label, layoutY, onDelete, onUpdate, onExport, onLin
             aria-label="Edit panel style"
             onClick={(e) => { e.stopPropagation(); handleOpenStyleEdit() }}
           />
+          <Tooltip label="Duplicate panel" placement="top" hasArrow>
+            <IconButton
+              icon={<DuplicateIcon />}
+              size="xs"
+              variant="ghost"
+              aria-label="Duplicate panel"
+              onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+            />
+          </Tooltip>
           <IconButton
             icon={<CloseIcon />}
             size="xs"

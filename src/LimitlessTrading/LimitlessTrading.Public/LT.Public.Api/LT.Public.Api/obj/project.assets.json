@@ -13,11 +13,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/home/parpil/source/ARTradingTools/AR.Public.Api/AR.Public.Api/AR.Public.Api.csproj",
-      "projectName": "AR.Public.Api",
-      "projectPath": "/home/parpil/source/ARTradingTools/AR.Public.Api/AR.Public.Api/AR.Public.Api.csproj",
+      "projectUniqueName": "/home/parpil/source/LimitlessTrading/src/LimitlessTrading/LimitlessTrading.Public/LT.Public.Api/LT.Public.Api/LT.Public.Api.csproj",
+      "projectName": "LT.Public.Api",
+      "projectPath": "/home/parpil/source/LimitlessTrading/src/LimitlessTrading/LimitlessTrading.Public/LT.Public.Api/LT.Public.Api/LT.Public.Api.csproj",
       "packagesPath": "/home/parpil/.nuget/packages/",
-      "outputPath": "/home/parpil/source/ARTradingTools/AR.Public.Api/AR.Public.Api/obj/",
+      "outputPath": "/home/parpil/source/LimitlessTrading/src/LimitlessTrading/LimitlessTrading.Public/LT.Public.Api/LT.Public.Api/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "/home/parpil/.nuget/NuGet/NuGet.Config"

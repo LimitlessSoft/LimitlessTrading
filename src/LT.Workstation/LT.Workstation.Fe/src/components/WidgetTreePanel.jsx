@@ -28,6 +28,12 @@ const TreeSettingsIcon = () => (
   </svg>
 )
 
+const TreeDuplicateIcon = () => (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+    <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
+  </svg>
+)
+
 const ChevronIcon = ({ collapsed }) => (
   <svg
     viewBox="0 0 8 8"
@@ -121,7 +127,7 @@ function DropLine() {
   )
 }
 
-function TreeNode({ widget, siblings, parentId, depth, drag, onDragStart, onDragOver, onDrop, onDragEnd, selectedId, onSelect, collapsedIds, onToggleCollapse, onOpenSettings }) {
+function TreeNode({ widget, siblings, parentId, depth, drag, onDragStart, onDragOver, onDrop, onDragEnd, selectedId, onSelect, collapsedIds, onToggleCollapse, onOpenSettings, onDuplicate }) {
   const Icon = ICONS[widget.type] ?? ICONS.label
   const color = TYPE_COLORS[widget.type] ?? '#A0AEC0'
   const isDragging = drag.id === widget.id
@@ -219,6 +225,15 @@ function TreeNode({ widget, siblings, parentId, depth, drag, onDragStart, onDrag
             color="gray.600"
             lineHeight={0}
             _hover={{ color: 'gray.300' }}
+            onClick={(e) => { e.stopPropagation(); onDuplicate?.(widget.id) }}
+          >
+            <TreeDuplicateIcon />
+          </Box>
+          <Box
+            as="button"
+            color="gray.600"
+            lineHeight={0}
+            _hover={{ color: 'gray.300' }}
             onClick={(e) => { e.stopPropagation(); onOpenSettings?.(widget.id) }}
           >
             <TreeSettingsIcon />
@@ -259,6 +274,7 @@ function TreeNode({ widget, siblings, parentId, depth, drag, onDragStart, onDrag
               collapsedIds={collapsedIds}
               onToggleCollapse={onToggleCollapse}
               onOpenSettings={onOpenSettings}
+              onDuplicate={onDuplicate}
             />
           ))}
         </Box>
@@ -267,7 +283,7 @@ function TreeNode({ widget, siblings, parentId, depth, drag, onDragStart, onDrag
   )
 }
 
-function WidgetTreePanel({ widgets = [], headerWidgets = [], topOffset = 0, onClose, onReorder, onOpenSettings }) {
+function WidgetTreePanel({ widgets = [], headerWidgets = [], topOffset = 0, onClose, onReorder, onOpenSettings, onDuplicate }) {
   const [selectedId, setSelectedId] = useState(null)
   const [drag, setDrag] = useState({ id: null, parentId: null, overId: null, before: true })
   const [collapsedIds, setCollapsedIds] = useState(new Set())
@@ -392,6 +408,7 @@ function WidgetTreePanel({ widgets = [], headerWidgets = [], topOffset = 0, onCl
                     collapsedIds={collapsedIds}
                     onToggleCollapse={handleToggleCollapse}
                     onOpenSettings={onOpenSettings}
+                    onDuplicate={onDuplicate}
                   />
                 ))}
               </Box>
@@ -423,6 +440,7 @@ function WidgetTreePanel({ widgets = [], headerWidgets = [], topOffset = 0, onCl
                     collapsedIds={collapsedIds}
                     onToggleCollapse={handleToggleCollapse}
                     onOpenSettings={onOpenSettings}
+                    onDuplicate={onDuplicate}
                   />
                 ))}
               </Box>

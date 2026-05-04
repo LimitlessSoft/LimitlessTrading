@@ -19,6 +19,7 @@ public class LicenseController(IHttpClientFactory httpClientFactory, IConfigurat
 
         var apiKey = config["Polar:ApiKey"];
         var benefitId = config["Polar:BenefitId"];
+        var organizationId = config["Polar:OrganizationId"];
 
         if (string.IsNullOrWhiteSpace(apiKey))
             return StatusCode(503, new { error = "License validation not configured" });
@@ -26,6 +27,8 @@ public class LicenseController(IHttpClientFactory httpClientFactory, IConfigurat
         var payload = new Dictionary<string, string?> { ["key"] = request.Key };
         if (!string.IsNullOrWhiteSpace(benefitId))
             payload["benefit_id"] = benefitId;
+        if (!string.IsNullOrWhiteSpace(organizationId))
+            payload["organization_id"] = organizationId;
 
         var json = JsonSerializer.Serialize(payload);
         var content = new StringContent(json, Encoding.UTF8, "application/json");

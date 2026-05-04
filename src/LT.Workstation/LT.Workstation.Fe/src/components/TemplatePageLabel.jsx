@@ -33,6 +33,13 @@ const DownloadIcon = () => (
     <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 4v-2h14v2H5z" />
   </svg>
 )
+
+const DuplicateIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+    <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
+  </svg>
+)
+
 import { useNavigate } from 'react-router-dom'
 
 const TOTAL_SEGMENTS = 20
@@ -52,7 +59,7 @@ const DEFAULT_STYLE = {
   verticalAlign: 'top'
 }
 
-function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode, openSettingsForId, onSettingsOpened }) {
+function TemplatePageLabel({ label, layoutY, onDelete, onDuplicate, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode, openSettingsForId, onSettingsOpened }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -582,6 +589,17 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
                 onMouseDown={(e) => e.stopPropagation()}
                 ml={1}
               />
+              <Tooltip label="Duplicate label" placement="top" hasArrow>
+                <IconButton
+                  icon={<DuplicateIcon />}
+                  size="xs"
+                  variant="ghost"
+                  aria-label="Duplicate label"
+                  onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  ml={1}
+                />
+              </Tooltip>
               <IconButton
                 icon={<CloseIcon />}
                 size="xs"
@@ -679,6 +697,18 @@ function TemplatePageLabel({ label, layoutY, onDelete, onUpdate, onExport, onDra
               ml={1}
               flexShrink={0}
             />
+            <Tooltip label="Duplicate label" placement="top" hasArrow>
+              <IconButton
+                icon={<DuplicateIcon />}
+                size="xs"
+                variant="ghost"
+                aria-label="Duplicate label"
+                onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+                onMouseDown={(e) => e.stopPropagation()}
+                ml={1}
+                flexShrink={0}
+              />
+            </Tooltip>
             <IconButton
               icon={<CloseIcon />}
               size="xs"

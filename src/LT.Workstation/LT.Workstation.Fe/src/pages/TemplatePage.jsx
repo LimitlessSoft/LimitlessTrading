@@ -175,6 +175,21 @@ function TemplatePage() {
     }
   }
 
+  const handleDuplicateLabel = async (labelId) => {
+    if (!pageInfo) return
+    try {
+      const currentLabels = pageInfo.config?.labels || []
+      const original = currentLabels.find(l => l.id === labelId)
+      if (!original) return
+      const clone = { ...regenerateIds(original), y: (original.y || 0) + 0.5 }
+      const updatedConfig = { ...pageInfo.config, labels: [...currentLabels, clone] }
+      const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
+      setPageInfo(updatedRoute)
+    } catch (err) {
+      toast({ title: 'Failed to duplicate widget', status: 'error', duration: 3000 })
+    }
+  }
+
   // Sync a linked property across all widgets that share the same linkGroup.
   // linkedChanges: applied to every widget in the group (e.g. { symbol: 'AAPL' })
   // sourceId / sourceExtraChanges: non-linked per-source changes (e.g. { interval, outsideRTH })
@@ -483,6 +498,54 @@ function TemplatePage() {
     }
   }
 
+  const handleDuplicateHeaderWidget = async (widgetId) => {
+    if (!pageInfo) return
+    try {
+      const original = headerControls.find(c => c.id === widgetId)
+      if (!original) return
+      const clone = { ...regenerateIds(original), x: (original.x || 0) + 0.5 }
+      const updatedConfig = { ...pageInfo.config, headerControls: [...headerControls, clone] }
+      const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
+      setPageInfo(updatedRoute)
+    } catch (err) {
+      toast({ title: 'Failed to duplicate widget', status: 'error', duration: 3000 })
+    }
+  }
+
+  const handleDuplicateFromTree = async (widgetId) => {
+    if (!pageInfo) return
+    try {
+      if (headerControls.some(c => c.id === widgetId)) {
+        await handleDuplicateHeaderWidget(widgetId)
+        return
+      }
+      const dupeInTree = (widgets) => {
+        for (const w of widgets) {
+          if (w.id === widgetId) {
+            const clone = { ...regenerateIds(w), y: (w.y || 0) + 0.5 }
+            return [...widgets, clone]
+          }
+          if (w.children) {
+            const updatedChildren = dupeInTree(w.children)
+            if (updatedChildren !== w.children) {
+              return widgets.map(item => item.id === w.id ? { ...w, children: updatedChildren } : item)
+            }
+          }
+        }
+        return widgets
+      }
+      const currentLabels = pageInfo.config?.labels || []
+      const updatedLabels = dupeInTree(currentLabels)
+      if (updatedLabels !== currentLabels) {
+        const updatedConfig = { ...pageInfo.config, labels: updatedLabels }
+        const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
+        setPageInfo(updatedRoute)
+      }
+    } catch (err) {
+      toast({ title: 'Failed to duplicate widget', status: 'error', duration: 3000 })
+    }
+  }
+
   const handleUpdateHeaderWidget = async (widgetId, changes) => {
     if (!pageInfo) return
     try {
@@ -503,6 +566,7 @@ function TemplatePage() {
       key: widget.id,
       label: widget,
       onDelete: handleDeleteHeaderWidget,
+      onDuplicate: handleDuplicateHeaderWidget,
       onUpdate: handleUpdateHeaderWidget,
       onExport: handleExportWidget,
       onLinkSync: handleLinkSync,
@@ -640,6 +704,7 @@ function TemplatePage() {
                 label: effectiveLabel,
                 layoutY: flowPos.y,
                 onDelete: handleDeleteLabel,
+                onDuplicate: handleDuplicateLabel,
                 onUpdate: handleUpdateLabel,
                 onExport: handleExportWidget,
                 onLinkSync: handleLinkSync,
@@ -702,6 +767,7 @@ function TemplatePage() {
           onClose={() => setIsTreeOpen(false)}
           onReorder={handleReorderWidgets}
           onOpenSettings={handleOpenSettingsFromTree}
+          onDuplicate={handleDuplicateFromTree}
         />
       )}
 

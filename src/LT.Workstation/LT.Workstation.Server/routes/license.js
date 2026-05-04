@@ -9,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const DATA_PATH = join(__dirname, '../data/user-data.json')
 
-const PUBLIC_API_URL = process.env.AR_PUBLIC_API_URL || 'https://api.production.aleksaristic.com'
+const PUBLIC_API_URL = process.env.AR_PUBLIC_API_URL || 'http://localhost:5096'
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
 
 // In-memory cache so a brief Polar outage never locks out a paying user

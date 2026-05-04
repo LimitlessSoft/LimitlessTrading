@@ -1,0 +1,365 @@
+- generic [active] [ref=e1]:
+  - region "Notifications Alt+T"
+  - navigation [ref=e2]:
+    - link "LimitlessSoft" [ref=e3]:
+      - /url: /en
+    - list [ref=e4]:
+      - listitem [ref=e5]:
+        - link "Services" [ref=e6]:
+          - /url: "#svc"
+          - text: Services
+          - img [ref=e7]
+      - listitem [ref=e9]:
+        - link "About" [ref=e10]:
+          - /url: "#why"
+      - listitem [ref=e11]:
+        - link "Clients" [ref=e12]:
+          - /url: "#cli"
+      - listitem [ref=e13]:
+        - link "Applications" [ref=e14]:
+          - /url: "#"
+          - text: Applications
+          - img [ref=e15]
+    - generic [ref=e17]:
+      - button "SR" [ref=e18]
+      - button "◐" [ref=e19]
+      - link "Contact" [ref=e20]:
+        - /url: "#cta"
+  - generic:
+    - generic:
+      - generic:
+        - button "Services":
+          - text: Services
+          - img
+        - generic:
+          - link "Process Automation":
+            - /url: /en/services/process-automation
+          - link "AI‑Powered Tools":
+            - /url: /en/services/ai-powered-tools
+          - link "Cloud Infrastructure":
+            - /url: /en/services/cloud-infrastructure
+          - link "Third‑Party Integrations":
+            - /url: /en/services/third-party-integrations
+          - link "Multi‑Platform Apps":
+            - /url: /en/services/multi-platform-apps
+          - link "SMS Gateway":
+            - /url: /en/services/sms-gateway
+      - link "About":
+        - /url: "#why"
+      - link "Clients":
+        - /url: "#cli"
+      - generic: Applications
+      - link "Client area":
+        - /url: http://client.limitlesssoft.com
+      - link "Business":
+        - /url: https://poslovanje.limitlesssoft.com
+      - generic:
+        - button "SR"
+        - button "◐"
+        - link "Contact":
+          - /url: "#cta"
+  - generic [ref=e21]:
+    - generic [ref=e22]: Belgrade, Serbia — Software Engineering
+    - generic [ref=e23]: 01 / 05
+    - heading "Your Business Automated Without Limits" [level=1] [ref=e24]:
+      - generic [ref=e26]: Your
+      - generic [ref=e28]: Business
+      - generic [ref=e30]: Automated
+      - generic [ref=e32]: Without Limits
+    - generic [ref=e33]:
+      - paragraph [ref=e34]: We build software that eliminates manual work and accelerates your operations — tailored exactly to your business.
+      - generic [ref=e35]:
+        - generic [ref=e36]:
+          - generic [ref=e37]: 8+
+          - generic [ref=e38]: Years
+        - generic [ref=e39]:
+          - generic [ref=e40]: 2.5K
+          - generic [ref=e41]: Clients
+        - generic [ref=e42]:
+          - generic [ref=e43]: 400K
+          - generic [ref=e44]: Automated
+    - generic [ref=e47]: Scroll
+  - generic [ref=e49]:
+    - generic [ref=e50]: Zoom
+    - generic [ref=e52]: Gong
+    - generic [ref=e54]: Envu
+    - generic [ref=e56]: Neurala
+    - generic [ref=e58]: SonicWall
+    - generic [ref=e60]: Termodom
+    - generic [ref=e62]: Udemy
+    - generic [ref=e64]: Distek
+    - generic [ref=e66]: Yelp
+    - generic [ref=e68]: Zoom
+    - generic [ref=e70]: Gong
+    - generic [ref=e72]: Envu
+    - generic [ref=e74]: Neurala
+    - generic [ref=e76]: SonicWall
+    - generic [ref=e78]: Termodom
+    - generic [ref=e80]: Udemy
+    - generic [ref=e82]: Distek
+    - generic [ref=e84]: Yelp
+    - generic [ref=e86]: Zoom
+    - generic [ref=e88]: Gong
+    - generic [ref=e90]: Envu
+    - generic [ref=e92]: Neurala
+    - generic [ref=e94]: SonicWall
+    - generic [ref=e96]: Termodom
+    - generic [ref=e98]: Udemy
+    - generic [ref=e100]: Distek
+    - generic [ref=e102]: Yelp
+    - generic [ref=e104]: Zoom
+    - generic [ref=e106]: Gong
+    - generic [ref=e108]: Envu
+    - generic [ref=e110]: Neurala
+    - generic [ref=e112]: SonicWall
+    - generic [ref=e114]: Termodom
+    - generic [ref=e116]: Udemy
+    - generic [ref=e118]: Distek
+    - generic [ref=e120]: Yelp
+  - paragraph [ref=e124]:
+    - text: Every business loses hours every week to tasks that should not exist. Our job is to
+    - strong [ref=e125]: give those hours back
+    - text: — through software that understands how your business actually works.
+  - generic [ref=e127]:
+    - generic [ref=e128]:
+      - generic [ref=e129]: Why Us
+      - heading "The difference" [level=3] [ref=e130]:
+        - text: The
+        - text: difference
+      - generic [ref=e131]:
+        - generic [ref=e132]: "01"
+        - generic [ref=e133]:
+          - generic [ref=e134]: Tailored, not templated
+          - paragraph [ref=e135]: We start from your problem. Every solution is unique.
+      - generic [ref=e136]:
+        - generic [ref=e137]: "02"
+        - generic [ref=e138]:
+          - generic [ref=e139]: Seniors at every level
+          - paragraph [ref=e140]: The team that builds your system also scopes and supports it — no middlemen.
+      - generic [ref=e141]:
+        - generic [ref=e142]: "03"
+        - generic [ref=e143]:
+          - generic [ref=e144]: Long-term partnership
+          - paragraph [ref=e145]: Fast delivery, then ongoing support as your system grows.
+    - generic [ref=e146]:
+      - generic [ref=e147]: Platforms
+      - heading "Runs on everything" [level=3] [ref=e148]:
+        - text: Runs on
+        - text: everything
+      - generic [ref=e149]:
+        - generic [ref=e150]: Windows
+        - generic [ref=e151]: macOS
+        - generic [ref=e152]: Linux
+        - generic [ref=e153]: iOS
+        - generic [ref=e154]: Android
+        - generic [ref=e155]: Web
+  - generic [ref=e157]:
+    - generic [ref=e158]:
+      - generic [ref=e159]:
+        - generic [ref=e160]: What We Do
+        - heading "Our Services" [level=2] [ref=e161]
+      - paragraph [ref=e162]: Tools that tackle exactly what holds your business back — from automation to AI integrations and cloud infrastructure.
+    - link "01 Process Automation Workflow · RPA ↗" [ref=e163]:
+      - /url: /en/services/process-automation
+      - generic [ref=e164]: "01"
+      - generic [ref=e165]: Process Automation
+      - generic [ref=e166]: Workflow · RPA
+      - generic [ref=e167]: ↗
+    - link "02 AI‑Powered Tools LLM · ML ↗" [ref=e168]:
+      - /url: /en/services/ai-powered-tools
+      - generic [ref=e169]: "02"
+      - generic [ref=e170]: AI‑Powered Tools
+      - generic [ref=e171]: LLM · ML
+      - generic [ref=e172]: ↗
+    - link "03 Cloud Infrastructure AWS · Kubernetes ↗" [ref=e173]:
+      - /url: /en/services/cloud-infrastructure
+      - generic [ref=e174]: "03"
+      - generic [ref=e175]: Cloud Infrastructure
+      - generic [ref=e176]: AWS · Kubernetes
+      - generic [ref=e177]: ↗
+    - link "04 Third‑Party Integrations API · Plugins ↗" [ref=e178]:
+      - /url: /en/services/third-party-integrations
+      - generic [ref=e179]: "04"
+      - generic [ref=e180]: Third‑Party Integrations
+      - generic [ref=e181]: API · Plugins
+      - generic [ref=e182]: ↗
+    - link "05 Multi‑Platform Apps Web · Desktop · Mobile ↗" [ref=e183]:
+      - /url: /en/services/multi-platform-apps
+      - generic [ref=e184]: "05"
+      - generic [ref=e185]: Multi‑Platform Apps
+      - generic [ref=e186]: Web · Desktop · Mobile
+      - generic [ref=e187]: ↗
+    - link "06 SMS Gateway GSM · Bulk SMS ↗" [ref=e188]:
+      - /url: /en/services/sms-gateway
+      - generic [ref=e189]: "06"
+      - generic [ref=e190]: SMS Gateway
+      - generic [ref=e191]: GSM · Bulk SMS
+      - generic [ref=e192]: ↗
+  - generic [ref=e194]:
+    - generic [ref=e195]: Clients
+    - heading "What They Say" [level=2] [ref=e196]
+    - generic [ref=e197]:
+      - generic [ref=e198]:
+        - paragraph [ref=e199]: "\"The LimitlessSoft team was incredibly understanding and tailored every solution to our exact needs. Their suggestions saved us money, and custom tools were delivered fast.\""
+        - generic [ref=e200]:
+          - generic [ref=e201]: JT
+          - generic [ref=e202]:
+            - generic [ref=e203]: Joshua Timothy
+            - generic [ref=e204]: Operations Manager, Habitat
+      - generic [ref=e205]:
+        - generic [ref=e206]: 2.5K+
+        - paragraph [ref=e207]: "\"Building software that enhances our existing solution was a great decision. We now have a system fully adapted to our needs.\""
+        - generic [ref=e208]:
+          - generic [ref=e209]: SR
+          - generic [ref=e210]:
+            - generic [ref=e211]: Saša Ristić
+            - generic [ref=e212]: CEO, Termodom
+      - generic [ref=e213]:
+        - paragraph [ref=e214]: "\"Their expertise in process automation saved our team hundreds of hours each month. The integration with our existing systems was seamless.\""
+        - generic [ref=e215]:
+          - generic [ref=e216]: MC
+          - generic [ref=e217]:
+            - generic [ref=e218]: Maria Chen
+            - generic [ref=e219]: CTO, NovaPulse Labs
+      - generic [ref=e220]:
+        - generic [ref=e221]: 40%
+        - paragraph [ref=e222]: "\"We saw a 40% reduction in operational costs within the first quarter of deploying LimitlessSoft's solution. The ROI was immediate.\""
+        - generic [ref=e223]:
+          - generic [ref=e224]: DK
+          - generic [ref=e225]:
+            - generic [ref=e226]: Daniel Kowalski
+            - generic [ref=e227]: CFO, Nexigen
+      - generic [ref=e228]:
+        - paragraph [ref=e229]: "\"The mobile app they built exceeded every expectation. Our users love the performance and the design is exactly what we envisioned.\""
+        - generic [ref=e230]:
+          - generic [ref=e231]: PS
+          - generic [ref=e232]:
+            - generic [ref=e233]: Priya Sharma
+            - generic [ref=e234]: Product Lead, Elara Health
+      - generic [ref=e235]:
+        - paragraph [ref=e236]: "\"From day one the team communicated clearly and delivered on every promise. I couldn't ask for a better development partner.\""
+        - generic [ref=e237]:
+          - generic [ref=e238]: MW
+          - generic [ref=e239]:
+            - generic [ref=e240]: Marcus Webb
+            - generic [ref=e241]: Founder, Stackly
+      - generic [ref=e242]:
+        - generic [ref=e243]: 3X
+        - paragraph [ref=e244]: "\"We tripled our team's output after implementing the custom workflow tools LimitlessSoft engineered for us. Game changer.\""
+        - generic [ref=e245]:
+          - generic [ref=e246]: LF
+          - generic [ref=e247]:
+            - generic [ref=e248]: Lena Fischer
+            - generic [ref=e249]: Head of Engineering, Crevato
+      - generic [ref=e250]:
+        - paragraph [ref=e251]: "\"Their AI-powered recommendation engine transformed how our customers engage with the platform. Revenue grew significantly in just months.\""
+        - generic [ref=e252]:
+          - generic [ref=e253]: JO
+          - generic [ref=e254]:
+            - generic [ref=e255]: James O'Brien
+            - generic [ref=e256]: CEO, Vaultify
+      - generic [ref=e257]:
+        - paragraph [ref=e258]: "\"We needed a complex third-party integration done right. LimitlessSoft nailed it and supported us every step of the way.\""
+        - generic [ref=e259]:
+          - generic [ref=e260]: AD
+          - generic [ref=e261]:
+            - generic [ref=e262]: Amina Diallo
+            - generic [ref=e263]: VP Technology, Cirrus Systems
+      - generic [ref=e264]:
+        - generic [ref=e265]: 98%
+        - paragraph [ref=e266]: "\"Our client satisfaction score hit 98% after launching the customer portal LimitlessSoft built for us. Truly outstanding work.\""
+        - generic [ref=e267]:
+          - generic [ref=e268]: TN
+          - generic [ref=e269]:
+            - generic [ref=e270]: Tomáš Novák
+            - generic [ref=e271]: Director of Operations, Fenyx
+      - generic [ref=e272]:
+        - paragraph [ref=e273]: "\"The development process was transparent and collaborative. They didn't just write code — they genuinely cared about the outcome.\""
+        - generic [ref=e274]:
+          - generic [ref=e275]: SL
+          - generic [ref=e276]:
+            - generic [ref=e277]: Sophie Laurent
+            - generic [ref=e278]: Co-Founder, Brightpath
+      - generic [ref=e279]:
+        - paragraph [ref=e280]: "\"LimitlessSoft helped us modernize a legacy system we thought was untouchable. The result is faster, cleaner, and our team loves it.\""
+        - generic [ref=e281]:
+          - generic [ref=e282]: RM
+          - generic [ref=e283]:
+            - generic [ref=e284]: Raj Mehta
+            - generic [ref=e285]: IT Director, Meridian Group
+  - generic [ref=e287]:
+    - heading "Let's Build Together." [level=2] [ref=e289]:
+      - text: Let's
+      - text: Build
+      - text: Together.
+    - generic [ref=e290]:
+      - link "office@limitlesssoft.com ↗" [ref=e291]:
+        - /url: mailto:office@limitlesssoft.com
+        - generic [ref=e292]: office@limitlesssoft.com
+        - generic [ref=e293]: ↗
+      - link "+381 69 369 1472 ↗" [ref=e294]:
+        - /url: tel:+381693691472
+        - generic [ref=e295]: +381 69 369 1472
+        - generic [ref=e296]: ↗
+      - link "Send Inquiry" [ref=e297]:
+        - /url: mailto:office@limitlesssoft.com
+        - generic [ref=e298]: Send Inquiry
+        - img [ref=e299]
+  - contentinfo [ref=e301]:
+    - generic [ref=e302]:
+      - generic [ref=e303]:
+        - generic [ref=e304]: LimitlessSoft
+        - paragraph [ref=e305]: We simplify business operations, one at a time. LIMITLESSSOFT DOO, Belgrade, Serbia.
+        - link "office@limitlesssoft.com" [ref=e306]:
+          - /url: mailto:office@limitlesssoft.com
+        - generic [ref=e307]:
+          - paragraph [ref=e308]: Aktivno privredno društvo
+          - paragraph [ref=e309]: "Matični broj: 22064568"
+          - paragraph [ref=e310]: "PIB: 114747341 (AKTIVAN)"
+          - paragraph [ref=e311]: "Delatnost: Računarsko programiranje"
+          - paragraph [ref=e312]: Valterova 19, Beograd (Zvezdara)
+      - generic [ref=e313]:
+        - generic [ref=e314]: Navigation
+        - list [ref=e315]:
+          - listitem [ref=e316]:
+            - link "Home" [ref=e317]:
+              - /url: "#home"
+          - listitem [ref=e318]:
+            - link "Services" [ref=e319]:
+              - /url: "#svc"
+          - listitem [ref=e320]:
+            - link "About" [ref=e321]:
+              - /url: "#why"
+          - listitem [ref=e322]:
+            - link "Clients" [ref=e323]:
+              - /url: "#cli"
+      - generic [ref=e324]:
+        - generic [ref=e325]: Support
+        - list [ref=e326]:
+          - listitem [ref=e327]:
+            - link "Contact" [ref=e328]:
+              - /url: "#cta"
+          - listitem [ref=e329]:
+            - link "Community" [ref=e330]:
+              - /url: https://discord.gg/g7UKPsxe
+          - listitem [ref=e331]:
+            - link "Help Center" [ref=e332]:
+              - /url: "#"
+      - generic [ref=e333]:
+        - generic [ref=e334]: Legal
+        - list [ref=e335]:
+          - listitem [ref=e336]:
+            - link "Terms of Use" [ref=e337]:
+              - /url: /en/terms-and-conditions
+          - listitem [ref=e338]:
+            - link "Privacy Policy" [ref=e339]:
+              - /url: "#"
+    - generic [ref=e340]:
+      - generic [ref=e341]: © 2025 LIMITLESSSOFT DOO · ALL RIGHTS RESERVED
+      - generic [ref=e342]:
+        - link "Terms" [ref=e343]:
+          - /url: /en/terms-and-conditions
+        - link "Privacy" [ref=e344]:
+          - /url: "#"
+        - link "Discord" [ref=e345]:
+          - /url: https://discord.gg/g7UKPsxe

@@ -32,6 +32,12 @@ const DownloadIcon = () => (
   </svg>
 )
 
+const DuplicateIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+    <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
+  </svg>
+)
+
 const TOTAL_SEGMENTS = 20
 const MIN_SEGMENTS = 2
 const MIN_HEIGHT = 60
@@ -180,7 +186,7 @@ function GaugeSVG({ value, min, max, segments, title, showText = true }) {
 }
 
 
-function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode, openSettingsForId, onSettingsOpened }) {
+function TemplatePageGauge({ label, layoutY, onDelete, onDuplicate, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode, openSettingsForId, onSettingsOpened }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -487,6 +493,11 @@ function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDra
                 <IconButton icon={<SettingsIcon />} size="xs" variant="ghost" aria-label="Edit gauge"
                   onClick={(e) => { e.stopPropagation(); handleOpenEdit() }}
                   onMouseDown={(e) => e.stopPropagation()} ml={1} />
+                <Tooltip label="Duplicate gauge" placement="top" hasArrow>
+                  <IconButton icon={<DuplicateIcon />} size="xs" variant="ghost" aria-label="Duplicate gauge"
+                    onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+                    onMouseDown={(e) => e.stopPropagation()} ml={1} />
+                </Tooltip>
                 <IconButton icon={<CloseIcon />} size="xs" variant="ghost" aria-label="Delete gauge"
                   onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
                   onMouseDown={(e) => e.stopPropagation()} />
@@ -650,7 +661,7 @@ function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDra
                   onMouseDown={(e) => e.stopPropagation()}
                   position="absolute"
                   top={0}
-                  right={18}
+                  right={24}
                 />
               </Tooltip>
               <Tooltip label="Export gauge" placement="top" hasArrow>
@@ -663,7 +674,7 @@ function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDra
                   onMouseDown={(e) => e.stopPropagation()}
                   position="absolute"
                   top={0}
-                  right={12}
+                  right={18}
                 />
               </Tooltip>
               <IconButton
@@ -675,8 +686,21 @@ function TemplatePageGauge({ label, layoutY, onDelete, onUpdate, onExport, onDra
                 onMouseDown={(e) => e.stopPropagation()}
                 position="absolute"
                 top={0}
-                right={6}
+                right={12}
               />
+              <Tooltip label="Duplicate gauge" placement="top" hasArrow>
+                <IconButton
+                  icon={<DuplicateIcon />}
+                  size="xs"
+                  variant="ghost"
+                  aria-label="Duplicate gauge"
+                  onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  position="absolute"
+                  top={0}
+                  right={6}
+                />
+              </Tooltip>
               <IconButton
                 icon={<CloseIcon />}
                 size="xs"

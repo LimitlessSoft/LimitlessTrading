@@ -34,6 +34,12 @@ const DownloadIcon = () => (
   </svg>
 )
 
+const DuplicateIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+    <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
+  </svg>
+)
+
 const TOTAL_SEGMENTS = 20
 const MIN_SEGMENTS = 1
 const MIN_SIZE = 20
@@ -53,7 +59,7 @@ const BADGE_CONDITIONAL_FIELDS = [
   { label: 'Border px', key: 'borderWidth', type: 'number', default: 1 },
 ]
 
-function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode, openSettingsForId, onSettingsOpened }) {
+function TemplatePageBadge({ label, layoutY, onDelete, onDuplicate, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode, openSettingsForId, onSettingsOpened }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
@@ -413,6 +419,11 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onExport, onDra
               <IconButton icon={<SettingsIcon />} size="xs" variant="ghost" aria-label="Edit badge"
                 onClick={(e) => { e.stopPropagation(); handleOpenEdit() }}
                 onMouseDown={(e) => e.stopPropagation()} ml={1} />
+              <Tooltip label="Duplicate badge" placement="top" hasArrow>
+                <IconButton icon={<DuplicateIcon />} size="xs" variant="ghost" aria-label="Duplicate badge"
+                  onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+                  onMouseDown={(e) => e.stopPropagation()} ml={1} />
+              </Tooltip>
               <IconButton icon={<CloseIcon />} size="xs" variant="ghost" aria-label="Delete badge"
                 onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
                 onMouseDown={(e) => e.stopPropagation()} />
@@ -485,16 +496,21 @@ function TemplatePageBadge({ label, layoutY, onDelete, onUpdate, onExport, onDra
                 color={label.dock === 'fill' ? 'blue.300' : 'gray.400'}
                 _hover={{ color: label.dock === 'fill' ? 'blue.200' : 'white', bg: 'whiteAlpha.200' }}
                 onClick={(e) => { e.stopPropagation(); onUpdate(label.id, { dock: label.dock === 'fill' ? undefined : 'fill' }) }}
-                onMouseDown={(e) => e.stopPropagation()} position="absolute" top={0} right={18} />
+                onMouseDown={(e) => e.stopPropagation()} position="absolute" top={0} right={24} />
             </Tooltip>
             <Tooltip label="Export badge" placement="top" hasArrow>
               <IconButton icon={<DownloadIcon />} size="xs" variant="ghost" aria-label="Export badge"
                 onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
-                onMouseDown={(e) => e.stopPropagation()} position="absolute" top={0} right={12} />
+                onMouseDown={(e) => e.stopPropagation()} position="absolute" top={0} right={18} />
             </Tooltip>
             <IconButton icon={<SettingsIcon />} size="xs" variant="ghost" aria-label="Edit badge"
               onClick={(e) => { e.stopPropagation(); handleOpenEdit() }}
-              onMouseDown={(e) => e.stopPropagation()} position="absolute" top={0} right={6} />
+              onMouseDown={(e) => e.stopPropagation()} position="absolute" top={0} right={12} />
+            <Tooltip label="Duplicate badge" placement="top" hasArrow>
+              <IconButton icon={<DuplicateIcon />} size="xs" variant="ghost" aria-label="Duplicate badge"
+                onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+                onMouseDown={(e) => e.stopPropagation()} position="absolute" top={0} right={6} />
+            </Tooltip>
             <IconButton icon={<CloseIcon />} size="xs" variant="ghost" aria-label="Delete badge"
               onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
               onMouseDown={(e) => e.stopPropagation()} position="absolute" top={0} right={0} />

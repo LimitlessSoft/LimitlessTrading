@@ -9,11 +9,12 @@ import routesRoutes from './routes/routes.js'
 import userDataRoutes from './routes/userData.js'
 import accountRoutes from './routes/account.js'
 import aiRoutes from './routes/ai.js'
+import transcribeRoutes from './routes/transcribe.js'
 import licenseRoutes from './routes/license.js'
 import { getConnectionStatus } from './ibkrClient.js'
 
 const require = createRequire(import.meta.url)
-const { version } = require('../package.json')
+const { version } = require('./package.json')
 
 const app = express()
 const PORT = process.env.PORT || 8744
@@ -30,6 +31,7 @@ app.use('/api/routes', routesRoutes)
 app.use('/api/user-data', userDataRoutes)
 app.use('/api/account', accountRoutes)
 app.use('/api/ai', aiRoutes)
+app.use('/api/ai', transcribeRoutes)
 app.use('/api/license', licenseRoutes)
 
 // Version
