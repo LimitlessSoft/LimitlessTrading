@@ -1,0 +1,36 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import ReleaseEntry from '@components/ReleaseEntry.astro';
+
+const releases = (await getCollection('releases')).sort((a, b) => {
+  return b.data.version.localeCompare(a.data.version, undefined, { numeric: true });
+});
+---
+
+<BaseLayout title="What's New" description="Release notes and changelog for Limitless Trading.">
+  <div class="px-12 py-20 grid-bg">
+    <p class="text-[11px] tracking-[0.3em] uppercase text-ls-text-dim mb-4">Changelog</p>
+    <h1 class="text-5xl font-black uppercase tracking-[-1.5px] text-white mb-2">
+      WHAT'S <span class="text-ls-blue">NEW</span>
+    </h1>
+    <p class="text-sm text-ls-text mb-16">Every release, every change.</p>
+
+    <div class="max-w-3xl">
+      {releases.map(async (release, i) => {
+        const { Content } = await release.render();
+        return (
+          <ReleaseEntry
+            version={release.data.version}
+            date={release.data.date}
+            type={release.data.type}
+            summary={release.data.summary}
+            isLatest={i === 0}
+          >
+            <Content />
+          </ReleaseEntry>
+        );
+      })}
+    </div>
+  </div>
+</BaseLayout>

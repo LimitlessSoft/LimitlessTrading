@@ -1,0 +1,45 @@
+---
+interface Props {
+  version: string;
+  date: string;
+  type: 'Major' | 'Feature' | 'Fix';
+  summary: string;
+  isLatest: boolean;
+}
+
+const { version, date, type, summary, isLatest } = Astro.props;
+
+const typeBg: Record<string, string> = {
+  Major:   'bg-ls-blue/10 border-ls-blue/40 text-ls-blue',
+  Feature: 'bg-white/5 border-white/10 text-white/50',
+  Fix:     'bg-white/5 border-white/10 text-white/50',
+};
+---
+
+<article class="border-b border-ls-border py-10 first:pt-0">
+  <div class="flex items-start gap-6 mb-5">
+    <h2 class={`text-2xl font-black uppercase tracking-[-0.5px] ${isLatest ? 'text-white' : 'text-white/40'}`}>
+      v{version}
+    </h2>
+
+    {isLatest && (
+      <span class="text-[10px] tracking-[0.2em] uppercase px-2.5 py-1 bg-ls-blue/10 border border-ls-blue/40 text-ls-blue">
+        Latest
+      </span>
+    )}
+
+    <span class={`text-[10px] tracking-[0.15em] uppercase px-2.5 py-1 border ${typeBg[type]}`}>
+      {type}
+    </span>
+
+    <time class="text-xs tracking-widest uppercase text-ls-text-dim ml-auto">{date}</time>
+  </div>
+
+  <p class={`text-sm leading-relaxed mb-4 ${isLatest ? 'text-ls-text' : 'text-white/30'}`}>
+    {summary}
+  </p>
+
+  <div class={`prose prose-invert prose-sm max-w-none ${isLatest ? '' : 'opacity-40'}`}>
+    <slot />
+  </div>
+</article>
