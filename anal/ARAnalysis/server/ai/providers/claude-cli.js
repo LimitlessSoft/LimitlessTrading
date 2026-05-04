@@ -1,10 +1,27 @@
 import { spawn } from 'child_process'
-import { executeTool } from '../tools.js'
+import { executeTool, buildAlertConfig } from '../tools.js'
 
 const SYSTEM_PROMPT_BASE =
-  'You are a concise trading assistant for an Interactive Brokers account. ' +
-  'Answer questions using the live data provided below. ' +
-  'Format currency values clearly (e.g. $1.23M, $450K). Keep answers short and direct.'
+  'You are a trading assistant built into this application. You have access to live account data ' +
+  'and market quotes provided below. Keep answers short and direct. ' +
+  'Format currency values clearly (e.g. $1.23M, $450K).\n\n' +
+  'SCOPE: You only operate within this application. NEVER mention Interactive Brokers, IBKR, TWS, ' +
+  'IBKR Mobile, brokerage platforms, or any external system or application. If you see any tools ' +
+  'like LSP, code analysis, or language server tools in your context — ignore them completely, do ' +
+  'not mention them, they are not relevant here. If a feature exists in this app, use it. If ' +
+  'something is genuinely outside this app\'s scope, say so without referencing any external system.\n\n' +
+  '== CREATING ALERTS ==\n' +
+  'This application supports price and data alerts. When the user asks to create an alert, ' +
+  'output a <create_alert> block (this is how the application creates alerts — it is not a tool ' +
+  'call, it is a structured output the app reads). NEVER say you cannot create alerts.\n\n' +
+  'Output format:\n' +
+  '<create_alert>\n' +
+  '{"label":"SPY above 500","symbol":"SPY","property":"last","operator":">","value":500,"refresh_seconds":30,"actions":["sound","message"],"message":"SPY price is above 500"}\n' +
+  '</create_alert>\n\n' +
+  'property: last (price), bid, ask, change ($ change today), changePercent (% change today), volume\n' +
+  'operator: >, <, >=, <=, ==, !=\n' +
+  'actions: "sound" and/or "message"\n\n' +
+  'After the <create_alert> block, confirm the alert was set up (label, condition, current price if available).'
 
 // Common English words that look like tickers — skip them
 const WORD_SKIP = new Set([
@@ -98,13 +115,19 @@ export async function chat({ model, messages }) {
       '--output-format', 'json',
       '--no-session-persistence',
       '--tools', '',
+      '--mcp-config', '{"mcpServers":{}}',
+      '--strict-mcp-config',
       '--model', model,
       '--system-prompt', systemPrompt,
       prompt
     ]
 
+    const env = Object.fromEntries(
+      Object.entries(process.env).filter(([k]) => !k.startsWith('CLAUDE_CODE') && k !== 'CLAUDECODE')
+    )
+
     const proc = spawn('claude', args, {
-      env: process.env,
+      env,
       timeout: 60000
     })
 
@@ -124,14 +147,25 @@ export async function chat({ model, messages }) {
         if (result.is_error) {
           reject(new Error(result.result || 'Claude CLI returned an error'))
         } else {
-          resolve(result.result ?? '')
+          resolve(parseCliResponse(result.result ?? ''))
         }
       } catch {
-        // Fallback: return raw stdout if JSON parse fails
-        resolve(stdout.trim())
+        resolve(parseCliResponse(stdout.trim()))
       }
     })
 
     proc.on('error', err => reject(new Error(`Failed to start Claude CLI: ${err.message}`)))
   })
+}
+
+function parseCliResponse(raw) {
+  const actions = []
+  const text = raw.replace(/<create_alert>([\s\S]*?)<\/create_alert>/g, (_, json) => {
+    try {
+      const input = JSON.parse(json.trim())
+      actions.push({ type: 'create_alert', config: buildAlertConfig(input) })
+    } catch {}
+    return ''
+  }).trim()
+  return { text, actions }
 }

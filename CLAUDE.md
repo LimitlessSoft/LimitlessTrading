@@ -10,3 +10,4 @@ ARTradingTools is a trading analysis toolkit. See `docs/` for full documentation
 - [Chart widget](docs/chart-widget.md)
 - [Data flow & database](docs/data.md)
 - [AR Public API](docs/public-api.md)
+- [AI Assistant](docs/ai-assistant.md)

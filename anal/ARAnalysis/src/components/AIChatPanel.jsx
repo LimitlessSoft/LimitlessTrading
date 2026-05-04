@@ -6,6 +6,7 @@ import {
 } from '@chakra-ui/react'
 import { CloseIcon, SettingsIcon, CheckCircleIcon, WarningIcon } from '@chakra-ui/icons'
 import axios from 'axios'
+import { createAlert } from '../modules/alertService'
 
 const api = axios.create({ baseURL: '/api', timeout: 60000 })
 
@@ -274,6 +275,12 @@ export default function AIChatPanel() {
     try {
       const res = await api.post('/ai/chat', { message: text, history })
       setMessages(prev => [...prev, { role: 'assistant', content: res.data.response }])
+      for (const action of res.data.actions || []) {
+        if (action.type === 'create_alert') {
+          createAlert(action.config)
+          toast({ title: `Alert created: ${action.config.label}`, status: 'success', duration: 3000, isClosable: true })
+        }
+      }
     } catch (err) {
       const msg = err.response?.data?.error || 'Request failed'
       toast({ title: msg, status: 'error', duration: 4000, isClosable: true })

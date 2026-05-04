@@ -52,19 +52,21 @@ router.post('/chat', async (req, res) => {
   const messages = [...history, { role: 'user', content: message }]
 
   try {
-    let response
+    let result
 
     if (provider === 'claude_subscription') {
-      response = await cliChat({ model, messages })
+      result = await cliChat({ model, messages })
     } else if (provider === 'anthropic') {
       const apiKey = settings['ai.anthropic.apiKey']
       if (!apiKey) return res.status(400).json({ error: 'No API key configured. Open AI settings to add one.' })
-      response = await anthropicChat({ apiKey, model, messages })
+      result = await anthropicChat({ apiKey, model, messages })
     } else {
       return res.status(400).json({ error: `Provider "${provider}" is not yet supported.` })
     }
 
-    res.json({ response })
+    const response = typeof result === 'string' ? result : result.text
+    const actions = typeof result === 'string' ? [] : (result.actions || [])
+    res.json({ response, actions })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
