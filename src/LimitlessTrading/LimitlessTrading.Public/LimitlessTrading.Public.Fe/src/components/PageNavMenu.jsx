@@ -22,15 +22,34 @@ import {
   FormControl,
   FormLabel,
   Text,
+  Divider,
+  Code,
+  Tooltip,
   useDisclosure,
   useToast
 } from '@chakra-ui/react'
-import { HamburgerIcon, AddIcon, BellIcon, InfoOutlineIcon } from '@chakra-ui/icons'
+import { HamburgerIcon, AddIcon, BellIcon, InfoOutlineIcon, CopyIcon, CloseIcon } from '@chakra-ui/icons'
 import { fetchRoutes, createRoute } from '../modules/routesService'
 import { useLicense } from '../modules/LicenseContext'
 import { FREE_LIMITS } from '../modules/freeLimits'
 import AlertsPanel from './AlertsPanel'
 import LicenseModal from './LicenseModal'
+
+function getDeviceInfo() {
+  const nav = window.navigator
+  const scr = window.screen
+  return {
+    userAgent: nav.userAgent,
+    platform: nav.platform,
+    language: nav.language,
+    screen: `${scr.width} × ${scr.height} (${window.devicePixelRatio}x DPR)`,
+    viewport: `${window.innerWidth} × ${window.innerHeight}`,
+    colorDepth: `${scr.colorDepth}-bit`,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    online: nav.onLine ? 'Yes' : 'No',
+    hardwareConcurrency: nav.hardwareConcurrency ?? '—',
+  }
+}
 
 function PageNavMenu({
   children,
@@ -235,19 +254,55 @@ function PageNavMenu({
       <AlertsPanel isOpen={isAlertsOpen} onClose={onAlertsClose} />
       <LicenseModal isOpen={isLicenseOpen} onClose={onLicenseClose} />
 
-      <Modal isOpen={isAboutOpen} onClose={onAboutClose} isCentered size="sm">
+      <Modal isOpen={isAboutOpen} onClose={onAboutClose} isCentered size="md">
         <ModalOverlay />
         <ModalContent bg="gray.800">
-          <ModalHeader>About Limitless Trading</ModalHeader>
-          <ModalCloseButton />
+          <ModalHeader as={Flex} align="center">
+            <Text flex={1}>About Limitless Trading</Text>
+            <Tooltip label="Copy to clipboard" placement="top">
+              <IconButton
+                icon={<CopyIcon />}
+                size="sm"
+                variant="ghost"
+                colorScheme="gray"
+                aria-label="Copy device info"
+                onClick={() => {
+                  const info = getDeviceInfo()
+                  const text = Object.entries(info).map(([k, v]) => `${k}: ${v}`).join('\n')
+                  navigator.clipboard.writeText(`Version: ${appVersion ?? '—'}\n${text}`)
+                  toast({ title: 'Copied to clipboard', status: 'success', duration: 2000, isClosable: true })
+                }}
+              />
+            </Tooltip>
+            <IconButton
+              icon={<CloseIcon boxSize={3} />}
+              size="sm"
+              variant="ghost"
+              colorScheme="gray"
+              aria-label="Close"
+              onClick={onAboutClose}
+            />
+          </ModalHeader>
           <ModalBody pb={6}>
             <Text color="gray.300" mb={4}>
               Trading analysis toolkit for Interactive Brokers.
             </Text>
-            <Text fontSize="sm" color="gray.500">
+            <Text fontSize="sm" color="gray.500" mb={4}>
               Version{' '}
               <Text as="span" color="gray.300">{appVersion ?? '—'}</Text>
             </Text>
+            <Divider borderColor="gray.600" mb={4} />
+            <Text fontSize="xs" fontWeight="semibold" color="gray.400" textTransform="uppercase" letterSpacing="wider" mb={2}>
+              Device Info
+            </Text>
+            <Box bg="gray.900" borderRadius="md" p={3} fontSize="xs" color="gray.300">
+              {Object.entries(getDeviceInfo()).map(([key, value]) => (
+                <Flex key={key} gap={2} mb={1}>
+                  <Text color="gray.500" minW="140px" flexShrink={0}>{key}</Text>
+                  <Code bg="transparent" color="gray.200" fontSize="xs" wordBreak="break-all">{value}</Code>
+                </Flex>
+              ))}
+            </Box>
           </ModalBody>
         </ModalContent>
       </Modal>
