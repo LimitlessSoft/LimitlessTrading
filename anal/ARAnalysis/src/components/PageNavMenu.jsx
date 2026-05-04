@@ -151,7 +151,7 @@ function PageNavMenu({
                 bg="gray.800"
                 _hover={{ bg: 'gray.700' }}
               >
-                Main Page (/)
+                Home
               </MenuItem>
               {routes.length > 0 && <MenuDivider />}
               {routes.map((route) => (

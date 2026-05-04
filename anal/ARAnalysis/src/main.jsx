@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { ChakraProvider } from '@chakra-ui/react'
-import App from './App'
+import HomePage from './pages/HomePage'
 import TemplatePage from './pages/TemplatePage'
 import PlaceholderDocsPage from './pages/PlaceholderDocsPage'
 import AlertOverlay from './components/AlertOverlay'
@@ -22,7 +22,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <AlertExpressionWatcher />
           <AIChatPanel />
           <Routes>
-            <Route path="/" element={<App />} />
+            <Route path="/" element={<HomePage />} />
             <Route path="/docs/placeholders" element={<PlaceholderDocsPage />} />
             <Route path="*" element={<TemplatePage />} />
           </Routes>
