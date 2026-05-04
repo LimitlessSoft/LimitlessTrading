@@ -535,10 +535,7 @@ export default function AIChatPanel() {
             toast({ title: `Alert removed: ${target.label}`, status: 'info', duration: 3000, isClosable: true })
           }
         } else if (action.type === 'create_widget') {
-          if (onCreateWidget) {
-            onCreateWidget(action.widgetDef)
-            toast({ title: 'Widget added to page', status: 'success', duration: 3000, isClosable: true })
-          }
+          onCreateWidget(action.widgetDef)
         }
       }
     } catch (err) {

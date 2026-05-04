@@ -112,7 +112,7 @@ function TemplatePage() {
     if (!pageInfo) return
     setOnCreateWidget(addWidgetFromAI, pageInfo)
     return () => setOnCreateWidget(null, null)
-  }, [pageInfo])
+  }, [pageInfo, isPro])
 
   const isAtWidgetLimit = () => {
     if (isPro) return false
@@ -178,6 +178,7 @@ function TemplatePage() {
       }
       const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
       setPageInfo(updatedRoute)
+      toast({ title: 'Widget added to page', status: 'success', duration: 3000, isClosable: true })
     } catch (err) {
       toast({ title: 'Failed to add widget', description: err.message, status: 'error', duration: 3000 })
     }
