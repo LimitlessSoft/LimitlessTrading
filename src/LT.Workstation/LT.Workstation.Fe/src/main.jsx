@@ -10,23 +10,26 @@ import AlertExpressionWatcher from './components/AlertExpressionWatcher'
 import AutoConnect from './modules/AutoConnect'
 import AIChatPanel from './components/AIChatPanel'
 import { LicenseProvider } from './modules/LicenseContext'
+import { WidgetProvider } from './modules/WidgetContext'
 import theme from './theme'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ChakraProvider theme={theme}>
       <LicenseProvider>
-        <BrowserRouter>
-          <AutoConnect />
-          <AlertOverlay />
-          <AlertExpressionWatcher />
-          <AIChatPanel />
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/docs/placeholders" element={<PlaceholderDocsPage />} />
-            <Route path="*" element={<TemplatePage />} />
-          </Routes>
-        </BrowserRouter>
+        <WidgetProvider>
+          <BrowserRouter>
+            <AutoConnect />
+            <AlertOverlay />
+            <AlertExpressionWatcher />
+            <AIChatPanel />
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/docs/placeholders" element={<PlaceholderDocsPage />} />
+              <Route path="*" element={<TemplatePage />} />
+            </Routes>
+          </BrowserRouter>
+        </WidgetProvider>
       </LicenseProvider>
     </ChakraProvider>
   </React.StrictMode>
