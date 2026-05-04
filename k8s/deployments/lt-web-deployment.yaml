@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${DEPLOY_ENV}-lt-web-deployment
+  namespace: lt-web-namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ${DEPLOY_ENV}-lt-web
+  template:
+    metadata:
+      labels:
+        app: ${DEPLOY_ENV}-lt-web
+    spec:
+      containers:
+      - name: ${DEPLOY_ENV}-lt-web
+        image: limitlesssoft/lt-web:${DEPLOY_ENV}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "32Mi"
+          limits:
+            cpu: "200m"
+            memory: "64Mi"
+
+      imagePullSecrets:
+      - name: regcred

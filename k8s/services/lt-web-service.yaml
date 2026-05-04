@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${DEPLOY_ENV}-lt-web-service
+  namespace: lt-web-namespace
+spec:
+  selector:
+    app: ${DEPLOY_ENV}-lt-web
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: NodePort

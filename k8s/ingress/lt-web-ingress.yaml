@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lt-web-ingress
+  namespace: lt-web-namespace
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  rules:
+  - host: limitlesstrading.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ${DEPLOY_ENV}-lt-web-service
+            port:
+              number: 80
