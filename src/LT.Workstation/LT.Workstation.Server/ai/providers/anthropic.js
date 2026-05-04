@@ -19,7 +19,7 @@ function formatAlertCondition(schedule) {
   return schedule.expression || ''
 }
 
-function buildSystemPrompt(alerts = []) {
+function buildSystemPrompt(alerts = [], pageContext = null) {
   const alertSection = alerts.length > 0
     ? `\n\nActive Alerts (${alerts.length}):\n` + alerts.map(a => {
         const cond = formatAlertCondition(a.schedule)
@@ -27,7 +27,18 @@ function buildSystemPrompt(alerts = []) {
         return `  ${a.id} | ${a.label}${cond ? ` | ${cond}` : ''} | ${status}`
       }).join('\n')
     : '\n\nActive Alerts: none'
-  return SYSTEM_PROMPT_BASE + alertSection
+
+  let pageSection = ''
+  if (pageContext?.type === 'template') {
+    const widgetSummary = (pageContext.widgets || [])
+      .map(w => `  ${w.type}${w.text ? `: "${w.text}"` : w.symbol ? `: ${w.symbol}` : w.placeholder ? `: ${w.placeholder}` : ''}`)
+      .join('\n')
+    pageSection = `\n\nCurrent template page: "${pageContext.name}"\nExisting widgets:\n${widgetSummary || '  (none)'}`
+  } else {
+    pageSection = '\n\nCurrent page: not a template page — the create_widget tool is unavailable here. If the user asks to add a widget, tell them to navigate to a template page first.'
+  }
+
+  return SYSTEM_PROMPT_BASE + alertSection + pageSection
 }
 
 function toAnthropicTools(defs) {
@@ -38,7 +49,7 @@ function toAnthropicTools(defs) {
   }))
 }
 
-export async function chat({ apiKey, model, messages, alerts = [] }) {
+export async function chat({ apiKey, model, messages, alerts = [], pageContext = null }) {
   const client = new Anthropic({ apiKey })
   const tools = toAnthropicTools(TOOL_DEFINITIONS)
 
@@ -49,7 +60,7 @@ export async function chat({ apiKey, model, messages, alerts = [] }) {
     const response = await client.messages.create({
       model,
       max_tokens: 1024,
-      system: buildSystemPrompt(alerts),
+      system: buildSystemPrompt(alerts, pageContext),
       tools,
       messages: anthropicMessages
     })
@@ -70,6 +81,9 @@ export async function chat({ apiKey, model, messages, alerts = [] }) {
           const { id, label } = block.input
           pendingActions.push({ type: 'delete_alert', id, label })
           result = { success: true, message: `Alert will be deleted.` }
+        } else if (block.name === 'create_widget') {
+          pendingActions.push({ type: 'create_widget', widgetDef: block.input })
+          result = { success: true, message: `Widget of type "${block.input.type}" will be added to the page.` }
         } else {
           try {
             result = await executeTool(block.name, block.input)
