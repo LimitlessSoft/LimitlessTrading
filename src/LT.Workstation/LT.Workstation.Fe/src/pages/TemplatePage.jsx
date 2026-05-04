@@ -34,6 +34,7 @@ const KebabIcon = () => (
 )
 import { fetchRoutes, updateRoute } from '../modules/routesService'
 import { useLicense } from '../modules/LicenseContext'
+import { useWidgetCallback } from '../modules/WidgetContext'
 import { FREE_LIMITS } from '../modules/freeLimits'
 import LicenseModal from '../components/LicenseModal'
 import PageNavMenu from '../components/PageNavMenu'
@@ -60,6 +61,7 @@ function TemplatePage() {
   const { isOpen: isInfoOpen, onOpen: onInfoOpen, onClose: onInfoClose } = useDisclosure()
   const { isOpen: isLicenseOpen, onOpen: onLicenseOpen, onClose: onLicenseClose } = useDisclosure()
   const { isPro } = useLicense()
+  const { setOnCreateWidget } = useWidgetCallback()
   const [infoName, setInfoName] = useState('')
   const [infoPath, setInfoPath] = useState('')
   const [routesVersion, setRoutesVersion] = useState(0)
@@ -106,6 +108,12 @@ function TemplatePage() {
     return () => window.removeEventListener('resize', compute)
   }, [])
 
+  useEffect(() => {
+    if (!pageInfo) return
+    setOnCreateWidget(addWidgetFromAI)
+    return () => setOnCreateWidget(null)
+  }, [pageInfo])
+
   const isAtWidgetLimit = () => {
     if (isPro) return false
     const count = (pageInfo?.config?.labels || []).length
@@ -145,6 +153,29 @@ function TemplatePage() {
       })
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const addWidgetFromAI = async (widgetDef) => {
+    if (!pageInfo) return
+    try {
+      const currentLabels = pageInfo.config?.labels || []
+      const maxY = currentLabels.reduce((m, l) => Math.max(m, l.y || 0), -1)
+      const newWidget = {
+        id: crypto.randomUUID(),
+        createdAt: Date.now(),
+        x: 0,
+        y: maxY + 1,
+        ...widgetDef
+      }
+      const updatedConfig = {
+        ...pageInfo.config,
+        labels: [...currentLabels, newWidget]
+      }
+      const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
+      setPageInfo(updatedRoute)
+    } catch (err) {
+      toast({ title: 'Failed to add widget', description: err.message, status: 'error', duration: 3000 })
     }
   }
 
