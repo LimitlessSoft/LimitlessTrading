@@ -122,6 +122,88 @@ export const TOOL_DEFINITIONS = [
       },
       required: ['label', 'symbol', 'operator', 'value']
     }
+  },
+  {
+    name: 'create_widget',
+    description:
+      'Add a new widget to the current template page. Only call this when the user explicitly ' +
+      'asks to add, create, or place a widget. The widget appears immediately on the page. ' +
+      'Use get_live_quote first to verify a ticker exists before using it in a widget.',
+    parameters: {
+      type: 'object',
+      properties: {
+        type: {
+          type: 'string',
+          enum: ['label', 'panel', 'badge', 'gauge', 'graph', 'chart'],
+          description: 'Widget type'
+        },
+        text: {
+          type: 'string',
+          description: 'Label text with optional placeholders. Required for type=label. Example: "@{SPY:last:5}"'
+        },
+        symbol: {
+          type: 'string',
+          description: 'Ticker symbol. Required for type=chart. Example: "AAPL"'
+        },
+        placeholder: {
+          type: 'string',
+          description: 'Placeholder expression. Required for type=badge and type=gauge. Example: "@{VIX:last:5}"'
+        },
+        title: {
+          type: 'string',
+          description: 'Optional label shown below a gauge arc'
+        },
+        min: { type: 'number', description: 'Gauge minimum value. Required for type=gauge' },
+        max: { type: 'number', description: 'Gauge maximum value. Required for type=gauge' },
+        segments: {
+          type: 'array',
+          description: 'Gauge colored arc bands. Required for type=gauge',
+          items: {
+            type: 'object',
+            properties: {
+              from: { type: 'number' },
+              to: { type: 'number' },
+              color: { type: 'string', description: 'Hex color e.g. "#48BB78"' }
+            },
+            required: ['from', 'to', 'color']
+          }
+        },
+        series: {
+          type: 'array',
+          description: 'Data series. Required for type=graph',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              expression: { type: 'string', description: 'Placeholder expression, e.g. "@{SPY:last:5}"' },
+              color: { type: 'string', description: 'Hex color' },
+              viewType: { type: 'string', enum: ['line', 'bars'] }
+            },
+            required: ['name', 'expression', 'color']
+          }
+        },
+        maxHistory: { type: 'number', description: 'Max data points for type=graph. Default 200' },
+        snapshotInterval: { type: 'number', description: 'Fetch interval in seconds for snapshot series. Default 300' },
+        width: { type: 'number', description: 'Width in grid segments (1-20). Default varies by type' },
+        height: { type: 'number', description: 'Height in pixels. Default varies by type' },
+        style: {
+          type: 'object',
+          description: 'Visual style overrides',
+          properties: {
+            bgColor: { type: 'string' },
+            borderColor: { type: 'string' },
+            borderWidth: { type: 'number' },
+            textColor: { type: 'string' },
+            fontWeight: { type: 'string', enum: ['normal', 'bold', 'lighter'] },
+            fontStyle: { type: 'string', enum: ['normal', 'italic'] },
+            fontSize: { type: 'number', description: 'Font size in rem' },
+            textAlign: { type: 'string', enum: ['left', 'center', 'right'] },
+            verticalAlign: { type: 'string', enum: ['top', 'center', 'bottom'] }
+          }
+        }
+      },
+      required: ['type']
+    }
   }
 ]
 
