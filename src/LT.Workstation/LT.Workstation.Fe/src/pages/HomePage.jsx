@@ -12,11 +12,28 @@ function HomePage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/whats-new?limit=5')
-      .then(r => r.json())
-      .then(data => setEntries(Array.isArray(data) ? data : []))
-      .catch(() => setEntries([]))
-      .finally(() => setLoading(false))
+    let cancelled = false
+    async function load(attempt = 0) {
+      try {
+        const r = await fetch('/api/whats-new?limit=5')
+        if (!cancelled && r.status === 502 && attempt < 10) {
+          setTimeout(() => load(attempt + 1), 3000)
+          return
+        }
+        const data = await r.json()
+        if (!cancelled) {
+          setEntries(Array.isArray(data) ? data : [])
+          setLoading(false)
+        }
+      } catch {
+        if (!cancelled) {
+          setEntries([])
+          setLoading(false)
+        }
+      }
+    }
+    load()
+    return () => { cancelled = true }
   }, [])
 
   return (
