@@ -25,13 +25,35 @@ import {
   Divider,
   Code,
   Tooltip,
+  SimpleGrid,
+  Spinner,
   useDisclosure,
   useToast
 } from '@chakra-ui/react'
 import { HamburgerIcon, AddIcon, BellIcon, InfoOutlineIcon, CopyIcon, CloseIcon } from '@chakra-ui/icons'
 import { fetchRoutes, createRoute } from '../modules/routesService'
+import { connectToIBKR, disconnectFromIBKR, getConnectionStatus } from '../modules/dataService'
 import { useLicense } from '../modules/LicenseContext'
 import { useAIChat } from '../modules/AIChatContext'
+
+const CONNECTION_PRESETS = [
+  { app: 'TWS', mode: 'Live', port: 7496 },
+  { app: 'Gateway', mode: 'Live', port: 4001 },
+  { app: 'TWS', mode: 'Paper', port: 7497 },
+  { app: 'Gateway', mode: 'Paper', port: 4002 },
+]
+
+function PlugIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22V16" />
+      <path d="M5 12H2a10 10 0 0 0 20 0h-3" />
+      <rect x="8" y="2" width="2" height="6" rx="1" />
+      <rect x="14" y="2" width="2" height="6" rx="1" />
+      <path d="M8 8h8a4 4 0 0 1 4 4H4a4 4 0 0 1 4-4Z" />
+    </svg>
+  )
+}
 
 function AssistantIcon() {
   return (
@@ -86,6 +108,10 @@ function PageNavMenu({
   const { isOpen: isAlertsOpen, onOpen: onAlertsOpen, onClose: onAlertsClose } = useDisclosure()
   const { isOpen: isLicenseOpen, onOpen: onLicenseOpen, onClose: onLicenseClose } = useDisclosure()
   const { isOpen: isAboutOpen, onOpen: onAboutOpen, onClose: onAboutClose } = useDisclosure()
+  const { isOpen: isConnectionOpen, onOpen: onConnectionOpen, onClose: onConnectionClose } = useDisclosure()
+  const [connectedPort, setConnectedPort] = useState(null)
+  const [connecting, setConnecting] = useState(false)
+  const [connectError, setConnectError] = useState(null)
   const navigate = useNavigate()
   const toast = useToast()
   const { open: aiOpen, setOpen: setAiOpen } = useAIChat()
@@ -164,6 +190,32 @@ function PageNavMenu({
     onClose()
   }
 
+  const handleConnectionOpen = async () => {
+    setConnectError(null)
+    onConnectionOpen()
+    try {
+      const status = await getConnectionStatus()
+      setConnectedPort(status.connected ? status.port : null)
+    } catch {
+      setConnectedPort(null)
+    }
+  }
+
+  const handleSelectPreset = async (port) => {
+    setConnecting(true)
+    setConnectError(null)
+    try {
+      await disconnectFromIBKR()
+      await connectToIBKR(port)
+      setConnectedPort(port)
+    } catch (err) {
+      setConnectError(err.message || 'Connection failed')
+      setConnectedPort(null)
+    } finally {
+      setConnecting(false)
+    }
+  }
+
   return (
     <>
       <Box
@@ -231,6 +283,14 @@ function PageNavMenu({
               </MenuItem>
               <MenuDivider />
               <MenuItem
+                icon={<PlugIcon />}
+                onClick={handleConnectionOpen}
+                bg="gray.800"
+                _hover={{ bg: 'gray.700' }}
+              >
+                Connection
+              </MenuItem>
+              <MenuItem
                 icon={<InfoOutlineIcon />}
                 onClick={onAboutOpen}
                 bg="gray.800"
@@ -283,6 +343,61 @@ function PageNavMenu({
 
       <AlertsPanel isOpen={isAlertsOpen} onClose={onAlertsClose} />
       <LicenseModal isOpen={isLicenseOpen} onClose={onLicenseClose} />
+
+      <Modal isOpen={isConnectionOpen} onClose={onConnectionClose} isCentered size="sm">
+        <ModalOverlay />
+        <ModalContent bg="gray.800">
+          <ModalHeader>
+            <Text>IBKR Connection</Text>
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            <SimpleGrid columns={2} spacing={3}>
+              {CONNECTION_PRESETS.map(({ app, mode, port }) => {
+                const isActive = connectedPort === port
+                return (
+                  <Box
+                    key={port}
+                    as="button"
+                    onClick={() => !connecting && handleSelectPreset(port)}
+                    bg={isActive ? 'blue.900' : 'gray.700'}
+                    border="2px solid"
+                    borderColor={isActive ? 'blue.500' : 'gray.600'}
+                    borderRadius="md"
+                    p={4}
+                    textAlign="left"
+                    cursor={connecting ? 'not-allowed' : 'pointer'}
+                    opacity={connecting && !isActive ? 0.5 : 1}
+                    _hover={!connecting ? { borderColor: isActive ? 'blue.400' : 'gray.400', bg: isActive ? 'blue.900' : 'gray.600' } : {}}
+                    transition="all 0.15s"
+                    position="relative"
+                  >
+                    {connecting && isActive && (
+                      <Flex position="absolute" inset={0} align="center" justify="center" bg="blackAlpha.500" borderRadius="md">
+                        <Spinner size="sm" color="blue.300" />
+                      </Flex>
+                    )}
+                    <Text fontSize="sm" fontWeight="semibold" color={isActive ? 'blue.200' : 'gray.200'} mb={1}>
+                      {app}
+                    </Text>
+                    <Text fontSize="xs" color={isActive ? 'blue.300' : 'gray.400'} mb={2}>
+                      {mode}
+                    </Text>
+                    <Text fontSize="xs" fontFamily="mono" color={isActive ? 'blue.400' : 'gray.500'}>
+                      :{port}
+                    </Text>
+                  </Box>
+                )
+              })}
+            </SimpleGrid>
+            {connectError && (
+              <Text mt={3} fontSize="xs" color="red.400">
+                {connectError}
+              </Text>
+            )}
+          </ModalBody>
+        </ModalContent>
+      </Modal>
 
       <Modal isOpen={isAboutOpen} onClose={onAboutClose} isCentered size="md">
         <ModalOverlay />
