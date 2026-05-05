@@ -40,7 +40,7 @@ spec:
             secretKeyRef:
               name: lt-api-admin-secret
               key: Admin__JwtSecret
-volumeMounts:
+        volumeMounts:
         - name: releases-storage
           mountPath: /data/releases
         resources:
