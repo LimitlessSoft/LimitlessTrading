@@ -66,7 +66,7 @@ const DEFAULT_STYLE = {
 
 function evaluateExpression(expr, row) {
   if (!expr) return ''
-  return expr.replace(/\{([^}]+)\}/g, (_, inner) => {
+  return expr.replace(/(?<![@$#&%])\{([^}]+)\}/g, (_, inner) => {
     const fields = inner.split('??').map(f => f.trim())
     for (const field of fields) {
       const val = row[field]
@@ -74,6 +74,25 @@ function evaluateExpression(expr, row) {
     }
     return '--'
   })
+}
+
+function LiveTableCell({ col, row, rowH, style }) {
+  const substituted = evaluateExpression(col.expression, row)
+  const { resolveText } = useWidgetResolveText(substituted)
+  return (
+    <Box
+      as="td"
+      px={2}
+      height={`${rowH}px`}
+      fontSize="xs"
+      color={style.textColor}
+      whiteSpace="nowrap"
+      overflow="hidden"
+      style={{ textOverflow: 'ellipsis' }}
+    >
+      {resolveText(substituted)}
+    </Box>
+  )
 }
 
 function parseRows(resolved) {
@@ -416,19 +435,7 @@ function TemplatePageTable({
                     _hover={{ bg: 'whiteAlpha.100' }}
                   >
                     {columns.map((col) => (
-                      <Box
-                        key={col.id}
-                        as="td"
-                        px={2}
-                        height={`${ROW_H}px`}
-                        fontSize="xs"
-                        color={style.textColor}
-                        whiteSpace="nowrap"
-                        overflow="hidden"
-                        style={{ textOverflow: 'ellipsis' }}
-                      >
-                        {evaluateExpression(col.expression, row)}
-                      </Box>
+                      <LiveTableCell key={col.id} col={col} row={row} rowH={ROW_H} style={style} />
                     ))}
                   </Box>
                 ))
@@ -559,7 +566,7 @@ function TemplatePageTable({
                           <FormLabel fontSize="xs">Expression</FormLabel>
                           <Input size="sm" value={col.expression}
                             onChange={e => updateColumn(col.id, { expression: e.target.value })}
-                            placeholder="{symbol}"
+                            placeholder="{symbol} or @{{symbol}:last:5}"
                             fontFamily="mono"
                           />
                         </FormControl>
