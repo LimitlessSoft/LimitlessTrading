@@ -54,16 +54,3 @@ jobs:
     secrets: inherit
     with:
       env: production
-
-  create-release:
-    needs: [ bump-version, api ]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: api-v${{ needs.bump-version.outputs.version }}
-          name: LT Public API v${{ needs.bump-version.outputs.version }}
-          generate_release_notes: true

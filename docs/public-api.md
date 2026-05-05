@@ -110,7 +110,7 @@ Three GitHub Actions workflows handle automated deployment. `release-api.yml` or
 
 | File | Purpose |
 |------|---------|
-| `release-api.yml` | Trigger (API path changes or `workflow_dispatch`); bumps patch version, commits it, then calls build + deploy, then creates a GitHub release tagged `api-v{version}` |
+| `release-api.yml` | Trigger (API path changes or `workflow_dispatch`); bumps patch version, commits it, then calls build + deploy |
 | `build-and-publish-api.yml` | Builds and pushes Docker image to Docker Hub, then calls deploy |
 | `deploy-api.yml` | Applies k8s manifests and restarts the deployment |
 
