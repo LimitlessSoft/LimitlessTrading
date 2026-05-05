@@ -1,5 +1,5 @@
 import express from 'express'
-import { getAccountSummary } from '../ibkrClient.js'
+import { getAccountSummary, getPositions } from '../ibkrClient.js'
 
 const router = express.Router()
 
@@ -24,6 +24,39 @@ async function fetchSummary() {
 
   return pendingRequest
 }
+
+const POSITIONS_CACHE_TTL = 10_000
+let cachedPositions = null
+let positionsCacheTimestamp = 0
+let pendingPositionsRequest = null
+
+async function fetchPositions() {
+  if (pendingPositionsRequest) return pendingPositionsRequest
+
+  pendingPositionsRequest = getPositions()
+    .then(positions => {
+      cachedPositions = positions
+      positionsCacheTimestamp = Date.now()
+      return positions
+    })
+    .finally(() => {
+      pendingPositionsRequest = null
+    })
+
+  return pendingPositionsRequest
+}
+
+router.get('/positions', async (req, res) => {
+  try {
+    if (cachedPositions && Date.now() - positionsCacheTimestamp < POSITIONS_CACHE_TTL) {
+      return res.json(cachedPositions)
+    }
+    const positions = await fetchPositions()
+    res.json(positions)
+  } catch (err) {
+    res.status(503).json({ error: err.message })
+  }
+})
 
 router.get('/summary', async (req, res) => {
   try {

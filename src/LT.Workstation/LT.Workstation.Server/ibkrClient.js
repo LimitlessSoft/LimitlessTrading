@@ -1819,4 +1819,49 @@ export async function getAccountSummary(tags = ACCOUNT_SUMMARY_TAGS) {
   })
 }
 
+export async function getPositions() {
+  if (!ib || !connectionState.connected) {
+    throw new Error('Not connected to IBKR')
+  }
+
+  return new Promise((resolve, reject) => {
+    const positions = new Map()
+    let resolved = false
+
+    const onPosition = (account, contract, pos, avgCost) => {
+      positions.set(contract.symbol.toUpperCase(), { position: pos, avgCost })
+    }
+
+    const onPositionEnd = () => {
+      cleanup()
+      resolve(Object.fromEntries(positions))
+    }
+
+    const cleanup = () => {
+      if (resolved) return
+      resolved = true
+      try { ib?.off(EventName.position, onPosition) } catch (e) {}
+      try { ib?.off(EventName.positionEnd, onPositionEnd) } catch (e) {}
+      try { ib?.cancelPositions() } catch (e) {}
+    }
+
+    ib.on(EventName.position, onPosition)
+    ib.on(EventName.positionEnd, onPositionEnd)
+
+    setTimeout(() => {
+      if (!resolved) {
+        cleanup()
+        resolve(Object.fromEntries(positions))
+      }
+    }, 10000)
+
+    try {
+      ib.reqPositions()
+    } catch (err) {
+      cleanup()
+      reject(err)
+    }
+  })
+}
+
 export { ib }

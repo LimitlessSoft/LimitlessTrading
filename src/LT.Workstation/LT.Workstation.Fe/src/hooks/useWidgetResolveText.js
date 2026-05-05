@@ -4,6 +4,7 @@ import { getExchangeTime, getExchangeStatus } from '../modules/exchangeService'
 import { getNextFomcDecision, formatFomcDatetime, formatFomcCountdownText } from '../modules/fomcService'
 import { useSymbolQuotes } from './useSymbolQuotes'
 import { parseAccountPlaceholders, subscribeAccount, resolveAccountText } from '../modules/accountService'
+import { parsePositionPlaceholders, subscribePositions, resolvePositionText } from '../modules/positionService'
 
 // Simple system placeholder: ${key} or ${key:seconds}
 // Does NOT match exchange patterns like ${NYSE:status:10} (those have non-numeric after the colon)
@@ -34,6 +35,7 @@ export function useWidgetResolveText(textSources) {
 
   const [systemValues, setSystemValues] = useState({})
   const [accountCache, setAccountCache] = useState(new Map())
+  const [positionCache, setPositionCache] = useState(new Map())
   const hasSystem = combined.includes('${')
 
   const fetchValues = useCallback(async () => {
@@ -106,6 +108,17 @@ export function useWidgetResolveText(textSources) {
     return unsub
   }, [combined])
 
+  // Position placeholders: &{SYMBOL:property:seconds}
+  useEffect(() => {
+    if (!combined.includes('&{')) return
+    const placeholders = parsePositionPlaceholders(combined)
+    if (placeholders.length === 0) return
+
+    const minInterval = placeholders.reduce((min, { interval }) => Math.min(min, interval), Infinity)
+    const unsub = subscribePositions(minInterval, (cache) => setPositionCache(new Map(cache)))
+    return unsub
+  }, [combined])
+
   const { resolveText: resolveSymbolText } = useSymbolQuotes(
     combined.includes('@{') || combined.includes('%[') ? combined : null
   )
@@ -121,8 +134,9 @@ export function useWidgetResolveText(textSources) {
         return systemValues[key] !== undefined ? systemValues[key] : match
       })
     resolved = resolveAccountText(resolved, accountCache)
+    resolved = resolvePositionText(resolved, positionCache)
     return resolveSymbolText(resolved)
-  }, [systemValues, accountCache, resolveSymbolText])
+  }, [systemValues, accountCache, positionCache, resolveSymbolText])
 
   const resolvedValue = useCallback((text) => {
     const str = resolveText(text).trim()

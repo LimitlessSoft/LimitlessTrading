@@ -46,6 +46,7 @@ function PlaceholderDocsPage() {
             <Tab>Exchange</Tab>
             <Tab>Symbol Quotes</Tab>
             <Tab>Formulas</Tab>
+            <Tab>Positions</Tab>
           </TabList>
 
           <TabPanels>
@@ -213,6 +214,47 @@ function PlaceholderDocsPage() {
                 <Alert status="warning" bg="gray.800" borderRadius="md" fontSize="sm">
                   <AlertIcon />
                   When mixing <Code>close-N</Code> with real-time properties, use a slow interval (e.g. <Code>:3600</Code>) — historical closes only update once per trading day.
+                </Alert>
+              </VStack>
+            </TabPanel>
+
+            {/* ── POSITIONS ── */}
+            <TabPanel>
+              <VStack align="stretch" spacing={4}>
+                <Box>
+                  <Text mb={1}>Syntax: <Code>{'&{SYMBOL:property:seconds}'}</Code> — portfolio position data from IBKR.</Text>
+                  <Text fontSize="sm" color="gray.400">Polled from <Code>/api/account/positions</Code>. Default refresh interval is 30 s. Requires an active IBKR connection.</Text>
+                </Box>
+
+                <SubHeading>Properties</SubHeading>
+                <SectionTable
+                  headers={['Property', 'Description', 'Format']}
+                  rows={[
+                    [<Code>position</Code>, 'Number of shares/contracts held (negative = short)', 'Integer'],
+                    [<Code>avgCost</Code>, 'Average cost per share/contract', '2 decimals'],
+                  ]}
+                />
+
+                <SubHeading>Examples</SubHeading>
+                <SectionTable
+                  headers={['Placeholder', 'Description']}
+                  rows={[
+                    [<Code>{'&{AAPL:position:30}'}</Code>, 'Shares of AAPL held, refreshed every 30 s'],
+                    [<Code>{'&{AAPL:avgCost:30}'}</Code>, 'Average cost basis for AAPL'],
+                    [<Code fontSize="xs">{'%[&{AAPL:position} * @{AAPL:last}:10]'}</Code>, 'Live market value of AAPL position'],
+                    [<Code fontSize="xs">{'%[(@{AAPL:last} - &{AAPL:avgCost}) * &{AAPL:position}:10]'}</Code>, 'Unrealized P&L for AAPL'],
+                    [<Code fontSize="xs">{'%[(&{AAPL:position} * @{AAPL:last}) / #{NetLiquidation} * 100:10]'}</Code>, 'AAPL position as % of portfolio'],
+                  ]}
+                />
+
+                <Alert status="info" bg="gray.800" borderRadius="md" fontSize="sm">
+                  <AlertIcon />
+                  Position values are substituted as plain numbers before formula evaluation, so <Code>{'&{...}'}</Code> refs work freely inside <Code>{'%[...]'}</Code> formulas.
+                </Alert>
+
+                <Alert status="warning" bg="gray.800" borderRadius="md" fontSize="sm">
+                  <AlertIcon />
+                  Returns <Code>--</Code> for symbols not currently held or when IBKR is disconnected.
                 </Alert>
               </VStack>
             </TabPanel>

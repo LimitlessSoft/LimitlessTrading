@@ -126,7 +126,28 @@ Result is formatted to 2 decimal places. Displays `--` if any referenced value i
 
 Formula placeholders are resolved before standalone symbol quotes, so their internal `@{...}` refs are not double-processed.
 
-All placeholder types can be mixed in the same label text: `${tws_connection_status:5} | @{SPY:last:3} | #{NetLiquidation:30} | Spread: %[@{HYG:last} - @{LQD:last}:30]`.
+All placeholder types can be mixed in the same label text: `${tws_connection_status:5} | @{SPY:last:3} | #{NetLiquidation:30} | &{AAPL:position:30} | Spread: %[@{HYG:last} - @{LQD:last}:30]`.
+
+### Position placeholders — `&{SYMBOL:property:seconds}`
+
+Resolve portfolio position data from IBKR. Polled from `/api/account/positions` (10s server-side cache). Default refresh interval is 30s.
+
+| Property | Description | Format |
+|----------|-------------|--------|
+| `position` | Shares/contracts held (negative = short) | Integer |
+| `avgCost` | Average cost per share/contract | 2 decimals |
+
+Example: `&{AAPL:position:30}` — shares of AAPL held, refreshed every 30s.
+
+Position values are substituted as plain numbers before formula evaluation, so they compose freely with `%[...]` formulas:
+
+```
+%[&{AAPL:position} * @{AAPL:last}:10]              → live market value of AAPL position
+%[(@{AAPL:last} - &{AAPL:avgCost}) * &{AAPL:position}:10]   → unrealized P&L for AAPL
+%[(&{AAPL:position} * @{AAPL:last}) / #{NetLiquidation} * 100:10]  → AAPL as % of portfolio
+```
+
+Returns `--` for symbols not held or when IBKR is disconnected.
 
 ### Account placeholders — `#{field:seconds}`
 
