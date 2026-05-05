@@ -21,10 +21,11 @@ LT.Public.Api/
 
 ## Endpoints
 
-| Method | Path           | Description                                     |
-|--------|----------------|-------------------------------------------------|
-| GET    | `/health`      | Health check — returns `{ status: "healthy" }`  |
-| GET    | `/api/widgets` | Widget catalog — returns all available widget types |
+| Method | Path                | Description                                     |
+|--------|---------------------|-------------------------------------------------|
+| GET    | `/health`           | Health check — returns `{ status: "healthy" }`  |
+| GET    | `/api/widgets`      | Widget catalog — returns all available widget types |
+| GET    | `/api/whats-new`    | Release notes — returns entries newest-first    |
 
 ### `GET /api/widgets`
 
@@ -55,6 +56,33 @@ Response shape:
 ```
 
 The catalog is served by `WidgetCatalogService` (static, no database reads). It powers the public widget gallery at `limitlessworkstation.com/gallery`.
+
+### `GET /api/whats-new`
+
+Returns release notes entries in descending `publishedAt` order. No authentication required.
+
+```
+GET https://api.limitlessworkstation.com/api/whats-new?limit=10&offset=0
+```
+
+Query params: `limit` (default 10, max 50), `offset` (default 0).
+
+Response shape:
+
+```json
+[
+  {
+    "id": 1,
+    "version": "0.2.0",
+    "title": "Widgets Gallery",
+    "body": "Browse and import community-shared widget layouts...",
+    "publishedAt": "2026-05-05T00:00:00Z",
+    "tags": ["workstation", "widgets"]
+  }
+]
+```
+
+Entries are created manually in the database (no public POST endpoint). The Workstation home page and `limitlessworkstation.com/whats-new` both consume this endpoint.
 
 ## Development
 

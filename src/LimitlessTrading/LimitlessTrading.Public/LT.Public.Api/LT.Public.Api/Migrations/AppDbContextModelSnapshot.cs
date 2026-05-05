@@ -156,6 +156,38 @@ namespace LT.Public.Api.Migrations
                     b.ToTable("GalleryWidgets");
                 });
 
+            modelBuilder.Entity("LT.Public.Api.Models.WhatsNewEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.PrimitiveCollection<string[]>("Tags")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("WhatsNewEntries");
+                });
+
             modelBuilder.Entity("LT.Public.Api.Models.FeedbackComment", b =>
                 {
                     b.HasOne("LT.Public.Api.Models.Feedback", "Feedback")

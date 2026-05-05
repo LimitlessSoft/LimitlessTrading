@@ -15,6 +15,7 @@ import transcribeRoutes from './routes/transcribe.js'
 import licenseRoutes from './routes/license.js'
 import feedbackRoutes from './routes/feedback.js'
 import galleryRoutes from './routes/gallery.js'
+import whatsNewRoutes from './routes/whats-new.js'
 import { getConnectionStatus } from './ibkrClient.js'
 
 const require = createRequire(import.meta.url)
@@ -39,6 +40,7 @@ app.use('/api/ai', transcribeRoutes)
 app.use('/api/license', licenseRoutes)
 app.use('/api/feedback', feedbackRoutes)
 app.use('/api/gallery', galleryRoutes)
+app.use('/api/whats-new', whatsNewRoutes)
 
 // Version
 app.get('/api/version', (_req, res) => res.json({ version }))

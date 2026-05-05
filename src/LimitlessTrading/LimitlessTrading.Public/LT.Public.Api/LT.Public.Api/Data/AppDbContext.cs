@@ -9,6 +9,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<FeedbackUpvote> FeedbackUpvotes => Set<FeedbackUpvote>();
     public DbSet<FeedbackComment> FeedbackComments => Set<FeedbackComment>();
     public DbSet<GalleryWidget> GalleryWidgets => Set<GalleryWidget>();
+    public DbSet<WhatsNewEntry> WhatsNewEntries => Set<WhatsNewEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
