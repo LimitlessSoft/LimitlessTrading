@@ -15,3 +15,5 @@ jobs:
   workstation:
     uses: LimitlessSoft/LimitlessTrading/.github/workflows/build-workstation.yml@master
     secrets: inherit
+    permissions:
+      contents: write
