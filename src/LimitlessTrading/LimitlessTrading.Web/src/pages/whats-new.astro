@@ -2,8 +2,11 @@
 import BaseLayout from '@layouts/BaseLayout.astro';
 import ReleaseEntry from '@components/ReleaseEntry.astro';
 
-const res = await fetch('https://api.limitlessworkstation.com/api/whats-new?limit=50');
-const releases = res.ok ? await res.json() : [];
+let releases: any[] = [];
+try {
+  const res = await fetch('https://api.limitlessworkstation.com/api/whats-new?limit=50');
+  if (res.ok) releases = await res.json();
+} catch {}
 ---
 
 <BaseLayout title="What's New" description="Release notes and changelog for Limitless Trading.">

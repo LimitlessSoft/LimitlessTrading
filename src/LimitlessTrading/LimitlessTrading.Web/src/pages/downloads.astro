@@ -3,9 +3,12 @@ import BaseLayout from '@layouts/BaseLayout.astro';
 import DownloadCard from '@components/DownloadCard.astro';
 import { platformReleases } from '@data/releases';
 
-const res = await fetch('https://api.limitlessworkstation.com/api/whats-new?limit=1');
-const [latest] = res.ok ? await res.json() : [];
-const CURRENT_VERSION = latest?.version ?? '';
+let CURRENT_VERSION = '';
+try {
+  const res = await fetch('https://api.limitlessworkstation.com/api/whats-new?limit=1');
+  const [latest] = res.ok ? await res.json() : [];
+  CURRENT_VERSION = latest?.version ?? '';
+} catch {}
 
 const requirements = [
   'Interactive Brokers TWS or IB Gateway (paper or live)',

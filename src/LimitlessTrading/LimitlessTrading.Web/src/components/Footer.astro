@@ -1,7 +1,10 @@
 ---
-const res = await fetch('https://api.limitlessworkstation.com/api/whats-new?limit=1');
-const [latest] = res.ok ? await res.json() : [];
-const version = latest?.version ?? '';
+let version = '';
+try {
+  const res = await fetch('https://api.limitlessworkstation.com/api/whats-new?limit=1');
+  const [latest] = res.ok ? await res.json() : [];
+  version = latest?.version ?? '';
+} catch {}
 ---
 
 <footer class="border-t border-ls-border px-12 py-8">
