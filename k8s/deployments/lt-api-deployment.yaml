@@ -19,6 +19,12 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
+        env:
+        - name: ConnectionStrings__DefaultConnection
+          valueFrom:
+            secretKeyRef:
+              name: lt-api-postgres-secret
+              key: ConnectionStrings__DefaultConnection
         resources:
           requests:
             cpu: "100m"
