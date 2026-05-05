@@ -22,7 +22,13 @@ jobs:
     - name: Deploy limitless-trading-api to cluster
       run: |-
         export DEPLOY_ENV=${{ inputs.env }}
+        export POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+        export POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
         envsubst < k8s/namespaces/lt-api-namespace.yaml | kubectl apply -f -
+        envsubst < k8s/secrets/lt-api-postgres-secret.yaml | kubectl apply -f -
+        kubectl apply -f k8s/storage/lt-api-postgres-pvc.yaml
+        kubectl apply -f k8s/statefulsets/lt-api-postgres-statefulset.yaml
+        kubectl apply -f k8s/services/lt-api-postgres-service.yaml
         envsubst < k8s/services/lt-api-service.yaml | kubectl apply -f -
         envsubst < k8s/deployments/lt-api-deployment.yaml | kubectl apply -f -
         envsubst < k8s/ingress/lt-api-ingress.yaml | kubectl apply -f -
