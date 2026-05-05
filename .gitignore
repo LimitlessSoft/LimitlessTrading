@@ -70,6 +70,7 @@ temp/
 *.xlsx
 data/
 secrets/
+!k8s/secrets/
 credentials/
 
 # Brainstorm / planning files
