@@ -16,6 +16,7 @@ builder.Services.AddCors(options =>
             "https://limitlessworkstation.com",
             "https://www.limitlessworkstation.com",
             "https://admin.limitlessworkstation.com",
+            "http://admin.limitlessworkstation.com",
             "http://localhost:4321",
             "http://localhost:5174",
             "http://localhost:8743"
