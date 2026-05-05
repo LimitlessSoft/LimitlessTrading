@@ -31,6 +31,7 @@ jobs:
         envsubst < k8s/secrets/lt-api-postgres-secret.yaml | kubectl apply -f -
         envsubst < k8s/secrets/lt-api-admin-secret.yaml | kubectl apply -f -
         kubectl apply -f k8s/storage/lt-api-postgres-pvc.yaml
+        kubectl apply -f k8s/storage/lt-api-releases-pvc.yaml
         kubectl apply -f k8s/statefulsets/lt-api-postgres-statefulset.yaml
         kubectl apply -f k8s/services/lt-api-postgres-service.yaml
         envsubst < k8s/services/lt-api-service.yaml | kubectl apply -f -

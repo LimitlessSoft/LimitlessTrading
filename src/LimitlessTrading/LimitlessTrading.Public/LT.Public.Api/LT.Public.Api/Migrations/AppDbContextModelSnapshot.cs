@@ -33,7 +33,7 @@ namespace LT.Public.Api.Migrations
 
                     b.HasKey("Key");
 
-                    b.ToTable("AdminSettings");
+                    b.ToTable("AdminSettings", (string)null);
                 });
 
             modelBuilder.Entity("LT.Public.Api.Models.Feedback", b =>
@@ -76,7 +76,7 @@ namespace LT.Public.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Feedback");
+                    b.ToTable("Feedback", (string)null);
                 });
 
             modelBuilder.Entity("LT.Public.Api.Models.FeedbackComment", b =>
@@ -109,7 +109,7 @@ namespace LT.Public.Api.Migrations
 
                     b.HasIndex("FeedbackId");
 
-                    b.ToTable("FeedbackComments");
+                    b.ToTable("FeedbackComments", (string)null);
                 });
 
             modelBuilder.Entity("LT.Public.Api.Models.FeedbackUpvote", b =>
@@ -133,7 +133,7 @@ namespace LT.Public.Api.Migrations
                     b.HasIndex("FeedbackId", "UserId")
                         .IsUnique();
 
-                    b.ToTable("FeedbackUpvotes");
+                    b.ToTable("FeedbackUpvotes", (string)null);
                 });
 
             modelBuilder.Entity("LT.Public.Api.Models.GalleryWidget", b =>
@@ -167,7 +167,7 @@ namespace LT.Public.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("GalleryWidgets");
+                    b.ToTable("GalleryWidgets", (string)null);
                 });
 
             modelBuilder.Entity("LT.Public.Api.Models.WhatsNewEntry", b =>
@@ -199,7 +199,7 @@ namespace LT.Public.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("WhatsNewEntries");
+                    b.ToTable("WhatsNewEntries", (string)null);
                 });
 
             modelBuilder.Entity("LT.Public.Api.Models.FeedbackComment", b =>

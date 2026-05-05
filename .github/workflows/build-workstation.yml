@@ -78,3 +78,24 @@ jobs:
           name: LT Workstation v${{ needs.bump-version.outputs.version }}
           generate_release_notes: true
           files: src/LT.Workstation/LT.Workstation.App/dist/*.AppImage
+
+      - name: Set K8s context
+        uses: ossrs/k8s-set-context-action@v1
+        with:
+          kubeconfig: '${{ secrets.KUBE_CONFIG_PURE }}'
+
+      - name: Copy release to cluster volume
+        env:
+          VERSION: ${{ needs.bump-version.outputs.version }}
+        run: |
+          APPIMAGE=$(ls src/LT.Workstation/LT.Workstation.App/dist/*.AppImage | head -1)
+          FILENAME=$(basename "$APPIMAGE")
+          SHA256=$(sha256sum "$APPIMAGE" | cut -d' ' -f1)
+          POD=$(kubectl get pods -n lt-api-namespace -l app=production-lt-api -o jsonpath='{.items[0].metadata.name}')
+
+          kubectl exec -n lt-api-namespace "$POD" -- sh -c "mkdir -p /data/releases/Linux && rm -f /data/releases/Linux/*.AppImage"
+          kubectl cp "$APPIMAGE" "lt-api-namespace/$POD:/data/releases/Linux/$FILENAME"
+
+          printf '{"version":"%s","fileName":"%s","checksum":"%s","publishedAt":"%s"}' \
+            "$VERSION" "$FILENAME" "$SHA256" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > metadata.json
+          kubectl cp metadata.json "lt-api-namespace/$POD:/data/releases/Linux/metadata.json"

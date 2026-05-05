@@ -72,7 +72,7 @@ const checksums = platformReleases.map(r => ({ platform: r.platform, checksum: r
               <span class="text-[10px] tracking-widest uppercase text-ls-text-dim w-20 flex-shrink-0 mt-0.5">
                 {c.platform}
               </span>
-              <code class="text-xs font-mono text-ls-text break-all">
+              <code class="text-xs font-mono text-ls-text break-all" data-checksum={c.platform}>
                 {c.checksum === '—' ? 'Available with first binary release' : c.checksum}
               </code>
             </div>
@@ -85,11 +85,36 @@ const checksums = platformReleases.map(r => ({ platform: r.platform, checksum: r
 </BaseLayout>
 
 <script>
-  fetch('https://api.limitlessworkstation.com/api/whats-new?limit=1')
+  const ENABLED_BTN = 'block text-center py-3 text-xs font-bold tracking-[0.2em] uppercase bg-ls-blue text-white hover:bg-blue-500 transition-colors';
+  const DISABLED_BTN = 'block text-center py-3 text-xs font-bold tracking-[0.2em] uppercase bg-white/5 text-white/30 border border-ls-border cursor-not-allowed pointer-events-none';
+
+  const extMap: Record<string, string> = { Windows: '.exe', macOS: '.dmg', Linux: '.AppImage' };
+
+  fetch('https://api.limitlessworkstation.com/api/releases')
     .then(r => r.json())
-    .then(([latest]) => {
-      const el = document.getElementById('downloads-version');
-      if (el && latest?.version) el.textContent = `v${latest.version}`;
+    .then((releases: { platform: string; version: string; url: string; checksum: string; size: string }[]) => {
+      releases.forEach(r => {
+        const card = document.querySelector<HTMLElement>(`[data-platform="${r.platform}"]`);
+        if (!card) return;
+
+        const sizeEl = card.querySelector<HTMLElement>('[data-size]');
+        if (sizeEl && r.size) sizeEl.textContent = r.size;
+
+        const btn = card.querySelector<HTMLAnchorElement>('[data-download-btn]');
+        if (btn) {
+          btn.href = r.url;
+          btn.textContent = `Download ${extMap[r.platform] ?? ''}`;
+          btn.className = ENABLED_BTN;
+          btn.removeAttribute('aria-disabled');
+        }
+
+        const checksumEl = document.querySelector<HTMLElement>(`[data-checksum="${r.platform}"]`);
+        if (checksumEl) checksumEl.textContent = r.checksum;
+      });
+
+      const latest = releases[0];
+      const versionEl = document.getElementById('downloads-version');
+      if (versionEl && latest?.version) versionEl.textContent = `v${latest.version}`;
     })
     .catch(() => {});
 </script>

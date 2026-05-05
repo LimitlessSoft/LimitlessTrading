@@ -14,31 +14,23 @@ const icons: Record<string, string> = {
 };
 ---
 
-<div class="bg-white/[0.02] border border-ls-border p-8 flex flex-col gap-6 hover:border-ls-blue/50 hover:bg-ls-blue-dim transition-all">
+<div class="bg-white/[0.02] border border-ls-border p-8 flex flex-col gap-6 hover:border-ls-blue/50 hover:bg-ls-blue-dim transition-all" data-platform={release.platform}>
   <div>
     <p class="text-4xl mb-4">{icons[release.platform]}</p>
     <h3 class="text-xl font-black uppercase tracking-[-0.5px] text-white">{release.label}</h3>
     <p class="text-xs tracking-widest uppercase text-ls-text-dim mt-1">{release.ext}</p>
   </div>
 
-  {release.size !== '—' && (
-    <p class="text-xs text-ls-text">{release.size}</p>
-  )}
+  <p class="text-xs text-ls-text" data-size>{release.size !== '—' ? release.size : ''}</p>
 
-  {release.url === '#' ? (
-    <span
-      class="block text-center py-3 text-xs font-bold tracking-[0.2em] uppercase bg-white/5 text-white/30 border border-ls-border cursor-not-allowed"
-      role="link"
-      aria-disabled="true"
-    >
-      Coming Soon
-    </span>
-  ) : (
-    <a
-      href={release.url}
-      class="block text-center py-3 text-xs font-bold tracking-[0.2em] uppercase bg-ls-blue text-white hover:bg-blue-500 transition-colors"
-    >
-      Download {release.ext}
-    </a>
-  )}
+  <a
+    href={release.url !== '#' ? release.url : undefined}
+    data-download-btn
+    class={release.url !== '#'
+      ? "block text-center py-3 text-xs font-bold tracking-[0.2em] uppercase bg-ls-blue text-white hover:bg-blue-500 transition-colors"
+      : "block text-center py-3 text-xs font-bold tracking-[0.2em] uppercase bg-white/5 text-white/30 border border-ls-border cursor-not-allowed pointer-events-none"}
+    aria-disabled={release.url === '#'}
+  >
+    {release.url !== '#' ? `Download ${release.ext}` : 'Coming Soon'}
+  </a>
 </div>

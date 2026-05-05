@@ -24,6 +24,10 @@ LT.Public.Api/
 | Method | Path                    | Auth     | Description                                     |
 |--------|-------------------------|----------|-------------------------------------------------|
 | GET    | `/health`               |          | Health check — returns `{ status: "healthy" }`  |
+| GET    | `/api/releases`                  |          | Latest release per platform (Windows, macOS, Linux) |
+| GET    | `/api/releases/download/{platform}` |       | Download the binary for a platform                 |
+| POST   | `/api/releases/upload`           | JWT      | Upload a new binary and register the release        |
+| DELETE | `/api/releases/{id}`             | JWT      | Delete a release entry and its binary               |
 | GET    | `/api/widgets`          |          | Widget catalog — returns all available widget types |
 | GET    | `/api/whats-new`        |          | Release notes — returns entries newest-first    |
 | POST   | `/api/whats-new`        | JWT      | Create a release notes entry                    |
@@ -60,6 +64,58 @@ Response shape:
 ```
 
 The catalog is served by `WidgetCatalogService` (static, no database reads). It powers the public widget gallery at `limitlessworkstation.com/gallery`.
+
+### `GET /api/releases`
+
+Returns the latest release entry for each platform. Used by the downloads page.
+
+```
+GET https://api.limitlessworkstation.com/api/releases
+```
+
+Response shape:
+
+```json
+[
+  {
+    "platform": "Linux",
+    "version": "1.2.3",
+    "url": "https://api.limitlessworkstation.com/api/releases/download/Linux",
+    "checksum": "abc123...",
+    "size": "142.5 MB",
+    "publishedAt": "2026-05-05T12:00:00Z"
+  }
+]
+```
+
+### `GET /api/releases/download/{platform}`
+
+Streams the binary for the given platform. Used as the download URL in the web downloads page. Returns 404 if no release exists for that platform.
+
+```
+GET https://api.limitlessworkstation.com/api/releases/download/Linux
+```
+
+### `POST /api/releases/upload` (auth required)
+
+Uploads a binary and registers (or updates) the release for its platform. Accepts `multipart/form-data`. Called by the workstation CI after each build. Cleans up the previous binary when a new one is uploaded.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Platform` | string | `Windows`, `macOS`, or `Linux` |
+| `Version` | string | Semver string, e.g. `1.2.3` |
+| `Checksum` | string | SHA256 hex of the file |
+| `File` | file | The binary (max 500 MB) |
+
+Binaries are stored on a PVC mounted at `/data/releases/{Platform}/{FileName}`.
+
+Required CI secrets: `API_ADMIN_EMAIL`, `API_ADMIN_PASSWORD`.
+
+### `DELETE /api/releases/{id}` (auth required)
+
+Deletes a release entry and its binary from disk. Returns 204 on success.
+
+---
 
 ### `GET /api/whats-new`
 

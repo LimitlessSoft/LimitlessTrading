@@ -7,6 +7,8 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 500 * 1024 * 1024);
+
 var jwtSecret = builder.Configuration["Admin:JwtSecret"] ?? "dev-secret-change-in-production";
 
 builder.Services.AddCors(options =>
