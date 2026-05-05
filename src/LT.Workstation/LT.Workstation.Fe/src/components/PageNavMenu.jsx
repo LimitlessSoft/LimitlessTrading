@@ -80,7 +80,7 @@ function PageNavMenu({
   const [newPath, setNewPath] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [appVersion, setAppVersion] = useState(null)
-  const { isPro } = useLicense()
+  const { isPro, status: licenseStatus, customerEmail } = useLicense()
   const canAddTemplate = isPro || routes.length < FREE_LIMITS.templates
   const { isOpen, onOpen, onClose } = useDisclosure()
   const { isOpen: isAlertsOpen, onOpen: onAlertsOpen, onClose: onAlertsClose } = useDisclosure()
@@ -320,6 +320,33 @@ function PageNavMenu({
             <Text fontSize="sm" color="gray.500" mb={4}>
               Version{' '}
               <Text as="span" color="gray.300">{appVersion ?? '—'}</Text>
+            </Text>
+            <Divider borderColor="gray.600" mb={4} />
+            <Text fontSize="xs" fontWeight="semibold" color="gray.400" textTransform="uppercase" letterSpacing="wider" mb={2}>
+              License
+            </Text>
+            <Box bg="gray.900" borderRadius="md" p={3} fontSize="xs" color="gray.300" mb={2}>
+              <Flex gap={2} mb={1}>
+                <Text color="gray.500" minW="140px" flexShrink={0}>plan</Text>
+                <Code bg="transparent" fontSize="xs" color={licenseStatus === 'loading' ? 'gray.400' : isPro ? 'green.300' : 'gray.200'}>
+                  {licenseStatus === 'loading' ? '—' : isPro ? 'Pro' : 'Free'}
+                </Code>
+              </Flex>
+              <Flex gap={2}>
+                <Text color="gray.500" minW="140px" flexShrink={0}>email</Text>
+                <Code bg="transparent" color="gray.200" fontSize="xs" wordBreak="break-all">
+                  {customerEmail ?? '—'}
+                </Code>
+              </Flex>
+            </Box>
+            <Text
+              fontSize="xs"
+              color="blue.400"
+              cursor="pointer"
+              mb={4}
+              onClick={() => { onAboutClose(); onLicenseOpen() }}
+            >
+              Manage license →
             </Text>
             <Divider borderColor="gray.600" mb={4} />
             <Text fontSize="xs" fontWeight="semibold" color="gray.400" textTransform="uppercase" letterSpacing="wider" mb={2}>
