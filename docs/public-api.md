@@ -94,13 +94,23 @@ envsubst < k8s/ingress/lt-api-ingress.yaml | kubectl apply -f -
 kubectl rollout restart -n lt-api-namespace deployment $DEPLOY_ENV-lt-api-deployment
 ```
 
+## Versioning
+
+The API version is stored in the `<Version>` tag of `LT.Public.Api.csproj`. CI bumps it automatically on every release (patch). To bump manually:
+
+```bash
+node scripts/set-api-version.js           # patch
+node scripts/set-api-version.js --minor
+node scripts/set-api-version.js --major
+```
+
 ## CI/CD
 
-Three GitHub Actions workflows handle automated deployment:
+Three GitHub Actions workflows handle automated deployment. `release-api.yml` orchestrates the full pipeline:
 
 | File | Purpose |
 |------|---------|
-| `release-api.yml` | Triggers on push to `master` (API paths) or `workflow_dispatch` |
+| `release-api.yml` | Trigger (API path changes or `workflow_dispatch`); bumps patch version, commits it, then calls build + deploy, then creates a GitHub release tagged `api-v{version}` |
 | `build-and-publish-api.yml` | Builds and pushes Docker image to Docker Hub, then calls deploy |
 | `deploy-api.yml` | Applies k8s manifests and restarts the deployment |
 

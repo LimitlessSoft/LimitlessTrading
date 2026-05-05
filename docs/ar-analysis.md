@@ -6,6 +6,7 @@ LT Workstation is the main trading analysis app — a React frontend (Vite) with
 
 ```
 src/LT.Workstation/
+├── version.json                    # Shared version for App, Fe, and Server
 ├── LT.Workstation.App/             # Electron desktop shell
 │   ├── main.js                     # Main process — spawns server, creates BrowserWindow
 │   ├── preload.js                  # Context bridge preload
@@ -74,12 +75,24 @@ src/LT.Workstation/
     │   ├── userData.js             # User preferences CRUD (watchlist, favorites, settings, etc.)
     │   ├── ai.js                   # AI chat endpoints
     │   ├── transcribe.js           # Audio transcription endpoint
-    │   └── license.js              # License validation endpoint
+    │   ├── license.js              # License validation endpoint
+    │   └── feedback.js             # Feedback submission endpoint
     ├── data/
     │   ├── routes-config.json      # Persistent storage for custom routes (gitignored)
     │   └── user-data.json          # Persistent user preferences (gitignored)
     └── package.json
 ```
+
+## CI/CD
+
+Two GitHub Actions workflows handle Workstation releases:
+
+| File | Purpose |
+|------|---------|
+| `release-workstation.yml` | Triggers on push to `master` (Workstation paths) or `workflow_dispatch`; delegates to build workflow |
+| `build-workstation.yml` | Bumps patch version and commits it, builds the Electron app, creates a GitHub release tagged `workstation-v{version}` with the AppImage attached |
+
+The version bump commit is made by `github-actions[bot]` using `GITHUB_TOKEN`, so it does not re-trigger the workflow.
 
 ## UI Framework
 

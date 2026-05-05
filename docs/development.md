@@ -65,3 +65,29 @@ npm run dev      # Vite dev server on port 8743
 cd src/LT.Workstation/LT.Workstation.Server
 npm start        # Express on port 8744
 ```
+
+## Versioning
+
+Workstation (App + Fe + Server) and Public API are versioned independently.
+
+### Workstation
+
+Single source of truth: `src/LT.Workstation/version.json`. All three `package.json` files mirror this value. The server reads it directly to expose `GET /api/version`.
+
+```bash
+node scripts/set-workstation-version.js           # bump patch  →  0.1.0 → 0.1.1
+node scripts/set-workstation-version.js --minor   # bump minor  →  0.1.0 → 0.2.0
+node scripts/set-workstation-version.js --major   # bump major  →  0.1.0 → 1.0.0
+```
+
+### Public API
+
+Single source of truth: `<Version>` tag in `LT.Public.Api.csproj`.
+
+```bash
+node scripts/set-api-version.js           # bump patch
+node scripts/set-api-version.js --minor   # bump minor
+node scripts/set-api-version.js --major   # bump major
+```
+
+CI bumps the patch version automatically on every release. Minor and major bumps are done manually before pushing.

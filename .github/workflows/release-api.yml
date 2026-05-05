@@ -14,11 +14,56 @@ on:
       - 'k8s/secrets/lt-api-postgres-secret.yaml'
       - 'k8s/storage/lt-api-postgres-pvc.yaml'
       - 'k8s/statefulsets/lt-api-postgres-statefulset.yaml'
+      - 'scripts/set-api-version.js'
       - '.github/workflows/deploy-api.yml'
 
 jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Bump patch version
+        run: node scripts/set-api-version.js
+
+      - name: Read new version
+        id: read
+        run: echo "version=$(grep -oP '(?<=<Version>)[\d.]+(?=<\/Version>)' src/LimitlessTrading/LimitlessTrading.Public/LT.Public.Api/LT.Public.Api/LT.Public.Api.csproj)" >> $GITHUB_OUTPUT
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/LimitlessTrading/LimitlessTrading.Public/LT.Public.Api/LT.Public.Api/LT.Public.Api.csproj
+          git commit -m "Bump Public API to ${{ steps.read.outputs.version }}"
+          git push
+
   api:
+    needs: bump-version
     uses: LimitlessSoft/LimitlessTrading/.github/workflows/build-and-publish-api.yml@master
     secrets: inherit
     with:
       env: production
+
+  create-release:
+    needs: [ bump-version, api ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: api-v${{ needs.bump-version.outputs.version }}
+          name: LT Public API v${{ needs.bump-version.outputs.version }}
+          generate_release_notes: true

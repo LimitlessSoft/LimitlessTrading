@@ -1,6 +1,6 @@
 # Architecture
 
-Limitless Trading is a trading analysis toolkit. It consists of two independent backends, one local frontend, and one public website:
+Limitless Trading is a trading analysis toolkit. It consists of an Electron desktop app with a local backend, plus a publicly deployed API and website:
 
 | Component | Stack | Location | Purpose |
 |-----------|-------|----------|---------|
@@ -22,4 +22,5 @@ Limitless Trading is a trading analysis toolkit. It consists of two independent 
 
 See [ar-analysis.md](ar-analysis.md) for the Limitless Trading app file structure and key patterns.  
 See [public-api.md](public-api.md) for the LT Public API endpoints, Docker, Kubernetes, and CI/CD.  
-See [web.md](web.md) for the LT Web public website, Docker, Kubernetes, and CI/CD.
+See [web.md](web.md) for the LT Web public website, Docker, Kubernetes, and CI/CD.  
+See [development.md](development.md) for dev commands and version management.

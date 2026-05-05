@@ -1,0 +1,17 @@
+name: Release LT Workstation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "master" ]
+    paths:
+      - 'src/LT.Workstation/LT.Workstation.Fe/**'
+      - 'src/LT.Workstation/LT.Workstation.Server/**'
+      - 'src/LT.Workstation/LT.Workstation.App/**'
+      - 'scripts/set-workstation-version.js'
+      - '.github/workflows/build-workstation.yml'
+
+jobs:
+  workstation:
+    uses: LimitlessSoft/LimitlessTrading/.github/workflows/build-workstation.yml@master
+    secrets: inherit

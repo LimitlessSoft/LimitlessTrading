@@ -17,7 +17,7 @@ import feedbackRoutes from './routes/feedback.js'
 import { getConnectionStatus } from './ibkrClient.js'
 
 const require = createRequire(import.meta.url)
-const { version } = require('./package.json')
+const { version } = require('../version.json')
 
 const app = express()
 const PORT = process.env.PORT || 8744
