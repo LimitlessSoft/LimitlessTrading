@@ -328,8 +328,8 @@ function PageNavMenu({
             <Box bg="gray.900" borderRadius="md" p={3} fontSize="xs" color="gray.300" mb={2}>
               <Flex gap={2} mb={1}>
                 <Text color="gray.500" minW="140px" flexShrink={0}>plan</Text>
-                <Code bg="transparent" fontSize="xs" color={licenseStatus === 'loading' ? 'gray.400' : isPro ? 'green.300' : 'gray.200'}>
-                  {licenseStatus === 'loading' ? '—' : isPro ? 'Pro' : 'Free'}
+                <Code bg="transparent" fontSize="xs" color={licenseStatus === 'loading' || licenseStatus === 'error' ? 'gray.400' : isPro ? 'green.300' : 'gray.200'}>
+                  {licenseStatus === 'loading' || licenseStatus === 'error' ? '—' : isPro ? 'Pro' : 'Free'}
                 </Code>
               </Flex>
               <Flex gap={2}>
@@ -345,6 +345,7 @@ function PageNavMenu({
               cursor="pointer"
               mb={4}
               onClick={() => { onAboutClose(); onLicenseOpen() }}
+              _hover={{ color: 'blue.300' }}
             >
               Manage license →
             </Text>
