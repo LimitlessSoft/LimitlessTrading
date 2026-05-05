@@ -436,3 +436,7 @@ When adding a new widget type, register it in `WidgetTreePanel.jsx`:
 1. Add an SVG entry to the `ICONS` map.
 2. Add a hex color to `TYPE_COLORS`.
 3. Add a case to the `snippet` function to return a meaningful preview string.
+
+## Shared behavior via hooks
+
+When behavior needs to be added to all widget components, use the widget hook pattern rather than duplicating code in each file. See [widget-hook-pattern.md](widget-hook-pattern.md) for the full pattern and examples.

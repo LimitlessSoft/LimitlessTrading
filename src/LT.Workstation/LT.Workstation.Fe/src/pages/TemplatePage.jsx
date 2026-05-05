@@ -43,6 +43,7 @@ import TemplatePageBadge from '../components/TemplatePageBadge'
 import TemplatePageGauge from '../components/TemplatePageGauge'
 import { WIDGET_REGISTRY, createWidget, renderWidget } from '../components/widgetRenderer'
 import WidgetsGalleryModal from '../components/WidgetsGalleryModal'
+import ShareToGalleryModal from '../components/ShareToGalleryModal'
 import WidgetTreePanel from '../components/WidgetTreePanel'
 
 // Returns the fillHeight available to dock:fill-height widgets after subtracting fixed-height rows.
@@ -94,6 +95,7 @@ function TemplatePage() {
   const { isOpen, onOpen, onClose } = useDisclosure()
   const { isOpen: isImportOpen, onOpen: onImportOpen, onClose: onImportClose } = useDisclosure()
   const { isOpen: isGalleryOpen, onOpen: onGalleryOpen, onClose: onGalleryClose } = useDisclosure()
+  const { isOpen: isShareOpen, onOpen: onShareOpen, onClose: onShareClose } = useDisclosure()
   const { isOpen: isInfoOpen, onOpen: onInfoOpen, onClose: onInfoClose } = useDisclosure()
   const { isOpen: isLicenseOpen, onOpen: onLicenseOpen, onClose: onLicenseClose } = useDisclosure()
   const { isOpen: isDeletePageOpen, onOpen: onDeletePageOpen, onClose: onDeletePageClose } = useDisclosure()
@@ -113,6 +115,7 @@ function TemplatePage() {
   const [isTreeOpen, setIsTreeOpen] = useState(false)
   const [headerHeight, setHeaderHeight] = useState(0)
   const [openSettingsForId, setOpenSettingsForId] = useState(null)
+  const [shareWidget, setShareWidget] = useState(null)
 
   useEffect(() => {
     const loadPageInfo = async () => {
@@ -506,6 +509,28 @@ function TemplatePage() {
     return result
   }
 
+  const handleShareWidgetToGallery = (widget) => {
+    setShareWidget(widget)
+    onShareOpen()
+  }
+
+  const handleImportFromGallery = async (config) => {
+    if (!pageInfo) return
+    if (isAtWidgetLimit()) { onLicenseOpen(); return }
+    try {
+      const currentLabels = pageInfo.config?.labels || []
+      const maxY = currentLabels.reduce((m, l) => Math.max(m, l.y || 0), -1)
+      const widget = regenerateIds({ ...config, x: 0, y: maxY + 1 })
+      const updatedConfig = { ...pageInfo.config, labels: [...currentLabels, widget] }
+      const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
+      setPageInfo(updatedRoute)
+      onClose()
+      toast({ title: 'Widget imported from gallery', status: 'success', duration: 2000 })
+    } catch (err) {
+      toast({ title: 'Import failed', description: err.message, status: 'error', duration: 3000 })
+    }
+  }
+
   const handleExportWidget = (widget) => {
     const exportData = { version: 1, control: widget }
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
@@ -764,6 +789,7 @@ function TemplatePage() {
       onDuplicate: handleDuplicateHeaderWidget,
       onUpdate: handleUpdateHeaderWidget,
       onExport: handleExportWidget,
+      onShare: handleShareWidgetToGallery,
       onLinkSync: handleLinkSync,
       onDragStateChange: (dragging, mousePos) => setActiveDrag(dragging ? { widgetId: widget.id, mousePos } : null),
       onMoveWidget: handleMoveWidget,
@@ -908,6 +934,7 @@ function TemplatePage() {
                 onDuplicate: handleDuplicateLabel,
                 onUpdate: handleUpdateLabel,
                 onExport: handleExportWidget,
+                onShare: handleShareWidgetToGallery,
                 onLinkSync: handleLinkSync,
                 onDragPreview: (pos) => setDragPreview(pos ? { id: label.id, ...pos } : null),
                 onDragStateChange: (dragging, mousePos) => setActiveDrag(dragging ? { widgetId: label.id, mousePos } : null),
@@ -1077,7 +1104,8 @@ function TemplatePage() {
           )}
         </ModalContent>
       </Modal>
-      <WidgetsGalleryModal isOpen={isGalleryOpen} onClose={onGalleryClose} />
+      <WidgetsGalleryModal isOpen={isGalleryOpen} onClose={onGalleryClose} onImport={handleImportFromGallery} />
+      <ShareToGalleryModal isOpen={isShareOpen} onClose={onShareClose} widget={shareWidget} />
       <LicenseModal isOpen={isLicenseOpen} onClose={onLicenseClose} />
       <Modal isOpen={isImportOpen} onClose={onImportClose}>
         <ModalOverlay />

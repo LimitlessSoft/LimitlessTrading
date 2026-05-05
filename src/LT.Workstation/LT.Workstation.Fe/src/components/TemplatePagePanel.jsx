@@ -30,6 +30,12 @@ const DownloadIcon = () => (
   </svg>
 )
 
+const ShareIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+    <path d="M18 16c-.8 0-1.5.3-2 .8L8.9 12l7.1-4.8c.5.5 1.2.8 2 .8 1.7 0 3-1.3 3-3s-1.3-3-3-3-3 1.3-3 3c0 .2 0 .5.1.7L8 10.4C7.5 9.8 6.8 9.5 6 9.5c-1.7 0-3 1.3-3 3s1.3 3 3 3c.8 0 1.5-.3 2-.8l8.1 4.8c-.1.2-.1.4-.1.5 0 1.7 1.3 3 3 3s3-1.3 3-3-1.3-3-3-3z" />
+  </svg>
+)
+
 const DuplicateIcon = () => (
   <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
     <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
@@ -42,6 +48,7 @@ import { WIDGET_REGISTRY, createWidget, renderWidget } from './widgetRenderer'
 import ConditionalStylesSection from './ConditionalStylesSection'
 import { applyConditionalStyles } from '../modules/conditionalStyles'
 import { useWidgetResolveText } from '../hooks/useWidgetResolveText'
+import { useWidgetSizeEdit } from '../hooks/useWidgetSizeEdit'
 
 const TOTAL_SEGMENTS = 20
 const MIN_SEGMENTS = 2
@@ -55,12 +62,13 @@ const DEFAULT_STYLE = {
   verticalAlign: 'top'
 }
 
-function TemplatePagePanel({ label, layoutY, onDelete, onDuplicate, onUpdate, onExport, onLinkSync, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, openSettingsForId, onSettingsOpened }) {
+function TemplatePagePanel({ label, layoutY, onDelete, onDuplicate, onUpdate, onExport, onShare, onLinkSync, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, openSettingsForId, onSettingsOpened, galleryMode }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
   const [previewSize, setPreviewSize] = useState(null)
   const [editStyle, setEditStyle] = useState(null)
+  const { initSize, sizeUpdates, sizeFields } = useWidgetSizeEdit(label, { defaultWidth: 8, defaultHeight: DEFAULT_HEIGHT, minHeight: MIN_HEIGHT })
   const [addType, setAddType] = useState('label')
   const [addText, setAddText] = useState('')
   const [addStage, setAddStage] = useState('pick')
@@ -239,6 +247,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
 
   const handleOpenStyleEdit = () => {
     setEditStyle({ ...DEFAULT_STYLE, ...label.style })
+    initSize()
     onStyleOpen()
   }
 
@@ -250,7 +259,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
   }, [openSettingsForId])
 
   const handleSaveStyle = () => {
-    onUpdate(label.id, { style: editStyle })
+    onUpdate(label.id, { style: editStyle, ...sizeUpdates })
     onStyleClose()
   }
 
@@ -264,6 +273,12 @@ function TemplatePagePanel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
     setAddText('')
     setAddType('label')
     onAddClose()
+  }
+
+  const handleAddChildFromGallery = (config) => {
+    const newChild = regenerateIds({ ...config, x: 0, y: children.length })
+    onUpdate(label.id, { children: [...children, newChild] })
+    onGalleryClose()
   }
 
   const regenerateIds = (widget) => {
@@ -585,6 +600,8 @@ function TemplatePagePanel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
       onDuplicate: handleDuplicateChild,
       onUpdate: layoutMode !== 'absolute' ? handleUpdateChildInLayout : handleUpdateChild,
       onExport: onExport,
+      onShare: onShare,
+      galleryMode,
       onLinkSync: onLinkSync,
       onDragStateChange: onDragStateChange,
       onMoveWidget: onMoveWidget,
@@ -673,6 +690,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
       onDuplicate: handleDuplicateChild,
       onUpdate: handleUpdateChildInLayout,
       onExport,
+      onShare,
       onLinkSync,
       onDragStateChange,
       onMoveWidget,
@@ -682,6 +700,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
       containerRef: childContainerRef,
       openSettingsForId,
       onSettingsOpened,
+      galleryMode,
     }
 
     const renderCell = (child, i, left, top, width, height) => {
@@ -795,15 +814,28 @@ function TemplatePagePanel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
               onClick={(e) => { e.stopPropagation(); onUpdate(label.id, { dock: label.dock === 'fill' ? undefined : 'fill' }) }}
             />
           </Tooltip>
-          <Tooltip label="Export panel" placement="top" hasArrow>
-            <IconButton
-              icon={<DownloadIcon />}
-              size="xs"
-              variant="ghost"
-              aria-label="Export panel"
-              onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
-            />
-          </Tooltip>
+          {!galleryMode && (
+            <Tooltip label="Export panel" placement="top" hasArrow>
+              <IconButton
+                icon={<DownloadIcon />}
+                size="xs"
+                variant="ghost"
+                aria-label="Export panel"
+                onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
+              />
+            </Tooltip>
+          )}
+          {!galleryMode && (
+            <Tooltip label="Share to gallery" placement="top" hasArrow>
+              <IconButton
+                icon={<ShareIcon />}
+                size="xs"
+                variant="ghost"
+                aria-label="Share to gallery"
+                onClick={(e) => { e.stopPropagation(); onShare?.(label) }}
+              />
+            </Tooltip>
+          )}
           <IconButton
             icon={<SettingsIcon />}
             size="xs"
@@ -811,22 +843,26 @@ function TemplatePagePanel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
             aria-label="Edit panel style"
             onClick={(e) => { e.stopPropagation(); handleOpenStyleEdit() }}
           />
-          <Tooltip label="Duplicate panel" placement="top" hasArrow>
+          {!galleryMode && (
+            <Tooltip label="Duplicate panel" placement="top" hasArrow>
+              <IconButton
+                icon={<DuplicateIcon />}
+                size="xs"
+                variant="ghost"
+                aria-label="Duplicate panel"
+                onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+              />
+            </Tooltip>
+          )}
+          {!galleryMode && (
             <IconButton
-              icon={<DuplicateIcon />}
+              icon={<CloseIcon />}
               size="xs"
               variant="ghost"
-              aria-label="Duplicate panel"
-              onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+              aria-label="Delete panel"
+              onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
             />
-          </Tooltip>
-          <IconButton
-            icon={<CloseIcon />}
-            size="xs"
-            variant="ghost"
-            aria-label="Delete panel"
-            onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
-          />
+          )}
         </HStack>
       )}
       <Box
@@ -850,8 +886,8 @@ function TemplatePagePanel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
         outlineColor={isEditing ? (isResizing || isMoving ? 'blue.400' : 'gray.500') : undefined}
         outlineOffset="-2px"
         opacity={isMoving ? 0.7 : 1}
-        cursor={isEditing ? 'move' : 'default'}
-        onMouseDown={isEditing ? handleMoveStart : undefined}
+        cursor={isEditing && !galleryMode ? 'move' : 'default'}
+        onMouseDown={isEditing && !galleryMode ? handleMoveStart : undefined}
         zIndex={isMoving ? 100 : 1}
       >
 
@@ -868,7 +904,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
         </Box>
 
         {/* Resize handles */}
-        {isEditing && (
+        {isEditing && !galleryMode && (
           <>
             <Box
               position="absolute"
@@ -1051,6 +1087,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
                   onChange={(rules) => setEditStyle({ ...editStyle, conditionalStyles: rules })}
                   fields={['bgColor', 'borderColor', 'borderWidth']}
                 />
+                {sizeFields}
               </VStack>
             )}
           </ModalBody>
@@ -1065,7 +1102,7 @@ function TemplatePagePanel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
         </ModalContent>
       </Modal>
 
-      <WidgetsGalleryModal isOpen={isGalleryOpen} onClose={onGalleryClose} />
+      <WidgetsGalleryModal isOpen={isGalleryOpen} onClose={onGalleryClose} onImport={(config) => { handleAddChildFromGallery(config); }} />
       {/* Add Child Modal */}
       <Modal isOpen={isAddOpen} onClose={onAddClose}>
         <ModalOverlay />

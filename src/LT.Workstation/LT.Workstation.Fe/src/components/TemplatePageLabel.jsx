@@ -34,6 +34,12 @@ const DownloadIcon = () => (
   </svg>
 )
 
+const ShareIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+    <path d="M18 16c-.8 0-1.5.3-2 .8L8.9 12l7.1-4.8c.5.5 1.2.8 2 .8 1.7 0 3-1.3 3-3s-1.3-3-3-3-3 1.3-3 3c0 .2 0 .5.1.7L8 10.4C7.5 9.8 6.8 9.5 6 9.5c-1.7 0-3 1.3-3 3s1.3 3 3 3c.8 0 1.5-.3 2-.8l8.1 4.8c-.1.2-.1.4-.1.5 0 1.7 1.3 3 3 3s3-1.3 3-3-1.3-3-3-3z" />
+  </svg>
+)
+
 const DuplicateIcon = () => (
   <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
     <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
@@ -41,6 +47,7 @@ const DuplicateIcon = () => (
 )
 
 import { useNavigate } from 'react-router-dom'
+import { useWidgetSizeEdit } from '../hooks/useWidgetSizeEdit'
 
 const TOTAL_SEGMENTS = 20
 const MIN_SEGMENTS = 2
@@ -59,13 +66,14 @@ const DEFAULT_STYLE = {
   verticalAlign: 'top'
 }
 
-function TemplatePageLabel({ label, layoutY, onDelete, onDuplicate, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode, openSettingsForId, onSettingsOpened }) {
+function TemplatePageLabel({ label, layoutY, onDelete, onDuplicate, onUpdate, onExport, onShare, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode, openSettingsForId, onSettingsOpened, galleryMode }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
   const [previewSize, setPreviewSize] = useState(null)
   const [editStyle, setEditStyle] = useState(null)
   const [editText, setEditText] = useState('')
+  const { initSize, sizeUpdates, sizeFields } = useWidgetSizeEdit(label, { defaultWidth: 4, defaultHeight: DEFAULT_HEIGHT, minHeight: MIN_HEIGHT })
   const boxRef = useRef(null)
   const navigate = useNavigate()
   const { isOpen, onOpen, onClose } = useDisclosure()
@@ -122,6 +130,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
   const handleOpenEdit = () => {
     setEditStyle({ ...DEFAULT_STYLE, ...label.style })
     setEditText(label.text || '')
+    initSize()
     onOpen()
   }
 
@@ -133,7 +142,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
   }, [openSettingsForId])
 
   const handleSaveStyle = () => {
-    onUpdate(label.id, { style: editStyle, text: editText })
+    onUpdate(label.id, { style: editStyle, text: editText, ...sizeUpdates })
     onClose()
   }
 
@@ -520,6 +529,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
                 rules={editStyle.conditionalStyles || []}
                 onChange={(rules) => setEditStyle({ ...editStyle, conditionalStyles: rules })}
               />
+              {sizeFields}
             </VStack>
           )}
         </ModalBody>
@@ -548,8 +558,8 @@ function TemplatePageLabel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
           borderStyle="solid"
           outline={isEditing ? '1px dashed' : 'none'}
           outlineColor={isEditing ? (isMoving ? 'blue.400' : 'gray.500') : undefined}
-          cursor={isEditing ? (isMoving ? 'grabbing' : 'grab') : 'default'}
-          onMouseDown={isEditing ? handleMoveStart : undefined}
+          cursor={isEditing && !galleryMode ? (isMoving ? 'grabbing' : 'grab') : 'default'}
+          onMouseDown={isEditing && !galleryMode ? handleMoveStart : undefined}
           opacity={isMoving ? 0.85 : 1}
           transform={isMoving ? 'scale(1.08)' : 'scale(1)'}
           boxShadow={isMoving ? '0 6px 20px rgba(0,0,0,0.6)' : 'none'}
@@ -569,17 +579,32 @@ function TemplatePageLabel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
           </Text>
           {isEditing && (
             <>
-              <Tooltip label="Export label" placement="top" hasArrow>
-                <IconButton
-                  icon={<DownloadIcon />}
-                  size="xs"
-                  variant="ghost"
-                  aria-label="Export label"
-                  onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  ml={1}
-                />
-              </Tooltip>
+              {!galleryMode && (
+                <Tooltip label="Export label" placement="top" hasArrow>
+                  <IconButton
+                    icon={<DownloadIcon />}
+                    size="xs"
+                    variant="ghost"
+                    aria-label="Export label"
+                    onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    ml={1}
+                  />
+                </Tooltip>
+              )}
+              {!galleryMode && (
+                <Tooltip label="Share to gallery" placement="top" hasArrow>
+                  <IconButton
+                    icon={<ShareIcon />}
+                    size="xs"
+                    variant="ghost"
+                    aria-label="Share to gallery"
+                    onClick={(e) => { e.stopPropagation(); onShare?.(label) }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    ml={1}
+                  />
+                </Tooltip>
+              )}
               <IconButton
                 icon={<SettingsIcon />}
                 size="xs"
@@ -589,25 +614,29 @@ function TemplatePageLabel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
                 onMouseDown={(e) => e.stopPropagation()}
                 ml={1}
               />
-              <Tooltip label="Duplicate label" placement="top" hasArrow>
+              {!galleryMode && (
+                <Tooltip label="Duplicate label" placement="top" hasArrow>
+                  <IconButton
+                    icon={<DuplicateIcon />}
+                    size="xs"
+                    variant="ghost"
+                    aria-label="Duplicate label"
+                    onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    ml={1}
+                  />
+                </Tooltip>
+              )}
+              {!galleryMode && (
                 <IconButton
-                  icon={<DuplicateIcon />}
+                  icon={<CloseIcon />}
                   size="xs"
                   variant="ghost"
-                  aria-label="Duplicate label"
-                  onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+                  aria-label="Delete label"
+                  onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
                   onMouseDown={(e) => e.stopPropagation()}
-                  ml={1}
                 />
-              </Tooltip>
-              <IconButton
-                icon={<CloseIcon />}
-                size="xs"
-                variant="ghost"
-                aria-label="Delete label"
-                onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
-                onMouseDown={(e) => e.stopPropagation()}
-              />
+              )}
             </>
           )}
         </Box>
@@ -642,8 +671,8 @@ function TemplatePageLabel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
         outlineColor={isEditing ? (isResizing || isMoving ? 'blue.400' : 'gray.600') : undefined}
         outlineOffset="-2px"
         opacity={isMoving ? 0.7 : 1}
-        cursor={isEditing ? 'move' : 'default'}
-        onMouseDown={isEditing ? handleMoveStart : undefined}
+        cursor={isEditing && !galleryMode ? 'move' : 'default'}
+        onMouseDown={isEditing && !galleryMode ? handleMoveStart : undefined}
         zIndex={isMoving ? 100 : 1}
       >
         <Text
@@ -675,18 +704,34 @@ function TemplatePageLabel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
                 flexShrink={0}
               />
             </Tooltip>
-            <Tooltip label="Export label" placement="top" hasArrow>
-              <IconButton
-                icon={<DownloadIcon />}
-                size="xs"
-                variant="ghost"
-                aria-label="Export label"
-                onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
-                onMouseDown={(e) => e.stopPropagation()}
-                ml={2}
-                flexShrink={0}
-              />
-            </Tooltip>
+            {!galleryMode && (
+              <Tooltip label="Export label" placement="top" hasArrow>
+                <IconButton
+                  icon={<DownloadIcon />}
+                  size="xs"
+                  variant="ghost"
+                  aria-label="Export label"
+                  onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  ml={2}
+                  flexShrink={0}
+                />
+              </Tooltip>
+            )}
+            {!galleryMode && (
+              <Tooltip label="Share to gallery" placement="top" hasArrow>
+                <IconButton
+                  icon={<ShareIcon />}
+                  size="xs"
+                  variant="ghost"
+                  aria-label="Share to gallery"
+                  onClick={(e) => { e.stopPropagation(); onShare?.(label) }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  ml={1}
+                  flexShrink={0}
+                />
+              </Tooltip>
+            )}
             <IconButton
               icon={<SettingsIcon />}
               size="xs"
@@ -697,28 +742,33 @@ function TemplatePageLabel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
               ml={1}
               flexShrink={0}
             />
-            <Tooltip label="Duplicate label" placement="top" hasArrow>
+            {!galleryMode && (
+              <Tooltip label="Duplicate label" placement="top" hasArrow>
+                <IconButton
+                  icon={<DuplicateIcon />}
+                  size="xs"
+                  variant="ghost"
+                  aria-label="Duplicate label"
+                  onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  ml={1}
+                  flexShrink={0}
+                />
+              </Tooltip>
+            )}
+            {!galleryMode && (
               <IconButton
-                icon={<DuplicateIcon />}
+                icon={<CloseIcon />}
                 size="xs"
                 variant="ghost"
-                aria-label="Duplicate label"
-                onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+                aria-label="Delete label"
+                onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
                 onMouseDown={(e) => e.stopPropagation()}
                 ml={1}
                 flexShrink={0}
               />
-            </Tooltip>
-            <IconButton
-              icon={<CloseIcon />}
-              size="xs"
-              variant="ghost"
-              aria-label="Delete label"
-              onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
-              onMouseDown={(e) => e.stopPropagation()}
-              ml={1}
-              flexShrink={0}
-            />
+            )}
+            {!galleryMode && (<>
             {/* Right edge - horizontal resize */}
             <Box
               position="absolute"
@@ -765,6 +815,7 @@ function TemplatePageLabel({ label, layoutY, onDelete, onDuplicate, onUpdate, on
               _hover={{ bg: 'whiteAlpha.400' }}
               onMouseDown={handleCornerResize}
             />
+            </>)}
           </>
         )}
       </Box>

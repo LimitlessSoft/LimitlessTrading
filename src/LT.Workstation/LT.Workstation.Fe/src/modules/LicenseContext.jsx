@@ -11,12 +11,21 @@ const LicenseContext = createContext({
 export function LicenseProvider({ children }) {
   const [state, setState] = useState({ isPro: false, status: 'loading', customerEmail: null })
 
-  useEffect(() => {
-    fetch('/api/license/status')
-      .then(r => r.json())
-      .then(data => setState({ isPro: data.valid, status: 'ready', customerEmail: data.customerEmail ?? null }))
-      .catch(() => setState({ isPro: false, status: 'error', customerEmail: null }))
-  }, [])
+  const fetchStatus = async (attempt = 0) => {
+    try {
+      const r = await fetch('/api/license/status')
+      const data = await r.json()
+      setState({ isPro: data.valid, status: 'ready', customerEmail: data.customerEmail ?? null })
+    } catch {
+      if (attempt < 5) {
+        setTimeout(() => fetchStatus(attempt + 1), 1500 * (attempt + 1))
+      } else {
+        setState({ isPro: false, status: 'error', customerEmail: null })
+      }
+    }
+  }
+
+  useEffect(() => { fetchStatus() }, [])
 
   async function activate(key) {
     const response = await fetch('/api/license/activate', {
@@ -36,7 +45,7 @@ export function LicenseProvider({ children }) {
   }
 
   return (
-    <LicenseContext.Provider value={{ ...state, activate, deactivate }}>
+    <LicenseContext.Provider value={{ ...state, activate, deactivate, refetch: fetchStatus }}>
       {children}
     </LicenseContext.Provider>
   )

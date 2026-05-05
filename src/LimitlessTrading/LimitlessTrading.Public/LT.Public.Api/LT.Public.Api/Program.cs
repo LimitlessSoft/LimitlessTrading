@@ -1,10 +1,25 @@
 using LT.Public.Api.Data;
+using LT.Public.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+        policy.WithOrigins(
+            "https://limitlessworkstation.com",
+            "https://www.limitlessworkstation.com",
+            "http://localhost:4321",
+            "http://localhost:8743"
+        )
+        .AllowAnyHeader()
+        .AllowAnyMethod());
+});
+
 builder.Services.AddHttpClient();
 builder.Services.AddControllers();
+builder.Services.AddSingleton<WidgetCatalogService>();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
@@ -16,6 +31,7 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 }
 
+app.UseCors();
 app.MapControllers();
 
 app.Run();

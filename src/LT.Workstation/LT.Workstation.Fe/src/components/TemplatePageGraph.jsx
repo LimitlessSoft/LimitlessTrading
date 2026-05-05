@@ -37,10 +37,17 @@ import FillIcon from './FillIcon'
 import { useDeleteConfirm } from '../hooks/useDeleteConfirm'
 import { useWidgetResolveText } from '../hooks/useWidgetResolveText'
 import { getGlobalChartSettings, saveGlobalChartSettings } from '../modules/globalChartSettings'
+import { useWidgetSizeEdit } from '../hooks/useWidgetSizeEdit'
 
 const DownloadIcon = () => (
   <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
     <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 4v-2h14v2H5z" />
+  </svg>
+)
+
+const ShareIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+    <path d="M18 16c-.8 0-1.5.3-2 .8L8.9 12l7.1-4.8c.5.5 1.2.8 2 .8 1.7 0 3-1.3 3-3s-1.3-3-3-3-3 1.3-3 3c0 .2 0 .5.1.7L8 10.4C7.5 9.8 6.8 9.5 6 9.5c-1.7 0-3 1.3-3 3s1.3 3 3 3c.8 0 1.5-.3 2-.8l8.1 4.8c-.1.2-.1.4-.1.5 0 1.7 1.3 3 3 3s3-1.3 3-3-1.3-3-3-3z" />
   </svg>
 )
 
@@ -347,10 +354,10 @@ function GraphSVG({ seriesEntries, width, height, tooltipPosition = 'cursor' }) 
 }
 
 function TemplatePageGraph({
-  label, layoutY, onDelete, onDuplicate, onUpdate, onExport,
+  label, layoutY, onDelete, onDuplicate, onUpdate, onExport, onShare,
   onDragPreview, onDragStateChange, onMoveWidget,
   activeDrag, parentPanelId, isEditing, containerRef,
-  openSettingsForId, onSettingsOpened
+  openSettingsForId, onSettingsOpened, galleryMode
 }) {
   const [history, setHistory] = useState(new Map()) // seriesId -> { timestamp, value }[]
   const [containerWidth, setContainerWidth] = useState(0)
@@ -366,6 +373,7 @@ function TemplatePageGraph({
     return () => window.removeEventListener('globalChartSettingsChanged', handler)
   }, [])
   const [editConfig, setEditConfig] = useState(null)
+  const { initSize, sizeUpdates, sizeFields } = useWidgetSizeEdit(label, { defaultWidth: DEFAULT_WIDTH, defaultHeight: DEFAULT_HEIGHT, minHeight: MIN_HEIGHT })
   const boxRef = useRef(null)
   const valuesRef = useRef([])
   const clearedAtRef = useRef(null)
@@ -618,6 +626,7 @@ function TemplatePageGraph({
       title: label.title || '',
       style: { ...DEFAULT_STYLE, ...label.style }
     })
+    initSize()
     onOpen()
   }
 
@@ -636,7 +645,8 @@ function TemplatePageGraph({
       maxHistory: editConfig.maxHistory,
       snapshotInterval: Math.max(10, parseInt(editConfig.snapshotInterval) || 300),
       title: editConfig.title,
-      style: editConfig.style
+      style: editConfig.style,
+      ...sizeUpdates
     })
     onClose()
   }
@@ -705,8 +715,8 @@ function TemplatePageGraph({
         outlineColor={isEditing ? (isResizing || isMoving ? 'blue.400' : 'gray.600') : undefined}
         outlineOffset="-2px"
         opacity={isMoving ? 0.7 : 1}
-        cursor={isEditing ? 'move' : 'default'}
-        onMouseDown={isEditing ? handleMoveStart : undefined}
+        cursor={isEditing && !galleryMode ? 'move' : 'default'}
+        onMouseDown={isEditing && !galleryMode ? handleMoveStart : undefined}
         zIndex={isMoving ? 100 : 1}
       >
         {label.title && (
@@ -773,12 +783,24 @@ function TemplatePageGraph({
 
         <HStack position="absolute" top="2px" right="2px" spacing={0} zIndex={10}>
           {isEditing && (
-            <Tooltip label="Export graph" placement="top" hasArrow>
-              <IconButton icon={<DownloadIcon />} size="xs" variant="ghost" aria-label="Export graph"
-                onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
-                onMouseDown={(e) => e.stopPropagation()}
-              />
-            </Tooltip>
+            <>
+              {!galleryMode && (
+                <Tooltip label="Export graph" placement="top" hasArrow>
+                  <IconButton icon={<DownloadIcon />} size="xs" variant="ghost" aria-label="Export graph"
+                    onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  />
+                </Tooltip>
+              )}
+              {!galleryMode && (
+                <Tooltip label="Share to gallery" placement="top" hasArrow>
+                  <IconButton icon={<ShareIcon />} size="xs" variant="ghost" aria-label="Share to gallery"
+                    onClick={(e) => { e.stopPropagation(); onShare?.(label) }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  />
+                </Tooltip>
+              )}
+            </>
           )}
           <IconButton icon={<SettingsIcon />} size="xs" variant="ghost" aria-label="Edit graph"
             color="gray.400" _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
@@ -795,20 +817,24 @@ function TemplatePageGraph({
                   onMouseDown={(e) => e.stopPropagation()}
                 />
               </Tooltip>
-              <Tooltip label="Duplicate graph" placement="top" hasArrow>
-                <IconButton icon={<DuplicateIcon />} size="xs" variant="ghost" aria-label="Duplicate graph"
-                  onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+              {!galleryMode && (
+                <Tooltip label="Duplicate graph" placement="top" hasArrow>
+                  <IconButton icon={<DuplicateIcon />} size="xs" variant="ghost" aria-label="Duplicate graph"
+                    onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  />
+                </Tooltip>
+              )}
+              {!galleryMode && (
+                <IconButton icon={<CloseIcon />} size="xs" variant="ghost" aria-label="Delete graph"
+                  onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
                   onMouseDown={(e) => e.stopPropagation()}
                 />
-              </Tooltip>
-              <IconButton icon={<CloseIcon />} size="xs" variant="ghost" aria-label="Delete graph"
-                onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
-                onMouseDown={(e) => e.stopPropagation()}
-              />
+              )}
             </>
           )}
         </HStack>
-        {isEditing && (
+        {isEditing && !galleryMode && (
           <Box position="absolute" right={0} bottom={0} width="12px" height="12px"
             cursor="nwse-resize" bg="whiteAlpha.200" _hover={{ bg: 'whiteAlpha.400' }}
             onMouseDown={handleResize}
@@ -964,6 +990,7 @@ function TemplatePageGraph({
                     </HStack>
                   </FormControl>
                 </Box>
+                {sizeFields}
               </VStack>
             )}
           </ModalBody>

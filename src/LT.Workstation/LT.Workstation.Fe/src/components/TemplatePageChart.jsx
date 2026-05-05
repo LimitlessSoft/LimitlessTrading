@@ -37,6 +37,12 @@ const DownloadIcon = () => (
   </svg>
 )
 
+const ShareIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+    <path d="M18 16c-.8 0-1.5.3-2 .8L8.9 12l7.1-4.8c.5.5 1.2.8 2 .8 1.7 0 3-1.3 3-3s-1.3-3-3-3-3 1.3-3 3c0 .2 0 .5.1.7L8 10.4C7.5 9.8 6.8 9.5 6 9.5c-1.7 0-3 1.3-3 3s1.3 3 3 3c.8 0 1.5-.3 2-.8l8.1 4.8c-.1.2-.1.4-.1.5 0 1.7 1.3 3 3 3s3-1.3 3-3-1.3-3-3-3z" />
+  </svg>
+)
+
 const DuplicateIcon = () => (
   <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
     <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
@@ -55,6 +61,7 @@ import {
   isExtendedHours
 } from '../modules/globalChartSettings'
 import { LINK_GROUPS, getLinkGroupColor } from '../modules/widgetLinkService'
+import { useWidgetSizeEdit } from '../hooks/useWidgetSizeEdit'
 
 const TOTAL_SEGMENTS = 20
 const MIN_SEGMENTS = 4
@@ -582,7 +589,7 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
   )
 })
 
-function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, onLinkSync, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, openSettingsForId, onSettingsOpened }) {
+function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, onLinkSync, onExport, onShare, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, openSettingsForId, onSettingsOpened, galleryMode }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving,   setIsMoving]   = useState(false)
   const [isPanning,  setIsPanning]  = useState(false)
@@ -591,6 +598,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
   const [data,    setData]    = useState([])
   const [loading, setLoading] = useState(false)
   const [loadProgress, setLoadProgress] = useState(null)
+  const { initSize, sizeUpdates, sizeFields } = useWidgetSizeEdit(label, { defaultWidth: DEFAULT_WIDTH, defaultHeight: DEFAULT_HEIGHT, minHeight: MIN_HEIGHT })
   const [editSymbol,     setEditSymbol]     = useState('')
   const [editInterval,   setEditInterval]   = useState('5m')
   const [globalSettings, setGlobalSettings] = useState(getGlobalChartSettings)
@@ -1134,6 +1142,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
     setEditGlobal({ ...globalSettings })
     setFontSizeDraft(String(globalSettings.fontSize ?? 9))
     setVolMultDraft(String(globalSettings.volumeMultiplier ?? 1))
+    initSize()
     onOpen()
   }
 
@@ -1176,9 +1185,9 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
     const newSymbol = editSymbol.trim().toUpperCase()
     if (!newSymbol) return
     if (label.linkGroup && onLinkSync && newSymbol !== symbol) {
-      onLinkSync(label.linkGroup, { symbol: newSymbol }, label.id, { interval: editInterval, outsideRTH: editOutsideRTH })
+      onLinkSync(label.linkGroup, { symbol: newSymbol }, label.id, { interval: editInterval, outsideRTH: editOutsideRTH, ...sizeUpdates })
     } else {
-      onUpdate(label.id, { symbol: newSymbol, interval: editInterval, outsideRTH: editOutsideRTH })
+      onUpdate(label.id, { symbol: newSymbol, interval: editInterval, outsideRTH: editOutsideRTH, ...sizeUpdates })
     }
     if (editGlobal) {
       saveGlobalChartSettings(editGlobal)
@@ -1217,9 +1226,9 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
         outlineColor={isEditing ? 'gray.600' : undefined}
         transition={isResizing || isMoving ? 'none' : 'all 0.15s ease'}
         opacity={isMoving ? 0.7 : 1}
-        cursor={isEditing ? (isMoving ? 'grabbing' : 'move') : (isPanning ? 'grabbing' : 'grab')}
+        cursor={isEditing && !galleryMode ? (isMoving ? 'grabbing' : 'move') : (!isEditing && !galleryMode ? (isPanning ? 'grabbing' : 'grab') : 'default')}
         zIndex={isMoving ? 100 : 1}
-        onMouseDown={isEditing && !isResizing ? handleMoveStart : (!isEditing && displayData.length > 0 ? handlePanStart : undefined)}
+        onMouseDown={isEditing && !galleryMode && !isResizing ? handleMoveStart : (!isEditing && !galleryMode && displayData.length > 0 ? handlePanStart : undefined)}
       >
         {/* Chart content */}
         {loading ? (
@@ -1363,45 +1372,65 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
                   onMouseDown={(e) => e.stopPropagation()}
                 />
               </Tooltip>
-              <Tooltip label="Export chart" placement="top" hasArrow>
+              {!galleryMode && (
+                <Tooltip label="Export chart" placement="top" hasArrow>
+                  <IconButton
+                    icon={<DownloadIcon />}
+                    size="xs"
+                    variant="ghost"
+                    aria-label="Export chart"
+                    color="gray.400"
+                    _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
+                    onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  />
+                </Tooltip>
+              )}
+              {!galleryMode && (
+                <Tooltip label="Share to gallery" placement="top" hasArrow>
+                  <IconButton
+                    icon={<ShareIcon />}
+                    size="xs"
+                    variant="ghost"
+                    aria-label="Share to gallery"
+                    color="gray.400"
+                    _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
+                    onClick={(e) => { e.stopPropagation(); onShare?.(label) }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  />
+                </Tooltip>
+              )}
+              {!galleryMode && (
+                <Tooltip label="Duplicate chart" placement="top" hasArrow>
+                  <IconButton
+                    icon={<DuplicateIcon />}
+                    size="xs"
+                    variant="ghost"
+                    aria-label="Duplicate chart"
+                    color="gray.400"
+                    _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
+                    onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  />
+                </Tooltip>
+              )}
+              {!galleryMode && (
                 <IconButton
-                  icon={<DownloadIcon />}
+                  icon={<CloseIcon />}
                   size="xs"
                   variant="ghost"
-                  aria-label="Export chart"
+                  aria-label="Delete chart"
                   color="gray.400"
-                  _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
-                  onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
+                  _hover={{ color: 'red.400', bg: 'whiteAlpha.200' }}
+                  onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
                   onMouseDown={(e) => e.stopPropagation()}
                 />
-              </Tooltip>
-              <Tooltip label="Duplicate chart" placement="top" hasArrow>
-                <IconButton
-                  icon={<DuplicateIcon />}
-                  size="xs"
-                  variant="ghost"
-                  aria-label="Duplicate chart"
-                  color="gray.400"
-                  _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
-                  onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                />
-              </Tooltip>
-              <IconButton
-                icon={<CloseIcon />}
-                size="xs"
-                variant="ghost"
-                aria-label="Delete chart"
-                color="gray.400"
-                _hover={{ color: 'red.400', bg: 'whiteAlpha.200' }}
-                onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
-                onMouseDown={(e) => e.stopPropagation()}
-              />
+              )}
             </>
           )}
         </HStack>
 
-        {isEditing && (
+        {isEditing && !galleryMode && (
           <>
 
             {/* Right resize */}
@@ -1482,10 +1511,19 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
 
               {/* Global chart settings */}
               {editGlobal && (
-                <Box w="100%" pt={2} borderTop="1px solid" borderColor="gray.600">
-                  <Text fontSize="xs" color="gray.400" fontWeight="semibold" mb={3} textTransform="uppercase" letterSpacing="wider">
+                <Box w="100%" pt={2} borderTop="1px solid" borderColor="gray.600" position="relative">
+                  <Text fontSize="xs" color="gray.400" fontWeight="semibold" mb={1} textTransform="uppercase" letterSpacing="wider">
                     Global Chart Settings
                   </Text>
+                  {galleryMode && (
+                    <Text fontSize="xs" color="orange.400" mb={3}>
+                      Global settings are not exported to the gallery and cannot be edited here.
+                    </Text>
+                  )}
+                  <Box
+                    pointerEvents={galleryMode ? 'none' : 'auto'}
+                    opacity={galleryMode ? 0.35 : 1}
+                  >
                   <VStack spacing={3} align="stretch">
                     <FormControl>
                       <HStack justify="space-between">
@@ -1661,9 +1699,11 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
                       </HStack>
                     </FormControl>
                   </VStack>
+                  </Box>
                 </Box>
               )}
             </VStack>
+            {sizeFields}
           </ModalBody>
           <ModalFooter>
             <Button variant="ghost" mr={3} onClick={onClose}>Cancel</Button>

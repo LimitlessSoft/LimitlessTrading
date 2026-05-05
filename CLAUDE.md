@@ -11,6 +11,7 @@ When asked to add a task or to-do item, create a markdown file in the `todo/` di
 - [Development commands](docs/development.md)
 - [Routing & navigation](docs/routing.md)
 - [Template widgets system](docs/template-widgets.md)
+- [Widget hook pattern](docs/widget-hook-pattern.md)
 - [Chart widget](docs/chart-widget.md)
 - [Data flow & database](docs/data.md)
 - [LT Public API](docs/public-api.md)

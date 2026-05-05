@@ -47,7 +47,15 @@ Re-running the script is safe — existing up-to-date symlinks are skipped.
 
 ## Commands
 
-### Electron app (recommended)
+### Run all apps (recommended)
+
+```bash
+bash scripts/dev.sh
+```
+
+Starts the Public API (background, logs to `/tmp/lt-api.log`) and the Workstation Electron app (foreground). If either is already running it is killed first. Press `Ctrl+C` to stop the Workstation; the API process will need to be killed separately if needed.
+
+### Electron app only
 
 ```bash
 cd src/LT.Workstation/LT.Workstation.App

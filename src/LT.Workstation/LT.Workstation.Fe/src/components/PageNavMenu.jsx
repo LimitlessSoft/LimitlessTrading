@@ -55,6 +55,17 @@ function PlugIcon() {
   )
 }
 
+function GalleryIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  )
+}
+
 function MegaphoneIcon() {
   return (
     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -78,6 +89,7 @@ function AssistantIcon() {
     </svg>
   )
 }
+import { getConsoleLogs, getNetworkRequests } from '../modules/diagnostics'
 import { FREE_LIMITS } from '../modules/freeLimits'
 import AlertsPanel from './AlertsPanel'
 import LicenseModal from './LicenseModal'
@@ -113,6 +125,7 @@ function PageNavMenu({
   const [newPath, setNewPath] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [appVersion, setAppVersion] = useState(null)
+  const [serviceStatuses, setServiceStatuses] = useState({ workstation: null, publicApi: null })
   const { isPro, status: licenseStatus, customerEmail } = useLicense()
   const canAddTemplate = isPro || routes.length < FREE_LIMITS.templates
   const { isOpen, onOpen, onClose } = useDisclosure()
@@ -156,6 +169,22 @@ function PageNavMenu({
       .then(d => setAppVersion(d.version))
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!isAboutOpen) return
+    setServiceStatuses({ workstation: 'loading', publicApi: 'loading' })
+
+    fetch('/health')
+      .then(r => r.ok ? 'ok' : 'error')
+      .catch(() => 'error')
+      .then(s => setServiceStatuses(prev => ({ ...prev, workstation: s })))
+
+    const publicApiBase = import.meta.env.DEV ? 'http://localhost:5096' : 'https://api.limitlessworkstation.com'
+    fetch(`${publicApiBase}/health`)
+      .then(r => r.ok ? 'ok' : 'error')
+      .catch(() => 'error')
+      .then(s => setServiceStatuses(prev => ({ ...prev, publicApi: s })))
+  }, [isAboutOpen])
 
   const handleNavigate = (path) => {
     navigate(path)
@@ -296,6 +325,14 @@ function PageNavMenu({
                 {!canAddTemplate && ' (Pro)'}
               </MenuItem>
               <MenuDivider />
+              <MenuItem
+                icon={<GalleryIcon />}
+                onClick={() => handleNavigate('/gallery')}
+                bg="gray.800"
+                _hover={{ bg: 'gray.700' }}
+              >
+                Widgets Gallery
+              </MenuItem>
               <MenuItem
                 icon={<PlugIcon />}
                 onClick={handleConnectionOpen}
@@ -438,8 +475,32 @@ function PageNavMenu({
                 onClick={() => {
                   const info = getDeviceInfo()
                   const deviceText = Object.entries(info).map(([k, v]) => `${k}: ${v}`).join('\n')
-                  const licenseText = `License: ${licenseStatus === 'loading' || licenseStatus === 'error' ? '—' : isPro ? 'Pro' : 'Free'}\nEmail: ${customerEmail ?? '—'}`
-                  navigator.clipboard.writeText(`Version: ${appVersion ?? '—'}\n${licenseText}\n${deviceText}`)
+                  const licenseText = `plan: ${licenseStatus === 'loading' || licenseStatus === 'error' ? '—' : isPro ? 'Pro' : 'Free'}\nemail: ${customerEmail ?? '—'}`
+                  const statusLabel = s => s === 'ok' ? 'Online' : s === 'error' ? 'Offline' : '—'
+                  const servicesText = `Workstation backend: ${statusLabel(serviceStatuses.workstation)}\nPublic API: ${statusLabel(serviceStatuses.publicApi)}`
+                  const consoleLogs = getConsoleLogs()
+                  const consoleText = consoleLogs.length
+                    ? consoleLogs.map(e => `[${e.time}] [${e.level.toUpperCase()}] ${e.message}`).join('\n')
+                    : '(none)'
+                  const networkReqs = getNetworkRequests()
+                  const networkText = networkReqs.length
+                    ? networkReqs.map(e => {
+                        const parts = [
+                          `[${e.time}]`,
+                          e.method,
+                          e.statusText ? `${e.status} ${e.statusText}` : String(e.status),
+                          `${e.ms}ms`,
+                          e.responseSize ? `↓${e.responseSize}` : null,
+                          e.requestSize ? `↑${e.requestSize}` : null,
+                          e.url,
+                          e.error ? `(${e.error})` : null,
+                        ]
+                        return parts.filter(Boolean).join(' ')
+                      }).join('\n')
+                    : '(none)'
+                  navigator.clipboard.writeText(
+                    `Version: ${appVersion ?? '—'}\n\n--- License ---\n${licenseText}\n\n--- Services ---\n${servicesText}\n\n--- Device Info ---\n${deviceText}\n\n--- Console (last ${consoleLogs.length}) ---\n${consoleText}\n\n--- Network (last ${networkReqs.length}) ---\n${networkText}`
+                  )
                   toast({ title: 'Copied to clipboard', status: 'success', duration: 2000, isClosable: true })
                 }}
               />
@@ -489,6 +550,36 @@ function PageNavMenu({
             >
               Manage license →
             </Text>
+            <Divider borderColor="gray.600" mb={4} />
+            <Text fontSize="xs" fontWeight="semibold" color="gray.400" textTransform="uppercase" letterSpacing="wider" mb={2}>
+              Services
+            </Text>
+            <Box bg="gray.900" borderRadius="md" p={3} fontSize="xs" color="gray.300" mb={4}>
+              {[
+                { label: 'Workstation backend', key: 'workstation' },
+                { label: 'Public API', key: 'publicApi' },
+              ].map(({ label, key }) => {
+                const s = serviceStatuses[key]
+                return (
+                  <Flex key={key} gap={2} align="center" mb={1} _last={{ mb: 0 }}>
+                    <Text color="gray.500" minW="140px" flexShrink={0}>{label}</Text>
+                    {s === 'loading' || s === null ? (
+                      <Flex align="center" gap={1}>
+                        <Spinner size="xs" color="gray.400" />
+                        <Text color="gray.400">Checking…</Text>
+                      </Flex>
+                    ) : (
+                      <Flex align="center" gap={1}>
+                        <Box w="6px" h="6px" borderRadius="full" bg={s === 'ok' ? 'green.400' : 'red.400'} flexShrink={0} />
+                        <Code bg="transparent" fontSize="xs" color={s === 'ok' ? 'green.300' : 'red.300'}>
+                          {s === 'ok' ? 'Online' : 'Offline'}
+                        </Code>
+                      </Flex>
+                    )}
+                  </Flex>
+                )
+              })}
+            </Box>
             <Divider borderColor="gray.600" mb={4} />
             <Text fontSize="xs" fontWeight="semibold" color="gray.400" textTransform="uppercase" letterSpacing="wider" mb={2}>
               Device Info

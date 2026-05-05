@@ -1,0 +1,148 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Widget Gallery" description="Browse all available Limitless Trading widget types with config snippets.">
+  <!-- Hero -->
+  <div class="px-12 py-20 grid-bg border-b border-ls-border">
+    <p class="text-[11px] tracking-[0.3em] uppercase text-ls-text-dim mb-4">Widgets</p>
+    <h1 class="text-5xl font-black uppercase tracking-[-1.5px] text-white mb-4">GALLERY</h1>
+    <p class="text-sm text-ls-text max-w-md">
+      Every widget type available in Limitless Trading. Copy a config snippet to add one to your template.
+    </p>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="px-12 py-6 border-b border-ls-border flex gap-2 flex-wrap" id="filter-bar">
+    <button
+      data-tag="all"
+      class="filter-btn active px-4 py-1.5 text-[10px] tracking-[0.2em] uppercase border border-ls-border text-white transition-colors"
+    >All</button>
+    <button data-tag="price" class="filter-btn px-4 py-1.5 text-[10px] tracking-[0.2em] uppercase border border-ls-border text-ls-text hover:text-white transition-colors">Price</button>
+    <button data-tag="technicals" class="filter-btn px-4 py-1.5 text-[10px] tracking-[0.2em] uppercase border border-ls-border text-ls-text hover:text-white transition-colors">Technicals</button>
+    <button data-tag="portfolio" class="filter-btn px-4 py-1.5 text-[10px] tracking-[0.2em] uppercase border border-ls-border text-ls-text hover:text-white transition-colors">Portfolio</button>
+    <button data-tag="options" class="filter-btn px-4 py-1.5 text-[10px] tracking-[0.2em] uppercase border border-ls-border text-ls-text hover:text-white transition-colors">Options</button>
+    <button data-tag="news" class="filter-btn px-4 py-1.5 text-[10px] tracking-[0.2em] uppercase border border-ls-border text-ls-text hover:text-white transition-colors">News</button>
+    <button data-tag="tools" class="filter-btn px-4 py-1.5 text-[10px] tracking-[0.2em] uppercase border border-ls-border text-ls-text hover:text-white transition-colors">Tools</button>
+  </div>
+
+  <!-- Grid -->
+  <div class="px-12 py-12">
+    <div id="gallery-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-0.5">
+      <div class="col-span-full py-20 text-center text-xs tracking-[0.2em] uppercase text-ls-text-dim" id="gallery-loading">
+        Loading widgets…
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .filter-btn.active {
+    background-color: rgb(0 87 255 / 0.12);
+    border-color: rgb(0 87 255 / 0.5);
+    color: #fff;
+  }
+</style>
+
+<script>
+  const API = 'https://api.limitlessworkstation.com/api/widgets';
+
+  type Widget = {
+    type: string;
+    name: string;
+    description: string;
+    tags: string[];
+    previewImageUrl: string;
+    configSnippet: object;
+  };
+
+  let allWidgets: Widget[] = [];
+  let activeTag = 'all';
+
+  function tagColor(tag: string): string {
+    const map: Record<string, string> = {
+      price: '#0057ff',
+      technicals: '#6366f1',
+      portfolio: '#10b981',
+      options: '#f59e0b',
+      news: '#ef4444',
+      tools: '#8b5cf6',
+    };
+    return map[tag] ?? '#718096';
+  }
+
+  function renderCard(w: Widget): string {
+    const tags = w.tags
+      .map(t => `<span class="px-2 py-0.5 text-[9px] tracking-[0.15em] uppercase border" style="border-color:${tagColor(t)}40;color:${tagColor(t)}">${t}</span>`)
+      .join('');
+    const snippet = JSON.stringify(w.configSnippet, null, 2);
+    const snippetEscaped = snippet.replace(/`/g, '\\`');
+
+    return `
+      <div class="border border-ls-border bg-white/[0.02] flex flex-col" data-tags="${w.tags.join(',')}">
+        <div class="border-b border-ls-border px-5 py-4 flex items-start justify-between gap-3">
+          <div>
+            <p class="text-[10px] tracking-[0.2em] uppercase text-ls-text-dim mb-1">${w.type}</p>
+            <h3 class="text-sm font-bold text-white">${w.name}</h3>
+          </div>
+          <div class="flex flex-wrap gap-1 justify-end shrink-0">${tags}</div>
+        </div>
+        <div class="px-5 py-4 flex-1">
+          <p class="text-xs text-ls-text leading-relaxed">${w.description}</p>
+        </div>
+        <div class="border-t border-ls-border px-5 py-3 flex items-center justify-between">
+          <span class="text-[9px] tracking-[0.15em] uppercase text-ls-text-dim">Config snippet</span>
+          <button
+            class="copy-btn text-[10px] tracking-[0.15em] uppercase text-ls-blue hover:text-white transition-colors"
+            data-snippet=\`${snippetEscaped}\`
+          >Copy</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function render(widgets: Widget[]) {
+    const grid = document.getElementById('gallery-grid')!;
+    const visible = activeTag === 'all' ? widgets : widgets.filter(w => w.tags.includes(activeTag));
+
+    if (visible.length === 0) {
+      grid.innerHTML = `<div class="col-span-full py-20 text-center text-xs tracking-[0.2em] uppercase text-ls-text-dim">No widgets found.</div>`;
+      return;
+    }
+
+    grid.innerHTML = visible.map(renderCard).join('');
+
+    grid.querySelectorAll<HTMLButtonElement>('.copy-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const snippet = btn.getAttribute('data-snippet') ?? '';
+        await navigator.clipboard.writeText(snippet);
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      });
+    });
+  }
+
+  async function load() {
+    try {
+      const res = await fetch(API);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      allWidgets = await res.json();
+      render(allWidgets);
+    } catch {
+      const grid = document.getElementById('gallery-grid')!;
+      grid.innerHTML = `<div class="col-span-full py-20 text-center text-xs tracking-[0.2em] uppercase text-ls-text-dim">Failed to load widgets.</div>`;
+    }
+  }
+
+  document.getElementById('filter-bar')!.addEventListener('click', e => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.filter-btn');
+    if (!btn) return;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeTag = btn.dataset.tag ?? 'all';
+    render(allWidgets);
+  });
+
+  load();
+</script>

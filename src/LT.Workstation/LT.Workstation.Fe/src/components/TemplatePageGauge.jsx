@@ -25,10 +25,17 @@ import { useDeleteConfirm } from '../hooks/useDeleteConfirm'
 import { useWidgetResolveText } from '../hooks/useWidgetResolveText'
 import WidgetTooltip from './WidgetTooltip'
 import WidgetTooltipEditor from './WidgetTooltipEditor'
+import { useWidgetSizeEdit } from '../hooks/useWidgetSizeEdit'
 
 const DownloadIcon = () => (
   <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
     <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 4v-2h14v2H5z" />
+  </svg>
+)
+
+const ShareIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+    <path d="M18 16c-.8 0-1.5.3-2 .8L8.9 12l7.1-4.8c.5.5 1.2.8 2 .8 1.7 0 3-1.3 3-3s-1.3-3-3-3-3 1.3-3 3c0 .2 0 .5.1.7L8 10.4C7.5 9.8 6.8 9.5 6 9.5c-1.7 0-3 1.3-3 3s1.3 3 3 3c.8 0 1.5-.3 2-.8l8.1 4.8c-.1.2-.1.4-.1.5 0 1.7 1.3 3 3 3s3-1.3 3-3-1.3-3-3-3z" />
   </svg>
 )
 
@@ -186,12 +193,13 @@ function GaugeSVG({ value, min, max, segments, title, showText = true }) {
 }
 
 
-function TemplatePageGauge({ label, layoutY, onDelete, onDuplicate, onUpdate, onExport, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode, openSettingsForId, onSettingsOpened }) {
+function TemplatePageGauge({ label, layoutY, onDelete, onDuplicate, onUpdate, onExport, onShare, onDragPreview, onDragStateChange, onMoveWidget, activeDrag, parentPanelId, isEditing, containerRef, isHeaderMode, openSettingsForId, onSettingsOpened, galleryMode }) {
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
   const [previewPos, setPreviewPos] = useState(null)
   const [previewSize, setPreviewSize] = useState(null)
   const [editConfig, setEditConfig] = useState(null)
+  const { initSize, sizeUpdates, sizeFields } = useWidgetSizeEdit(label, { defaultWidth: DEFAULT_WIDTH, defaultHeight: DEFAULT_HEIGHT, minHeight: MIN_HEIGHT })
   const boxRef = useRef(null)
   const { isOpen, onOpen, onClose } = useDisclosure()
   const { requestDelete, confirmDeleteDialog } = useDeleteConfirm()
@@ -398,6 +406,7 @@ function TemplatePageGauge({ label, layoutY, onDelete, onDuplicate, onUpdate, on
       segments: segments.length > 0 ? segments.map(s => ({ ...s })) : DEFAULT_SEGMENTS.map(s => ({ ...s })),
       style: { ...DEFAULT_STYLE, ...label.style }
     })
+    initSize()
     onOpen()
   }
 
@@ -417,7 +426,8 @@ function TemplatePageGauge({ label, layoutY, onDelete, onDuplicate, onUpdate, on
       tooltipRows: editConfig.tooltipRows.filter(r => r.name || r.detail || r.value),
       tooltipFooter: editConfig.tooltipFooter,
       segments: editConfig.segments.filter(s => s.color),
-      style: editConfig.style
+      style: editConfig.style,
+      ...sizeUpdates
     })
     onClose()
   }
@@ -464,8 +474,8 @@ function TemplatePageGauge({ label, layoutY, onDelete, onDuplicate, onUpdate, on
             flexShrink={0}
             outline={isEditing ? '1px dashed' : 'none'}
             outlineColor={isEditing ? (isMoving ? 'blue.400' : 'gray.500') : undefined}
-            cursor={isEditing ? (isMoving ? 'grabbing' : 'grab') : 'default'}
-            onMouseDown={isEditing ? handleMoveStart : undefined}
+            cursor={isEditing && !galleryMode ? (isMoving ? 'grabbing' : 'grab') : 'default'}
+            onMouseDown={isEditing && !galleryMode ? handleMoveStart : undefined}
             opacity={isMoving ? 0.85 : 1}
             transform={isMoving ? 'scale(1.08)' : 'scale(1)'}
             boxShadow={isMoving ? '0 6px 20px rgba(0,0,0,0.6)' : 'none'}
@@ -485,22 +495,35 @@ function TemplatePageGauge({ label, layoutY, onDelete, onDuplicate, onUpdate, on
             </Box>
             {isEditing && (
               <>
-                <Tooltip label="Export gauge" placement="top" hasArrow>
-                  <IconButton icon={<DownloadIcon />} size="xs" variant="ghost" aria-label="Export gauge"
-                    onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
-                    onMouseDown={(e) => e.stopPropagation()} ml={1} />
-                </Tooltip>
+                {!galleryMode && (
+                  <Tooltip label="Export gauge" placement="top" hasArrow>
+                    <IconButton icon={<DownloadIcon />} size="xs" variant="ghost" aria-label="Export gauge"
+                      onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
+                      onMouseDown={(e) => e.stopPropagation()} ml={1} />
+                  </Tooltip>
+                )}
+                {!galleryMode && (
+                  <Tooltip label="Share to gallery" placement="top" hasArrow>
+                    <IconButton icon={<ShareIcon />} size="xs" variant="ghost" aria-label="Share to gallery"
+                      onClick={(e) => { e.stopPropagation(); onShare?.(label) }}
+                      onMouseDown={(e) => e.stopPropagation()} ml={1} />
+                  </Tooltip>
+                )}
                 <IconButton icon={<SettingsIcon />} size="xs" variant="ghost" aria-label="Edit gauge"
                   onClick={(e) => { e.stopPropagation(); handleOpenEdit() }}
                   onMouseDown={(e) => e.stopPropagation()} ml={1} />
-                <Tooltip label="Duplicate gauge" placement="top" hasArrow>
-                  <IconButton icon={<DuplicateIcon />} size="xs" variant="ghost" aria-label="Duplicate gauge"
-                    onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
-                    onMouseDown={(e) => e.stopPropagation()} ml={1} />
-                </Tooltip>
-                <IconButton icon={<CloseIcon />} size="xs" variant="ghost" aria-label="Delete gauge"
-                  onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
-                  onMouseDown={(e) => e.stopPropagation()} />
+                {!galleryMode && (
+                  <Tooltip label="Duplicate gauge" placement="top" hasArrow>
+                    <IconButton icon={<DuplicateIcon />} size="xs" variant="ghost" aria-label="Duplicate gauge"
+                      onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+                      onMouseDown={(e) => e.stopPropagation()} ml={1} />
+                  </Tooltip>
+                )}
+                {!galleryMode && (
+                  <IconButton icon={<CloseIcon />} size="xs" variant="ghost" aria-label="Delete gauge"
+                    onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
+                    onMouseDown={(e) => e.stopPropagation()} />
+                )}
               </>
             )}
           </Box>
@@ -591,6 +614,7 @@ function TemplatePageGauge({ label, layoutY, onDelete, onDuplicate, onUpdate, on
                         onChange={(e) => setEditConfig({ ...editConfig, style: { ...editConfig.style, borderWidth: parseInt(e.target.value) || 0 } })} />
                     </FormControl>
                   </HStack>
+                  {sizeFields}
                 </VStack>
               )}
             </ModalBody>
@@ -634,8 +658,8 @@ function TemplatePageGauge({ label, layoutY, onDelete, onDuplicate, onUpdate, on
           overflow="hidden"
           transition={isResizing || isMoving ? 'none' : 'all 0.15s ease'}
           opacity={isMoving ? 0.7 : 1}
-          cursor={isEditing ? 'move' : 'default'}
-          onMouseDown={isEditing ? handleMoveStart : undefined}
+          cursor={isEditing && !galleryMode ? 'move' : 'default'}
+          onMouseDown={isEditing && !galleryMode ? handleMoveStart : undefined}
           zIndex={isMoving ? 100 : 1}
         >
           <GaugeSVG
@@ -664,19 +688,28 @@ function TemplatePageGauge({ label, layoutY, onDelete, onDuplicate, onUpdate, on
                   right={24}
                 />
               </Tooltip>
-              <Tooltip label="Export gauge" placement="top" hasArrow>
-                <IconButton
-                  icon={<DownloadIcon />}
-                  size="xs"
-                  variant="ghost"
-                  aria-label="Export gauge"
-                  onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  position="absolute"
-                  top={0}
-                  right={18}
-                />
-              </Tooltip>
+              {!galleryMode && (
+                <Tooltip label="Export gauge" placement="top" hasArrow>
+                  <IconButton
+                    icon={<DownloadIcon />}
+                    size="xs"
+                    variant="ghost"
+                    aria-label="Export gauge"
+                    onClick={(e) => { e.stopPropagation(); onExport?.(label) }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    position="absolute"
+                    top={0}
+                    right={24}
+                  />
+                </Tooltip>
+              )}
+              {!galleryMode && (
+                <Tooltip label="Share to gallery" placement="top" hasArrow>
+                  <IconButton icon={<ShareIcon />} size="xs" variant="ghost" aria-label="Share to gallery"
+                    onClick={(e) => { e.stopPropagation(); onShare?.(label) }}
+                    onMouseDown={(e) => e.stopPropagation()} position="absolute" top={0} right={18} />
+                </Tooltip>
+              )}
               <IconButton
                 icon={<SettingsIcon />}
                 size="xs"
@@ -688,41 +721,47 @@ function TemplatePageGauge({ label, layoutY, onDelete, onDuplicate, onUpdate, on
                 top={0}
                 right={12}
               />
-              <Tooltip label="Duplicate gauge" placement="top" hasArrow>
+              {!galleryMode && (
+                <Tooltip label="Duplicate gauge" placement="top" hasArrow>
+                  <IconButton
+                    icon={<DuplicateIcon />}
+                    size="xs"
+                    variant="ghost"
+                    aria-label="Duplicate gauge"
+                    onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    position="absolute"
+                    top={0}
+                    right={6}
+                  />
+                </Tooltip>
+              )}
+              {!galleryMode && (
                 <IconButton
-                  icon={<DuplicateIcon />}
+                  icon={<CloseIcon />}
                   size="xs"
                   variant="ghost"
-                  aria-label="Duplicate gauge"
-                  onClick={(e) => { e.stopPropagation(); onDuplicate?.(label.id) }}
+                  aria-label="Delete gauge"
+                  onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
                   onMouseDown={(e) => e.stopPropagation()}
                   position="absolute"
                   top={0}
-                  right={6}
+                  right={0}
                 />
-              </Tooltip>
-              <IconButton
-                icon={<CloseIcon />}
-                size="xs"
-                variant="ghost"
-                aria-label="Delete gauge"
-                onClick={(e) => { e.stopPropagation(); requestDelete(label.id, onDelete) }}
-                onMouseDown={(e) => e.stopPropagation()}
-                position="absolute"
-                top={0}
-                right={0}
-              />
-              <Box
-                position="absolute"
-                right={0}
-                bottom={0}
-                width="12px"
-                height="12px"
-                cursor="nwse-resize"
-                bg="whiteAlpha.200"
-                _hover={{ bg: 'whiteAlpha.400' }}
-                onMouseDown={handleResize}
-              />
+              )}
+              {!galleryMode && (
+                <Box
+                  position="absolute"
+                  right={0}
+                  bottom={0}
+                  width="12px"
+                  height="12px"
+                  cursor="nwse-resize"
+                  bg="whiteAlpha.200"
+                  _hover={{ bg: 'whiteAlpha.400' }}
+                  onMouseDown={handleResize}
+                />
+              )}
             </>
           )}
         </Box>
@@ -861,6 +900,7 @@ function TemplatePageGauge({ label, layoutY, onDelete, onDuplicate, onUpdate, on
                     />
                   </FormControl>
                 </HStack>
+                {sizeFields}
               </VStack>
             )}
           </ModalBody>

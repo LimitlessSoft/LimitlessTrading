@@ -122,6 +122,40 @@ namespace LT.Public.Api.Migrations
                     b.ToTable("FeedbackUpvotes");
                 });
 
+            modelBuilder.Entity("LT.Public.Api.Models.GalleryWidget", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AuthorId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ConfigJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("WidgetType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("GalleryWidgets");
+                });
+
             modelBuilder.Entity("LT.Public.Api.Models.FeedbackComment", b =>
                 {
                     b.HasOne("LT.Public.Api.Models.Feedback", "Feedback")

@@ -21,9 +21,40 @@ LT.Public.Api/
 
 ## Endpoints
 
-| Method | Path      | Description       |
-|--------|-----------|-------------------|
-| GET    | `/health` | Health check — returns `{ status: "healthy" }` |
+| Method | Path           | Description                                     |
+|--------|----------------|-------------------------------------------------|
+| GET    | `/health`      | Health check — returns `{ status: "healthy" }`  |
+| GET    | `/api/widgets` | Widget catalog — returns all available widget types |
+
+### `GET /api/widgets`
+
+Returns the static catalog of all widget types available in Limitless Trading.
+
+```
+GET https://api.limitlessworkstation.com/api/widgets
+```
+
+Response shape:
+
+```json
+[
+  {
+    "type": "chart",
+    "name": "Chart",
+    "description": "Candlestick / line chart with drawing tools and indicators.",
+    "tags": ["price", "technicals"],
+    "previewImageUrl": "/gallery/previews/chart.png",
+    "configSnippet": {
+      "type": "chart",
+      "symbol": "SPY",
+      "width": 12,
+      "height": 400
+    }
+  }
+]
+```
+
+The catalog is served by `WidgetCatalogService` (static, no database reads). It powers the public widget gallery at `limitlessworkstation.com/gallery`.
 
 ## Development
 

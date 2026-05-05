@@ -87,7 +87,7 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  startServer()
+  if (!isDev) startServer()
 
   if (!isDev) {
     // In production, give the server a moment before opening the window
