@@ -64,6 +64,13 @@ k8s/
 └── ingress/lt-web-ingress.yaml         # host: limitlessworkstation.com
 ```
 
+**First-time setup** — create the `regcred` image pull secret in the namespace (copy from an existing namespace):
+```bash
+kubectl get secret regcred -n <source-namespace> -o json | \
+  sed 's/"namespace": "<source-namespace>"/"namespace": "lt-web-namespace"/' | \
+  kubectl apply -f -
+```
+
 Apply manually:
 ```bash
 export DEPLOY_ENV=production
@@ -71,6 +78,7 @@ envsubst < k8s/namespaces/lt-web-namespace.yaml | kubectl apply -f -
 envsubst < k8s/services/lt-web-service.yaml | kubectl apply -f -
 envsubst < k8s/deployments/lt-web-deployment.yaml | kubectl apply -f -
 envsubst < k8s/ingress/lt-web-ingress.yaml | kubectl apply -f -
+kubectl rollout restart -n lt-web-namespace deployment $DEPLOY_ENV-lt-web-deployment
 ```
 
 ## CI/CD
