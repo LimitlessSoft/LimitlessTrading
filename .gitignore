@@ -80,3 +80,6 @@ credentials/
 
 # Playwright MCP artifacts
 .playwright-mcp/
+
+# Claude Code worktrees
+.claude/worktrees/
