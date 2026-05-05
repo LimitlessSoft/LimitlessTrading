@@ -25,6 +25,21 @@ spec:
             secretKeyRef:
               name: lt-api-postgres-secret
               key: ConnectionStrings__DefaultConnection
+        - name: Admin__Email
+          valueFrom:
+            secretKeyRef:
+              name: lt-api-admin-secret
+              key: Admin__Email
+        - name: Admin__Password
+          valueFrom:
+            secretKeyRef:
+              name: lt-api-admin-secret
+              key: Admin__Password
+        - name: Admin__JwtSecret
+          valueFrom:
+            secretKeyRef:
+              name: lt-api-admin-secret
+              key: Admin__JwtSecret
         resources:
           requests:
             cpu: "100m"

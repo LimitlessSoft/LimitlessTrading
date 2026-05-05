@@ -24,8 +24,12 @@ jobs:
         export DEPLOY_ENV=${{ inputs.env }}
         export POSTGRES_USER=${{ secrets.POSTGRES_USER }}
         export POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+        export ADMIN_EMAIL=${{ secrets.ADMIN_EMAIL }}
+        export ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}
+        export ADMIN_JWT_SECRET=${{ secrets.ADMIN_JWT_SECRET }}
         envsubst < k8s/namespaces/lt-api-namespace.yaml | kubectl apply -f -
         envsubst < k8s/secrets/lt-api-postgres-secret.yaml | kubectl apply -f -
+        envsubst < k8s/secrets/lt-api-admin-secret.yaml | kubectl apply -f -
         kubectl apply -f k8s/storage/lt-api-postgres-pvc.yaml
         kubectl apply -f k8s/statefulsets/lt-api-postgres-statefulset.yaml
         kubectl apply -f k8s/services/lt-api-postgres-service.yaml
