@@ -11,7 +11,17 @@ import AutoConnect from './modules/AutoConnect'
 import AIChatPanel from './components/AIChatPanel'
 import { LicenseProvider } from './modules/LicenseContext'
 import { WidgetProvider } from './modules/WidgetContext'
+import { AIChatContext } from './modules/AIChatContext'
 import theme from './theme'
+
+function AIChatProvider({ children }) {
+  const [open, setOpen] = React.useState(false)
+  return (
+    <AIChatContext.Provider value={{ open, setOpen }}>
+      {children}
+    </AIChatContext.Provider>
+  )
+}
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -19,15 +29,17 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <LicenseProvider>
         <WidgetProvider>
           <BrowserRouter>
-            <AutoConnect />
-            <AlertOverlay />
-            <AlertExpressionWatcher />
-            <AIChatPanel />
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/docs/placeholders" element={<PlaceholderDocsPage />} />
-              <Route path="*" element={<TemplatePage />} />
-            </Routes>
+            <AIChatProvider>
+              <AutoConnect />
+              <AlertOverlay />
+              <AlertExpressionWatcher />
+              <AIChatPanel />
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/docs/placeholders" element={<PlaceholderDocsPage />} />
+                <Route path="*" element={<TemplatePage />} />
+              </Routes>
+            </AIChatProvider>
           </BrowserRouter>
         </WidgetProvider>
       </LicenseProvider>

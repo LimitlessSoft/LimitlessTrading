@@ -11,8 +11,10 @@ import LicenseModal from './LicenseModal'
 import { useLicense } from '../modules/LicenseContext'
 import WhisperSetupModal from './WhisperSetupModal'
 import { useWidgetCallback } from '../modules/WidgetContext'
+import { useAIChat } from '../modules/AIChatContext'
 
 const api = axios.create({ baseURL: '/api', timeout: 60000 })
+
 
 const PROVIDERS = [
   { id: 'claude_subscription', label: 'Claude Subscription' },
@@ -36,7 +38,7 @@ function makeThread(n) {
   return { id: crypto.randomUUID(), name: `Chat ${n}`, messages: [], limitReached: false }
 }
 
-function ChatIcon() {
+export function ChatIcon() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
       <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z" />
@@ -407,7 +409,7 @@ function SettingsPane({ onClose, onOpenVoiceSetup }) {
 }
 
 export default function AIChatPanel() {
-  const [open, setOpen] = useState(false)
+  const { open, setOpen } = useAIChat()
   const [view, setView] = useState('chat')
   const [threads, setThreads] = useState(() => {
     try {
@@ -437,7 +439,7 @@ export default function AIChatPanel() {
   const { isOpen: isWhisperOpen, onOpen: onWhisperOpen, onClose: onWhisperClose } = useDisclosure()
 
   const { isPro } = useLicense()
-  const { onCreateWidget, getPageContext } = useWidgetCallback()
+  const { onCreateWidget, onBatchCreateWidgets, onUpdateWidget, onBatchUpdateWidgets, onDeleteWidget, onBatchDeleteWidgets, onApplyWidgetActions, getPageContext } = useWidgetCallback()
 
   const activeThread = threads.find(t => t.id === activeThreadId) ?? threads[0]
 
@@ -521,7 +523,19 @@ export default function AIChatPanel() {
           ? { ...t, messages: [...t.messages, { role: 'assistant', content: res.data.response }] }
           : t
       ))
-      for (const action of res.data.actions || []) {
+      const actions = res.data.actions || []
+      const widgetCreates = actions.filter(a => a.type === 'create_widget')
+      const widgetUpdates = actions.filter(a => a.type === 'update_widget')
+      const widgetDeletes = actions.filter(a => a.type === 'delete_widget')
+      const widgetActionCount = widgetCreates.length + widgetUpdates.length + widgetDeletes.length
+      if (widgetActionCount > 1) {
+        onApplyWidgetActions({
+          creates: widgetCreates.map(a => a.widgetDef),
+          updates: widgetUpdates.map(a => ({ widgetId: a.widgetId, changes: a.changes })),
+          deletes: widgetDeletes.map(a => a.widgetId)
+        })
+      }
+      for (const action of actions) {
         if (action.type === 'create_alert') {
           createAlert(action.config)
           toast({ title: `Alert created: ${action.config.label}`, status: 'success', duration: 3000, isClosable: true })
@@ -535,7 +549,11 @@ export default function AIChatPanel() {
             toast({ title: `Alert removed: ${target.label}`, status: 'info', duration: 3000, isClosable: true })
           }
         } else if (action.type === 'create_widget') {
-          onCreateWidget(action.widgetDef)
+          if (widgetActionCount === 1) onCreateWidget(action.widgetDef)
+        } else if (action.type === 'update_widget') {
+          if (widgetActionCount === 1) onUpdateWidget(action.widgetId, action.changes)
+        } else if (action.type === 'delete_widget') {
+          if (widgetActionCount === 1) onDeleteWidget(action.widgetId)
         }
       }
     } catch (err) {
@@ -645,48 +663,6 @@ export default function AIChatPanel() {
       <LicenseModal isOpen={isLicenseOpen} onClose={onLicenseClose} />
       <WhisperSetupModal isOpen={isWhisperOpen} onClose={onWhisperClose} />
 
-      {!open && (
-        <Box
-          position="fixed"
-          left={0}
-          top="calc(48px + (100vh - 48px) / 2)"
-          transform="translateY(-50%)"
-          zIndex={1100}
-        >
-          <Box
-            as="button"
-            bg="gray.800"
-            color="gray.300"
-            borderRight="1px solid"
-            borderTop="1px solid"
-            borderBottom="1px solid"
-            borderColor="gray.700"
-            borderRightRadius="md"
-            py={4}
-            px={2}
-            display="flex"
-            flexDirection="column"
-            alignItems="center"
-            gap={2}
-            boxShadow="md"
-            onClick={() => setOpen(true)}
-            _hover={{ bg: 'gray.700', color: 'white' }}
-            transition="all 0.15s"
-          >
-            <ChatIcon />
-            <Text
-              fontSize="10px"
-              fontWeight="semibold"
-              letterSpacing="0.08em"
-              color="inherit"
-              sx={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
-            >
-              AI
-            </Text>
-          </Box>
-        </Box>
-      )}
-
       {open && (
         <Box
           position="fixed"
@@ -701,7 +677,7 @@ export default function AIChatPanel() {
           display="flex"
           flexDirection="row"
           overflow="hidden"
-          zIndex={1100}
+          zIndex={999}
         >
           <Box display="flex" flexDirection="column" flex={1} overflow="hidden">
           {/* Header */}

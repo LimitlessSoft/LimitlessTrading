@@ -45,6 +45,42 @@ import { WIDGET_REGISTRY, createWidget, renderWidget } from '../components/widge
 import WidgetsGalleryModal from '../components/WidgetsGalleryModal'
 import WidgetTreePanel from '../components/WidgetTreePanel'
 
+// Returns the fillHeight available to dock:fill-height widgets after subtracting fixed-height rows.
+// Without this, charts in a 2-row layout (charts + label bar) only get fillHeight/heightRows instead of fillHeight minus the label bar.
+function computeAdjustedFillHeight(widgets, fillHeight, gap = 8) {
+  if (!fillHeight) return fillHeight
+  if (!widgets.some(w => w.dock === 'fill-height' || w.dock === 'fill')) return fillHeight
+
+  const TOTAL_SEGMENTS = 20
+  const sorted = [...widgets].sort((a, b) => (a.y || 0) - (b.y || 0))
+
+  const rows = []
+  let curX = 0, rowH = 0, rowHasFill = false
+
+  for (const widget of sorted) {
+    const def = WIDGET_REGISTRY[widget.type] || WIDGET_REGISTRY.label
+    const w = widget.dock === 'fill' ? TOTAL_SEGMENTS : (widget.width || def.width)
+    const isFill = widget.dock === 'fill' || widget.dock === 'fill-height'
+
+    if (curX > 0 && curX + w > TOTAL_SEGMENTS) {
+      rows.push({ maxH: rowH, hasFill: rowHasFill })
+      curX = 0; rowH = 0; rowHasFill = false
+    }
+
+    curX += w
+    if (isFill) rowHasFill = true
+    else rowH = Math.max(rowH, widget.height || def.height)
+  }
+  rows.push({ maxH: rowH, hasFill: rowHasFill })
+
+  const fixedRows = rows.filter(r => !r.hasFill)
+  if (!fixedRows.length) return fillHeight
+
+  // Each fixed row contributes its height + one inter-row gap
+  const fixedTotal = fixedRows.reduce((sum, r) => sum + r.maxH + gap, 0)
+  return Math.max(0, fillHeight - fixedTotal)
+}
+
 function TemplatePage() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -61,7 +97,7 @@ function TemplatePage() {
   const { isOpen: isInfoOpen, onOpen: onInfoOpen, onClose: onInfoClose } = useDisclosure()
   const { isOpen: isLicenseOpen, onOpen: onLicenseOpen, onClose: onLicenseClose } = useDisclosure()
   const { isPro } = useLicense()
-  const { setOnCreateWidget } = useWidgetCallback()
+  const { setWidgetHandlers } = useWidgetCallback()
   const [infoName, setInfoName] = useState('')
   const [infoPath, setInfoPath] = useState('')
   const [routesVersion, setRoutesVersion] = useState(0)
@@ -110,8 +146,8 @@ function TemplatePage() {
 
   useEffect(() => {
     if (!pageInfo) return
-    setOnCreateWidget(addWidgetFromAI, pageInfo)
-    return () => setOnCreateWidget(null, null)
+    setWidgetHandlers({ onCreate: addWidgetFromAI, onBatchCreate: batchCreateWidgetsFromAI, onUpdate: updateWidgetFromAI, onBatchUpdate: batchUpdateWidgetsFromAI, onDelete: deleteWidgetFromAI, onBatchDelete: batchDeleteWidgetsFromAI, onApplyActions: applyWidgetActionsFromAI }, pageInfo)
+    return () => setWidgetHandlers({}, null)
   }, [pageInfo, isPro])
 
   const isAtWidgetLimit = () => {
@@ -165,22 +201,130 @@ function TemplatePage() {
     try {
       const currentLabels = pageInfo.config?.labels || []
       const maxY = currentLabels.reduce((m, l) => Math.max(m, l.y || 0), -1)
-      const newWidget = {
-        ...widgetDef,
-        id: crypto.randomUUID(),
-        createdAt: Date.now(),
-        x: 0,
-        y: maxY + 1
-      }
-      const updatedConfig = {
-        ...pageInfo.config,
-        labels: [...currentLabels, newWidget]
-      }
-      const updatedRoute = await updateRoute(pageInfo.id, { config: updatedConfig })
+      const regDef = WIDGET_REGISTRY[widgetDef.type] || {}
+      const { displayName, Component, needsText, ...regDefaults } = regDef
+      const newWidget = { ...regDefaults, ...widgetDef, id: crypto.randomUUID(), createdAt: Date.now(), x: 0, y: maxY + 1 }
+      const updatedRoute = await updateRoute(pageInfo.id, { config: { ...pageInfo.config, labels: [...currentLabels, newWidget] } })
       setPageInfo(updatedRoute)
       toast({ title: 'Widget added to page', status: 'success', duration: 3000, isClosable: true })
     } catch (err) {
       toast({ title: 'Failed to add widget', description: err.message, status: 'error', duration: 3000 })
+    }
+  }
+
+  const batchCreateWidgetsFromAI = async (widgetDefs) => {
+    if (!pageInfo) return
+    const currentLabels = pageInfo.config?.labels || []
+    if (!isPro && currentLabels.length + widgetDefs.length > FREE_LIMITS.widgetsPerPage) {
+      toast({ title: 'Widget limit reached — upgrade to Pro to add more widgets', status: 'warning', duration: 4000, isClosable: true })
+      return
+    }
+    try {
+      let maxY = currentLabels.reduce((m, l) => Math.max(m, l.y || 0), -1)
+      const newWidgets = widgetDefs.map(widgetDef => {
+        const regDef = WIDGET_REGISTRY[widgetDef.type] || {}
+        const { displayName, Component, needsText, ...regDefaults } = regDef
+        return { ...regDefaults, ...widgetDef, id: crypto.randomUUID(), createdAt: Date.now(), x: 0, y: ++maxY }
+      })
+      const updatedRoute = await updateRoute(pageInfo.id, { config: { ...pageInfo.config, labels: [...currentLabels, ...newWidgets] } })
+      setPageInfo(updatedRoute)
+      toast({ title: `${newWidgets.length} widgets added`, status: 'success', duration: 3000, isClosable: true })
+    } catch (err) {
+      toast({ title: 'Failed to add widgets', description: err.message, status: 'error', duration: 3000 })
+    }
+  }
+
+  // Apply all widget actions from one AI response atomically in a single updateRoute call.
+  // { creates: [widgetDef], updates: [{widgetId, changes}], deletes: [widgetId] }
+  const applyWidgetActionsFromAI = async ({ creates = [], updates = [], deletes = [] }) => {
+    if (!pageInfo) return
+    const currentLabels = pageInfo.config?.labels || []
+    if (!isPro && currentLabels.length + creates.length > FREE_LIMITS.widgetsPerPage) {
+      toast({ title: 'Widget limit reached — upgrade to Pro to add more widgets', status: 'warning', duration: 4000, isClosable: true })
+      return
+    }
+    try {
+      const deleteSet = new Set(deletes)
+      const changeMap = new Map(updates.map(u => [u.widgetId, u.changes]))
+      let maxY = currentLabels.reduce((m, l) => Math.max(m, l.y || 0), -1)
+      const newWidgets = creates.map(widgetDef => {
+        const regDef = WIDGET_REGISTRY[widgetDef.type] || {}
+        const { displayName, Component, needsText, ...regDefaults } = regDef
+        return { ...regDefaults, ...widgetDef, id: crypto.randomUUID(), createdAt: Date.now(), x: 0, y: ++maxY }
+      })
+      const applyChanges = (widget, changes) => {
+        const result = { ...widget, ...changes }
+        // Allow AI to explicitly clear nullable layout properties
+        if (changes.heightRows === null) delete result.heightRows
+        if (changes.dock === null) delete result.dock
+        return result
+      }
+      const updatedLabels = [
+        ...currentLabels
+          .filter(l => !deleteSet.has(l.id))
+          .map(l => changeMap.has(l.id) ? applyChanges(l, changeMap.get(l.id)) : l),
+        ...newWidgets
+      ]
+      const updatedRoute = await updateRoute(pageInfo.id, { config: { ...pageInfo.config, labels: updatedLabels } })
+      setPageInfo(updatedRoute)
+    } catch (err) {
+      toast({ title: 'Failed to update widgets', description: err.message, status: 'error', duration: 3000 })
+    }
+  }
+
+  const updateWidgetFromAI = async (widgetId, changes) => {
+    if (!pageInfo) return
+    try {
+      const currentLabels = pageInfo.config?.labels || []
+      const updatedLabels = currentLabels.map(l => {
+        if (l.id !== widgetId) return l
+        const result = { ...l, ...changes }
+        if (changes.heightRows === null) delete result.heightRows
+        if (changes.dock === null) delete result.dock
+        return result
+      })
+      const updatedRoute = await updateRoute(pageInfo.id, { config: { ...pageInfo.config, labels: updatedLabels } })
+      setPageInfo(updatedRoute)
+    } catch (err) {
+      toast({ title: 'Failed to update widget', description: err.message, status: 'error', duration: 3000 })
+    }
+  }
+
+  const batchUpdateWidgetsFromAI = async (updates) => {
+    if (!pageInfo) return
+    try {
+      const changeMap = new Map(updates.map(u => [u.widgetId, u.changes]))
+      const currentLabels = pageInfo.config?.labels || []
+      const updatedLabels = currentLabels.map(l => changeMap.has(l.id) ? { ...l, ...changeMap.get(l.id) } : l)
+      const updatedRoute = await updateRoute(pageInfo.id, { config: { ...pageInfo.config, labels: updatedLabels } })
+      setPageInfo(updatedRoute)
+    } catch (err) {
+      toast({ title: 'Failed to update widgets', description: err.message, status: 'error', duration: 3000 })
+    }
+  }
+
+  const deleteWidgetFromAI = async (widgetId) => {
+    if (!pageInfo) return
+    try {
+      const currentLabels = pageInfo.config?.labels || []
+      const updatedLabels = currentLabels.filter(l => l.id !== widgetId)
+      const updatedRoute = await updateRoute(pageInfo.id, { config: { ...pageInfo.config, labels: updatedLabels } })
+      setPageInfo(updatedRoute)
+    } catch (err) {
+      toast({ title: 'Failed to delete widget', description: err.message, status: 'error', duration: 3000 })
+    }
+  }
+
+  const batchDeleteWidgetsFromAI = async (widgetIds) => {
+    if (!pageInfo) return
+    try {
+      const idSet = new Set(widgetIds)
+      const currentLabels = pageInfo.config?.labels || []
+      const updatedLabels = currentLabels.filter(l => !idSet.has(l.id))
+      const updatedRoute = await updateRoute(pageInfo.id, { config: { ...pageInfo.config, labels: updatedLabels } })
+      setPageInfo(updatedRoute)
+    } catch (err) {
+      toast({ title: 'Failed to delete widgets', description: err.message, status: 'error', duration: 3000 })
     }
   }
 
@@ -645,8 +789,8 @@ function TemplatePage() {
     for (const widget of sorted) {
       const def = WIDGET_REGISTRY[widget.type] || WIDGET_REGISTRY.label
       const w = widget.dock === 'fill' ? TOTAL_SEGMENTS : (widget.width || def.width)
-      const h = widget.dock === 'fill' && effectiveFillHeight != null
-        ? effectiveFillHeight
+      const h = (widget.dock === 'fill' || widget.dock === 'fill-height') && effectiveFillHeight != null
+        ? Math.floor(effectiveFillHeight / (widget.heightRows || 1))
         : (widget.height || def.height)
 
       if (curX > 0 && curX + w > TOTAL_SEGMENTS) {
@@ -663,7 +807,8 @@ function TemplatePage() {
     return positions
   }
 
-  const layoutPositions = calculateLayout(labels, dragPreview, fillHeight)
+  const adjustedFillHeight = computeAdjustedFillHeight(labels, fillHeight)
+  const layoutPositions = calculateLayout(labels, dragPreview, adjustedFillHeight)
 
   return (
     <Box minH="100vh" bg="gray.900">
@@ -733,7 +878,9 @@ function TemplatePage() {
               {labels.map((label) => {
                 const flowPos = layoutPositions.get(label.id) || { x: 0, y: 0 }
                 const effectiveLabel = label.dock === 'fill'
-                  ? { ...label, x: 0, width: 20, ...(fillHeight != null ? { height: fillHeight } : {}) }
+                  ? { ...label, x: 0, width: 20, ...(adjustedFillHeight != null ? { height: adjustedFillHeight } : {}) }
+                  : label.dock === 'fill-height' && adjustedFillHeight != null
+                  ? { ...label, x: flowPos.x, height: Math.floor(adjustedFillHeight / (label.heightRows || 1)) }
                   : { ...label, x: flowPos.x }
                 return renderWidget(label, {
                 key: label.id,

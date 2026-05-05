@@ -31,6 +31,20 @@ import {
 import { HamburgerIcon, AddIcon, BellIcon, InfoOutlineIcon, CopyIcon, CloseIcon } from '@chakra-ui/icons'
 import { fetchRoutes, createRoute } from '../modules/routesService'
 import { useLicense } from '../modules/LicenseContext'
+import { useAIChat } from '../modules/AIChatContext'
+
+function AssistantIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="8" width="16" height="11" rx="2" />
+      <line x1="12" y1="4" x2="12" y2="8" />
+      <circle cx="12" cy="3.2" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="13.5" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="13.5" r="1.2" fill="currentColor" stroke="none" />
+      <line x1="9" y1="16.5" x2="15" y2="16.5" />
+    </svg>
+  )
+}
 import { FREE_LIMITS } from '../modules/freeLimits'
 import AlertsPanel from './AlertsPanel'
 import LicenseModal from './LicenseModal'
@@ -74,6 +88,7 @@ function PageNavMenu({
   const { isOpen: isAboutOpen, onOpen: onAboutOpen, onClose: onAboutClose } = useDisclosure()
   const navigate = useNavigate()
   const toast = useToast()
+  const { open: aiOpen, setOpen: setAiOpen } = useAIChat()
   const internalHeaderRef = useRef(null)
   const headerRef = externalHeaderRef || internalHeaderRef
   const headerControlsRef = useRef(null)
@@ -164,7 +179,7 @@ function PageNavMenu({
         py={2}
         transition="background-color 0.15s, border-color 0.15s"
       >
-        <Flex align="center">
+        <Flex align="center" gap={1}>
           <Menu>
             <MenuButton
               as={IconButton}
@@ -173,6 +188,9 @@ function PageNavMenu({
               size="sm"
               aria-label="Navigation menu"
               _hover={{ bg: 'whiteAlpha.200' }}
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
             />
             <MenuList bg="gray.800" borderColor="gray.600">
               <MenuItem
@@ -223,6 +241,18 @@ function PageNavMenu({
             </MenuList>
           </Menu>
           {children}
+          <Box w="1px" h="20px" bg="gray.600" mx={1} flexShrink={0} />
+          <Tooltip label="Assistant" placement="bottom" hasArrow>
+            <IconButton
+              icon={<AssistantIcon />}
+              variant="ghost"
+              size="sm"
+              aria-label="Open assistant"
+              color={aiOpen ? 'blue.300' : undefined}
+              _hover={{ bg: 'whiteAlpha.200' }}
+              onClick={() => setAiOpen(v => !v)}
+            />
+          </Tooltip>
           <Spacer />
           {/* Header controls - right side */}
           {headerControls.length > 0 && onRenderWidget && (() => {

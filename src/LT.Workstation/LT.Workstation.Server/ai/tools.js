@@ -145,6 +145,11 @@ export const TOOL_DEFINITIONS = [
           type: 'string',
           description: 'Ticker symbol. Required for type=chart. Example: "AAPL"'
         },
+        interval: {
+          type: 'string',
+          enum: ['1m', '2m', '3m', '5m', '15m', '30m', '1h', '1d'],
+          description: 'Bar interval for type=chart. Defaults to "5m" if omitted.'
+        },
         placeholder: {
           type: 'string',
           description: 'Placeholder expression. Required for type=badge and type=gauge. Example: "@{VIX:last:5}"'
@@ -185,7 +190,9 @@ export const TOOL_DEFINITIONS = [
         maxHistory: { type: 'number', description: 'Max data points for type=graph. Default 200' },
         snapshotInterval: { type: 'number', description: 'Fetch interval in seconds for snapshot series. Default 300' },
         width: { type: 'number', description: 'Width in grid segments (1-20). Default varies by type' },
-        height: { type: 'number', description: 'Height in pixels. Default varies by type' },
+        height: { type: 'number', description: 'Height in pixels. Omit when using dock=fill-height.' },
+        dock: { type: 'string', enum: ['fill', 'fill-height'], description: 'fill = full width+height, fill-height = custom width + full viewport height (omit height when using this)' },
+        heightRows: { type: 'number', description: 'Used with dock=fill-height. Divides viewport height by this number. E.g. heightRows=2 for a 2-row layout where each row is half the viewport.' },
         style: {
           type: 'object',
           description: 'Visual style overrides',
@@ -203,6 +210,44 @@ export const TOOL_DEFINITIONS = [
         }
       },
       required: ['type']
+    }
+  },
+  {
+    name: 'update_widget',
+    description: 'Update properties of an existing widget on the current template page. Use to resize, reposition, or change settings of a widget. widgetId comes from the existing widgets list in the page context.',
+    parameters: {
+      type: 'object',
+      properties: {
+        widgetId: { type: 'string', description: 'ID of the widget to update' },
+        changes: {
+          type: 'object',
+          description: 'Fields to update. Any subset of the widget\'s properties.',
+          properties: {
+            width: { type: 'number', description: 'Width in grid segments (1-20)' },
+            height: { type: 'number', description: 'Height in pixels' },
+            symbol: { type: 'string' },
+            interval: { type: 'string', enum: ['1m', '2m', '3m', '5m', '15m', '30m', '1h', '1d'] },
+            text: { type: 'string' },
+            placeholder: { type: 'string' },
+            min: { type: 'number' },
+            max: { type: 'number' },
+            title: { type: 'string' },
+            dock: { type: 'string', enum: ['fill', 'fill-height'], description: 'fill = full width+height, fill-height = custom width + viewport height' }
+          }
+        }
+      },
+      required: ['widgetId', 'changes']
+    }
+  },
+  {
+    name: 'delete_widget',
+    description: 'Remove a widget from the current template page. widgetId comes from the existing widgets list in the page context.',
+    parameters: {
+      type: 'object',
+      properties: {
+        widgetId: { type: 'string', description: 'ID of the widget to delete' }
+      },
+      required: ['widgetId']
     }
   }
 ]
