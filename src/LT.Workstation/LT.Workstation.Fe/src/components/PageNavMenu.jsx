@@ -298,8 +298,9 @@ function PageNavMenu({
                 aria-label="Copy device info"
                 onClick={() => {
                   const info = getDeviceInfo()
-                  const text = Object.entries(info).map(([k, v]) => `${k}: ${v}`).join('\n')
-                  navigator.clipboard.writeText(`Version: ${appVersion ?? '—'}\n${text}`)
+                  const deviceText = Object.entries(info).map(([k, v]) => `${k}: ${v}`).join('\n')
+                  const licenseText = `License: ${licenseStatus === 'loading' || licenseStatus === 'error' ? '—' : isPro ? 'Pro' : 'Free'}\nEmail: ${customerEmail ?? '—'}`
+                  navigator.clipboard.writeText(`Version: ${appVersion ?? '—'}\n${licenseText}\n${deviceText}`)
                   toast({ title: 'Copied to clipboard', status: 'success', duration: 2000, isClosable: true })
                 }}
               />
