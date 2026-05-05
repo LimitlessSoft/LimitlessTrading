@@ -23,7 +23,7 @@ import { CloseIcon, SettingsIcon, AddIcon, DeleteIcon } from '@chakra-ui/icons'
 import FillIcon from './FillIcon'
 import { useDeleteConfirm } from '../hooks/useDeleteConfirm'
 import { useWidgetSizeEdit } from '../hooks/useWidgetSizeEdit'
-import { subscribePositions } from '../modules/positionService'
+import { useWidgetResolveText } from '../hooks/useWidgetResolveText'
 
 const DownloadIcon = () => (
   <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
@@ -48,43 +48,11 @@ const MIN_SEGMENTS = 4
 const MIN_HEIGHT = 80
 const DEFAULT_HEIGHT = 200
 const DEFAULT_WIDTH = 10
-const DEFAULT_INTERVAL = 30
-
-const DEFAULT_SOURCE = 'positions'
 
 const DEFAULT_COLUMNS = [
-  { id: 'col-symbol',  name: 'Symbol',   expression: '{symbol}' },
-  { id: 'col-qty',     name: 'Qty',      expression: '{position}' },
-  { id: 'col-avgcost', name: 'Avg Cost', expression: '{avgCost}' },
+  { id: 'col-key', name: 'Field', expression: '{key}' },
+  { id: 'col-val', name: 'Value', expression: '{value}' },
 ]
-
-// Map of source expression → { variables hint, subscribe(interval, setRows) → unsubscribe }
-const SOURCE_RESOLVERS = {
-  positions: {
-    hint: '{symbol}  {position}  {avgCost}',
-    subscribe(interval, setRows) {
-      return subscribePositions(interval, (cache) => {
-        const rows = []
-        for (const [symbol, data] of cache.entries()) {
-          if (data.position != null && data.position !== 0) {
-            rows.push({ symbol, position: data.position, avgCost: data.avgCost })
-          }
-        }
-        rows.sort((a, b) => a.symbol.localeCompare(b.symbol))
-        setRows(rows)
-      })
-    },
-  },
-}
-
-function resolveSource(source, interval, setRows) {
-  const resolver = SOURCE_RESOLVERS[source?.trim().toLowerCase()]
-  if (!resolver) {
-    setRows([])
-    return () => {}
-  }
-  return resolver.subscribe(interval, setRows)
-}
 
 const DEFAULT_STYLE = {
   bgColor: '#1a202c',
@@ -98,10 +66,27 @@ const DEFAULT_STYLE = {
 
 function evaluateExpression(expr, row) {
   if (!expr) return ''
-  return expr
-    .replace(/\{symbol\}/gi, row.symbol)
-    .replace(/\{position\}/gi, row.position != null ? String(row.position) : '--')
-    .replace(/\{avgcost\}/gi, row.avgCost != null ? row.avgCost.toFixed(2) : '--')
+  return expr.replace(/\{([^}]+)\}/g, (_, inner) => {
+    const fields = inner.split('??').map(f => f.trim())
+    for (const field of fields) {
+      const val = row[field]
+      if (val != null && val !== '' && val !== '--') return String(val)
+    }
+    return '--'
+  })
+}
+
+function parseRows(resolved) {
+  try {
+    const data = JSON.parse(resolved)
+    if (Array.isArray(data)) return data
+    if (data && typeof data === 'object') {
+      return Object.entries(data).map(([key, val]) =>
+        val && typeof val === 'object' ? { key, ...val } : { key, value: val }
+      )
+    }
+  } catch {}
+  return null
 }
 
 function TemplatePageTable({
@@ -128,9 +113,8 @@ function TemplatePageTable({
   const width = label.width || DEFAULT_WIDTH
   const height = label.height || DEFAULT_HEIGHT
   const x = label.x || 0
-  const source = label.source || DEFAULT_SOURCE
+  const source = label.source || ''
   const columns = label.columns || DEFAULT_COLUMNS
-  const refreshInterval = label.refreshInterval || DEFAULT_INTERVAL
   const style = { ...DEFAULT_STYLE, ...label.style }
 
   const displayWidth = previewSize?.width ?? width
@@ -138,10 +122,12 @@ function TemplatePageTable({
   const displayX = previewPos?.x ?? x
   const displayY = previewPos?.y ?? layoutY ?? 0
 
-  // Resolve source expression to rows
+  const { resolveText } = useWidgetResolveText(source)
+
   useEffect(() => {
-    return resolveSource(source, refreshInterval, setRows)
-  }, [source, refreshInterval])
+    const parsed = parseRows(resolveText(source))
+    if (parsed) setRows(parsed)
+  }, [resolveText, source])
 
   // Clear preview once label prop catches up
   useEffect(() => {
@@ -299,7 +285,6 @@ function TemplatePageTable({
     setEditConfig({
       source,
       columns: columns.map(c => ({ ...c })),
-      refreshInterval,
       title: label.title || '',
       style: { ...DEFAULT_STYLE, ...label.style },
     })
@@ -309,9 +294,8 @@ function TemplatePageTable({
 
   const handleSaveConfig = () => {
     onUpdate(label.id, {
-      source: editConfig.source.trim() || DEFAULT_SOURCE,
+      source: editConfig.source.trim(),
       columns: editConfig.columns,
-      refreshInterval: Math.max(5, parseInt(editConfig.refreshInterval) || DEFAULT_INTERVAL),
       title: editConfig.title,
       style: editConfig.style,
       ...sizeUpdates,
@@ -383,7 +367,7 @@ function TemplatePageTable({
             '&::-webkit-scrollbar-thumb': { bg: 'whiteAlpha.300', borderRadius: '2px' },
           }}
         >
-          <Box as="table" width="100%" borderCollapse="collapse" style={{ tableLayout: 'fixed' }}>
+          <Box as="table" width="100%" style={{ tableLayout: 'fixed', borderCollapse: 'collapse' }}>
             <Box as="thead">
               <Box as="tr">
                 {columns.map((col) => (
@@ -533,35 +517,14 @@ function TemplatePageTable({
                   />
                 </FormControl>
 
-                <HStack align="flex-end">
-                  <FormControl>
-                    <FormLabel fontSize="sm">Source expression</FormLabel>
-                    <Input size="sm" value={editConfig.source}
-                      onChange={e => setEditConfig({ ...editConfig, source: e.target.value })}
-                      placeholder="positions"
-                      fontFamily="mono"
-                    />
-                    {(() => {
-                      const resolver = SOURCE_RESOLVERS[editConfig.source?.trim().toLowerCase()]
-                      return resolver ? (
-                        <Text fontSize="xs" color="gray.500" mt={1}>
-                          Variables: {resolver.hint.split('  ').map(v => (
-                            <Box key={v} as="code" bg="gray.700" px={1} borderRadius="sm" mr={1}>{v}</Box>
-                          ))}
-                        </Text>
-                      ) : editConfig.source?.trim() ? (
-                        <Text fontSize="xs" color="orange.400" mt={1}>Unknown source</Text>
-                      ) : null
-                    })()}
-                  </FormControl>
-                  <FormControl maxW="110px" flexShrink={0}>
-                    <FormLabel fontSize="sm">Refresh (s)</FormLabel>
-                    <Input size="sm" type="number" min={5}
-                      value={editConfig.refreshInterval}
-                      onChange={e => setEditConfig({ ...editConfig, refreshInterval: parseInt(e.target.value) || '' })}
-                    />
-                  </FormControl>
-                </HStack>
+                <FormControl>
+                  <FormLabel fontSize="sm">Source expression</FormLabel>
+                  <Input size="sm" value={editConfig.source}
+                    onChange={e => setEditConfig({ ...editConfig, source: e.target.value })}
+                    placeholder="Expression that resolves to an array or object"
+                    fontFamily="mono"
+                  />
+                </FormControl>
 
                 <Box borderTopWidth={1} borderColor="gray.600" pt={3}>
                   <HStack justify="space-between" mb={2}>

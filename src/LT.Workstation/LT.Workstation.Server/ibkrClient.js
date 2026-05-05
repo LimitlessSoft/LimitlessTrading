@@ -1829,7 +1829,37 @@ export async function getPositions() {
     let resolved = false
 
     const onPosition = (account, contract, pos, avgCost) => {
-      positions.set(contract.symbol.toUpperCase(), { position: pos, avgCost })
+      const sym = contract.symbol.toUpperCase()
+      const secType = contract.secType || 'STK'
+      const expiry = contract.lastTradeDateOrContractMonth || ''
+      const strike = contract.strike || ''
+      const right = contract.right || ''
+      const local = contract.localSymbol?.trim()
+
+      const key = local ||
+        (secType !== 'STK' ? `${sym}_${secType}_${expiry}_${strike}_${right}` : sym)
+
+      let description = sym
+      if (secType === 'OPT' && expiry) {
+        const y = expiry.slice(0, 4), m = expiry.slice(4, 6), d = expiry.slice(6, 8)
+        const dateStr = new Date(`${y}-${m}-${d}`).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: '2-digit' }).replace(', ', "'")
+        description = `${sym} ${dateStr} ${strike} ${right === 'P' ? 'PUT' : right === 'C' ? 'CALL' : right}`
+      } else if (secType !== 'STK') {
+        description = local || key
+      }
+
+      positions.set(key, {
+        position: pos,
+        avgCost,
+        symbol: sym,
+        localSymbol: key,
+        description,
+        secType,
+        expiry: expiry || null,
+        strike: strike || null,
+        right: right || null,
+        multiplier: contract.multiplier ? Number(contract.multiplier) : null,
+      })
     }
 
     const onPositionEnd = () => {

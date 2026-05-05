@@ -5,7 +5,9 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { ChakraProvider } from '@chakra-ui/react'
 import HomePage from './pages/HomePage'
 import TemplatePage from './pages/TemplatePage'
+import DocsPage from './pages/DocsPage'
 import PlaceholderDocsPage from './pages/PlaceholderDocsPage'
+import WidgetDocsPage from './pages/WidgetDocsPage'
 import FeedbackPage from './pages/FeedbackPage'
 import FeedbackDetailPage from './pages/FeedbackDetailPage'
 import WidgetsGalleryPage from './pages/WidgetsGalleryPage'
@@ -42,7 +44,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               <AIChatPanel />
               <Routes>
                 <Route path="/" element={<HomePage />} />
+                <Route path="/docs" element={<DocsPage />} />
                 <Route path="/docs/placeholders" element={<PlaceholderDocsPage />} />
+                <Route path="/docs/widgets" element={<WidgetDocsPage />} />
                 <Route path="/feedback" element={<FeedbackPage />} />
                 <Route path="/feedback/:id" element={<FeedbackDetailPage />} />
                 <Route path="/gallery" element={<WidgetsGalleryPage />} />

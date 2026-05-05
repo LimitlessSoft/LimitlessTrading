@@ -1,6 +1,8 @@
 import { spawn } from 'child_process'
 import { executeTool, buildAlertConfig, isConnected } from '../tools.js'
+import { resolveExpression } from '../expressionResolver.js'
 import { PLACEHOLDER_DOCS } from '../placeholder-docs.js'
+import { WIDGET_DOCS } from '../widget-docs.js'
 
 const SYSTEM_PROMPT_BASE =
   'You are a trading assistant built into this application. You have access to live account data ' +
@@ -96,6 +98,22 @@ async function buildContext(messages, alerts = [], pageContext = null) {
     parts.push('Account Summary: unavailable')
   }
 
+  // Positions
+  try {
+    const json = await resolveExpression('&{positions}')
+    const rows = JSON.parse(json)
+    if (rows.length > 0) {
+      const lines = rows.map(({ symbol, position, avgCost }) =>
+        `  ${symbol}: qty ${position}, avg cost $${avgCost?.toFixed(2) ?? 'N/A'}`
+      )
+      parts.push(`Open Positions (${rows.length}):\n${lines.join('\n')}`)
+    } else {
+      parts.push('Open Positions: none')
+    }
+  } catch {
+    parts.push('Open Positions: unavailable')
+  }
+
   // Active alerts
   if (alerts.length > 0) {
     const alertLines = alerts.map(a => {
@@ -166,34 +184,7 @@ async function buildContext(messages, alerts = [], pageContext = null) {
       `<delete_widget>\n` +
       `{"id":"<widgetId>"}\n` +
       `</delete_widget>\n\n` +
-      `Layout: width is in grid segments (1–20, where 20 = full page width). height is in pixels.\n` +
-      `Typical widths: label=4, badge=2, gauge=6, chart/graph=10, panel=20. Typical heights: label=60, badge=40, gauge=160, chart/graph=220.\n` +
-      `To make a row of widgets fill ALL remaining viewport height (after any fixed-height rows), set "dock":"fill-height" on those widgets and omit height — the layout engine automatically subtracts fixed rows.\n` +
-      `For layouts with MULTIPLE fill-height rows (all equal), also set "heightRows":<N> where N is the number of fill-height rows (e.g. 2 equal fill rows → heightRows:2). For a single fill-height row, omit heightRows or set it to 1. To reset: set "heightRows":null.\n` +
-      `When placing N widgets side by side on one row, their widths MUST sum to exactly 20. For 2 equal columns use 10/10. For 3 equal columns use 7/7/6. For 4 equal columns use 5/5/5/5.\n\n` +
-      `Widget types and required fields:\n` +
-      `  label   → text (string with placeholders), width (1–20), height (px), style\n` +
-      `  badge   → placeholder, width (1–20), height (px), style\n` +
-      `  gauge   → placeholder, min, max, segments ([{from,to,color}]), title, width (1–20), height (px)\n` +
-      `  graph   → series ([{name,expression,color,viewType}]), maxHistory, snapshotInterval, width (1–20), height (px)\n` +
-      `  chart   → symbol (ticker), interval (1m|2m|3m|5m|15m|30m|1h|1d — default "5m"), width (1–20), height (px)\n` +
-      `  panel   → width (1–20), height (px), style, children:[]\n\n` +
-      `Panel layout modes (set in style.layoutMode):\n` +
-      `  "grid" — BEST for placing N widgets side by side. Set style.gridAxis:"columns" and style.gridCount:N. Children fill the grid cells automatically — their width/height are ignored.\n` +
-      `           Example: panel with 2 charts side by side: {"type":"panel","width":20,"height":400,"style":{"layoutMode":"grid","gridAxis":"columns","gridCount":2},"children":[{"type":"chart","symbol":"AAPL"},{"type":"chart","symbol":"GOOGL"}]}\n` +
-      `  "flow" — children fill left-to-right by width, wrapping to next row. Children need explicit width (1–20) and height (px).\n` +
-      `  "absolute" (default) — children need explicit x (0–19) to sit side by side; without x they stack vertically.\n` +
-      `IMPORTANT: dock:"fill-height" does NOT work inside panels. Always use a fixed pixel height for panel children.\n\n` +
-      `Default style: {"bgColor":"#2D3748","borderColor":"#4A5568","borderWidth":1,"textColor":"#FFFFFF","fontWeight":"normal","fontStyle":"normal","fontSize":1,"textAlign":"left","verticalAlign":"center"}\n\n` +
-      `Conditional styles (label and badge): add "conditionalStyles" to style to change colors when a placeholder matches a condition.\n` +
-      `First matching rule wins. Null fields are not overridden.\n` +
-      `Example — green background when LSE is open, red when closed:\n` +
-      `  "conditionalStyles": [\n` +
-      `    {"id":"r1","placeholder":"\${LSE:status:10}","operator":"equals","value":"Open","bgColor":"#276749","textColor":null,"borderColor":null,"borderWidth":null},\n` +
-      `    {"id":"r2","placeholder":"\${LSE:status:10}","operator":"equals","value":"Closed","bgColor":"#742A2A","textColor":null,"borderColor":null,"borderWidth":null}\n` +
-      `  ]\n` +
-      `Operators: equals, contains, >, <, >=, <=, !=\n` +
-      `value is a string for equals/contains, a number for comparisons.\n\n` +
+      WIDGET_DOCS + '\n\n' +
       PLACEHOLDER_DOCS
     )
   } else {

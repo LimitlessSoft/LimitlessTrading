@@ -22,6 +22,9 @@ const api = axios.create({ baseURL: '/api', timeout: 15000 })
 // &{SYMBOL:property} or &{SYMBOL:property:seconds}
 const POSITION_PLACEHOLDER_RE = /&\{([A-Za-z0-9.^]+):(\w+)(?::(\d+))?\}/g
 
+// &{positions} or &{positions:seconds} — returns all positions as JSON
+const POSITIONS_ALL_RE = /&\{positions(?::(\d+))?\}/g
+
 const DEFAULT_INTERVAL = 30
 
 // Cache: symbol (uppercase) → { position, avgCost }
@@ -46,6 +49,14 @@ export function parsePositionPlaceholders(text) {
       interval: m[3] ? parseInt(m[3], 10) : DEFAULT_INTERVAL
     })
   }
+  POSITIONS_ALL_RE.lastIndex = 0
+  for (const m of text.matchAll(POSITIONS_ALL_RE)) {
+    results.push({
+      symbol: '*',
+      property: 'positions',
+      interval: m[1] ? parseInt(m[1], 10) : DEFAULT_INTERVAL
+    })
+  }
   return results
 }
 
@@ -53,8 +64,8 @@ async function fetchAndCache() {
   try {
     const res = await api.get('/account/positions')
     positionCache.clear()
-    for (const [symbol, data] of Object.entries(res.data)) {
-      positionCache.set(symbol.toUpperCase(), data)
+    for (const [key, data] of Object.entries(res.data)) {
+      positionCache.set(key.toUpperCase(), data)
     }
     return true
   } catch {
@@ -126,8 +137,20 @@ function formatPositionValue(property, data) {
  */
 export function resolvePositionText(text, cache) {
   if (!text || !text.includes('&{')) return text
-  return text.replace(POSITION_PLACEHOLDER_RE, (match, symbol, property) => {
-    const data = cache.get(symbol.toUpperCase())
+  let resolved = text.replace(POSITIONS_ALL_RE, () => {
+    const rows = []
+    for (const [key, data] of cache.entries()) {
+      if (data.position != null && data.position !== 0) {
+        rows.push({ localSymbol: key, symbol: key, ...data })
+      }
+    }
+    rows.sort((a, b) => (a.localSymbol || a.symbol).localeCompare(b.localSymbol || b.symbol))
+    return JSON.stringify(rows)
+  })
+  resolved = resolved.replace(POSITION_PLACEHOLDER_RE, (match, symbol, property) => {
+    const key = symbol.toUpperCase()
+    const data = cache.get(key) || [...cache.values()].find(d => d.symbol === key)
     return formatPositionValue(property.toLowerCase(), data)
   })
+  return resolved
 }

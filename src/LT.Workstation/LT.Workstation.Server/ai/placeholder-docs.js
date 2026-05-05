@@ -44,6 +44,29 @@ Live account data from the connected broker.
   #{BuyingPower:60}            — Available buying power
   #{UnrealizedPnL:30}          — Unrealized P&L
 
+── POSITION DATA  &{SYMBOL:property:seconds} ──
+Per-symbol position data from the connected broker. Default refresh 30 s.
+
+  &{AAPL:position:30}          — Shares/contracts of AAPL held (negative = short)
+  &{AAPL:avgCost:30}           — Average cost per share for AAPL
+  &{AAPL:position}             — Same with default 30 s interval
+
+Properties: position (integer), avgCost (2 decimals)
+Returns -- for symbols not held or when disconnected.
+Composes with formulas:
+  %[&{AAPL:position} * @{AAPL:last}:10]                        — live market value of AAPL
+  %[(@{AAPL:last} - &{AAPL:avgCost}) * &{AAPL:position}:10]   — unrealized P&L for AAPL
+
+── ALL POSITIONS  &{positions:seconds} ──
+Returns ALL open positions as a JSON array, sorted by symbol. Default refresh 30 s.
+Use as the source expression for a table widget.
+
+  &{positions:30}              — full position array, e.g. [{"localSymbol":"SPY 260522P00722000","symbol":"SPY","position":2,"avgCost":104.15,"secType":"OPT","expiry":"20260522","strike":722,"right":"P","multiplier":100}, ...]
+  &{positions}                 — Same with default 30 s interval
+
+Available row fields: description (human-readable e.g. "SPY May05'26 722 PUT"), symbol, localSymbol, position, avgCost, secType, expiry, strike, right, multiplier
+Table widget source: set source=&{positions:30}, use {description} for the instrument column, {position} for quantity, {avgCost} for cost.
+
 ── FORMULAS  %[expression:seconds] ──
 Arithmetic over live quote data. Reference values as @{SYMBOL:property} inside the expression.
 Result formatted to 2 decimal places. Shows -- if any value is unavailable.

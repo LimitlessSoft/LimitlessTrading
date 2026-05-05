@@ -149,6 +149,16 @@ Position values are substituted as plain numbers before formula evaluation, so t
 
 Returns `--` for symbols not held or when IBKR is disconnected.
 
+### All-positions placeholder — `&{positions:seconds}`
+
+Returns all non-zero positions as a JSON array, sorted by symbol. Default refresh interval is 30s.
+
+```
+&{positions:30}  → [{"symbol":"AAPL","position":100,"avgCost":172.50}, ...]
+```
+
+Designed for use as a table widget source expression. Column expressions reference `{symbol}`, `{position}`, `{avgCost}` from each row.
+
 ### Account placeholders — `#{field:seconds}`
 
 Resolve IBKR account summary fields. Polled from `/api/account/summary` (10s server-side cache).

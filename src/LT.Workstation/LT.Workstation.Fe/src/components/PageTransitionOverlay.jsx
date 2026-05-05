@@ -6,8 +6,8 @@ import { keyframes } from '@emotion/react'
 const fadeIn = keyframes`from { opacity: 0 } to { opacity: 1 }`
 const fadeOut = keyframes`from { opacity: 1 } to { opacity: 0 }`
 
-const FADE_MS = 250
-const HOLD_MS = 400
+const FADE_MS = 200
+const MIN_HOLD_MS = 80
 
 export default function PageTransitionOverlay() {
   const location = useLocation()
@@ -18,12 +18,27 @@ export default function PageTransitionOverlay() {
     setVisible(true)
     setFading(false)
 
-    const hold = setTimeout(() => {
-      setFading(true)
-      setTimeout(() => setVisible(false), FADE_MS)
-    }, HOLD_MS + FADE_MS)
+    const start = Date.now()
+    let raf1, raf2, timer
 
-    return () => clearTimeout(hold)
+    const startFade = () => {
+      const remaining = Math.max(0, MIN_HOLD_MS - (Date.now() - start))
+      timer = setTimeout(() => {
+        setFading(true)
+        setTimeout(() => setVisible(false), FADE_MS)
+      }, remaining)
+    }
+
+    // Double rAF ensures the browser has painted the new page at least once
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(startFade)
+    })
+
+    return () => {
+      cancelAnimationFrame(raf1)
+      cancelAnimationFrame(raf2)
+      clearTimeout(timer)
+    }
   }, [location.pathname])
 
   if (!visible) return null

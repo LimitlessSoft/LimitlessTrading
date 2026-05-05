@@ -1,5 +1,6 @@
 import { getAccountSummary, getDetailedQuote, getHistoricalData, getConnectionStatus } from '../ibkrClient.js'
 
+
 export const TOOL_DEFINITIONS = [
   {
     name: 'get_account_summary',
@@ -134,7 +135,6 @@ export const TOOL_DEFINITIONS = [
       properties: {
         type: {
           type: 'string',
-          enum: ['label', 'panel', 'badge', 'gauge', 'graph', 'chart'],
           description: 'Widget type'
         },
         text: {
