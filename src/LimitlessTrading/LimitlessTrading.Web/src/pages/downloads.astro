@@ -3,13 +3,6 @@ import BaseLayout from '@layouts/BaseLayout.astro';
 import DownloadCard from '@components/DownloadCard.astro';
 import { platformReleases } from '@data/releases';
 
-let CURRENT_VERSION = '';
-try {
-  const res = await fetch('https://api.limitlessworkstation.com/api/whats-new?limit=1');
-  const [latest] = res.ok ? await res.json() : [];
-  CURRENT_VERSION = latest?.version ?? '';
-} catch {}
-
 const requirements = [
   'Interactive Brokers TWS or IB Gateway (paper or live)',
   'Windows 10+, macOS 12+, or Ubuntu 20.04+',
@@ -33,7 +26,7 @@ const checksums = platformReleases.map(r => ({ platform: r.platform, checksum: r
     <div class="mb-16">
       <p class="text-[11px] tracking-[0.3em] uppercase text-ls-text-dim mb-4">Current Release</p>
       <h1 class="text-5xl font-black uppercase tracking-[-1.5px] text-white mb-2">
-        DOWNLOAD <span class="text-ls-blue">v{CURRENT_VERSION}</span>
+        DOWNLOAD <span class="text-ls-blue" id="downloads-version"></span>
       </h1>
       <p class="text-sm text-ls-text">Free. Self-hosted. No account required.</p>
     </div>
@@ -90,3 +83,13 @@ const checksums = platformReleases.map(r => ({ platform: r.platform, checksum: r
 
   </div>
 </BaseLayout>
+
+<script>
+  fetch('https://api.limitlessworkstation.com/api/whats-new?limit=1')
+    .then(r => r.json())
+    .then(([latest]) => {
+      const el = document.getElementById('downloads-version');
+      if (el && latest?.version) el.textContent = `v${latest.version}`;
+    })
+    .catch(() => {});
+</script>

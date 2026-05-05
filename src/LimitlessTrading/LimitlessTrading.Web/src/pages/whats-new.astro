@@ -1,12 +1,5 @@
 ---
 import BaseLayout from '@layouts/BaseLayout.astro';
-import ReleaseEntry from '@components/ReleaseEntry.astro';
-
-let releases: any[] = [];
-try {
-  const res = await fetch('https://api.limitlessworkstation.com/api/whats-new?limit=50');
-  if (res.ok) releases = await res.json();
-} catch {}
 ---
 
 <BaseLayout title="What's New" description="Release notes and changelog for Limitless Trading.">
@@ -17,17 +10,47 @@ try {
     </h1>
     <p class="text-sm text-ls-text mb-16">Every release, every change.</p>
 
-    <div class="max-w-3xl">
-      {releases.map((release: any, i: number) => (
-        <ReleaseEntry
-          version={release.version}
-          date={release.publishedAt.slice(0, 10)}
-          type={release.tags?.[0] ?? 'Feature'}
-          summary={release.title}
-          body={release.body}
-          isLatest={i === 0}
-        />
-      ))}
+    <div class="max-w-3xl" id="releases-container">
     </div>
   </div>
 </BaseLayout>
+
+<script>
+  import { marked } from 'marked';
+
+  const typeBg: Record<string, string> = {
+    Major:   'bg-ls-blue/10 border-ls-blue/40 text-ls-blue',
+    Feature: 'bg-white/5 border-white/10 text-white/50',
+    Fix:     'bg-white/5 border-white/10 text-white/50',
+  };
+
+  function renderRelease(release: any, isLatest: boolean): string {
+    const type = release.tags?.[0] ?? 'Feature';
+    const date = release.publishedAt.slice(0, 10);
+    const bodyHtml = marked.parse(release.body ?? '');
+    const bg = typeBg[type] ?? typeBg.Feature;
+
+    return `
+      <article class="border-b border-ls-border py-10 first:pt-0">
+        <div class="flex items-start gap-6 mb-5">
+          <h2 class="text-2xl font-black uppercase tracking-[-0.5px] ${isLatest ? 'text-white' : 'text-white/40'}">
+            v${release.version}
+          </h2>
+          ${isLatest ? `<span class="text-[10px] tracking-[0.2em] uppercase px-2.5 py-1 bg-ls-blue/10 border border-ls-blue/40 text-ls-blue">Latest</span>` : ''}
+          <span class="text-[10px] tracking-[0.15em] uppercase px-2.5 py-1 border ${bg}">${type}</span>
+          <time class="text-xs tracking-widest uppercase text-ls-text-dim ml-auto">${date}</time>
+        </div>
+        <p class="text-sm leading-relaxed mb-4 ${isLatest ? 'text-ls-text' : 'text-white/30'}">${release.title}</p>
+        <div class="prose prose-invert prose-sm max-w-none ${isLatest ? '' : 'opacity-40'}">${bodyHtml}</div>
+      </article>
+    `;
+  }
+
+  fetch('https://api.limitlessworkstation.com/api/whats-new?limit=50')
+    .then(r => r.json())
+    .then((releases: any[]) => {
+      const container = document.getElementById('releases-container')!;
+      container.innerHTML = releases.map((r, i) => renderRelease(r, i === 0)).join('');
+    })
+    .catch(() => {});
+</script>
