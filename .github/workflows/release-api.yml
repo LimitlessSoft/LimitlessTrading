@@ -8,8 +8,13 @@ on:
       - 'src/LimitlessTrading/LimitlessTrading.Public/LT.Public.Api/**'
       - 'k8s/deployments/lt-api-deployment.yaml'
       - 'k8s/services/lt-api-service.yaml'
+      - 'k8s/services/lt-api-postgres-service.yaml'
       - 'k8s/ingress/lt-api-ingress.yaml'
       - 'k8s/namespaces/lt-api-namespace.yaml'
+      - 'k8s/secrets/lt-api-postgres-secret.yaml'
+      - 'k8s/storage/lt-api-postgres-pvc.yaml'
+      - 'k8s/statefulsets/lt-api-postgres-statefulset.yaml'
+      - '.github/workflows/deploy-api.yml'
 
 jobs:
   api:
