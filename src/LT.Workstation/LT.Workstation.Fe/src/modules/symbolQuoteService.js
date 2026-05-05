@@ -69,6 +69,9 @@ let nextSubscriberId = 1
 // Symbols that need SSE (interval <= 5s)
 const sseSymbols = new Set()
 
+const pendingSymbols = new Set()
+let rafPending = false
+
 /**
  * Parse symbol placeholders from text
  * @param {string} text - Text containing @{symbol:property:seconds} placeholders
@@ -388,24 +391,39 @@ async function unsubscribeSymbolFromBackend(symbol) {
   }
 }
 
+function flushPendingSymbols() {
+  rafPending = false
+  const symbols = [...pendingSymbols]
+  pendingSymbols.clear()
+  for (const sym of symbols) {
+    const cached = quoteCache.get(sym)
+    const subs = subscribers.get(sym)
+    if (!subs || !cached) continue
+    for (const { callback } of subs.values()) {
+      try {
+        callback(sym, cached)
+      } catch {
+      }
+    }
+  }
+}
+
 /**
  * Handle a quote update (from SSE or polling)
  */
 function handleQuoteUpdate(symbol, quote) {
   const normalizedSymbol = symbol.toUpperCase()
-  const existing = quoteCache.get(normalizedSymbol) || {}
-  const merged = { ...existing, ...quote }
-  quoteCache.set(normalizedSymbol, merged)
+  const existing = quoteCache.get(normalizedSymbol)
+  if (existing) {
+    Object.assign(existing, quote)
+  } else {
+    quoteCache.set(normalizedSymbol, Object.assign({}, quote))
+  }
 
-  // Notify all subscribers for this symbol (pass merged, not just delta)
-  const subs = subscribers.get(normalizedSymbol)
-  if (subs) {
-    for (const { callback } of subs.values()) {
-      try {
-        callback(normalizedSymbol, merged)
-      } catch {
-      }
-    }
+  pendingSymbols.add(normalizedSymbol)
+  if (!rafPending) {
+    rafPending = true
+    requestAnimationFrame(flushPendingSymbols)
   }
 }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { HStack, Box, Text } from '@chakra-ui/react'
 import { keyframes } from '@emotion/react'
 
@@ -74,6 +74,11 @@ function LiveIndicator({ isConnected, isLoading, isStreaming, lastFetchTime, ref
     showPulse = false
   }
 
+  const boxShadow = useMemo(
+    () => `0 0 6px var(--chakra-colors-${color.replace('.', '-')})`,
+    [color]
+  )
+
   return (
     <HStack spacing={1}>
       <Box
@@ -81,7 +86,7 @@ function LiveIndicator({ isConnected, isLoading, isStreaming, lastFetchTime, ref
         h="6px"
         borderRadius="full"
         bg={color}
-        boxShadow={`0 0 6px var(--chakra-colors-${color.replace('.', '-')})`}
+        boxShadow={boxShadow}
         animation={showPulse ? `${pulse} 1.5s ease-in-out infinite` : undefined}
         transition="all 0.2s"
       />

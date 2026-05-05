@@ -147,6 +147,42 @@ db.version(10).stores({
   alerts: 'id, label'
 })
 
+// Version 11: Drop priceData so version 12 can recreate it with a new primary key
+// (Dexie does not support changing the primary key of an existing table in-place)
+db.version(11).stores({
+  securities: 'symbol, name, exchange',
+  priceData: null,
+  settings: 'key',
+  favorites: 'symbol',
+  conditionalFormats: '++id, name, enabled, groupId',
+  formatGroups: '++id, name',
+  analysisPresets: '++id, name',
+  watchgroups: '++id, name',
+  watchgroupMembers: '++id, [groupId+symbol], groupId, symbol',
+  screenerSymbols: 'symbol',
+  liveWatchlist: 'symbol, order',
+  alerts: 'id, label'
+})
+
+// Version 12: Recreate priceData with compound primary key [symbol+interval+timestamp]
+// enabling true upsert via bulkPut and eliminating duplicate rows
+db.version(12).stores({
+  securities: 'symbol, name, exchange',
+  priceData: '[symbol+interval+timestamp]',
+  settings: 'key',
+  favorites: 'symbol',
+  conditionalFormats: '++id, name, enabled, groupId',
+  formatGroups: '++id, name',
+  analysisPresets: '++id, name',
+  watchgroups: '++id, name',
+  watchgroupMembers: '++id, [groupId+symbol], groupId, symbol',
+  screenerSymbols: 'symbol',
+  liveWatchlist: 'symbol, order',
+  alerts: 'id, label'
+})
+
+const priceDataCache = new Map()
+
 // Helper functions
 
 export async function getSetting(key) {
@@ -200,31 +236,43 @@ export async function addPriceData(symbol, interval, data) {
     close: item.close,
     volume: item.volume
   }))
-
-  // Use bulkPut to handle duplicates
   await db.priceData.bulkPut(records)
+  priceDataCache.delete(`${symbol}:${interval}`)
 }
 
 export async function getPriceData(symbol, interval) {
-  const data = await db.priceData
-    .where({ symbol, interval })
-    .sortBy('timestamp')
-  // Deduplicate by timestamp (keep last occurrence which is most recent data)
-  const seen = new Map()
-  for (const bar of data) {
-    seen.set(bar.timestamp, bar)
+  const cacheKey = `${symbol}:${interval}`
+  const cached = priceDataCache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < 500) {
+    return cached.data
   }
-  // Return descending (newest first)
-  return Array.from(seen.values()).reverse()
+  const data = await db.priceData
+    .where('[symbol+interval+timestamp]')
+    .between([symbol, interval, Dexie.minKey], [symbol, interval, Dexie.maxKey])
+    .toArray()
+  const result = data.reverse()
+  priceDataCache.set(cacheKey, { ts: Date.now(), data: result })
+  return result
 }
 
 export async function clearPriceData(symbol = null, interval = null) {
   if (symbol && interval) {
-    await db.priceData.where({ symbol, interval }).delete()
+    await db.priceData
+      .where('[symbol+interval+timestamp]')
+      .between([symbol, interval, Dexie.minKey], [symbol, interval, Dexie.maxKey])
+      .delete()
+    priceDataCache.delete(`${symbol}:${interval}`)
   } else if (symbol) {
-    await db.priceData.where({ symbol }).delete()
+    await db.priceData
+      .where('[symbol+interval+timestamp]')
+      .between([symbol, Dexie.minKey, Dexie.minKey], [symbol, Dexie.maxKey, Dexie.maxKey])
+      .delete()
+    for (const key of priceDataCache.keys()) {
+      if (key.startsWith(`${symbol}:`)) priceDataCache.delete(key)
+    }
   } else {
     await db.priceData.clear()
+    priceDataCache.clear()
   }
 }
 

@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useLayoutEffect, useCallback, memo } from 'react'
+import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo, memo } from 'react'
 import {
   Box,
   Text,
@@ -632,7 +632,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
   const width    = label.width    || DEFAULT_WIDTH
   const height   = label.height   || DEFAULT_HEIGHT
   const x        = label.x || 0
-  const style    = { ...DEFAULT_STYLE, ...label.style }
+  const style    = useMemo(() => ({ ...DEFAULT_STYLE, ...label.style }), [label.style])
 
   const displayWidth  = previewSize?.width  ?? width
   const displayHeight = previewSize?.height ?? height
@@ -1177,9 +1177,17 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
     if (e.key === 'Escape') setQuickInputOpen(false)
   }
 
-  const handleIntervalChange = (newInterval) => {
+  const handleIntervalChange = useCallback((newInterval) => {
     onUpdate(label.id, { interval: newInterval })
-  }
+  }, [onUpdate, label.id])
+
+  const handleAlertPriceChange = useCallback((alertId, conditionIndex, price) => {
+    updateAlertPrice(alertId, conditionIndex, price)
+  }, [])
+
+  const handleAlertRemove = useCallback((alertId) => {
+    removeAlert(alertId)
+  }, [])
 
   const handleSaveSettings = () => {
     const newSymbol = editSymbol.trim().toUpperCase()
@@ -1207,27 +1215,30 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
     : label.outsideRTH
   const displayData = resolvedOutsideRTH ? visibleData : visibleData.filter(b => isRTHTimestamp(b.timestamp))
 
+  const boxStyle = useMemo(() => ({
+    left: `${(displayX / TOTAL_SEGMENTS) * 100}%`,
+    top: `${displayY}px`,
+    width: `calc(${(displayWidth / TOTAL_SEGMENTS) * 100}% - 8px)`,
+    height: `${displayHeight}px`,
+    backgroundColor: style.bgColor,
+    borderWidth: `${style.borderWidth}px`,
+    borderColor: style.borderColor,
+    borderStyle: 'solid',
+    borderRadius: '6px',
+    overflow: 'hidden',
+    outline: isEditing ? '1px dashed #4A5568' : 'none',
+    transition: isResizing || isMoving ? 'none' : 'all 0.15s ease',
+    opacity: isMoving ? 0.7 : 1,
+    cursor: isEditing && !galleryMode ? (isMoving ? 'grabbing' : 'move') : (!isEditing && !galleryMode ? (isPanning ? 'grabbing' : 'grab') : 'default'),
+    zIndex: isMoving ? 100 : 1,
+    position: 'absolute',
+  }), [displayX, displayY, displayWidth, displayHeight, style.bgColor, style.borderWidth, style.borderColor, isEditing, isResizing, isMoving, isPanning, galleryMode])
+
   return (
     <>
       <Box
         ref={boxRef}
-        position="absolute"
-        left={`${(displayX / TOTAL_SEGMENTS) * 100}%`}
-        top={`${displayY}px`}
-        width={`calc(${(displayWidth / TOTAL_SEGMENTS) * 100}% - 8px)`}
-        height={`${displayHeight}px`}
-        bg={style.bgColor}
-        borderWidth={`${style.borderWidth}px`}
-        borderColor={style.borderColor}
-        borderStyle="solid"
-        borderRadius="md"
-        overflow="hidden"
-        outline={isEditing ? '1px dashed' : 'none'}
-        outlineColor={isEditing ? 'gray.600' : undefined}
-        transition={isResizing || isMoving ? 'none' : 'all 0.15s ease'}
-        opacity={isMoving ? 0.7 : 1}
-        cursor={isEditing && !galleryMode ? (isMoving ? 'grabbing' : 'move') : (!isEditing && !galleryMode ? (isPanning ? 'grabbing' : 'grab') : 'default')}
-        zIndex={isMoving ? 100 : 1}
+        style={boxStyle}
         onMouseDown={isEditing && !galleryMode && !isResizing ? handleMoveStart : (!isEditing && !galleryMode && displayData.length > 0 ? handlePanStart : undefined)}
       >
         {/* Chart content */}
@@ -1279,13 +1290,13 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
             quickInputOpen={quickInputOpen}
             quickSymbol={quickSymbol}
             quickInputRef={quickInputRef}
-            onQuickSymbolChange={(v) => setQuickSymbol(v)}
+            onQuickSymbolChange={setQuickSymbol}
             onQuickSymbolKeyDown={handleQuickSymbolKeyDown}
             onQuickSymbolCommit={handleQuickSymbolCommit}
             onIntervalChange={handleIntervalChange}
             alertLines={alertLines}
-            onAlertPriceChange={(alertId, conditionIndex, price) => updateAlertPrice(alertId, conditionIndex, price)}
-            onAlertRemove={(alertId) => removeAlert(alertId)}
+            onAlertPriceChange={handleAlertPriceChange}
+            onAlertRemove={handleAlertRemove}
           />
           </>
         )}
