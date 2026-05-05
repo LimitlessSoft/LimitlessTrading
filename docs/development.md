@@ -47,16 +47,21 @@ Re-running the script is safe — existing up-to-date symlinks are skipped.
 
 ## Commands
 
+### Electron app (recommended)
+
 ```bash
-cd src/LimitlessTrading/LimitlessTrading.Public/LimitlessTrading.Public.Fe
+cd src/LT.Workstation/LT.Workstation.App
+npm install
+npm run dev      # Starts Vite + Express + Electron together
+npm run build    # Builds frontend then packages the Electron app
+```
 
-# Start both frontend and backend
-npm start
+### Without Electron (browser)
 
-# Run separately
-npm run dev      # Frontend only — Vite dev server on port 8743
-npm run server   # Backend only — Express on port 8744
+```bash
+cd src/LT.Workstation/LT.Workstation.Fe
+npm run dev      # Vite dev server on port 8743
 
-# Production build
-npm run build
+cd src/LT.Workstation/LT.Workstation.Server
+npm start        # Express on port 8744
 ```

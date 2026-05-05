@@ -1,0 +1,53 @@
+{
+  "name": "lt-workstation-app",
+  "private": true,
+  "version": "0.0.1",
+  "main": "main.js",
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail \"npm run dev --prefix ../LT.Workstation.Fe\" \"npm run start --prefix ../LT.Workstation.Server\" \"wait-on http://localhost:8743 && electron .\"",
+    "build": "npm run build --prefix ../LT.Workstation.Fe && electron-builder",
+    "dist": "electron-builder --publish never"
+  },
+  "build": {
+    "appId": "com.limitlesstrading.workstation",
+    "productName": "LT Workstation",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js"
+    ],
+    "extraResources": [
+      {
+        "from": "../LT.Workstation.Fe/dist",
+        "to": "app"
+      },
+      {
+        "from": "../LT.Workstation.Server",
+        "to": "server",
+        "filter": [
+          "**/*",
+          "!node_modules/**"
+        ]
+      }
+    ],
+    "linux": {
+      "target": "AppImage",
+      "category": "Finance"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.finance"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "electron": "^35.0.0",
+    "electron-builder": "^26.0.0",
+    "wait-on": "^8.0.0"
+  }
+}

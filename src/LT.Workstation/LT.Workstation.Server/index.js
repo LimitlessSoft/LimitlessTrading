@@ -1,6 +1,8 @@
 import express from 'express'
 import cors from 'cors'
 import { createRequire } from 'module'
+import { existsSync } from 'fs'
+import path from 'path'
 import marketRoutes from './routes/market.js'
 import fomcRoutes from './routes/fomc.js'
 import treasuryRoutes from './routes/treasury.js'
@@ -49,6 +51,14 @@ app.get('/api/status', (req, res) => {
   const status = getConnectionStatus()
   res.json(status)
 })
+
+// Serve bundled frontend in Electron production builds
+if (process.env.STATIC_DIR && existsSync(process.env.STATIC_DIR)) {
+  app.use(express.static(process.env.STATIC_DIR))
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(process.env.STATIC_DIR, 'index.html'))
+  })
+}
 
 // Error handling
 app.use((err, req, res, next) => {

@@ -6,6 +6,10 @@ LT Workstation is the main trading analysis app — a React frontend (Vite) with
 
 ```
 src/LT.Workstation/
+├── LT.Workstation.App/             # Electron desktop shell
+│   ├── main.js                     # Main process — spawns server, creates BrowserWindow
+│   ├── preload.js                  # Context bridge preload
+│   └── package.json
 ├── LT.Workstation.Fe/              # React frontend (Vite)
 │   ├── src/
 │   │   ├── main.jsx                # App entry, routing setup (BrowserRouter)

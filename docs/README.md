@@ -4,6 +4,7 @@ Limitless Trading is a trading analysis toolkit. It consists of two independent 
 
 | Component | Stack | Location | Purpose |
 |-----------|-------|----------|---------|
+| **LT Workstation app** | Electron | `src/LT.Workstation/LT.Workstation.App/` | Desktop shell — spawns server, hosts frontend window |
 | **LT Workstation frontend** | React + Vite | `src/LT.Workstation/LT.Workstation.Fe/` | Trading analysis UI |
 | **LT Workstation server** | Node.js / Express | `src/LT.Workstation/LT.Workstation.Server/` | IBKR data proxy, user data persistence |
 | **LT Public API** | .NET 9 Web API | `src/LimitlessTrading/LimitlessTrading.Public/LT.Public.Api/` | Publicly deployed API, hosted on Kubernetes |
