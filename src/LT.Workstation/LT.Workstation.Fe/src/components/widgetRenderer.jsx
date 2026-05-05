@@ -4,6 +4,7 @@ import TemplatePageBadge from './TemplatePageBadge'
 import TemplatePageChart from './TemplatePageChart'
 import TemplatePageGauge from './TemplatePageGauge'
 import TemplatePageGraph from './TemplatePageGraph'
+import TemplatePageTable from './TemplatePageTable'
 
 // Single place to add a new widget type:
 // 1. Add an entry here
@@ -23,6 +24,15 @@ export const WIDGET_REGISTRY = {
     ]
   },
   graph: { displayName: 'Graph', width: 10, height: 220, Component: TemplatePageGraph, series: [] },
+  table: { displayName: 'Table', width: 10, height: 200, Component: TemplatePageTable,
+    source: 'positions',
+    columns: [
+      { id: 'col-symbol',  name: 'Symbol',   expression: '{symbol}' },
+      { id: 'col-qty',     name: 'Qty',      expression: '{position}' },
+      { id: 'col-avgcost', name: 'Avg Cost', expression: '{avgCost}' },
+    ],
+    refreshInterval: 30,
+  },
 }
 
 export function createWidget(type, text) {

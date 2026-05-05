@@ -85,6 +85,14 @@ const ICONS = {
       <polyline points="1,11 4.5,6.5 8,8.5 13,3" />
     </svg>
   ),
+  table: () => (
+    <svg viewBox="0 0 14 14" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.3">
+      <rect x="1" y="1" width="12" height="12" rx="1" />
+      <line x1="1" y1="4.5" x2="13" y2="4.5" />
+      <line x1="1" y1="8" x2="13" y2="8" />
+      <line x1="5" y1="4.5" x2="5" y2="13" />
+    </svg>
+  ),
 }
 
 const TYPE_COLORS = {
@@ -94,6 +102,7 @@ const TYPE_COLORS = {
   chart:  '#F6AD55',
   gauge:  '#76E4F7',
   graph:  '#F687B3',
+  table:  '#FBD38D',
 }
 
 function snippet(widget) {
@@ -110,6 +119,8 @@ function snippet(widget) {
       return widget.placeholder ? (widget.placeholder.length > 30 ? widget.placeholder.slice(0, 30) + '…' : widget.placeholder) : null
     case 'graph':
       return widget.series?.length ? `${widget.series.length} series` : null
+    case 'table':
+      return widget.columns?.length ? `${widget.columns.length} columns` : null
     default:
       return null
   }
