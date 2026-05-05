@@ -33,14 +33,14 @@ export async function getConnectionStatus() {
 }
 
 export async function connectToIBKR(port) {
+  await setSetting('lastPort', port)
   try {
     const response = await api.post('/connect', { port })
     connectionStatus = response.data
-    if (connectionStatus.connected) {
-      await setSetting('lastPort', port)
-    }
+    window.dispatchEvent(new CustomEvent('ibkr-connection-changed'))
     return connectionStatus
   } catch (error) {
+    window.dispatchEvent(new CustomEvent('ibkr-connection-changed'))
     throw new Error(error.response?.data?.error || error.message)
   }
 }
@@ -49,8 +49,10 @@ export async function disconnectFromIBKR() {
   try {
     const response = await api.post('/disconnect')
     connectionStatus = response.data
+    window.dispatchEvent(new CustomEvent('ibkr-connection-changed'))
     return connectionStatus
   } catch (error) {
+    window.dispatchEvent(new CustomEvent('ibkr-connection-changed'))
     throw new Error(error.response?.data?.error || error.message)
   }
 }

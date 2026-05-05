@@ -89,7 +89,7 @@ export function getConnectionStatus() {
 }
 
 export async function connect(port = 7496) {
-  if (ib && connectionState.connected) {
+  if (ib) {
     await disconnect()
   }
 
@@ -106,6 +106,7 @@ export async function connect(port = 7496) {
 
     const timeout = setTimeout(() => {
       ib.disconnect()
+      ib = null
       connectionState = { connected: false, port: null, error: 'Connection timeout' }
       reject(new Error('Connection timeout'))
     }, 10000)
@@ -192,6 +193,7 @@ export async function connect(port = 7496) {
       // Connection errors
       if (code === 502 || code === 504) {
         clearTimeout(timeout)
+        ib = null
         connectionState = { connected: false, port: null, error: err?.message }
         reject(new Error(err?.message || 'Connection failed'))
       }
@@ -261,7 +263,7 @@ export async function getHistoricalData(symbol, barSize = '1 day', duration = '1
           return t < 570 || t >= 960
         }).length
         console.log(`[hist ${reqId}] ${elapsed}s | ${bars.length} bars | ${outsideRth} outside RTH | end=${endDateTime || 'now'} dur=${duration} bar=${barSize}`)
-        ib.off(EventName.historicalData, onHistoricalData)
+        ib?.off(EventName.historicalData, onHistoricalData)
         pendingRequests.delete(reqId)
         resolve(bars)
         return
@@ -284,7 +286,7 @@ export async function getHistoricalData(symbol, barSize = '1 day', duration = '1
     // Set timeout (15 seconds per request)
     setTimeout(() => {
       if (pendingRequests.has(reqId)) {
-        ib.off(EventName.historicalData, onHistoricalData)
+        ib?.off(EventName.historicalData, onHistoricalData)
         pendingRequests.delete(reqId)
         if (bars.length > 0) {
           resolve(bars) // Return partial data if any
@@ -307,7 +309,7 @@ export async function getHistoricalData(symbol, barSize = '1 day', duration = '1
         false // keepUpToDate
       )
     } catch (err) {
-      ib.off(EventName.historicalData, onHistoricalData)
+      ib?.off(EventName.historicalData, onHistoricalData)
       pendingRequests.delete(reqId)
       reject(err)
     }
@@ -365,7 +367,7 @@ async function _requestOptionHistory(symbol, expiration, strike, right, barSize,
     const formatDate = 1
 
     const cleanup = () => {
-      ib.off(EventName.historicalData, onHistoricalData)
+      ib?.off(EventName.historicalData, onHistoricalData)
       pendingRequests.delete(reqId)
     }
 
@@ -708,9 +710,9 @@ async function getCurrentPriceOnce(symbol) {
     const cleanup = () => {
       if (resolved) return
       resolved = true
-      try { ib.off(EventName.tickPrice, onTickPrice) } catch (e) {}
+      try { ib?.off(EventName.tickPrice, onTickPrice) } catch (e) {}
       pendingRequests.delete(reqId)
-      try { ib.cancelMktData(reqId) } catch (e) {}
+      try { ib?.cancelMktData(reqId) } catch (e) {}
     }
 
     pendingRequests.set(reqId, {
@@ -845,12 +847,12 @@ async function getDetailedQuoteOnce(symbol) {
     const cleanup = () => {
       if (resolved) return
       resolved = true
-      try { ib.off(EventName.tickPrice, onTickPrice) } catch (e) {}
-      try { ib.off(EventName.tickSize, onTickSize) } catch (e) {}
-      try { ib.off(EventName.tickGeneric, onTickGeneric) } catch (e) {}
-      try { ib.off(EventName.tickString, onTickString) } catch (e) {}
+      try { ib?.off(EventName.tickPrice, onTickPrice) } catch (e) {}
+      try { ib?.off(EventName.tickSize, onTickSize) } catch (e) {}
+      try { ib?.off(EventName.tickGeneric, onTickGeneric) } catch (e) {}
+      try { ib?.off(EventName.tickString, onTickString) } catch (e) {}
       pendingRequests.delete(reqId)
-      try { ib.cancelMktData(reqId) } catch (e) {}
+      try { ib?.cancelMktData(reqId) } catch (e) {}
     }
 
     pendingRequests.set(reqId, {
@@ -934,7 +936,7 @@ async function getMarketCap(symbol) {
     const cleanup = () => {
       if (resolved) return
       resolved = true
-      try { ib.off(EventName.fundamentalData, onFundamentalData) } catch (e) {}
+      try { ib?.off(EventName.fundamentalData, onFundamentalData) } catch (e) {}
       pendingRequests.delete(reqId)
     }
 
@@ -1070,10 +1072,10 @@ async function getOptionVolumeOnly(symbol, expiration, strike, right, exchange, 
     const cleanup = () => {
       if (resolved) return
       resolved = true
-      ib.off(EventName.tickSize, onTickSize)
-      ib.off(EventName.tickSnapshotEnd, onSnapshotEnd)
+      ib?.off(EventName.tickSize, onTickSize)
+      ib?.off(EventName.tickSnapshotEnd, onSnapshotEnd)
       pendingRequests.delete(reqId)
-      try { ib.cancelMktData(reqId) } catch (e) {}
+      try { ib?.cancelMktData(reqId) } catch (e) {}
     }
 
     const onTickSize = (rId, tickType, size) => {
@@ -1131,10 +1133,10 @@ export async function getOptionsFlow(symbol) {
     const cleanup = () => {
       if (resolved) return
       resolved = true
-      ib.off(EventName.tickSize, onTick)
-      ib.off(EventName.tickGeneric, onTick)
+      ib?.off(EventName.tickSize, onTick)
+      ib?.off(EventName.tickGeneric, onTick)
       pendingRequests.delete(reqId)
-      try { ib.cancelMktData(reqId) } catch (e) {}
+      try { ib?.cancelMktData(reqId) } catch (e) {}
     }
 
     const finish = () => {
@@ -1274,8 +1276,8 @@ async function getContractId(symbol) {
     const cleanup = () => {
       if (resolved) return
       resolved = true
-      try { ib.off(EventName.contractDetails, onContractDetails) } catch (e) {}
-      try { ib.off(EventName.contractDetailsEnd, onContractDetailsEnd) } catch (e) {}
+      try { ib?.off(EventName.contractDetails, onContractDetails) } catch (e) {}
+      try { ib?.off(EventName.contractDetailsEnd, onContractDetailsEnd) } catch (e) {}
       pendingRequests.delete(reqId)
     }
 
@@ -1347,8 +1349,8 @@ export async function getOptionParams(symbol) {
     const cleanup = () => {
       if (resolved) return
       resolved = true
-      try { ib.off(EventName.securityDefinitionOptionParameter, onSecDefOptParams) } catch (e) {}
-      try { ib.off(EventName.securityDefinitionOptionParameterEnd, onSecDefOptParamsEnd) } catch (e) {}
+      try { ib?.off(EventName.securityDefinitionOptionParameter, onSecDefOptParams) } catch (e) {}
+      try { ib?.off(EventName.securityDefinitionOptionParameterEnd, onSecDefOptParamsEnd) } catch (e) {}
       pendingRequests.delete(reqId)
     }
 
@@ -1424,10 +1426,10 @@ async function getOptionData(symbol, expiration, strike, right, exchange, multip
     const cleanup = () => {
       if (resolved) return
       resolved = true
-      try { ib.off(EventName.tickPrice, onTickPrice) } catch (e) {}
-      try { ib.off(EventName.tickSize, onTickSize) } catch (e) {}
+      try { ib?.off(EventName.tickPrice, onTickPrice) } catch (e) {}
+      try { ib?.off(EventName.tickSize, onTickSize) } catch (e) {}
       pendingRequests.delete(reqId)
-      try { ib.cancelMktData(reqId) } catch (e) {}
+      try { ib?.cancelMktData(reqId) } catch (e) {}
     }
 
     pendingRequests.set(reqId, {
@@ -1589,9 +1591,9 @@ export function subscribeMarketData(symbol) {
     console.error(`Failed to subscribe to ${upperSymbol}:`, err)
     activeSubscriptions.delete(reqId)
     symbolToReqId.delete(upperSymbol)
-    ib.off(EventName.tickPrice, onTickPrice)
-    ib.off(EventName.tickSize, onTickSize)
-    ib.off(EventName.tickGeneric, onTickGeneric)
+    ib?.off(EventName.tickPrice, onTickPrice)
+    ib?.off(EventName.tickSize, onTickSize)
+    ib?.off(EventName.tickGeneric, onTickGeneric)
     return null
   }
 }
@@ -1608,14 +1610,14 @@ export function unsubscribeMarketData(symbol) {
 
   const sub = activeSubscriptions.get(reqId)
   if (sub && sub.handlers) {
-    try { ib.off(EventName.tickPrice, sub.handlers.onTickPrice) } catch (e) {}
-    try { ib.off(EventName.tickSize, sub.handlers.onTickSize) } catch (e) {}
-    try { ib.off(EventName.tickGeneric, sub.handlers.onTickGeneric) } catch (e) {}
+    try { ib?.off(EventName.tickPrice, sub.handlers.onTickPrice) } catch (e) {}
+    try { ib?.off(EventName.tickSize, sub.handlers.onTickSize) } catch (e) {}
+    try { ib?.off(EventName.tickGeneric, sub.handlers.onTickGeneric) } catch (e) {}
   }
 
   try {
     if (ib && connectionState.connected) {
-      ib.cancelMktData(reqId)
+      ib?.cancelMktData(reqId)
     }
   } catch (e) {
     console.error(`Error canceling market data for ${upperSymbol}:`, e)
@@ -1783,10 +1785,10 @@ export async function getAccountSummary(tags = ACCOUNT_SUMMARY_TAGS) {
     const cleanup = () => {
       if (resolved) return
       resolved = true
-      try { ib.off(EventName.accountSummary, onAccountSummary) } catch (e) {}
-      try { ib.off(EventName.accountSummaryEnd, onAccountSummaryEnd) } catch (e) {}
+      try { ib?.off(EventName.accountSummary, onAccountSummary) } catch (e) {}
+      try { ib?.off(EventName.accountSummaryEnd, onAccountSummaryEnd) } catch (e) {}
       pendingRequests.delete(reqId)
-      try { ib.cancelAccountSummary(reqId) } catch (e) {}
+      try { ib?.cancelAccountSummary(reqId) } catch (e) {}
     }
 
     pendingRequests.set(reqId, {

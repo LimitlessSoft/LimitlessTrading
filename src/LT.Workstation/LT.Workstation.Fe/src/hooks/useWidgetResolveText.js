@@ -80,12 +80,19 @@ export function useWidgetResolveText(textSources) {
 
   useEffect(() => {
     if (!hasSystem) return
+    fetchValues()
     const interval = getMinInterval(combined)
     if (!interval) return
-    fetchValues()
     const timer = setInterval(fetchValues, interval * 1000)
     return () => clearInterval(timer)
   }, [hasSystem, combined, fetchValues])
+
+  useEffect(() => {
+    if (!hasSystem) return
+    const handler = () => fetchValues()
+    window.addEventListener('ibkr-connection-changed', handler)
+    return () => window.removeEventListener('ibkr-connection-changed', handler)
+  }, [hasSystem, fetchValues])
 
   // Account placeholders: #{field:seconds}
   useEffect(() => {

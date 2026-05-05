@@ -32,7 +32,7 @@ import {
 } from '@chakra-ui/react'
 import { HamburgerIcon, AddIcon, BellIcon, InfoOutlineIcon, CopyIcon, CloseIcon } from '@chakra-ui/icons'
 import { fetchRoutes, createRoute } from '../modules/routesService'
-import { connectToIBKR, disconnectFromIBKR, getConnectionStatus } from '../modules/dataService'
+import { connectToIBKR, disconnectFromIBKR, getConnectionStatus, getLastPort } from '../modules/dataService'
 import { useLicense } from '../modules/LicenseContext'
 import { useAIChat } from '../modules/AIChatContext'
 
@@ -110,6 +110,7 @@ function PageNavMenu({
   const { isOpen: isAboutOpen, onOpen: onAboutOpen, onClose: onAboutClose } = useDisclosure()
   const { isOpen: isConnectionOpen, onOpen: onConnectionOpen, onClose: onConnectionClose } = useDisclosure()
   const [connectedPort, setConnectedPort] = useState(null)
+  const [selectedPort, setSelectedPort] = useState(null)
   const [connecting, setConnecting] = useState(false)
   const [connectError, setConnectError] = useState(null)
   const navigate = useNavigate()
@@ -194,8 +195,9 @@ function PageNavMenu({
     setConnectError(null)
     onConnectionOpen()
     try {
-      const status = await getConnectionStatus()
+      const [status, lastPort] = await Promise.all([getConnectionStatus(), getLastPort()])
       setConnectedPort(status.connected ? status.port : null)
+      setSelectedPort(lastPort || null)
     } catch {
       setConnectedPort(null)
     }
@@ -204,6 +206,7 @@ function PageNavMenu({
   const handleSelectPreset = async (port) => {
     setConnecting(true)
     setConnectError(null)
+    setSelectedPort(port)
     try {
       await disconnectFromIBKR()
       await connectToIBKR(port)
@@ -354,36 +357,38 @@ function PageNavMenu({
           <ModalBody pb={6}>
             <SimpleGrid columns={2} spacing={3}>
               {CONNECTION_PRESETS.map(({ app, mode, port }) => {
-                const isActive = connectedPort === port
+                const isConnected = connectedPort === port
+                const isSelected = selectedPort === port
+                const isSpinning = connecting && isSelected
                 return (
                   <Box
                     key={port}
                     as="button"
                     onClick={() => !connecting && handleSelectPreset(port)}
-                    bg={isActive ? 'blue.900' : 'gray.700'}
+                    bg={isConnected ? 'blue.900' : 'gray.700'}
                     border="2px solid"
-                    borderColor={isActive ? 'blue.500' : 'gray.600'}
+                    borderColor={isConnected ? 'blue.500' : isSelected ? 'blue.600' : 'gray.600'}
                     borderRadius="md"
                     p={4}
                     textAlign="left"
                     cursor={connecting ? 'not-allowed' : 'pointer'}
-                    opacity={connecting && !isActive ? 0.5 : 1}
-                    _hover={!connecting ? { borderColor: isActive ? 'blue.400' : 'gray.400', bg: isActive ? 'blue.900' : 'gray.600' } : {}}
+                    opacity={connecting && !isSelected ? 0.5 : 1}
+                    _hover={!connecting ? { borderColor: isConnected ? 'blue.400' : 'blue.500', bg: isConnected ? 'blue.900' : 'gray.600' } : {}}
                     transition="all 0.15s"
                     position="relative"
                   >
-                    {connecting && isActive && (
+                    {isSpinning && (
                       <Flex position="absolute" inset={0} align="center" justify="center" bg="blackAlpha.500" borderRadius="md">
                         <Spinner size="sm" color="blue.300" />
                       </Flex>
                     )}
-                    <Text fontSize="sm" fontWeight="semibold" color={isActive ? 'blue.200' : 'gray.200'} mb={1}>
+                    <Text fontSize="sm" fontWeight="semibold" color={isConnected || isSelected ? 'blue.200' : 'gray.200'} mb={1}>
                       {app}
                     </Text>
-                    <Text fontSize="xs" color={isActive ? 'blue.300' : 'gray.400'} mb={2}>
+                    <Text fontSize="xs" color={isConnected || isSelected ? 'blue.300' : 'gray.400'} mb={2}>
                       {mode}
                     </Text>
-                    <Text fontSize="xs" fontFamily="mono" color={isActive ? 'blue.400' : 'gray.500'}>
+                    <Text fontSize="xs" fontFamily="mono" color={isConnected || isSelected ? 'blue.400' : 'gray.500'}>
                       :{port}
                     </Text>
                   </Box>
