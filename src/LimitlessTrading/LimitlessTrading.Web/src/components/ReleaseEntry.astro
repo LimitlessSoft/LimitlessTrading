@@ -1,19 +1,24 @@
 ---
+import { marked } from 'marked';
+
 interface Props {
   version: string;
   date: string;
-  type: 'Major' | 'Feature' | 'Fix';
+  type: string;
   summary: string;
+  body: string;
   isLatest: boolean;
 }
 
-const { version, date, type, summary, isLatest } = Astro.props;
+const { version, date, type, summary, body, isLatest } = Astro.props;
 
 const typeBg: Record<string, string> = {
   Major:   'bg-ls-blue/10 border-ls-blue/40 text-ls-blue',
   Feature: 'bg-white/5 border-white/10 text-white/50',
   Fix:     'bg-white/5 border-white/10 text-white/50',
 };
+
+const bodyHtml = marked.parse(body);
 ---
 
 <article class="border-b border-ls-border py-10 first:pt-0">
@@ -28,7 +33,7 @@ const typeBg: Record<string, string> = {
       </span>
     )}
 
-    <span class={`text-[10px] tracking-[0.15em] uppercase px-2.5 py-1 border ${typeBg[type]}`}>
+    <span class={`text-[10px] tracking-[0.15em] uppercase px-2.5 py-1 border ${typeBg[type] ?? typeBg.Feature}`}>
       {type}
     </span>
 
@@ -39,7 +44,5 @@ const typeBg: Record<string, string> = {
     {summary}
   </p>
 
-  <div class={`prose prose-invert prose-sm max-w-none ${isLatest ? '' : 'opacity-40'}`}>
-    <slot />
-  </div>
+  <div class={`prose prose-invert prose-sm max-w-none ${isLatest ? '' : 'opacity-40'}`} set:html={bodyHtml} />
 </article>

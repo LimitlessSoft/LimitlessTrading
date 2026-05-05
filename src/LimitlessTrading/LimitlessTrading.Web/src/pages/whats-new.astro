@@ -1,11 +1,9 @@
 ---
-import { getCollection } from 'astro:content';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import ReleaseEntry from '@components/ReleaseEntry.astro';
 
-const releases = (await getCollection('releases')).sort((a, b) => {
-  return b.data.version.localeCompare(a.data.version, undefined, { numeric: true });
-});
+const res = await fetch('https://api.limitlessworkstation.com/api/whats-new?limit=50');
+const releases = res.ok ? await res.json() : [];
 ---
 
 <BaseLayout title="What's New" description="Release notes and changelog for Limitless Trading.">
@@ -17,20 +15,16 @@ const releases = (await getCollection('releases')).sort((a, b) => {
     <p class="text-sm text-ls-text mb-16">Every release, every change.</p>
 
     <div class="max-w-3xl">
-      {releases.map(async (release, i) => {
-        const { Content } = await release.render();
-        return (
-          <ReleaseEntry
-            version={release.data.version}
-            date={release.data.date}
-            type={release.data.type}
-            summary={release.data.summary}
-            isLatest={i === 0}
-          >
-            <Content />
-          </ReleaseEntry>
-        );
-      })}
+      {releases.map((release: any, i: number) => (
+        <ReleaseEntry
+          version={release.version}
+          date={release.publishedAt.slice(0, 10)}
+          type={release.tags?.[0] ?? 'Feature'}
+          summary={release.title}
+          body={release.body}
+          isLatest={i === 0}
+        />
+      ))}
     </div>
   </div>
 </BaseLayout>
