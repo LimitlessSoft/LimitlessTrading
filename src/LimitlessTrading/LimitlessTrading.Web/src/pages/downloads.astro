@@ -90,7 +90,7 @@ const checksums = platformReleases.map(r => ({ platform: r.platform, checksum: r
 
   const extMap: Record<string, string> = { Windows: '.exe', macOS: '.dmg', Linux: '.AppImage' };
 
-  fetch('https://api.limitlessworkstation.com/api/releases')
+  fetch('http://api.limitlessworkstation.com/api/releases')
     .then(r => r.json())
     .then((releases: { platform: string; version: string; url: string; checksum: string; size: string }[]) => {
       releases.forEach(r => {

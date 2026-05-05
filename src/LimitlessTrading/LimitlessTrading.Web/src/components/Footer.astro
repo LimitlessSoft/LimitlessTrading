@@ -25,7 +25,7 @@
 </footer>
 
 <script>
-  fetch('https://api.limitlessworkstation.com/api/whats-new?limit=1')
+  fetch('http://api.limitlessworkstation.com/api/whats-new?limit=1')
     .then(r => r.json())
     .then(([latest]) => {
       if (latest?.version) {

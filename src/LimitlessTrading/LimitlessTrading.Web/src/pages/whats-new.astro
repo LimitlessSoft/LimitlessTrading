@@ -46,7 +46,7 @@ import BaseLayout from '@layouts/BaseLayout.astro';
     `;
   }
 
-  fetch('https://api.limitlessworkstation.com/api/whats-new?limit=50')
+  fetch('http://api.limitlessworkstation.com/api/whats-new?limit=50')
     .then(r => r.json())
     .then((releases: any[]) => {
       const container = document.getElementById('releases-container')!;

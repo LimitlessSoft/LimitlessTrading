@@ -40,7 +40,7 @@ LT.Public.Api/
 Returns the static catalog of all widget types available in Limitless Trading.
 
 ```
-GET https://api.limitlessworkstation.com/api/widgets
+GET http://api.limitlessworkstation.com/api/widgets
 ```
 
 Response shape:
@@ -70,7 +70,7 @@ The catalog is served by `WidgetCatalogService` (static, no database reads). It 
 Returns the latest release entry for each platform. Used by the downloads page.
 
 ```
-GET https://api.limitlessworkstation.com/api/releases
+GET http://api.limitlessworkstation.com/api/releases
 ```
 
 Response shape:
@@ -80,7 +80,7 @@ Response shape:
   {
     "platform": "Linux",
     "version": "1.2.3",
-    "url": "https://api.limitlessworkstation.com/api/releases/download/Linux",
+    "url": "http://api.limitlessworkstation.com/api/releases/download/Linux",
     "checksum": "abc123...",
     "size": "142.5 MB",
     "publishedAt": "2026-05-05T12:00:00Z"
@@ -93,7 +93,7 @@ Response shape:
 Streams the binary for the given platform. Used as the download URL in the web downloads page. Returns 404 if no release exists for that platform.
 
 ```
-GET https://api.limitlessworkstation.com/api/releases/download/Linux
+GET http://api.limitlessworkstation.com/api/releases/download/Linux
 ```
 
 ### `POST /api/releases/upload` (auth required)
@@ -122,7 +122,7 @@ Deletes a release entry and its binary from disk. Returns 204 on success.
 Returns release notes entries in descending `publishedAt` order. No authentication required.
 
 ```
-GET https://api.limitlessworkstation.com/api/whats-new?limit=10&offset=0
+GET http://api.limitlessworkstation.com/api/whats-new?limit=10&offset=0
 ```
 
 Query params: `limit` (default 10, max 50), `offset` (default 0).
@@ -149,7 +149,7 @@ Entries are managed via the admin panel at `admin.limitlessworkstation.com`. The
 Authenticates the admin and returns a JWT token. Credentials are configured via `Admin:Email`, `Admin:Password`, and `Admin:JwtSecret` in app settings.
 
 ```
-POST https://api.limitlessworkstation.com/api/auth/login
+POST http://api.limitlessworkstation.com/api/auth/login
 Content-Type: application/json
 
 { "email": "admin@example.com", "password": "..." }

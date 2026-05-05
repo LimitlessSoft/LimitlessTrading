@@ -17,6 +17,8 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(
             "https://limitlessworkstation.com",
             "https://www.limitlessworkstation.com",
+            "http://limitlessworkstation.com",
+            "http://www.limitlessworkstation.com",
             "https://admin.limitlessworkstation.com",
             "http://admin.limitlessworkstation.com",
             "http://localhost:4321",

@@ -47,7 +47,7 @@ Default dev credentials (set in `appsettings.Development.json`):
 
 ```bash
 docker build \
-  --build-arg VITE_API_BASE=https://api.limitlessworkstation.com \
+  --build-arg VITE_API_BASE=http://api.limitlessworkstation.com \
   -f Dockerfile \
   -t limitlesssoft/lt-admin:local \
   .
