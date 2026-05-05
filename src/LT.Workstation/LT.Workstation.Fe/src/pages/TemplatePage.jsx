@@ -32,7 +32,7 @@ const KebabIcon = () => (
     <circle cx="12" cy="19" r="2" />
   </svg>
 )
-import { fetchRoutes, updateRoute } from '../modules/routesService'
+import { fetchRoutes, updateRoute, deleteRoute } from '../modules/routesService'
 import { useLicense } from '../modules/LicenseContext'
 import { useWidgetCallback } from '../modules/WidgetContext'
 import { FREE_LIMITS } from '../modules/freeLimits'
@@ -96,6 +96,7 @@ function TemplatePage() {
   const { isOpen: isGalleryOpen, onOpen: onGalleryOpen, onClose: onGalleryClose } = useDisclosure()
   const { isOpen: isInfoOpen, onOpen: onInfoOpen, onClose: onInfoClose } = useDisclosure()
   const { isOpen: isLicenseOpen, onOpen: onLicenseOpen, onClose: onLicenseClose } = useDisclosure()
+  const { isOpen: isDeletePageOpen, onOpen: onDeletePageOpen, onClose: onDeletePageClose } = useDisclosure()
   const { isPro } = useLicense()
   const { setWidgetHandlers } = useWidgetCallback()
   const [infoName, setInfoName] = useState('')
@@ -622,6 +623,20 @@ function TemplatePage() {
     }
   }
 
+  const handleDeletePage = async () => {
+    if (!pageInfo) return
+    setIsSaving(true)
+    try {
+      await deleteRoute(pageInfo.id)
+      onDeletePageClose()
+      navigate('/')
+    } catch (err) {
+      toast({ title: 'Failed to delete page', description: err.message, status: 'error', duration: 3000 })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const labels = pageInfo?.config?.labels || []
   const headerControls = pageInfo?.config?.headerControls || []
 
@@ -848,6 +863,9 @@ function TemplatePage() {
             </MenuItem>
             <MenuItem bg="gray.800" _hover={{ bg: 'gray.700' }} onClick={() => fileInputRef.current?.click()}>
               Import template
+            </MenuItem>
+            <MenuItem bg="gray.800" _hover={{ bg: 'red.900' }} color="red.400" onClick={onDeletePageOpen}>
+              Delete page
             </MenuItem>
           </MenuList>
         </Menu>
@@ -1081,6 +1099,21 @@ function TemplatePage() {
             <Button colorScheme="blue" onClick={handleImportConfirm} isLoading={isSaving}>
               Import
             </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+      <Modal isOpen={isDeletePageOpen} onClose={onDeletePageClose} isCentered size="sm">
+        <ModalOverlay />
+        <ModalContent bg="gray.800">
+          <ModalHeader>Delete page</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Text>Delete <strong>{pageInfo?.name}</strong>?</Text>
+            <Text mt={2} fontSize="sm" color="red.300">This will permanently remove the page and all its widgets.</Text>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onDeletePageClose}>Cancel</Button>
+            <Button colorScheme="red" onClick={handleDeletePage} isLoading={isSaving}>Delete</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
