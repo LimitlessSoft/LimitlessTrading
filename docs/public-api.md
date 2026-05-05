@@ -21,11 +21,15 @@ LT.Public.Api/
 
 ## Endpoints
 
-| Method | Path                | Description                                     |
-|--------|---------------------|-------------------------------------------------|
-| GET    | `/health`           | Health check — returns `{ status: "healthy" }`  |
-| GET    | `/api/widgets`      | Widget catalog — returns all available widget types |
-| GET    | `/api/whats-new`    | Release notes — returns entries newest-first    |
+| Method | Path                    | Auth     | Description                                     |
+|--------|-------------------------|----------|-------------------------------------------------|
+| GET    | `/health`               |          | Health check — returns `{ status: "healthy" }`  |
+| GET    | `/api/widgets`          |          | Widget catalog — returns all available widget types |
+| GET    | `/api/whats-new`        |          | Release notes — returns entries newest-first    |
+| POST   | `/api/whats-new`        | JWT      | Create a release notes entry                    |
+| PUT    | `/api/whats-new/{id}`   | JWT      | Update a release notes entry                    |
+| DELETE | `/api/whats-new/{id}`   | JWT      | Delete a release notes entry                    |
+| POST   | `/api/auth/login`       |          | Obtain a JWT token for admin access             |
 
 ### `GET /api/widgets`
 
@@ -82,7 +86,52 @@ Response shape:
 ]
 ```
 
-Entries are created manually in the database (no public POST endpoint). The Workstation home page and `limitlessworkstation.com/whats-new` both consume this endpoint.
+Entries are managed via the admin panel at `admin.limitlessworkstation.com`. The Workstation home page and `limitlessworkstation.com/whats-new` both consume this endpoint.
+
+### `POST /api/auth/login`
+
+Authenticates the admin and returns a JWT token. Credentials are configured via `Admin:Email`, `Admin:Password`, and `Admin:JwtSecret` in app settings.
+
+```
+POST https://api.limitlessworkstation.com/api/auth/login
+Content-Type: application/json
+
+{ "email": "admin@example.com", "password": "..." }
+```
+
+Response shape:
+
+```json
+{ "token": "<jwt>" }
+```
+
+Returns 401 on invalid credentials. The token is valid for 30 days, signed with HS256, issuer and audience `"LimitlessTrading"`.
+
+### `POST /api/whats-new` (auth required)
+
+Creates a new release notes entry. Pass the JWT in the `Authorization: Bearer <token>` header.
+
+Request body:
+
+```json
+{
+  "version": "0.3.0",
+  "title": "New feature",
+  "body": "Description...",
+  "publishedAt": "2026-05-05T00:00:00Z",
+  "tags": ["workstation"]
+}
+```
+
+Returns the created entry. Returns 401 if not authenticated.
+
+### `PUT /api/whats-new/{id}` (auth required)
+
+Updates an existing entry. Same request body as POST. Returns 404 if the entry is not found.
+
+### `DELETE /api/whats-new/{id}` (auth required)
+
+Deletes an entry. Returns 204 on success, 404 if the entry is not found.
 
 ## Development
 

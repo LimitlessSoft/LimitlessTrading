@@ -58,3 +58,13 @@ export async function deleteEntry(id) {
   })
   if (!r.ok) throw new Error(await r.text())
 }
+
+export async function changePassword(currentPassword, newPassword) {
+  const r = await fetch(`${BASE}/api/auth/password`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({ currentPassword, newPassword })
+  })
+  const data = await r.json()
+  if (!r.ok) throw new Error(data.error ?? 'Failed to change password')
+}

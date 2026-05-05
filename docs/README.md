@@ -9,6 +9,7 @@ Limitless Trading is a trading analysis toolkit. It consists of an Electron desk
 | **LT Workstation server** | Node.js / Express | `src/LT.Workstation/LT.Workstation.Server/` | IBKR data proxy, user data persistence |
 | **LT Public API** | .NET 9 Web API | `src/LimitlessTrading/LimitlessTrading.Public/LT.Public.Api/` | Publicly deployed API, hosted on Kubernetes |
 | **LT Web** | Astro + Tailwind | `src/LimitlessTrading/LimitlessTrading.Web/` | Public marketing/info website, hosted on Kubernetes |
+| **LT Admin** | React + Vite | `src/LimitlessTrading/LimitlessTrading.Admin/` | Admin panel for release notes management |
 
 **LT Workstation** (both frontend and server) runs entirely on the user's local machine. All market data fetched from IBKR, user preferences, watchlists, and route configurations are stored locally and never leave the machine. The Express server is a local process — there is no remote Workstation server.
 

@@ -22,6 +22,20 @@ namespace LT.Public.Api.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("LT.Public.Api.Models.AdminSetting", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("AdminSettings");
+                });
+
             modelBuilder.Entity("LT.Public.Api.Models.Feedback", b =>
                 {
                     b.Property<Guid>("Id")

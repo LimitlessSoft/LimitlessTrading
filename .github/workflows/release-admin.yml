@@ -1,0 +1,19 @@
+name: Release production lt-admin
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "master" ]
+    paths:
+      - 'src/LimitlessTrading/LimitlessTrading.Admin/**'
+      - 'k8s/deployments/lt-admin-deployment.yaml'
+      - 'k8s/services/lt-admin-service.yaml'
+      - 'k8s/ingress/lt-admin-ingress.yaml'
+      - 'k8s/namespaces/lt-admin-namespace.yaml'
+
+jobs:
+  admin:
+    uses: LimitlessSoft/LimitlessTrading/.github/workflows/build-and-publish-admin.yml@master
+    secrets: inherit
+    with:
+      env: production
