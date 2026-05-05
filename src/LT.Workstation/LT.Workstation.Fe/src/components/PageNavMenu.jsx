@@ -55,6 +55,17 @@ function PlugIcon() {
   )
 }
 
+function MegaphoneIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 11v2a1 1 0 0 0 1 1h1l2 4h1v-4" />
+      <path d="M7 9v6" />
+      <path d="M7 9C10 9 17 6 19 3v18c-2-3-9-6-12-6" />
+      <line x1="21" y1="8" x2="21" y2="16" />
+    </svg>
+  )
+}
+
 function AssistantIcon() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -292,6 +303,14 @@ function PageNavMenu({
                 _hover={{ bg: 'gray.700' }}
               >
                 Connection
+              </MenuItem>
+              <MenuItem
+                icon={<MegaphoneIcon />}
+                onClick={() => handleNavigate('/feedback')}
+                bg="gray.800"
+                _hover={{ bg: 'gray.700' }}
+              >
+                Feedback
               </MenuItem>
               <MenuItem
                 icon={<InfoOutlineIcon />}

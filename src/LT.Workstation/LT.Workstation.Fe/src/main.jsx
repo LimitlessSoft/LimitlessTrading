@@ -5,6 +5,8 @@ import { ChakraProvider } from '@chakra-ui/react'
 import HomePage from './pages/HomePage'
 import TemplatePage from './pages/TemplatePage'
 import PlaceholderDocsPage from './pages/PlaceholderDocsPage'
+import FeedbackPage from './pages/FeedbackPage'
+import FeedbackDetailPage from './pages/FeedbackDetailPage'
 import AlertOverlay from './components/AlertOverlay'
 import AlertExpressionWatcher from './components/AlertExpressionWatcher'
 import AutoConnect from './modules/AutoConnect'
@@ -37,6 +39,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               <Routes>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/docs/placeholders" element={<PlaceholderDocsPage />} />
+                <Route path="/feedback" element={<FeedbackPage />} />
+                <Route path="/feedback/:id" element={<FeedbackDetailPage />} />
                 <Route path="*" element={<TemplatePage />} />
               </Routes>
             </AIChatProvider>

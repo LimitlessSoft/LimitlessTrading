@@ -100,4 +100,8 @@ export function getCachedLicenseStatus() {
   return cache ? { valid: cache.valid } : { valid: false }
 }
 
+export function getCachedCustomerEmail() {
+  return cache?.customerEmail ?? null
+}
+
 export default router
