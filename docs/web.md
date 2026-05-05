@@ -64,12 +64,13 @@ k8s/
 └── ingress/lt-web-ingress.yaml         # host: limitlessworkstation.com
 ```
 
-**First-time setup** — create the `regcred` image pull secret in the namespace (copy from an existing namespace):
-```bash
-kubectl get secret regcred -n <source-namespace> -o json | \
-  sed 's/"namespace": "<source-namespace>"/"namespace": "lt-web-namespace"/' | \
-  kubectl apply -f -
-```
+> **Required before first deploy:** copy the `regcred` image pull secret into this namespace or the pod will fail with `ImagePullBackOff`.
+>
+> ```bash
+> kubectl get secret regcred -n lt-api-namespace -o json | \
+>   sed 's/"namespace": "lt-api-namespace"/"namespace": "lt-web-namespace"/' | \
+>   kubectl apply -f -
+> ```
 
 Apply manually:
 ```bash
