@@ -50,6 +50,20 @@ export function isMarketOpen() {
   return isRTHTimestamp(now)
 }
 
+// Returns true if currently in pre-market (4:00–9:30 ET) or post-market (16:00–20:00 ET) on weekdays
+export function isExtendedHours() {
+  const now = Date.now()
+  const weekday = _weekdayFmt.formatToParts(now).find(p => p.type === 'weekday').value
+  if (weekday === 'Sat' || weekday === 'Sun') return false
+  const parts = _timeFmt.formatToParts(new Date(now))
+  const hour  = parseInt(parts.find(p => p.type === 'hour').value)
+  const min   = parseInt(parts.find(p => p.type === 'minute').value)
+  const total = hour * 60 + min
+  const preMarket  = total >= 4 * 60 && total < 9 * 60 + 30
+  const postMarket = total >= 16 * 60 && total < 20 * 60
+  return preMarket || postMarket
+}
+
 // Returns true if timestamp falls within NYSE regular session (9:30–16:00 ET)
 export function isRTHTimestamp(timestamp) {
   const minute = Math.floor(timestamp / 60000)

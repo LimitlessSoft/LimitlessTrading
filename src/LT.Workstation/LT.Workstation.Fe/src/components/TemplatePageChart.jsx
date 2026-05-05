@@ -51,7 +51,8 @@ import {
   getGlobalChartSettings,
   saveGlobalChartSettings,
   isRTHTimestamp,
-  isMarketOpen
+  isMarketOpen,
+  isExtendedHours
 } from '../modules/globalChartSettings'
 import { LINK_GROUPS, getLinkGroupColor } from '../modules/widgetLinkService'
 
@@ -97,7 +98,7 @@ function getTickerAlertLines(symbol) {
 // Candlestick SVG — renders inside the chart control
 const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRthBgColor, fontSize, volumeMultiplier,
   onSymbolClick, quickInputOpen, quickSymbol, quickInputRef, onQuickSymbolChange, onQuickSymbolKeyDown, onQuickSymbolCommit,
-  onIntervalChange, ohlcPosition, liveConnected, marketOpen, showMarketIndicator, alertLines, onAlertPriceChange, onAlertRemove }) {
+  onIntervalChange, ohlcPosition, liveConnected, marketOpen, extendedHours, showMarketIndicator, alertLines, onAlertPriceChange, onAlertRemove }) {
   const [tooltip,    setTooltip]    = useState(null)
   const [crosshairY, setCrosshairY] = useState(null)
   const [mouseX,     setMouseX]     = useState(null)
@@ -236,19 +237,20 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
         </Menu>
         {showMarketIndicator && (
           <Tooltip
-            label={marketOpen ? 'Market open' : 'Market closed'}
+            label={marketOpen ? 'Market open' : extendedHours ? 'Extended hours' : 'Market closed'}
             placement="bottom"
             hasArrow
             openDelay={300}
           >
-            <Box
-              w="6px"
-              h="6px"
-              borderRadius="full"
-              bg={marketOpen ? 'green.400' : 'gray.600'}
-              flexShrink={0}
-              pointerEvents="auto"
-            />
+            <Box display="inline-flex" alignItems="center" lineHeight="0" alignSelf="center" pointerEvents="auto">
+              <Box
+                w="6px"
+                h="6px"
+                borderRadius="full"
+                bg={marketOpen ? 'green.400' : extendedHours ? 'orange.400' : 'gray.600'}
+                flexShrink={0}
+              />
+            </Box>
           </Tooltip>
         )}
       </HStack>
@@ -605,6 +607,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
   const [hasMoreHistory,  setHasMoreHistory]  = useState(true)
   const [liveConnected,   setLiveConnected]   = useState(true)
   const [marketOpen,      setMarketOpen]      = useState(isMarketOpen)
+  const [extendedHours,   setExtendedHours]   = useState(isExtendedHours)
   const [alertLines,      setAlertLines]      = useState(() => getTickerAlertLines(label.symbol || ''))
   const quickInputRef   = useRef(null)
   const boxRef          = useRef(null)
@@ -723,7 +726,10 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
 
   // Refresh market-open indicator every minute
   useEffect(() => {
-    const timer = setInterval(() => setMarketOpen(isMarketOpen()), 60000)
+    const timer = setInterval(() => {
+      setMarketOpen(isMarketOpen())
+      setExtendedHours(isExtendedHours())
+    }, 60000)
     return () => clearInterval(timer)
   }, [])
 
@@ -1258,6 +1264,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
             ohlcPosition={globalSettings.ohlcPosition ?? 'mouse'}
             liveConnected={liveConnected}
             marketOpen={marketOpen}
+            extendedHours={extendedHours}
             showMarketIndicator={globalSettings.showMarketIndicator ?? true}
             onSymbolClick={handleSymbolLabelClick}
             quickInputOpen={quickInputOpen}
