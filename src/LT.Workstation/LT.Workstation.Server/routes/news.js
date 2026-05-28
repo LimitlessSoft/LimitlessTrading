@@ -1,15 +1,8 @@
 import { Router } from 'express'
-import { getHistoricalNews, getConnectionStatus } from '../ibkrClient.js'
+import { getHistoricalNews, getConnectionStatus, subscribeNewsTick, getNewsTickBuffer } from '../ibkrClient.js'
 
 const router = Router()
 
-// Cache: `yahoo:SYMBOL` or `yahoo:_general` -> { items, fetchedAt }
-const yahooCache = new Map()
-const YAHOO_TTL = 10 * 60 * 1000
-
-// Cache: `ibkr:SYMBOL` -> { items, fetchedAt }
-const ibkrCache = new Map()
-const IBKR_TTL = 5 * 60 * 1000
 
 function parseRss(xml) {
   const items = []
@@ -39,13 +32,6 @@ function parseRss(xml) {
 router.get('/yahoo', async (req, res) => {
   const symbol = (req.query.symbol || '').toUpperCase().trim()
   const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 15))
-  const cacheKey = symbol ? `yahoo:${symbol}` : 'yahoo:_general'
-
-  const cached = yahooCache.get(cacheKey)
-  if (cached && Date.now() - cached.fetchedAt < YAHOO_TTL) {
-    return res.json(cached.items.slice(0, limit))
-  }
-
   try {
     const url = symbol
       ? `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(symbol)}&region=US&lang=en-US`
@@ -62,7 +48,6 @@ router.get('/yahoo', async (req, res) => {
 
     const xml = await response.text()
     const items = parseRss(xml)
-    yahooCache.set(cacheKey, { items, fetchedAt: Date.now() })
     res.json(items.slice(0, limit))
   } catch (err) {
     console.error('[news/yahoo] fetch error:', err.message)
@@ -80,24 +65,38 @@ router.get('/ibkr', async (req, res) => {
   const status = getConnectionStatus()
   if (!status.connected) return res.status(503).json({ error: 'Not connected to IBKR' })
 
-  const cacheKey = `ibkr:${symbol}`
-  const cached = ibkrCache.get(cacheKey)
-  if (cached && Date.now() - cached.fetchedAt < IBKR_TTL) {
-    return res.json(cached.items.slice(0, limit))
-  }
+  // Start real-time tick stream for this symbol (no-op if already subscribed)
+  subscribeNewsTick(symbol)
 
   try {
-    const raw = await getHistoricalNews(symbol, limit)
-    const items = raw.map(a => ({
-      title: a.headline,
-      url: null,
-      source: a.providerCode,
-      publishedAt: a.time ? new Date(a.time).toISOString() : new Date().toISOString(),
-      articleId: a.articleId,
-      providerCode: a.providerCode,
-    }))
-    ibkrCache.set(cacheKey, { items, fetchedAt: Date.now() })
-    res.json(items.slice(0, limit))
+    const [historical, tickBuf] = await Promise.all([
+      getHistoricalNews(symbol, limit),
+      Promise.resolve(getNewsTickBuffer(symbol)),
+    ])
+
+    const seen = new Set()
+    const toItem = (a, timeMs) => {
+      const title = (a.headline || '').replace(/^\{[^}]+\}\s*/, '')
+      const key = a.articleId || title
+      if (seen.has(key)) return null
+      seen.add(key)
+      return {
+        title,
+        url: null,
+        source: a.providerCode,
+        publishedAt: timeMs ? new Date(timeMs).toISOString() : (a.time ? new Date(a.time).toISOString() : new Date().toISOString()),
+        articleId: a.articleId,
+        providerCode: a.providerCode,
+      }
+    }
+
+    const tickItems = tickBuf.map(a => toItem(a, a.timeStamp * 1000)).filter(Boolean)
+    const histItems = historical.map(a => toItem(a, null)).filter(Boolean)
+
+    const merged = [...tickItems, ...histItems]
+    merged.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
+
+    res.json(merged.slice(0, limit))
   } catch (err) {
     console.error('[news/ibkr] error:', err.message)
     if (err.message.includes('Not connected')) {

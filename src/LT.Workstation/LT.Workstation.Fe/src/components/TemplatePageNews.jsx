@@ -26,6 +26,12 @@ import FillIcon from './FillIcon'
 import { useDeleteConfirm } from '../hooks/useDeleteConfirm'
 import { useWidgetSizeEdit } from '../hooks/useWidgetSizeEdit'
 
+const RefreshIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+    <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+  </svg>
+)
+
 const DuplicateIcon = () => (
   <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
     <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
@@ -467,6 +473,13 @@ export default function TemplatePageNews({
 
         {/* Edit controls */}
         <HStack position="absolute" top="2px" right="2px" spacing={0} zIndex={10}>
+          <Tooltip label="Refresh" placement="top" hasArrow>
+            <IconButton icon={<RefreshIcon />} size="xs" variant="ghost" aria-label="Refresh news"
+              color="gray.400" _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
+              onClick={(e) => { e.stopPropagation(); loadNews() }}
+              onMouseDown={(e) => e.stopPropagation()}
+            />
+          </Tooltip>
           {isEditing && !galleryMode && (
             <Tooltip label="Share to gallery" placement="top" hasArrow>
               <IconButton icon={<ShareIcon />} size="xs" variant="ghost" aria-label="Share to gallery"
@@ -563,9 +576,9 @@ export default function TemplatePageNews({
                   </FormControl>
                   <FormControl>
                     <FormLabel fontSize="sm">Refresh (seconds)</FormLabel>
-                    <Input size="sm" type="number" min={30}
+                    <Input size="sm" type="number" min={1}
                       value={editConfig.refreshInterval}
-                      onChange={e => setEditConfig({ ...editConfig, refreshInterval: Math.max(30, parseInt(e.target.value) || 300) })}
+                      onChange={e => setEditConfig({ ...editConfig, refreshInterval: Math.max(1, parseInt(e.target.value) || 300) })}
                     />
                   </FormControl>
                 </HStack>

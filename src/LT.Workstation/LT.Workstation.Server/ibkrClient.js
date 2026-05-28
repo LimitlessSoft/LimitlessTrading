@@ -37,6 +37,11 @@ const quoteListeners = new Set() // Set<(symbol, quote) => void>
 // Recent IBKR errors for debugging
 const recentErrors = []
 const MAX_ERRORS = 50
+
+// News tick buffer: symbol → [{ timeStamp, providerCode, articleId, headline }] (newest first)
+const newsTickBuffer = new Map()
+const newsTickSubReqId = new Map() // symbol → reqId
+const NEWS_TICK_BUFFER_SIZE = 300
 export function getRecentErrors() { return [...recentErrors] }
 
 let delayedModeActive = false
@@ -111,10 +116,29 @@ export async function connect(port = 7496) {
       reject(new Error('Connection timeout'))
     }, 10000)
 
+    ib.on(EventName.tickNews, (tickerId, timeStamp, providerCode, articleId, headline) => {
+      for (const [sym, rid] of newsTickSubReqId) {
+        if (rid === tickerId) {
+          const buf = newsTickBuffer.get(sym) || []
+          buf.unshift({ timeStamp, providerCode, articleId, headline })
+          if (buf.length > NEWS_TICK_BUFFER_SIZE) buf.pop()
+          newsTickBuffer.set(sym, buf)
+          break
+        }
+      }
+    })
+
     ib.on(EventName.connected, () => {
       clearTimeout(timeout)
       connectionState = { connected: true, port, clientId }
+      newsProvidersCache = null
       console.log(`Connected to IBKR on port ${port}`)
+
+      // Re-subscribe news tick streams
+      for (const [symbol, reqId] of newsTickSubReqId) {
+        const contract = { symbol, secType: SecType.STK, exchange: 'SMART', currency: 'USD' }
+        try { ib.reqMktData(reqId, contract, '292', false, false, []) } catch {}
+      }
 
       // Re-issue reqMktData for all active subscriptions after reconnect
       if (symbolToReqId.size > 0) {
@@ -1960,6 +1984,21 @@ export async function placeOrder({ action, symbol, quantity, orderType, limitPri
   })
 }
 
+export function subscribeNewsTick(symbol) {
+  const upper = symbol.toUpperCase()
+  if (newsTickSubReqId.has(upper)) return
+  if (!ib || !connectionState.connected) return
+  const reqId = nextRequestId++
+  newsTickSubReqId.set(upper, reqId)
+  if (!newsTickBuffer.has(upper)) newsTickBuffer.set(upper, [])
+  const contract = { symbol: upper, secType: SecType.STK, exchange: 'SMART', currency: 'USD' }
+  try { ib.reqMktData(reqId, contract, '292', false, false, []) } catch {}
+}
+
+export function getNewsTickBuffer(symbol) {
+  return newsTickBuffer.get(symbol.toUpperCase()) || []
+}
+
 export async function getNewsProviders() {
   if (!ib || !connectionState.connected) return []
   return new Promise((resolve) => {
@@ -2017,12 +2056,20 @@ export async function getHistoricalNews(symbol, limit = 10) {
     const articles = []
     let resolved = false
 
-    const endDateTime = ''
+    const fmtIbkr = (d) => {
+      const pad = n => String(n).padStart(2, '0')
+      return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+    }
+    const now = new Date()
+    const endDateTime = fmtIbkr(now)
     const startDateTime = (() => {
-      const d = new Date()
+      const d = new Date(now)
       d.setDate(d.getDate() - 30)
-      return d.toISOString().replace('T', ' ').slice(0, 19)
+      return fmtIbkr(d)
     })()
+
+    // Request more than needed — IBKR returns oldest-first, so we sort and slice
+    const fetchCount = Math.min(300, limit * 10)
 
     const onNews = (rId, time, providerCode, articleId, headline) => {
       if (rId !== reqId) return
@@ -2032,7 +2079,8 @@ export async function getHistoricalNews(symbol, limit = 10) {
     const onNewsEnd = (rId) => {
       if (rId !== reqId) return
       cleanup()
-      resolve(articles)
+      articles.sort((a, b) => new Date(b.time) - new Date(a.time))
+      resolve(articles.slice(0, limit))
     }
 
     const cleanup = () => {
@@ -2043,14 +2091,14 @@ export async function getHistoricalNews(symbol, limit = 10) {
     }
 
     setTimeout(() => {
-      if (!resolved) { cleanup(); resolve(articles) }
+      if (!resolved) { cleanup(); articles.sort((a, b) => new Date(b.time) - new Date(a.time)); resolve(articles.slice(0, limit)) }
     }, 10000)
 
     ib.on(EventName.historicalNews, onNews)
     ib.on(EventName.historicalNewsEnd, onNewsEnd)
 
     try {
-      ib.reqHistoricalNews(reqId, conId, providerCodes, startDateTime, endDateTime, limit, [])
+      ib.reqHistoricalNews(reqId, conId, providerCodes, startDateTime, endDateTime, fetchCount, [])
     } catch (err) {
       cleanup()
       reject(err)
