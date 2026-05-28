@@ -116,16 +116,22 @@ function TemplatePage() {
   const [headerHeight, setHeaderHeight] = useState(0)
   const [openSettingsForId, setOpenSettingsForId] = useState(null)
   const [shareWidget, setShareWidget] = useState(null)
-  const [mouseNearBottom, setMouseNearBottom] = useState(false)
+  const [editToolbarPos, setEditToolbarPos] = useState(null)
 
-  useEffect(() => {
-    if (!isEditing) return
-    const handleMouseMove = (e) => {
-      setMouseNearBottom(e.clientY > window.innerHeight * 0.65)
+  const handleEditToolbarDrag = (e) => {
+    e.preventDefault()
+    const startX = e.clientX - (editToolbarPos?.x ?? (window.innerWidth / 2))
+    const startY = e.clientY - (editToolbarPos?.y ?? (window.innerHeight - 48))
+    const handleMove = (me) => {
+      setEditToolbarPos({ x: me.clientX - startX, y: me.clientY - startY })
     }
-    window.addEventListener('mousemove', handleMouseMove)
-    return () => window.removeEventListener('mousemove', handleMouseMove)
-  }, [isEditing])
+    const handleUp = () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+  }
 
   useEffect(() => {
     const loadPageInfo = async () => {
@@ -967,10 +973,10 @@ function TemplatePage() {
       {isEditing && (
         <Box
           position="fixed"
-          bottom={mouseNearBottom ? undefined : 6}
-          top={mouseNearBottom ? `${headerHeight + 8}px` : undefined}
-          left="50%"
-          transform="translateX(-50%)"
+          left={editToolbarPos ? `${editToolbarPos.x}px` : '50%'}
+          top={editToolbarPos ? `${editToolbarPos.y}px` : undefined}
+          bottom={editToolbarPos ? undefined : 6}
+          transform={editToolbarPos ? undefined : 'translateX(-50%)'}
           bg="blue.900"
           borderWidth="1px"
           borderColor="blue.500"
@@ -983,6 +989,22 @@ function TemplatePage() {
           zIndex={1100}
           boxShadow="0 4px 24px rgba(0,0,0,0.5)"
         >
+          <Box
+            as="span"
+            cursor="grab"
+            color="blue.400"
+            onMouseDown={handleEditToolbarDrag}
+            title="Drag to move"
+            display="flex"
+            alignItems="center"
+            mr={-2}
+          >
+            <svg width="12" height="20" viewBox="0 0 12 20" fill="currentColor">
+              <circle cx="3" cy="4" r="1.5"/><circle cx="9" cy="4" r="1.5"/>
+              <circle cx="3" cy="10" r="1.5"/><circle cx="9" cy="10" r="1.5"/>
+              <circle cx="3" cy="16" r="1.5"/><circle cx="9" cy="16" r="1.5"/>
+            </svg>
+          </Box>
           <Text fontSize="sm" color="blue.200" fontWeight="medium">Edit mode</Text>
           <Button
             size="sm"
@@ -992,7 +1014,7 @@ function TemplatePage() {
           >
             {isTreeOpen ? 'Hide tree' : 'Widget tree'}
           </Button>
-          <Button size="sm" colorScheme="blue" variant="solid" onClick={() => setIsEditing(false)}>
+          <Button size="sm" colorScheme="blue" variant="solid" onClick={() => { setIsEditing(false); setEditToolbarPos(null) }}>
             Stop editing
           </Button>
         </Box>
