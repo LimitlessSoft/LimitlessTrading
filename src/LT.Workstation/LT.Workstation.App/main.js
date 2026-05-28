@@ -79,7 +79,7 @@ async function createWindow() {
 
   if (isDev) {
     mainWindow.loadURL('http://localhost:8743')
-    mainWindow.webContents.openDevTools()
+    mainWindow.webContents.openDevTools({ mode: 'detach' })
   } else {
     await waitForServer('http://localhost:8744/api/status', 30, 500).catch(() => {})
     mainWindow.loadURL('http://localhost:8744')
