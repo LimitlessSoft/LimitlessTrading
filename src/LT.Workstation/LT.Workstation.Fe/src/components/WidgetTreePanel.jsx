@@ -99,6 +99,14 @@ const ICONS = {
       <line x1="4" y1="7" x2="10" y2="7" />
     </svg>
   ),
+  news: () => (
+    <svg viewBox="0 0 14 14" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.3">
+      <rect x="1" y="1" width="12" height="12" rx="1" />
+      <line x1="3" y1="4" x2="11" y2="4" />
+      <line x1="3" y1="6.5" x2="11" y2="6.5" />
+      <line x1="3" y1="9" x2="8" y2="9" />
+    </svg>
+  ),
 }
 
 const TYPE_COLORS = {
@@ -110,6 +118,7 @@ const TYPE_COLORS = {
   graph:  '#F687B3',
   table:  '#FBD38D',
   button: '#F6AD55',
+  news:   '#68D391',
 }
 
 function snippet(widget) {
@@ -130,6 +139,16 @@ function snippet(widget) {
       return widget.columns?.length ? `${widget.columns.length} columns` : null
     case 'button':
       return widget.text ? (widget.text.length > 30 ? widget.text.slice(0, 30) + '…' : widget.text) : null
+    case 'news': {
+      const feedCount = widget.feeds?.length ?? 0
+      if (feedCount === 0) return 'No feeds'
+      if (feedCount === 1) {
+        const f = widget.feeds[0]
+        const sym = f.symbol?.trim().toUpperCase()
+        return sym ? `${f.type === 'ibkr' ? 'IBKR' : 'Yahoo'}: ${sym}` : 'Market news'
+      }
+      return `${feedCount} feeds`
+    }
     default:
       return null
   }

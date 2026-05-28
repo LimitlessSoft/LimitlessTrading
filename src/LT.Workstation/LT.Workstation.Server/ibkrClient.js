@@ -1960,4 +1960,102 @@ export async function placeOrder({ action, symbol, quantity, orderType, limitPri
   })
 }
 
+export async function getNewsProviders() {
+  if (!ib || !connectionState.connected) return []
+  return new Promise((resolve) => {
+    let resolved = false
+    const onProviders = (providers) => {
+      if (resolved) return
+      resolved = true
+      resolve(providers || [])
+    }
+    const timeout = setTimeout(() => {
+      if (resolved) return
+      resolved = true
+      try { ib?.off(EventName.newsProviders, onProviders) } catch {}
+      resolve([])
+    }, 5000)
+    ib.on(EventName.newsProviders, (providers) => {
+      clearTimeout(timeout)
+      try { ib?.off(EventName.newsProviders, onProviders) } catch {}
+      onProviders(providers)
+    })
+    try {
+      ib.reqNewsProviders()
+    } catch {
+      clearTimeout(timeout)
+      try { ib?.off(EventName.newsProviders, onProviders) } catch {}
+      resolve([])
+    }
+  })
+}
+
+let newsProvidersCache = null
+const NEWS_PROVIDERS_TTL = 10 * 60 * 1000
+
+async function getCachedNewsProviders() {
+  if (newsProvidersCache && Date.now() - newsProvidersCache.fetchedAt < NEWS_PROVIDERS_TTL) {
+    return newsProvidersCache.providers
+  }
+  const providers = await getNewsProviders()
+  newsProvidersCache = { providers, fetchedAt: Date.now() }
+  return providers
+}
+
+export async function getHistoricalNews(symbol, limit = 10) {
+  if (!ib || !connectionState.connected) throw new Error('Not connected to IBKR')
+
+  const conId = await getContractId(symbol)
+  if (!conId) throw new Error(`Could not resolve contract for ${symbol}`)
+
+  const providers = await getCachedNewsProviders()
+  if (!providers.length) throw new Error('No news providers available')
+  const providerCodes = providers.map(p => p.code || p.providerCode).filter(Boolean).join('+')
+
+  return new Promise((resolve, reject) => {
+    const reqId = nextRequestId++
+    const articles = []
+    let resolved = false
+
+    const endDateTime = ''
+    const startDateTime = (() => {
+      const d = new Date()
+      d.setDate(d.getDate() - 30)
+      return d.toISOString().replace('T', ' ').slice(0, 19)
+    })()
+
+    const onNews = (rId, time, providerCode, articleId, headline) => {
+      if (rId !== reqId) return
+      articles.push({ time, providerCode, articleId, headline })
+    }
+
+    const onNewsEnd = (rId) => {
+      if (rId !== reqId) return
+      cleanup()
+      resolve(articles)
+    }
+
+    const cleanup = () => {
+      if (resolved) return
+      resolved = true
+      try { ib?.off(EventName.historicalNews, onNews) } catch {}
+      try { ib?.off(EventName.historicalNewsEnd, onNewsEnd) } catch {}
+    }
+
+    setTimeout(() => {
+      if (!resolved) { cleanup(); resolve(articles) }
+    }, 10000)
+
+    ib.on(EventName.historicalNews, onNews)
+    ib.on(EventName.historicalNewsEnd, onNewsEnd)
+
+    try {
+      ib.reqHistoricalNews(reqId, conId, providerCodes, startDateTime, endDateTime, limit, [])
+    } catch (err) {
+      cleanup()
+      reject(err)
+    }
+  })
+}
+
 export { ib }

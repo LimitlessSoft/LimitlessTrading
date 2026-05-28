@@ -633,7 +633,8 @@ export const INTERVALS = [
   { value: '15m', label: '15 Minutes (10Y)' },
   { value: '30m', label: '30 Minutes (10Y)' },
   { value: '1h', label: '1 Hour (10Y)' },
-  { value: '1d', label: '1 Day (10Y)' }
+  { value: '1d', label: '1 Day (10Y)' },
+  { value: 'today', label: 'Today' }
 ]
 
 // Interval durations in milliseconds for missing bar detection

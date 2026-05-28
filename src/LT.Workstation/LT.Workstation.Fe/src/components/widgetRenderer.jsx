@@ -6,6 +6,7 @@ import TemplatePageGauge from './TemplatePageGauge'
 import TemplatePageGraph from './TemplatePageGraph'
 import TemplatePageTable from './TemplatePageTable'
 import TemplatePageButton from './TemplatePageButton'
+import TemplatePageNews from './TemplatePageNews'
 
 // Single place to add a new widget type:
 // 1. Add an entry here
@@ -26,6 +27,7 @@ export const WIDGET_REGISTRY = {
   },
   graph: { displayName: 'Graph', width: 10, height: 220, Component: TemplatePageGraph, series: [] },
   button: { displayName: 'Button', width: 3, height: 50, Component: TemplatePageButton, text: 'Button', actionExpression: '', confirmBeforeExecute: true },
+  news: { displayName: 'News', width: 8, height: 300, Component: TemplatePageNews, feeds: [], maxItems: 15, refreshInterval: 300 },
   table: { displayName: 'Table', width: 10, height: 200, Component: TemplatePageTable,
     source: 'positions',
     columns: [

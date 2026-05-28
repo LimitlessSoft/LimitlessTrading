@@ -73,6 +73,32 @@ const DEFAULT_MAX_BARS = 300
 const MIN_BARS = 20
 const MAX_BARS = 1000
 
+// Today mode: 1m bars from 4 AM to 8 PM ET = 960 slots
+const TODAY_BASE_INTERVAL = '1m'
+const TODAY_SLOT_MS = 60000
+const TODAY_TOTAL_SLOTS = 16 * 60 // 960
+
+function getTodayETStartMs() {
+  const now = Date.now()
+  const dateFmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  })
+  const dp = dateFmt.formatToParts(now)
+  const year  = parseInt(dp.find(p => p.type === 'year').value)
+  const month = parseInt(dp.find(p => p.type === 'month').value) - 1
+  const day   = parseInt(dp.find(p => p.type === 'day').value)
+  // Approximate 4 AM ET as 8 AM UTC (EDT offset), then correct for actual ET offset
+  const approx = Date.UTC(year, month, day, 8, 0, 0)
+  const timeFmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false
+  })
+  const tp = timeFmt.formatToParts(new Date(approx))
+  const etH = parseInt(tp.find(p => p.type === 'hour').value)
+  const etM = parseInt(tp.find(p => p.type === 'minute').value)
+  return approx - ((etH * 60 + etM) - 4 * 60) * 60000
+}
+
 const DEFAULT_STYLE = {
   bgColor: '#1a202c',
   borderColor: '#4A5568',
@@ -105,7 +131,8 @@ function getTickerAlertLines(symbol) {
 // Candlestick SVG — renders inside the chart control
 const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRthBgColor, fontSize, volumeMultiplier,
   onSymbolClick, quickInputOpen, quickSymbol, quickInputRef, onQuickSymbolChange, onQuickSymbolKeyDown, onQuickSymbolCommit,
-  onIntervalChange, ohlcPosition, liveConnected, marketOpen, extendedHours, showMarketIndicator, alertLines, onAlertPriceChange, onAlertRemove }) {
+  onIntervalChange, ohlcPosition, liveConnected, marketOpen, extendedHours, showMarketIndicator, alertLines, onAlertPriceChange, onAlertRemove,
+  todayMode, todayStartMs, todayTotalSlots }) {
   const [tooltip,    setTooltip]    = useState(null)
   const [crosshairY, setCrosshairY] = useState(null)
   const [mouseX,     setMouseX]     = useState(null)
@@ -135,15 +162,19 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
   const effectiveMin = minP - pad
   const effectiveRange = pRange + pad * 2
 
-  const priceToY  = p  => padding.top + candleAreaH - ((p - effectiveMin) / effectiveRange) * candleAreaH
-  const volToH    = v  => Math.min(volumeAreaH, (v / maxVol) * volumeAreaH * (volumeMultiplier ?? 1))
-  const spacing   = chartWidth / data.length
-  const candleW   = Math.max(1, spacing * 0.6)
-
   const formatPrice = p => p?.toFixed(2) ?? '-'
   const formatTime  = ts => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const formatDate  = ts => new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric' })
-  const isIntraday  = ['1m','2m','3m','5m','15m','30m','1h'].includes(interval)
+  const isIntraday  = ['1m','2m','3m','5m','15m','30m','1h','today'].includes(interval)
+  const slotCount   = todayMode ? todayTotalSlots : data.length
+
+  const priceToY  = p  => padding.top + candleAreaH - ((p - effectiveMin) / effectiveRange) * candleAreaH
+  const volToH    = v  => Math.min(volumeAreaH, (v / maxVol) * volumeAreaH * (volumeMultiplier ?? 1))
+  const spacing   = chartWidth / slotCount
+  const candleW   = Math.max(1, spacing * 0.6)
+  const barSlot   = (bar, i) => todayMode ? Math.floor((bar.timestamp - todayStartMs) / TODAY_SLOT_MS) : i
+  const barCX     = (bar, i) => padding.left + barSlot(bar, i) * spacing + spacing / 2
+  const barLX     = (bar, i) => padding.left + barSlot(bar, i) * spacing
 
   draggingRef.current = dragging
   chartMetricsRef.current = { effectiveMin, effectiveRange, candleAreaH, paddingTop: padding.top }
@@ -313,11 +344,18 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
         {/* RTH session background bands (intraday only) */}
         {isIntraday && (
           <g clipPath={`url(#session-clip-${symbol})`}>
-            {data.map((bar, i) => {
+            {todayMode ? (
+              // Single continuous RTH band: 9:30 AM ET = slot 330, 4:00 PM ET = slot 720
+              <rect
+                x={padding.left + 330 * spacing} y={padding.top}
+                width={(720 - 330) * spacing}
+                height={candleAreaH + chartHeight * 0.06 + volumeAreaH}
+                fill={rthBgColor}
+              />
+            ) : data.map((bar, i) => {
               if (!isRTHTimestamp(bar.timestamp)) return null
-              const bx = padding.left + i * spacing
               return (
-                <rect key={`rth-${i}`} x={bx} y={padding.top} width={spacing}
+                <rect key={`rth-${i}`} x={barLX(bar, i)} y={padding.top} width={spacing}
                   height={candleAreaH + chartHeight * 0.06 + volumeAreaH}
                   fill={rthBgColor} />
               )
@@ -387,12 +425,12 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
           )
         })}
 
-        {/* Day separators */}
-        {data.map((bar, i) => {
+        {/* Day separators (not shown in today mode — only one day) */}
+        {!todayMode && data.map((bar, i) => {
           if (i === 0) return null
           const prev = data[i - 1]
           if (Math.floor(prev.timestamp / 86400000) === Math.floor(bar.timestamp / 86400000)) return null
-          const x = padding.left + i * spacing
+          const x = barLX(bar, i)
           return (
             <line key={`day-${i}`}
               x1={x} y1={padding.top} x2={x} y2={height - padding.bottom}
@@ -403,7 +441,7 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
 
         {/* Candlesticks */}
         {data.map((bar, i) => {
-          const x      = padding.left + i * spacing + spacing / 2
+          const x      = barCX(bar, i)
           const isUp   = bar.close >= bar.open
           const color  = isUp ? '#48bb78' : '#f56565'
           const highY  = priceToY(bar.high)
@@ -414,7 +452,7 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
 
           return (
             <g key={i}
-              onMouseEnter={() => setTooltip({ bar, cx: padding.left + i * spacing + spacing / 2 })}
+              onMouseEnter={() => setTooltip({ bar, cx: x })}
             >
               <line x1={x} y1={highY} x2={x} y2={lowY} stroke={color} strokeWidth={1} />
               <rect x={x - candleW / 2} y={bodyT} width={candleW} height={bodyH}
@@ -479,10 +517,25 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
         {(() => {
           const labelW = fontSize * 5.5
           const maxLabels = Math.max(2, Math.floor(chartWidth / (labelW * 1.5)))
+          if (todayMode) {
+            // Hour marks from 4 AM to 8 PM ET (16 hours)
+            const hourStep = Math.max(1, Math.ceil(16 / maxLabels))
+            return Array.from({ length: Math.ceil(16 / hourStep) }, (_, idx) => {
+              const h = idx * hourStep
+              const slotIdx = h * 60
+              const x = padding.left + slotIdx * spacing
+              const ts = todayStartMs + h * 3600000
+              return (
+                <text key={`th-${h}`} x={x} y={height - 4} fill="#718096" fontSize={fontSize} textAnchor="middle">
+                  {formatTime(ts)}
+                </text>
+              )
+            })
+          }
           const labelStep = Math.max(1, Math.ceil(data.length / maxLabels))
           return data.map((bar, i) => {
             if (i % labelStep !== 0) return null
-            const x = padding.left + i * spacing + spacing / 2
+            const x = barCX(bar, i)
             const label = isIntraday ? formatTime(bar.timestamp) : formatDate(bar.timestamp)
             return (
               <text key={`t-${i}`} x={x} y={height - 4} fill="#718096" fontSize={fontSize} textAnchor="middle">
@@ -629,6 +682,10 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
 
   const symbol   = label.symbol   || ''
   const interval = label.interval || '5m'
+  const isToday  = interval === 'today'
+  const effectiveInterval = isToday ? TODAY_BASE_INTERVAL : interval
+  const isTodayRef = useRef(false)
+  isTodayRef.current = isToday
   const width    = label.width    || DEFAULT_WIDTH
   const height   = label.height   || DEFAULT_HEIGHT
   const x        = label.x || 0
@@ -650,7 +707,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
     return () => ro.disconnect()
   }, [])
 
-  // Load cached data when symbol or interval changes; auto-fetch from IBKR if cache empty
+  // Load cached data when symbol or effective interval changes; auto-fetch from IBKR if cache empty
   useEffect(() => {
     if (!symbol) { setData([]); return }
     if (cancelRef.current) { cancelRef.current(); cancelRef.current = null }
@@ -660,14 +717,14 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
     setViewOffset(0)
     setIsFetchingOlder(false)
     setHasMoreHistory(true)
-    fetchFromCache(symbol, interval).then(cached => {
+    fetchFromCache(symbol, effectiveInterval).then(cached => {
       if (gen !== loadGenRef.current) return
       const sorted = [...(cached || [])].sort((a, b) => a.timestamp - b.timestamp)
       if (sorted.length === 0) {
         setLoadProgress(0)
         const { cancel } = loadHistoricalData(
           symbol,
-          interval,
+          effectiveInterval,
           (partialData, progress) => {
             if (gen !== loadGenRef.current) return
             setLoadProgress(progress)
@@ -692,7 +749,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
         setData(sorted)
         setLoading(false)
         if (cacheNeedsRefresh(cached)) {
-          refreshRecentData(symbol, interval)
+          refreshRecentData(symbol, effectiveInterval)
             .then(freshData => {
               if (gen !== loadGenRef.current) return
               setData([...freshData].sort((a, b) => a.timestamp - b.timestamp))
@@ -701,13 +758,13 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
         }
       }
     })
-  }, [symbol, interval])
+  }, [symbol, effectiveInterval])
 
   const INTRADAY_INTERVALS = ['1m','2m','3m','5m','15m','30m','1h']
 
   // SSE live price: update current bar's close/high/low in real time
   useEffect(() => {
-    if (!symbol || !INTRADAY_INTERVALS.includes(interval)) return
+    if (!symbol || !INTRADAY_INTERVALS.includes(effectiveInterval)) return
     const unsub = subscribeQuote(symbol, 1, (_sym, quote) => {
       const livePrice = quote.last
       if (!livePrice) return
@@ -724,13 +781,13 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
       })
     })
     return unsub
-  }, [symbol, interval])
+  }, [symbol, effectiveInterval])
 
   // Track SSE connection state for live-price indicator
   useEffect(() => {
-    if (!INTRADAY_INTERVALS.includes(interval)) { setLiveConnected(true); return }
+    if (!INTRADAY_INTERVALS.includes(effectiveInterval)) { setLiveConnected(true); return }
     return subscribeSSEStatus(setLiveConnected)
-  }, [interval])
+  }, [effectiveInterval])
 
   // Refresh market-open indicator every minute
   useEffect(() => {
@@ -749,11 +806,11 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
 
   // Periodic fetch to pull in newly completed bars (every 60s)
   useEffect(() => {
-    if (!symbol || !INTRADAY_INTERVALS.includes(interval)) return
+    if (!symbol || !INTRADAY_INTERVALS.includes(effectiveInterval)) return
     const gen = loadGenRef.current
     const timer = setInterval(() => {
       if (loadGenRef.current !== gen) return
-      refreshRecentData(symbol, interval, 1)
+      refreshRecentData(symbol, effectiveInterval, 1)
         .then(fresh => {
           if (loadGenRef.current !== gen) return
           setData([...fresh].sort((a, b) => a.timestamp - b.timestamp))
@@ -761,7 +818,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
         .catch(() => {})
     }, 60000)
     return () => clearInterval(timer)
-  }, [symbol, interval])
+  }, [symbol, effectiveInterval])
 
   // Clear preview position once label catches up
   useEffect(() => {
@@ -968,7 +1025,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
     setLoading(true)
     setLoadProgress(null)
 
-    refreshRecentData(symbol, interval)
+    refreshRecentData(symbol, effectiveInterval)
       .then(finalData => {
         if (gen !== loadGenRef.current) return
         setData([...finalData].sort((a, b) => a.timestamp - b.timestamp))
@@ -978,7 +1035,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
         if (gen !== loadGenRef.current) return
         setLoading(false)
       })
-  }, [symbol, interval, loading])
+  }, [symbol, effectiveInterval, loading])
 
   const handleFullLoad = useCallback(() => {
     if (!symbol || loading) return
@@ -990,7 +1047,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
 
     const { cancel } = loadHistoricalData(
       symbol,
-      interval,
+      effectiveInterval,
       (partialData, progress) => {
         if (gen !== loadGenRef.current) return
         setLoadProgress(progress)
@@ -1011,7 +1068,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
       }
     )
     cancelRef.current = cancel
-  }, [symbol, interval, loading])
+  }, [symbol, effectiveInterval, loading])
 
   // Cancel any in-flight load on unmount
   useEffect(() => () => { cancelRef.current?.(); olderCancelRef.current?.() }, [])
@@ -1019,7 +1076,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
   // Lazy-load older history when user pans near the oldest cached bar
   const PREFETCH_THRESHOLD = 150
   useEffect(() => {
-    if (!data.length || isFetchingOlder || !hasMoreHistory || loading) return
+    if (!data.length || isFetchingOlder || !hasMoreHistory || loading || isToday) return
     const clampedOff = Math.min(viewOffset, Math.max(0, data.length - 10))
     const startIdx = Math.max(0, data.length - clampedOff - maxBars)
     if (startIdx >= PREFETCH_THRESHOLD) return
@@ -1028,7 +1085,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
     setIsFetchingOlder(true)
     const { cancel } = fetchOlderData(
       symbol,
-      interval,
+      effectiveInterval,
       oldestTimestamp,
       (updatedData) => { setData(updatedData) },
       (finalData, hadData) => {
@@ -1043,10 +1100,11 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
       }
     )
     olderCancelRef.current = cancel
-  }, [viewOffset, maxBars, data.length, isFetchingOlder, hasMoreHistory, loading, symbol, interval])
+  }, [viewOffset, maxBars, data.length, isFetchingOlder, hasMoreHistory, loading, symbol, interval, isToday])
 
   const handlePanStart = (e) => {
     if (e.button !== 0) return
+    if (isToday) return
     e.preventDefault()
     const startX = e.clientX
     const startOffset = viewOffset
@@ -1083,6 +1141,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
     const el = boxRef.current
     if (!el) return
     const handler = (e) => {
+      if (isTodayRef.current) return
       const s = globalSettingsRef.current
       if (s.shiftScrollZoom) {
         if (!e.shiftKey && !e.ctrlKey) return
@@ -1204,11 +1263,18 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
     onClose()
   }
 
-  // Visible bars — 300-bar window, shifted by viewOffset from the end
-  const clampedOffset = Math.min(viewOffset, Math.max(0, data.length - 10))
-  const endIdx   = data.length - clampedOffset
-  const startIdx = Math.max(0, endIdx - maxBars)
-  const visibleData = data.slice(startIdx, endIdx)
+  // Visible bars — today mode: filtered to today's ET range; otherwise sliding window
+  const todayStartMs = isToday ? getTodayETStartMs() : 0
+  const todayEndMs   = todayStartMs + TODAY_TOTAL_SLOTS * TODAY_SLOT_MS
+  let visibleData
+  if (isToday) {
+    visibleData = data.filter(b => b.timestamp >= todayStartMs && b.timestamp < todayEndMs)
+  } else {
+    const clampedOffset = Math.min(viewOffset, Math.max(0, data.length - 10))
+    const endIdx   = data.length - clampedOffset
+    const startIdx = Math.max(0, endIdx - maxBars)
+    visibleData = data.slice(startIdx, endIdx)
+  }
 
   const resolvedOutsideRTH = (label.outsideRTH == null || label.outsideRTH === 'global')
     ? (globalSettings.outsideRTH ?? true)
@@ -1294,6 +1360,9 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
             onQuickSymbolKeyDown={handleQuickSymbolKeyDown}
             onQuickSymbolCommit={handleQuickSymbolCommit}
             onIntervalChange={handleIntervalChange}
+            todayMode={isToday}
+            todayStartMs={todayStartMs}
+            todayTotalSlots={TODAY_TOTAL_SLOTS}
             alertLines={alertLines}
             onAlertPriceChange={handleAlertPriceChange}
             onAlertRemove={handleAlertRemove}
