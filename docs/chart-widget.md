@@ -47,8 +47,17 @@ Global settings apply to **all** chart widgets on all pages simultaneously. They
 | `30m` | 30 Minutes | 90 days | 10 years |
 | `1h`  | 1 Hour | 90 days | 10 years |
 | `1d`  | Daily | 1 year | 10 years |
+| `today` | Today | Uses 1m–1h cache | Same as chosen bar size |
 
 The interval is changed by clicking the interval label (e.g. `· 1h`) in the top bar.
+
+### Today interval
+
+Selecting **Today** locks the chart to the current trading day (4:00 AM – 8:00 PM ET). A sub-menu appears on hover, letting you pick the bar size (1m, 2m, 5m, 15m, 30m, 1h). The top bar label reflects the active bar size, e.g. `· today 5m`.
+
+- The x-axis always spans the full day — empty space is shown to the right of the last candle for the remaining portion of the day.
+- Panning and zooming are disabled.
+- When **Outside RTH** is off, the visible range shrinks to 9:30 AM – 4:00 PM ET with no gray pre/post-market area.
 
 ---
 
@@ -65,6 +74,8 @@ The interval is changed by clicking the interval label (e.g. `· 1h`) in the top
 | Hover over candle | Show OHLC tooltip in top bar and crosshair lines |
 
 Zoom range: 20–1000 visible bars (default 300). Each scroll tick scales by ~15%.
+
+> **Today mode**: pan and zoom are disabled — the view is fixed to the full day range.
 
 Drag and scroll directions can be inverted in Global Chart Settings. The **Shift+Scroll to Zoom** global setting (default on) controls whether Shift is required to zoom — disable it to restore the old behaviour where plain scroll zooms.
 
@@ -196,6 +207,7 @@ TemplatePageChart
   type: "chart",
   symbol: "SPY",
   interval: "1h",
+  todayInterval: "5m", // optional — bar size when interval is "today" (default "1m")
   linkGroup: 1,        // optional — 1–5, or null/omitted if unlinked
   width: 10,           // 1–20 segments
   height: 220,         // pixels (min 100)
