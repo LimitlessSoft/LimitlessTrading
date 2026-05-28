@@ -189,6 +189,14 @@ export const TOOL_DEFINITIONS = [
         },
         maxHistory: { type: 'number', description: 'Max data points for type=graph. Default 200' },
         snapshotInterval: { type: 'number', description: 'Fetch interval in seconds for snapshot series. Default 300' },
+        actionExpression: {
+          type: 'string',
+          description: 'Action expression for type=button. Syntax: ![order:BUY|SELL:SYMBOL:qty:orderType:limitPrice?:stopPrice?]. Example: "![order:BUY:AAPL:100:MKT]"'
+        },
+        confirmBeforeExecute: {
+          type: 'boolean',
+          description: 'For type=button. Show a confirmation dialog before firing the action. Default true.'
+        },
         width: { type: 'number', description: 'Width in grid segments (1-20). Default varies by type' },
         height: { type: 'number', description: 'Height in pixels. Omit when using dock=fill-height.' },
         dock: { type: 'string', enum: ['fill', 'fill-height'], description: 'fill = full width+height, fill-height = custom width + full viewport height (omit height when using this)' },
@@ -232,7 +240,9 @@ export const TOOL_DEFINITIONS = [
             min: { type: 'number' },
             max: { type: 'number' },
             title: { type: 'string' },
-            dock: { type: 'string', enum: ['fill', 'fill-height'], description: 'fill = full width+height, fill-height = custom width + viewport height' }
+            dock: { type: 'string', enum: ['fill', 'fill-height'], description: 'fill = full width+height, fill-height = custom width + viewport height' },
+            actionExpression: { type: 'string', description: 'Action expression for type=button. Syntax: ![order:BUY|SELL:SYMBOL:qty:orderType:limitPrice?:stopPrice?]' },
+            confirmBeforeExecute: { type: 'boolean', description: 'For type=button. Show confirmation dialog before firing. Default true.' }
           }
         }
       },

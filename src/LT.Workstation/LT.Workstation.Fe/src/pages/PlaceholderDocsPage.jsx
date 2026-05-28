@@ -56,6 +56,7 @@ function PlaceholderDocsPage() {
             <Tab>Symbol Quotes</Tab>
             <Tab>Formulas</Tab>
             <Tab>Positions</Tab>
+            <Tab>Actions</Tab>
           </TabList>
 
           <TabPanels>
@@ -290,6 +291,54 @@ function PlaceholderDocsPage() {
                   <AlertIcon />
                   Set a table widget's <Code>source</Code> to <Code>{'&{positions:30}'}</Code> and use <Code>{'{description}'}</Code>, <Code>{'{position}'}</Code>, <Code>{'{avgCost}'}</Code> as column expressions.
                 </Alert>
+              </VStack>
+            </TabPanel>
+
+            {/* ── ACTIONS ── */}
+            <TabPanel>
+              <VStack align="stretch" spacing={4}>
+                <Box>
+                  <Text mb={1}>Syntax: <Code>{'![kind:param1:param2:...]'}</Code></Text>
+                  <Text fontSize="sm" color="gray.400">
+                    Action expressions fire an operation when triggered by a widget. Unlike placeholders, they produce no display value — they are stored in widget config and executed on demand (e.g. button click). The first segment is the <Code>kind</Code>, which determines the available parameters.
+                  </Text>
+                </Box>
+
+                <Alert status="info" bg="gray.800" borderRadius="md" fontSize="sm">
+                  <AlertIcon />
+                  Action expressions can only be used in widgets that support them (button, order-ticket). They cannot appear in label text or any read-only field.
+                </Alert>
+
+                <SubHeading>Live value references</SubHeading>
+                <Text fontSize="sm" color="gray.300">
+                  Any parameter value can use the same <Code>{'@{...}'}</Code> quote syntax from the Symbol Quotes tab — resolved once at the moment the action fires, not on a timer. For example, <Code>{'@{AAPL:ask}'}</Code> as a price parameter will use the last known ask price at the time the action is triggered.
+                </Text>
+
+                <Heading size="xs" mt={4} mb={2} color="gray.300">order</Heading>
+                <Text fontSize="sm" color="gray.400" mb={2}>
+                  Places an IBKR order. Syntax: <Code>{'![order:action:symbol:quantity:orderType:limitPrice?:stopPrice?]'}</Code>
+                </Text>
+                <SectionTable
+                  headers={['Parameter', 'Values', 'Notes']}
+                  rows={[
+                    [<Code>action</Code>, 'BUY | SELL', ''],
+                    [<Code>symbol</Code>, 'Ticker string', 'Normalized to uppercase'],
+                    [<Code>quantity</Code>, 'Integer or @{...} placeholder', 'Resolved at fire time'],
+                    [<Code>orderType</Code>, 'MKT | LMT | STP | STP_LMT', ''],
+                    [<Code>limitPrice</Code>, 'Number or @{...} placeholder', 'Required for LMT and STP_LMT'],
+                    [<Code>stopPrice</Code>, 'Number or @{...} placeholder', 'Required for STP and STP_LMT'],
+                  ]}
+                />
+                <SectionTable
+                  headers={['Expression', 'Description']}
+                  rows={[
+                    [<Code>{'![order:BUY:AAPL:100:MKT]'}</Code>, 'Buy 100 AAPL at market price'],
+                    [<Code>{'![order:SELL:AAPL:100:LMT:185.50]'}</Code>, 'Sell 100 AAPL at limit $185.50'],
+                    [<Code>{'![order:BUY:SPY:50:LMT:@{SPY:ask}]'}</Code>, 'Buy 50 SPY at limit = live ask price'],
+                    [<Code>{'![order:SELL:TSLA:10:STP:220.00]'}</Code>, 'Sell 10 TSLA with stop at $220.00'],
+                    [<Code>{'![order:BUY:QQQ:20:STP_LMT:410.00:408.50]'}</Code>, 'Buy 20 QQQ stop-limit: stop $410, limit $408.50'],
+                  ]}
+                />
               </VStack>
             </TabPanel>
 

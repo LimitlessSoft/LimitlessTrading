@@ -93,6 +93,12 @@ const ICONS = {
       <line x1="5" y1="4.5" x2="5" y2="13" />
     </svg>
   ),
+  button: () => (
+    <svg viewBox="0 0 14 14" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.3">
+      <rect x="1" y="3.5" width="12" height="7" rx="1.5" />
+      <line x1="4" y1="7" x2="10" y2="7" />
+    </svg>
+  ),
 }
 
 const TYPE_COLORS = {
@@ -103,6 +109,7 @@ const TYPE_COLORS = {
   gauge:  '#76E4F7',
   graph:  '#F687B3',
   table:  '#FBD38D',
+  button: '#F6AD55',
 }
 
 function snippet(widget) {
@@ -121,6 +128,8 @@ function snippet(widget) {
       return widget.series?.length ? `${widget.series.length} series` : null
     case 'table':
       return widget.columns?.length ? `${widget.columns.length} columns` : null
+    case 'button':
+      return widget.text ? (widget.text.length > 30 ? widget.text.slice(0, 30) + '…' : widget.text) : null
     default:
       return null
   }

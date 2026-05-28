@@ -16,6 +16,7 @@ import licenseRoutes from './routes/license.js'
 import feedbackRoutes from './routes/feedback.js'
 import galleryRoutes from './routes/gallery.js'
 import whatsNewRoutes from './routes/whats-new.js'
+import ordersRoutes from './routes/orders.js'
 import { getConnectionStatus } from './ibkrClient.js'
 import { PLACEHOLDER_DOCS } from './ai/placeholder-docs.js'
 import { WIDGET_DOCS } from './ai/widget-docs.js'
@@ -43,6 +44,7 @@ app.use('/api/license', licenseRoutes)
 app.use('/api/feedback', feedbackRoutes)
 app.use('/api/gallery', galleryRoutes)
 app.use('/api/whats-new', whatsNewRoutes)
+app.use('/api/orders', ordersRoutes)
 
 // Placeholder docs — single source of truth for the AI and the in-app reference page
 app.get('/api/placeholder-docs', (_req, res) => res.type('text/plain').send(PLACEHOLDER_DOCS))

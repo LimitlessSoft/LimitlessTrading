@@ -116,6 +116,16 @@ function TemplatePage() {
   const [headerHeight, setHeaderHeight] = useState(0)
   const [openSettingsForId, setOpenSettingsForId] = useState(null)
   const [shareWidget, setShareWidget] = useState(null)
+  const [mouseNearBottom, setMouseNearBottom] = useState(false)
+
+  useEffect(() => {
+    if (!isEditing) return
+    const handleMouseMove = (e) => {
+      setMouseNearBottom(e.clientY > window.innerHeight * 0.65)
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+    return () => window.removeEventListener('mousemove', handleMouseMove)
+  }, [isEditing])
 
   useEffect(() => {
     const loadPageInfo = async () => {
@@ -957,7 +967,8 @@ function TemplatePage() {
       {isEditing && (
         <Box
           position="fixed"
-          bottom={6}
+          bottom={mouseNearBottom ? undefined : 6}
+          top={mouseNearBottom ? `${headerHeight + 8}px` : undefined}
           left="50%"
           transform="translateX(-50%)"
           bg="blue.900"

@@ -2,7 +2,7 @@ import pkg from '@stoqey/ib'
 import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-const { IBApi, EventName, SecType } = pkg
+const { IBApi, EventName, SecType, OrderAction, OrderType, MarketOrder, LimitOrder, StopOrder, StopLimitOrder } = pkg
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -1891,6 +1891,72 @@ export async function getPositions() {
       cleanup()
       reject(err)
     }
+  })
+}
+
+export async function placeOrder({ action, symbol, quantity, orderType, limitPrice, stopPrice }) {
+  if (!ib || !connectionState.connected) {
+    throw new Error('Not connected to IBKR')
+  }
+
+  const upperSymbol = symbol.toUpperCase()
+  const ibAction = action === 'BUY' ? OrderAction.BUY : OrderAction.SELL
+  const qty = Number(quantity)
+
+  const contract = {
+    symbol: upperSymbol,
+    secType: SecType.STK,
+    exchange: 'SMART',
+    currency: 'USD'
+  }
+
+  let order
+  switch (orderType) {
+    case 'LMT':
+      order = new LimitOrder(ibAction, Number(limitPrice), qty)
+      break
+    case 'STP':
+      order = new StopOrder(ibAction, Number(stopPrice), qty)
+      break
+    case 'STP_LMT':
+      order = new StopLimitOrder(ibAction, Number(limitPrice), Number(stopPrice), qty)
+      break
+    default: // MKT
+      order = new MarketOrder(ibAction, qty)
+  }
+
+  return new Promise((resolve, reject) => {
+    const onNextValidId = (orderId) => {
+      ib.off(EventName.nextValidId, onNextValidId)
+
+      const onOrderStatus = (id, status) => {
+        if (id !== orderId) return
+        ib.off(EventName.orderStatus, onOrderStatus)
+        if (status === 'Submitted' || status === 'PreSubmitted' || status === 'Filled') {
+          resolve({ orderId, status })
+        } else if (status === 'Cancelled' || status === 'Inactive') {
+          reject(new Error(`Order ${orderId} ${status}`))
+        }
+      }
+
+      const timeout = setTimeout(() => {
+        ib.off(EventName.orderStatus, onOrderStatus)
+        resolve({ orderId, status: 'Submitted' })
+      }, 5000)
+
+      ib.on(EventName.orderStatus, onOrderStatus)
+
+      try {
+        ib.placeOrder(orderId, contract, order)
+      } catch (err) {
+        clearTimeout(timeout)
+        ib.off(EventName.orderStatus, onOrderStatus)
+        reject(err)
+      }
+    }
+
+    ib.once(EventName.nextValidId, onNextValidId)
+    ib.reqIds(1)
   })
 }
 

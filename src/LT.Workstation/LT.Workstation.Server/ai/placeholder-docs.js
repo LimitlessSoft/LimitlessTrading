@@ -81,4 +81,22 @@ Operators: + - * / ** and grouping with ()
 General notes:
   • Placeholder types can be mixed in the same widget text, e.g. \${NYSE:status:10} | @{SPY:last:3}
   • Symbols are automatically normalized to uppercase
-  • Values ≤5 s stream via SSE; >5 s use HTTP polling`
+  • Values ≤5 s stream via SSE; >5 s use HTTP polling
+
+── ACTION EXPRESSIONS  ![kind:param1:param2:...] ──
+Action expressions execute an operation when a widget is triggered. They are NOT display values — they are stored
+in a button widget's actionExpression field and fired when the user clicks the button.
+
+order — place an IBKR order:
+  Syntax: ![order:action:symbol:quantity:orderType:limitPrice?:stopPrice?]
+  action: BUY or SELL
+  quantity: integer
+  orderType: MKT | LMT | STP | STP_LMT
+  limitPrice: required for LMT and STP_LMT — fixed number or @{SYMBOL:property} resolved at fire time
+  stopPrice: required for STP and STP_LMT
+
+  ![order:BUY:AAPL:100:MKT]                          — buy 100 AAPL at market
+  ![order:SELL:AAPL:100:LMT:185.50]                  — sell 100 AAPL limit $185.50
+  ![order:BUY:SPY:50:LMT:@{SPY:ask}]                 — buy 50 SPY at live ask price
+  ![order:SELL:TSLA:10:STP:220.00]                    — sell 10 TSLA stop $220
+  ![order:BUY:QQQ:20:STP_LMT:410.00:408.50]          — buy 20 QQQ stop-limit`

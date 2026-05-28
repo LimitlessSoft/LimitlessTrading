@@ -80,6 +80,22 @@ table
     {"type":"table","source":"&{positions:30}","columns":[{"id":"c1","name":"Instrument","expression":"{description ?? localSymbol ?? symbol}"},{"id":"c2","name":"Qty","expression":"{position}"},{"id":"c3","name":"Avg Cost","expression":"{avgCost}"}],"width":10,"height":200}
   Available fields from &{positions}: description (human-readable e.g. "SPY May05'26 722 PUT"), symbol, localSymbol, position, avgCost, secType, expiry, strike, right, multiplier
 
+button
+  A clickable button that fires an action expression when clicked. Use for order execution or other on-demand actions.
+  Required: text (button label), actionExpression (action expression string)
+  Optional: confirmBeforeExecute (bool, default true — shows confirm dialog before firing), width (default 3), height (default 50), style
+  style fields: bgColor, textColor, borderColor, borderWidth, fontSize (rem), fontWeight (normal|bold|lighter)
+  Typical: width=3, height=50
+  Action expression syntax: ![order:BUY|SELL:SYMBOL:quantity:orderType:limitPrice?:stopPrice?]
+    orderType: MKT | LMT | STP | STP_LMT
+    limitPrice / stopPrice: required for LMT/STP/STP_LMT — use a fixed number or @{SYMBOL:property} for a live value
+  Examples:
+    {"type":"button","text":"Buy 100 AAPL","actionExpression":"![order:BUY:AAPL:100:MKT]","width":3,"height":50}
+    {"type":"button","text":"Sell SPY @ ask","actionExpression":"![order:SELL:SPY:10:LMT:@{SPY:ask}]","width":4,"height":50}
+    {"type":"button","text":"Buy QQQ stop-limit","actionExpression":"![order:BUY:QQQ:20:STP_LMT:410.00:408.50]","width":5,"height":50}
+  To place orders for all current positions at limit = avgCost * 1.20, build one button per position using the account positions data.
+  confirmBeforeExecute defaults to true — always leave it true for order buttons unless the user explicitly asks to skip confirmation.
+
 ── STYLE ──
 
 Default style (applies to label, badge, panel):

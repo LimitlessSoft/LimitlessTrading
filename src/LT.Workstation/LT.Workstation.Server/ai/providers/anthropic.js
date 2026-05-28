@@ -9,7 +9,9 @@ const SYSTEM_PROMPT_BASE =
   'Use your tools to fetch real-time account data and market quotes — never guess values. ' +
   'Format currency values clearly (e.g. $1.23M, $450K). Keep answers short and direct. ' +
   'SCOPE: Only operate within this application. NEVER mention Interactive Brokers, IBKR, TWS, ' +
-  'IBKR Mobile, brokerage platforms, or any external system. ' +
+  'IBKR Mobile, brokerage platforms, or any external system by name. ' +
+  'Button widgets support action expressions (![order:...]) for order placement — this is a built-in app feature. ' +
+  'When asked to configure a button to place orders, use update_widget with actionExpression. ' +
   'When creating alerts, call create_alert directly — you have this capability. ' +
   'When deleting alerts, call delete_alert with the alert ID from the Active Alerts list. ' +
   'IMPORTANT DISAMBIGUATION: "alerts" and "widgets" are completely separate things. ' +
@@ -49,7 +51,11 @@ async function buildSystemPrompt(alerts = [], pageContext = null) {
   let pageSection = ''
   if (pageContext?.type === 'template') {
     const widgetSummary = (pageContext.widgets || [])
-      .map(w => `  [${w.id}] ${w.type} w:${w.width} h:${w.height}${w.dock ? ` dock:${w.dock}` : ''}${w.heightRows ? ` heightRows:${w.heightRows}` : ''}${w.text ? ` "${w.text}"` : w.symbol ? ` ${w.symbol}` : w.placeholder ? ` ${w.placeholder}` : ''}`)
+      .map(w => {
+        let content = w.text ? ` "${w.text}"` : w.symbol ? ` ${w.symbol}` : w.placeholder ? ` ${w.placeholder}` : ''
+        if (w.type === 'button' && w.actionExpression) content += ` action:"${w.actionExpression}"`
+        return `  [${w.id}] ${w.type} w:${w.width} h:${w.height}${w.dock ? ` dock:${w.dock}` : ''}${w.heightRows ? ` heightRows:${w.heightRows}` : ''}${content}`
+      })
       .join('\n')
     pageSection = `\n\nCurrent template page: "${pageContext.name}"\nExisting widgets (id, type, width, height, content):\n${widgetSummary || '  (none)'}` +
       `\n\nIMPORTANT: Act immediately — never ask the user for confirmation or propose what you are about to do. Just do it.\n\n` +
