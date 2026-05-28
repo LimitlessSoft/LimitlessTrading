@@ -23,6 +23,11 @@ import {
   MenuButton,
   MenuList,
   MenuItem,
+  MenuDivider,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  PopoverBody,
   Portal,
   Switch,
   Tooltip,
@@ -74,9 +79,14 @@ const MIN_BARS = 20
 const MAX_BARS = 1000
 
 // Today mode: 1m bars from 4 AM to 8 PM ET = 960 slots
-const TODAY_BASE_INTERVAL = '1m'
-const TODAY_SLOT_MS = 60000
-const TODAY_TOTAL_SLOTS = 16 * 60 // 960
+const TODAY_DEFAULT_INTERVAL = '1m'
+// Minutes per bar for each intraday interval — used for today mode slot calculations
+const INTERVAL_MINUTES = { '1m': 1, '2m': 2, '3m': 3, '5m': 5, '15m': 15, '30m': 30, '1h': 60 }
+// Today view spans 4 AM to 8 PM ET = 16 hours = 960 minutes
+const TODAY_RANGE_MINUTES = 16 * 60
+// RTH within that range: 9:30 AM ET = 330 min from 4 AM, 4:00 PM ET = 720 min from 4 AM
+const TODAY_RTH_START_MIN = 330
+const TODAY_RTH_END_MIN   = 720
 
 function getTodayETStartMs() {
   const now = Date.now()
@@ -132,7 +142,7 @@ function getTickerAlertLines(symbol) {
 const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval, rthBgColor, outsideRthBgColor, fontSize, volumeMultiplier,
   onSymbolClick, quickInputOpen, quickSymbol, quickInputRef, onQuickSymbolChange, onQuickSymbolKeyDown, onQuickSymbolCommit,
   onIntervalChange, ohlcPosition, liveConnected, marketOpen, extendedHours, showMarketIndicator, alertLines, onAlertPriceChange, onAlertRemove,
-  todayMode, todayStartMs, todayTotalSlots }) {
+  todayMode, todayStartMs, todayTotalSlots, todaySlotMs, todayBarInterval, rthOnlyToday }) {
   const [tooltip,    setTooltip]    = useState(null)
   const [crosshairY, setCrosshairY] = useState(null)
   const [mouseX,     setMouseX]     = useState(null)
@@ -172,7 +182,7 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
   const volToH    = v  => Math.min(volumeAreaH, (v / maxVol) * volumeAreaH * (volumeMultiplier ?? 1))
   const spacing   = chartWidth / slotCount
   const candleW   = Math.max(1, spacing * 0.6)
-  const barSlot   = (bar, i) => todayMode ? Math.floor((bar.timestamp - todayStartMs) / TODAY_SLOT_MS) : i
+  const barSlot   = (bar, i) => todayMode ? Math.floor((bar.timestamp - todayStartMs) / todaySlotMs) : i
   const barCX     = (bar, i) => padding.left + barSlot(bar, i) * spacing + spacing / 2
   const barLX     = (bar, i) => padding.left + barSlot(bar, i) * spacing
 
@@ -254,11 +264,11 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
             _hover={{ color: 'gray.400' }}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            · {interval}
+            · {interval === 'today' ? `today ${todayBarInterval}` : interval}
           </MenuButton>
           <Portal>
-            <MenuList bg="gray.800" borderColor="gray.600" minW="100px" zIndex={2000} fontSize="sm">
-              {INTERVALS.map(iv => (
+            <MenuList bg="gray.800" borderColor="gray.600" minW="130px" zIndex={2000} fontSize="sm">
+              {INTERVALS.filter(iv => iv.value !== 'today').map(iv => (
                 <MenuItem
                   key={iv.value}
                   bg="gray.800"
@@ -270,6 +280,40 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
                   {iv.label}
                 </MenuItem>
               ))}
+              <MenuDivider borderColor="gray.600" my={1} />
+              <Popover trigger="hover" placement="right-start" isLazy gutter={0}>
+                <PopoverTrigger>
+                  <MenuItem
+                    bg="gray.800"
+                    _hover={{ bg: 'gray.700' }}
+                    color={interval === 'today' ? 'blue.300' : 'white'}
+                    fontWeight={interval === 'today' ? 'bold' : 'normal'}
+                  >
+                    <HStack justify="space-between" w="100%">
+                      <Text>Today {interval === 'today' ? `· ${todayBarInterval}` : ''}</Text>
+                      <Text color="gray.500" fontSize="10px">▸</Text>
+                    </HStack>
+                  </MenuItem>
+                </PopoverTrigger>
+                <Portal>
+                  <PopoverContent bg="gray.800" borderColor="gray.600" w="auto" minW="80px" _focus={{ boxShadow: 'none' }} zIndex={2001}>
+                    <PopoverBody p={1}>
+                      {INTERVALS.filter(iv => iv.value in INTERVAL_MINUTES).map(iv => (
+                        <MenuItem
+                          key={iv.value}
+                          bg="gray.800"
+                          _hover={{ bg: 'gray.700' }}
+                          color={interval === 'today' && todayBarInterval === iv.value ? 'blue.300' : 'white'}
+                          fontWeight={interval === 'today' && todayBarInterval === iv.value ? 'bold' : 'normal'}
+                          onClick={() => onIntervalChange('today', iv.value)}
+                        >
+                          {iv.value}
+                        </MenuItem>
+                      ))}
+                    </PopoverBody>
+                  </PopoverContent>
+                </Portal>
+              </Popover>
             </MenuList>
           </Portal>
         </Menu>
@@ -345,13 +389,19 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
         {isIntraday && (
           <g clipPath={`url(#session-clip-${symbol})`}>
             {todayMode ? (
-              // Single continuous RTH band: 9:30 AM ET = slot 330, 4:00 PM ET = slot 720
-              <rect
-                x={padding.left + 330 * spacing} y={padding.top}
-                width={(720 - 330) * spacing}
-                height={candleAreaH + chartHeight * 0.06 + volumeAreaH}
-                fill={rthBgColor}
-              />
+              // RTH-only today: full-width band; full-day today: band from 9:30 AM to 4 PM slots
+              (() => {
+                const rthStart = rthOnlyToday ? 0 : Math.floor(TODAY_RTH_START_MIN * 60000 / todaySlotMs)
+                const rthEnd   = rthOnlyToday ? todayTotalSlots : Math.floor(TODAY_RTH_END_MIN * 60000 / todaySlotMs)
+                return (
+                  <rect
+                    x={padding.left + rthStart * spacing} y={padding.top}
+                    width={(rthEnd - rthStart) * spacing}
+                    height={candleAreaH + chartHeight * 0.06 + volumeAreaH}
+                    fill={rthBgColor}
+                  />
+                )
+              })()
             ) : data.map((bar, i) => {
               if (!isRTHTimestamp(bar.timestamp)) return null
               return (
@@ -518,11 +568,12 @@ const ChartSVG = memo(function ChartSVG({ data, width, height, symbol, interval,
           const labelW = fontSize * 5.5
           const maxLabels = Math.max(2, Math.floor(chartWidth / (labelW * 1.5)))
           if (todayMode) {
-            // Hour marks from 4 AM to 8 PM ET (16 hours)
-            const hourStep = Math.max(1, Math.ceil(16 / maxLabels))
-            return Array.from({ length: Math.ceil(16 / hourStep) }, (_, idx) => {
+            // Hour marks across the visible range
+            const rangeHours = todayTotalSlots * todaySlotMs / 3600000
+            const hourStep = Math.max(1, Math.ceil(rangeHours / maxLabels))
+            return Array.from({ length: Math.ceil(rangeHours / hourStep) }, (_, idx) => {
               const h = idx * hourStep
-              const slotIdx = h * 60
+              const slotIdx = Math.floor(h * 3600000 / todaySlotMs)
               const x = padding.left + slotIdx * spacing
               const ts = todayStartMs + h * 3600000
               return (
@@ -652,8 +703,9 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
   const [loading, setLoading] = useState(false)
   const [loadProgress, setLoadProgress] = useState(null)
   const { initSize, sizeUpdates, sizeFields } = useWidgetSizeEdit(label, { defaultWidth: DEFAULT_WIDTH, defaultHeight: DEFAULT_HEIGHT, minHeight: MIN_HEIGHT })
-  const [editSymbol,     setEditSymbol]     = useState('')
-  const [editInterval,   setEditInterval]   = useState('5m')
+  const [editSymbol,        setEditSymbol]        = useState('')
+  const [editInterval,      setEditInterval]      = useState('5m')
+  const [editTodayInterval, setEditTodayInterval] = useState(TODAY_DEFAULT_INTERVAL)
   const [globalSettings, setGlobalSettings] = useState(getGlobalChartSettings)
   const [editGlobal,      setEditGlobal]      = useState(null)
   const [editOutsideRTH,  setEditOutsideRTH]  = useState('global')
@@ -683,7 +735,16 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
   const symbol   = label.symbol   || ''
   const interval = label.interval || '5m'
   const isToday  = interval === 'today'
-  const effectiveInterval = isToday ? TODAY_BASE_INTERVAL : interval
+  const todayBarInterval  = isToday ? (label.todayInterval || TODAY_DEFAULT_INTERVAL) : TODAY_DEFAULT_INTERVAL
+  const effectiveInterval = isToday ? todayBarInterval : interval
+  const todayBarMins = INTERVAL_MINUTES[todayBarInterval] || 1
+  const todaySlotMs  = todayBarMins * 60000
+  const resolvedOutsideRTH = (label.outsideRTH == null || label.outsideRTH === 'global')
+    ? (globalSettings.outsideRTH ?? true)
+    : label.outsideRTH
+  const rthOnlyToday   = isToday && !resolvedOutsideRTH
+  const todayRangeMin  = rthOnlyToday ? (TODAY_RTH_END_MIN - TODAY_RTH_START_MIN) : TODAY_RANGE_MINUTES
+  const todayTotalSlots = Math.floor(todayRangeMin / todayBarMins)
   const isTodayRef = useRef(false)
   isTodayRef.current = isToday
   const width    = label.width    || DEFAULT_WIDTH
@@ -1197,6 +1258,7 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
   const handleOpenSettings = () => {
     setEditSymbol(symbol)
     setEditInterval(interval)
+    setEditTodayInterval(label.todayInterval || TODAY_DEFAULT_INTERVAL)
     setEditOutsideRTH(label.outsideRTH ?? 'global')
     setEditGlobal({ ...globalSettings })
     setFontSizeDraft(String(globalSettings.fontSize ?? 9))
@@ -1236,8 +1298,10 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
     if (e.key === 'Escape') setQuickInputOpen(false)
   }
 
-  const handleIntervalChange = useCallback((newInterval) => {
-    onUpdate(label.id, { interval: newInterval })
+  const handleIntervalChange = useCallback((newInterval, newTodayInterval) => {
+    const updates = { interval: newInterval }
+    if (newTodayInterval) updates.todayInterval = newTodayInterval
+    onUpdate(label.id, updates)
   }, [onUpdate, label.id])
 
   const handleAlertPriceChange = useCallback((alertId, conditionIndex, price) => {
@@ -1252,9 +1316,9 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
     const newSymbol = editSymbol.trim().toUpperCase()
     if (!newSymbol) return
     if (label.linkGroup && onLinkSync && newSymbol !== symbol) {
-      onLinkSync(label.linkGroup, { symbol: newSymbol }, label.id, { interval: editInterval, outsideRTH: editOutsideRTH, ...sizeUpdates })
+      onLinkSync(label.linkGroup, { symbol: newSymbol }, label.id, { interval: editInterval, todayInterval: editTodayInterval, outsideRTH: editOutsideRTH, ...sizeUpdates })
     } else {
-      onUpdate(label.id, { symbol: newSymbol, interval: editInterval, outsideRTH: editOutsideRTH, ...sizeUpdates })
+      onUpdate(label.id, { symbol: newSymbol, interval: editInterval, todayInterval: editTodayInterval, outsideRTH: editOutsideRTH, ...sizeUpdates })
     }
     if (editGlobal) {
       saveGlobalChartSettings(editGlobal)
@@ -1264,8 +1328,9 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
   }
 
   // Visible bars — today mode: filtered to today's ET range; otherwise sliding window
-  const todayStartMs = isToday ? getTodayETStartMs() : 0
-  const todayEndMs   = todayStartMs + TODAY_TOTAL_SLOTS * TODAY_SLOT_MS
+  const todayBaseMs  = isToday ? getTodayETStartMs() : 0
+  const todayStartMs = rthOnlyToday ? todayBaseMs + TODAY_RTH_START_MIN * 60000 : todayBaseMs
+  const todayEndMs   = todayStartMs + todayTotalSlots * todaySlotMs
   let visibleData
   if (isToday) {
     visibleData = data.filter(b => b.timestamp >= todayStartMs && b.timestamp < todayEndMs)
@@ -1276,10 +1341,8 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
     visibleData = data.slice(startIdx, endIdx)
   }
 
-  const resolvedOutsideRTH = (label.outsideRTH == null || label.outsideRTH === 'global')
-    ? (globalSettings.outsideRTH ?? true)
-    : label.outsideRTH
-  const displayData = resolvedOutsideRTH ? visibleData : visibleData.filter(b => isRTHTimestamp(b.timestamp))
+  // In today RTH-only mode the bars are already filtered by the date range; no extra filter needed
+  const displayData = (resolvedOutsideRTH || rthOnlyToday) ? visibleData : visibleData.filter(b => isRTHTimestamp(b.timestamp))
 
   const boxStyle = useMemo(() => ({
     left: `${(displayX / TOTAL_SEGMENTS) * 100}%`,
@@ -1362,7 +1425,10 @@ function TemplatePageChart({ label, layoutY, onDelete, onDuplicate, onUpdate, on
             onIntervalChange={handleIntervalChange}
             todayMode={isToday}
             todayStartMs={todayStartMs}
-            todayTotalSlots={TODAY_TOTAL_SLOTS}
+            todayTotalSlots={todayTotalSlots}
+            todaySlotMs={todaySlotMs}
+            todayBarInterval={todayBarInterval}
+            rthOnlyToday={rthOnlyToday}
             alertLines={alertLines}
             onAlertPriceChange={handleAlertPriceChange}
             onAlertRemove={handleAlertRemove}
