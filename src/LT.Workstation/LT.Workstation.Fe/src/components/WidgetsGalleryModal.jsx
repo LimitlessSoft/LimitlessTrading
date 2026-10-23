@@ -19,9 +19,13 @@ function WidgetsGalleryModal({ isOpen, onClose, onImport }) {
     setError(null)
     setLoading(true)
     fetch('http://localhost:8744/api/gallery')
-      .then(r => r.json())
-      .then(data => { setWidgets(data); setLoading(false) })
-      .catch(() => { setError('Could not load gallery'); setLoading(false) })
+      .then(async r => {
+        const data = await r.json()
+        if (!r.ok || !Array.isArray(data)) throw new Error(data?.error)
+        setWidgets(data)
+        setLoading(false)
+      })
+      .catch(err => { setError(err.message || 'Could not load gallery'); setLoading(false) })
   }, [isOpen])
 
   const filtered = widgets.filter(w =>

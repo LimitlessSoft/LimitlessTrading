@@ -90,9 +90,10 @@ function WidgetsGalleryPage() {
     try {
       const res = await fetch('http://localhost:8744/api/gallery')
       const data = await res.json()
+      if (!res.ok || !Array.isArray(data)) throw new Error(data?.error)
       setWidgets(data)
-    } catch {
-      setError('Could not load gallery')
+    } catch (err) {
+      setError(err.message || 'Could not load gallery')
     } finally {
       setLoading(false)
     }
