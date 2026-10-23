@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<ItemGroup>
+		<ProjectReference Include="..\LT.Contracts\LT.Contracts.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="LSCore.Validation.Domain" Version="10.0.0" />
+	</ItemGroup>
+</Project>

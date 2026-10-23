@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<AssemblyName>LimitlessTrading</AssemblyName>
+		<RootNamespace>LT.App</RootNamespace>
+		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+		<ApplicationManifest>app.manifest</ApplicationManifest>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\LT.Contracts\LT.Contracts.csproj" />
+		<ProjectReference Include="..\LT.Domain\LT.Domain.csproj" />
+		<ProjectReference Include="..\LT.Repository\LT.Repository.csproj" />
+		<ProjectReference Include="..\LT.Ibkr\LT.Ibkr.csproj" />
+	</ItemGroup>
+
+	<!-- Avalonia: same app on Windows, macOS and Linux -->
+	<ItemGroup>
+		<PackageReference Include="Avalonia" Version="12.1.4" />
+		<PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
+		<PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
+		<PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.4" />
+		<PackageReference Include="Avalonia.Controls.DataGrid" Version="12.1.2" />
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="LSCore.DependencyInjection" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.13" />
+	</ItemGroup>
+</Project>

@@ -1,0 +1,46 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Pages.TradingPage"
+	xmlns:placeholder="using:LT.App.Widgets.Placeholder"
+	xmlns:positions="using:LT.App.Widgets.Positions"
+	x:Class="LT.App.Pages.TradingPage.TradingPageView"
+	x:DataType="vm:TradingPageViewModel"
+>
+	<Grid ColumnDefinitions="300,6,*,6,300" RowDefinitions="*,6,280">
+		<Border Grid.Row="0" Grid.Column="0" Classes="panel">
+			<placeholder:PlaceholderView DataContext="{Binding Watchlist}" />
+		</Border>
+		<GridSplitter Grid.Row="0" Grid.Column="1" ResizeDirection="Columns" Background="Transparent" />
+
+		<Border Grid.Row="0" Grid.Column="2" Classes="panel">
+			<placeholder:PlaceholderView DataContext="{Binding Chart}" />
+		</Border>
+		<GridSplitter Grid.Row="0" Grid.Column="3" ResizeDirection="Columns" Background="Transparent" />
+
+		<Border Grid.Row="0" Grid.Column="4" Classes="panel">
+			<placeholder:PlaceholderView DataContext="{Binding OrderTicket}" />
+		</Border>
+
+		<GridSplitter
+			Grid.Row="1"
+			Grid.ColumnSpan="5"
+			ResizeDirection="Rows"
+			Background="Transparent"
+		/>
+
+		<Border Grid.Row="2" Grid.ColumnSpan="5" Classes="panel" Padding="4">
+			<TabControl>
+				<TabItem Header="Positions">
+					<positions:PositionsView DataContext="{Binding Positions}" />
+				</TabItem>
+				<TabItem Header="Orders">
+					<placeholder:PlaceholderView DataContext="{Binding Orders}" />
+				</TabItem>
+				<TabItem Header="Executions">
+					<placeholder:PlaceholderView DataContext="{Binding Executions}" />
+				</TabItem>
+			</TabControl>
+		</Border>
+	</Grid>
+</UserControl>

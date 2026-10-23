@@ -1,0 +1,72 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.ConnectionBar"
+	x:Class="LT.App.Widgets.ConnectionBar.ConnectionBarView"
+	x:DataType="vm:ConnectionBarViewModel"
+>
+	<Border Classes="panel" Padding="10,6">
+		<Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
+			<StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+				<TextBlock VerticalAlignment="Center" Classes="secondary" Text="Host" />
+				<TextBox Width="140" Text="{Binding Host}" IsEnabled="{Binding CanEditEndpoint}" />
+			</StackPanel>
+			<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+				<TextBlock VerticalAlignment="Center" Classes="secondary" Text="Port" />
+				<NumericUpDown
+					Width="120"
+					FormatString="0"
+					Increment="1"
+					Minimum="{Binding PortMin}"
+					Maximum="{Binding PortMax}"
+					Value="{Binding Port}"
+					IsEnabled="{Binding CanEditEndpoint}"
+				/>
+			</StackPanel>
+			<StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+				<TextBlock VerticalAlignment="Center" Classes="secondary" Text="Client id" />
+				<NumericUpDown
+					Width="100"
+					FormatString="0"
+					Increment="1"
+					Minimum="{Binding ClientIdMin}"
+					Maximum="{Binding ClientIdMax}"
+					Value="{Binding ClientId}"
+					IsEnabled="{Binding CanEditEndpoint}"
+				/>
+			</StackPanel>
+			<Button
+				Grid.Column="3"
+				Classes="accent"
+				Content="Connect"
+				Command="{Binding ConnectCommand}"
+			/>
+			<Button Grid.Column="4" Content="Disconnect" Command="{Binding DisconnectCommand}" />
+			<StackPanel
+				Grid.Column="5"
+				Orientation="Horizontal"
+				Spacing="8"
+				HorizontalAlignment="Right"
+				VerticalAlignment="Center"
+			>
+				<Ellipse
+					Classes="status"
+					Classes.connected="{Binding IsConnected}"
+					Classes.connecting="{Binding IsConnecting}"
+					Classes.failed="{Binding IsFailed}"
+				/>
+				<StackPanel>
+					<TextBlock Text="{Binding StateText}" />
+					<TextBlock
+						Classes="negative"
+						FontSize="12"
+						TextWrapping="Wrap"
+						MaxWidth="420"
+						Text="{Binding ErrorMessage}"
+						IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+					/>
+				</StackPanel>
+			</StackPanel>
+		</Grid>
+	</Border>
+</UserControl>
