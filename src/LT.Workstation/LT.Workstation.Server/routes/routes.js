@@ -1,5 +1,5 @@
 import express from 'express'
-import { readFileSync, writeFileSync } from 'fs'
+import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { randomUUID } from 'crypto'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
@@ -20,6 +20,7 @@ function readConfig() {
 }
 
 function writeConfig(config) {
+  mkdirSync(dirname(CONFIG_PATH), { recursive: true })
   writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2))
 }
 

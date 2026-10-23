@@ -1,5 +1,5 @@
 import express from 'express'
-import { readFileSync, writeFileSync } from 'fs'
+import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
@@ -31,6 +31,7 @@ function readData() {
 }
 
 function writeData(data) {
+  mkdirSync(dirname(DATA_PATH), { recursive: true })
   writeFileSync(DATA_PATH, JSON.stringify(data, null, 2))
 }
 
