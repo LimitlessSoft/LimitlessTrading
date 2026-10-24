@@ -39,7 +39,7 @@ Every widget is **independently spawnable** and lives in one of three wrappers:
 | Wrapper | Behaviour |
 |---|---|
 | **Center** | A split layout: widgets side by side and/or stacked, nested to any depth, with a splitter between every pair. |
-| **Left / right side** | Each widget docked there gets an icon on that edge's strip. One is expanded at a time; expanding one (its icon, Ctrl+1…8, the menu) makes it current and gives it keyboard focus; clicking its icon again collapses the side and the center grows. |
+| **Left / right side** | Each widget docked there gets an icon on that edge's strip. One is expanded at a time; expanding one (its icon, Ctrl+1…8, the menu) makes it current and gives it keyboard focus; clicking its icon again collapses the side and the center grows. Each widget keeps its own panel width (`WidgetItem.SideWidth`, saved in the layout); one without a width of its own starts at the side's last width. |
 | **Floating** | The widget gets its own window (owned by the main window). Closing that window closes the widget. |
 
 - Spawn or reveal a widget from menu → Widgets. Ctrl+1 … Ctrl+8 do the same, but collapse a side

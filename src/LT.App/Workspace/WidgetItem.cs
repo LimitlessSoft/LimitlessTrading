@@ -101,6 +101,9 @@ public partial class WidgetItem : ObservableObject
 	public bool IsFloating => Dock == WidgetDock.Floating;
 	public bool IsSide => IsLeft || IsRight;
 
+	/// <summary>Docked on a side: this widget's panel width (null: the side's last width).</summary>
+	public double? SideWidth { get; set; }
+
 	// Last floating window bounds (device pixels for position, DIPs for size)
 	public double? FloatX { get; set; }
 	public double? FloatY { get; set; }

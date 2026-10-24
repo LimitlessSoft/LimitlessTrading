@@ -34,6 +34,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 			widget.FloatWidth = placement.FloatWidth;
 			widget.FloatHeight = placement.FloatHeight;
 			widget.IsPinned = placement.IsPinned;
+			widget.SideWidth = placement.SideWidth;
 			if (widget.Content is ILinkable linkable)
 				linkable.Link.Group = placement.LinkGroup;
 			(widget.Content as IWidgetState)?.LoadState(placement);
@@ -74,6 +75,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 	public partial WidgetItem? RightActive { get; set; }
 
 	/// <summary>Side panel widths; the view applies them and writes them back before saving.</summary>
+	/// <summary>Last width of each side panel: the start width of widgets without their own.</summary>
 	public double LeftWidth { get; set; }
 	public double RightWidth { get; set; }
 
@@ -273,6 +275,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 					FloatWidth = x.FloatWidth,
 					FloatHeight = x.FloatHeight,
 					IsPinned = x.IsPinned,
+					SideWidth = x.SideWidth,
 				};
 				if (x.Content is ILinkable linkable)
 					placement.LinkGroup = linkable.Link.Group;

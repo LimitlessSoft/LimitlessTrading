@@ -50,10 +50,10 @@ public partial class WorkspaceView : UserControl
 	{
 		if (_viewModel is null)
 			return;
-		if (_viewModel.LeftActive != null)
-			_viewModel.LeftWidth = LayoutGrid.ColumnDefinitions[LeftColumn].ActualWidth;
-		if (_viewModel.RightActive != null)
-			_viewModel.RightWidth = LayoutGrid.ColumnDefinitions[RightColumn].ActualWidth;
+		if (_viewModel.LeftActive is { } left)
+			StoreSideWidth(left, true, LayoutGrid.ColumnDefinitions[LeftColumn].ActualWidth);
+		if (_viewModel.RightActive is { } right)
+			StoreSideWidth(right, false, LayoutGrid.ColumnDefinitions[RightColumn].ActualWidth);
 		StoreCenterSizes();
 		foreach (var (id, window) in _windows)
 			if (_viewModel.Find(id) is { } widget)
@@ -237,10 +237,11 @@ public partial class WorkspaceView : UserControl
 	)
 	{
 		var definition = LayoutGrid.ColumnDefinitions[column];
+		// The widget leaving the panel keeps its width for the next time it opens
 		if (host.Child is { } current && current.DataContext != active)
 		{
-			if (definition.ActualWidth > 0)
-				SetSideWidth(isLeft, definition.ActualWidth);
+			if (current.DataContext is WidgetItem previous)
+				StoreSideWidth(previous, isLeft, definition.ActualWidth);
 			host.Child = null;
 		}
 
@@ -257,7 +258,7 @@ public partial class WorkspaceView : UserControl
 			Detach(frame);
 			host.Child = frame;
 		}
-		var width = isLeft ? _viewModel!.LeftWidth : _viewModel!.RightWidth;
+		var width = active.SideWidth ?? (isLeft ? _viewModel!.LeftWidth : _viewModel!.RightWidth);
 		definition.Width = new GridLength(Math.Max(MinPanelWidth, width));
 		splitter.IsVisible = true;
 	}
@@ -307,8 +308,12 @@ public partial class WorkspaceView : UserControl
 			ApplySide(widget, RightHost, RightColumn, RightSplitter, false);
 	}
 
-	private void SetSideWidth(bool isLeft, double width)
+	// Each side widget remembers its own width; the side remembers the last one for newcomers
+	private void StoreSideWidth(WidgetItem widget, bool isLeft, double width)
 	{
+		if (width <= 0)
+			return;
+		widget.SideWidth = width;
 		if (isLeft)
 			_viewModel!.LeftWidth = width;
 		else

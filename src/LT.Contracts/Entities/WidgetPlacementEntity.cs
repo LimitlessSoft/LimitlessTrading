@@ -20,6 +20,9 @@ public class WidgetPlacementEntity
 	// Side widgets: pinned stays expanded; unpinned collapses when you click elsewhere
 	public bool IsPinned { get; set; } = true;
 
+	/// <summary>Side widgets: their own panel width (null: the side's last width).</summary>
+	public double? SideWidth { get; set; }
+
 	// Chart instances
 	public ChartTimeframe? ChartTimeframe { get; set; }
 	public bool ChartLinked { get; set; } = true;
