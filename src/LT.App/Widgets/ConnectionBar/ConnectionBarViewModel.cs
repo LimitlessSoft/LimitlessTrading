@@ -57,6 +57,13 @@ public partial class ConnectionBarViewModel : ViewModelBase
 	[RelayCommand(CanExecute = nameof(CanLogOut))]
 	private Task LogOutAsync() => _gatewayManager.StopAsync();
 
+	/// <summary>
+	/// On start: uses a Gateway still running from an earlier session (last trading mode's port)
+	/// instead of asking to log in. True when one was found.
+	/// </summary>
+	public Task<bool> AttachRunningGatewayAsync() =>
+		_gatewayManager.AttachRunningAsync(_gatewayManager.GetLastStartRequest().TradingMode);
+
 	private void Apply()
 	{
 		var gateway = _gatewayManager.Status;

@@ -28,7 +28,7 @@ Runs IB Gateway for you, keeps the connection alive and puts everything you watc
 
 **🔌 Connection that just works**
 - Logs in to IB Gateway for you (via IBC), including the IB Key 2FA step
-- Heartbeat, automatic reconnect with backoff, reconnect on start
+- Heartbeat, automatic reconnect with backoff; a Gateway still running is reused on start
 - Reuses a Gateway that is already running — optionally keep it alive between runs
 
 </td>

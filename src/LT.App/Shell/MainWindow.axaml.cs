@@ -53,11 +53,17 @@ public partial class MainWindow : Window, IFullscreenHost
 			WindowState = WindowState.Maximized;
 	}
 
-	// Gateway is the only way in and the password isn't stored, so ask right away
-	private void OnOpened(object? sender, EventArgs e)
+	// A Gateway still running from an earlier session is reused; otherwise Gateway is the only way
+	// in and the password isn't stored, so ask right away
+	private void OnOpened(object? sender, EventArgs e) => _ = AttachOrLogInAsync();
+
+	private async Task AttachOrLogInAsync()
 	{
-		if (ViewModel?.ConnectionBar.CanLogIn == true)
-			_ = GatewayWindow.ShowAsync(this);
+		if (ViewModel?.ConnectionBar is not { CanLogIn: true } connectionBar)
+			return;
+		if (await connectionBar.AttachRunningGatewayAsync())
+			return;
+		await GatewayWindow.ShowAsync(this);
 	}
 
 	private void OnClosing(object? sender, WindowClosingEventArgs e)
@@ -113,8 +119,6 @@ public partial class MainWindow : Window, IFullscreenHost
 
 	private void OnGatewayClick(object? sender, RoutedEventArgs e) =>
 		_ = GatewayWindow.ShowAsync(this);
-
-	private void OnFindClick(object? sender, RoutedEventArgs e) => Page.FocusSearch();
 
 	private void OnNewChartClick(object? sender, RoutedEventArgs e) =>
 		ViewModel?.SpawnTool(WorkspaceTool.Chart);

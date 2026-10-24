@@ -164,6 +164,37 @@ public class GatewayManagerTests
 	}
 
 	[Fact]
+	public async Task Attach_connects_to_a_gateway_already_running_on_the_mode_port()
+	{
+		_process.PortOpenBeforeStart = true;
+
+		var attached = await _manager.AttachRunningAsync(
+			TradingMode.Live,
+			TestContext.Current.CancellationToken
+		);
+
+		Assert.True(attached);
+		Assert.Equal(
+			(GatewayState.Running, true, 4001),
+			(_manager.Status.State, _manager.Status.IsExternal, _manager.Status.ApiPort)
+		);
+		Assert.Equal(ConnectionState.Connected, _connection.Status.State);
+		Assert.Null(_process.LastLaunch);
+	}
+
+	[Fact]
+	public async Task Attach_without_a_running_gateway_leaves_it_stopped()
+	{
+		var attached = await _manager.AttachRunningAsync(
+			TradingMode.Paper,
+			TestContext.Current.CancellationToken
+		);
+
+		Assert.False(attached);
+		Assert.Equal(GatewayState.Stopped, _manager.Status.State);
+	}
+
+	[Fact]
 	public async Task Stopping_an_external_gateway_only_disconnects()
 	{
 		_process.PortOpenBeforeStart = true;

@@ -33,7 +33,7 @@ TWS is powerful but:
 | Phase | Scope | Status |
 |---|---|---|
 | 0 — Shell | Solution layout, DI, connection bar, positions widget | **done** |
-| 1 — Connectivity | Heartbeat + auto-reconnect with backoff, reconnect on start when the last session ended connected, message log, account summary + P&L, account picker | **done** — the log holds app events only (IB notices are not routed to it yet) |
+| 1 — Connectivity | Heartbeat + auto-reconnect with backoff, reuse of a Gateway still running on start, message log, account summary + P&L, account picker | **done** — the log holds app events only (IB notices are not routed to it yet) |
 | 2 — Market data | Contract search, watchlist with L1 quotes, request pacing, line limit, delayed-data fallback | **done** — search is by exact symbol (no `reqMatchingSymbols`) |
 | 3 — Charts | Candlestick chart, historical + 5 s real-time bars, local bar cache | **done** |
 | 4 — Trading | Live positions with P&L, open orders, executions | **read-only part done** — open orders and executions wait for IBKR.Net support |

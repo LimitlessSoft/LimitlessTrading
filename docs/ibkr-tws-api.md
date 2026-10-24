@@ -164,7 +164,10 @@ New calls are added to IBKR.Net from a wire recording first (`tools/IbkrWireReco
 - `ChartManager` serves bars from the JSON cache while fresh (1 min intraday, 30 min daily+) and
   falls back to stale cache when IB is unreachable.
 - `ConnectionManager.CheckHealthAsync` heartbeats with `GetServerTimeAsync`; a failure or
-  `IsConnected == false` starts reconnecting with 2/5/10/30/60 s backoff. `ResumeAsync` (run by `ConnectionWatchdog` on start) reconnects when `ConnectOnStartup` is set — connect sets it, Disconnect clears it, app exit (`ShutdownAsync`) keeps it; a failed resume falls into the same backoff.
+  `IsConnected == false` starts reconnecting with 2/5/10/30/60 s backoff.
+- On start, before the login dialog, `GatewayManager.AttachRunningAsync` checks the last trading
+  mode's API port: a Gateway still running from an earlier session is reused (marked external)
+  and connected, so no login is asked for.
 
 ## IB API rules that shape our design
 

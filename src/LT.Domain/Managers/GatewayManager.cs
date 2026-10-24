@@ -108,29 +108,10 @@ public class GatewayManager : IGatewayManager
 				GatewayValidationCodes.GVC_012.GetValidationMessage(script)
 			);
 
-		var apiPort = IbcHelpers.GetApiPort(request.TradingMode);
-		if (await _gatewayProcess.IsPortOpenAsync(apiPort, cancellationToken))
-		{
-			// A gateway is already listening (e.g. left running when the app was killed): use it
-			Status = new GatewayStatusDto
-			{
-				State = GatewayState.Running,
-				TradingMode = request.TradingMode,
-				ApiPort = apiPort,
-				IsExternal = true,
-			};
-			if (_connectionManager.Status.State != ConnectionState.Connected)
-				await _connectionManager.ConnectAsync(
-					new ConnectRequest
-					{
-						Host = ConnectionConstants.DefaultHost,
-						Port = apiPort,
-						ClientId = _connectionManager.GetLastConnectRequest().ClientId,
-					},
-					cancellationToken
-				);
+		// A Gateway already listening (e.g. left running when the app was killed): use it
+		if (await AttachRunningAsync(request.TradingMode, cancellationToken))
 			return;
-		}
+		var apiPort = IbcHelpers.GetApiPort(request.TradingMode);
 
 		var settings = _settingsRepository.Get();
 		settings.Gateway.Username = request.Username;
@@ -241,6 +222,37 @@ public class GatewayManager : IGatewayManager
 			},
 			cancellationToken
 		);
+	}
+
+	public async Task<bool> AttachRunningAsync(
+		TradingMode tradingMode,
+		CancellationToken cancellationToken = default
+	)
+	{
+		if (_gatewayProcess.IsRunning || Status.IsExternal)
+			return false;
+		var apiPort = IbcHelpers.GetApiPort(tradingMode);
+		if (!await _gatewayProcess.IsPortOpenAsync(apiPort, cancellationToken))
+			return false;
+
+		Status = new GatewayStatusDto
+		{
+			State = GatewayState.Running,
+			TradingMode = tradingMode,
+			ApiPort = apiPort,
+			IsExternal = true,
+		};
+		if (_connectionManager.Status.State != ConnectionState.Connected)
+			await _connectionManager.ConnectAsync(
+				new ConnectRequest
+				{
+					Host = ConnectionConstants.DefaultHost,
+					Port = apiPort,
+					ClientId = _connectionManager.GetLastConnectRequest().ClientId,
+				},
+				cancellationToken
+			);
+		return true;
 	}
 
 	public async Task StopAsync()

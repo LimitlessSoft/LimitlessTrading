@@ -1,4 +1,5 @@
 using LT.Contracts.Dtos.Gateway;
+using LT.Contracts.Enums;
 using LT.Contracts.Requests.Gateway;
 
 namespace LT.Contracts.Interfaces.IManagers;
@@ -18,6 +19,16 @@ public interface IGatewayManager
 	/// Failures end in <see cref="Enums.GatewayState.Failed"/>, not exceptions.
 	/// </summary>
 	Task StartAsync(StartGatewayRequest request, CancellationToken cancellationToken = default);
+
+	/// <summary>
+	/// Uses a Gateway that is already running on <paramref name="tradingMode"/>'s API port (one
+	/// left running by an earlier session): marks it running (external) and connects to it.
+	/// False when nothing listens there.
+	/// </summary>
+	Task<bool> AttachRunningAsync(
+		TradingMode tradingMode,
+		CancellationToken cancellationToken = default
+	);
 
 	Task StopAsync();
 

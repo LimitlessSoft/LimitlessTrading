@@ -51,7 +51,6 @@
 									<MenuItem Header="Log in…" Click="OnGatewayClick" />
 									<MenuItem Header="Log out" Command="{Binding ConnectionBar.LogOutCommand}" />
 									<Separator />
-									<MenuItem Header="Find symbol" InputGesture="Ctrl+F" Click="OnFindClick" />
 									<MenuItem
 										Header="Refresh all"
 										InputGesture="F5"
