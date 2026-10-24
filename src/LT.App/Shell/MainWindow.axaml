@@ -31,20 +31,15 @@
 			<!-- The app's title bar (the OS one is off): drag it to move the window, double-click to
 			     maximize. Everything lives under the hamburger for now. -->
 			<Border
+				x:Name="TitleBar"
 				DockPanel.Dock="Top"
 				Classes="toolbar"
 				BorderBrush="{DynamicResource PanelStroke}"
 				BorderThickness="0,0,0,1"
-				chrome:WindowDecorationProperties.ElementRole="TitleBar"
 			>
 				<Grid ColumnDefinitions="Auto,*,Auto">
 					<StackPanel Orientation="Horizontal" Spacing="4">
-						<!-- Role User: clicks reach the button instead of starting a window drag -->
-						<Button
-							Classes="tool"
-							ToolTip.Tip="Menu"
-							chrome:WindowDecorationProperties.ElementRole="User"
-						>
+						<Button Classes="tool" ToolTip.Tip="Menu">
 							<PathIcon Data="M3,6H21V8H3Z M3,11H21V13H3Z M3,16H21V18H3Z" />
 							<Button.Flyout>
 								<MenuFlyout Placement="BottomEdgeAlignedLeft">
@@ -139,29 +134,18 @@
 						IsHitTestVisible="False"
 					/>
 					<StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
-						<Button
-							Classes="windowButton"
-							ToolTip.Tip="Minimize"
-							chrome:WindowDecorationProperties.ElementRole="User"
-							Click="OnMinimizeClick"
-						>
+						<Button Classes="windowButton" ToolTip.Tip="Minimize" Click="OnMinimizeClick">
 							<PathIcon Data="{StaticResource WindowMinimizeIcon}" />
 						</Button>
 						<Button
 							x:Name="MaximizeButton"
 							Classes="windowButton"
 							ToolTip.Tip="Maximize"
-							chrome:WindowDecorationProperties.ElementRole="User"
 							Click="OnMaximizeClick"
 						>
 							<PathIcon x:Name="MaximizeIcon" Data="{StaticResource WindowMaximizeIcon}" />
 						</Button>
-						<Button
-							Classes="windowButton close"
-							ToolTip.Tip="Close"
-							chrome:WindowDecorationProperties.ElementRole="User"
-							Click="OnCloseClick"
-						>
+						<Button Classes="windowButton close" ToolTip.Tip="Close" Click="OnCloseClick">
 							<PathIcon Data="{StaticResource FrameCloseIcon}" />
 						</Button>
 					</StackPanel>
