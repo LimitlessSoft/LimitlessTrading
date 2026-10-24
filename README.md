@@ -1,44 +1,197 @@
-# LimitlessTrading
+<div align="center">
 
-A cross-platform (Windows / macOS / Linux) desktop trading front-end for **Interactive Brokers**:
-TWS, but better. Built with **Avalonia 12** on **.NET 10**, talking to TWS / IB Gateway through
-[`TwsApi`](https://github.com/UtopleMan/tws-api-dotnet).
+# ♾️ LimitlessTrading
 
-## What it does (read-only build)
+### Interactive Brokers — TWS, but better.
 
-- Connection status in the status bar, heartbeat, automatic reconnect, and reconnect on next start if you were connected when you closed the app
-- Watchlist with contract search and streaming quotes (live or delayed)
-- Candlestick chart (1m–1W) with real-time 5 s bar updates and a local bar cache
-- Account panel: net liquidation, margin, buying power, daily / unrealized / realized P&L
-- Positions with per-position P&L, open orders, today's executions
+A fast, calm, cross-platform desktop front-end for Interactive Brokers.<br>
+Runs IB Gateway for you, keeps the connection alive and puts everything you watch in one workspace.
+
+[![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
+[![Avalonia 12](https://img.shields.io/badge/Avalonia-12-8B44AC?logo=avaloniaui&logoColor=white)](https://avaloniaui.net/)
+[![Platforms](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-2EA44F)](#-quick-start)
+[![Read-only](https://img.shields.io/badge/orders-read--only-F0A202)](#-read-only-by-design)
+[![License](https://img.shields.io/badge/license-MIT%20%2B%20Commons%20Clause-blue)](LICENSE)
+
+[Features](#-features) · [Quick start](#-quick-start) · [How it works](#-how-it-works) ·
+[Roadmap](#-roadmap) · [Contributing](#-contributing) · [License](#-license)
+
+</div>
+
+---
+
+## ✨ Features
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**🔌 Connection that just works**
+- Logs in to IB Gateway for you (via IBC), including the IB Key 2FA step
+- Heartbeat, automatic reconnect with backoff, reconnect on start
+- Reuses a Gateway that is already running — optionally keep it alive between runs
+
+</td>
+<td width="50%" valign="top">
+
+**📈 Charts**
+- Candlesticks from 1 minute to 1 week, several charts side by side
+- Historical bars plus live 5-second updates, with a local bar cache
+- Ticker box searches IB and shows every listing (exchange, currency) to pick from
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+**👀 Market data**
+- Watchlist with contract search and streaming quotes
+- Live or delayed data — delayed still shows live where you're subscribed
 - Option chain around the money with live quotes
-- Message log, settings dialog, saved layout, keyboard shortcuts
-  ([docs/ui-patterns.md](docs/ui-patterns.md#keyboard-shortcuts))
 
-There is no order entry: nothing in the app can place, modify or cancel an order.
+</td>
+<td valign="top">
 
-## Run
+**💼 Account & portfolio**
+- Net liquidation, cash, buying power, margin — pushed as IB updates them
+- Daily / unrealized / realized P&L, per account and per position
+- Open orders and today's executions
 
-Requirements: .NET SDK 10.0.4xx, [IBC](https://github.com/IbcAlpha/IBC) and the offline/stable
-IB Gateway installer. The app starts IB Gateway itself when you log in — TWS is not supported
-(see [docs/ibkr-tws-api.md](docs/ibkr-tws-api.md#starting-ib-gateway-from-the-app-ibc)).
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+**🧩 Workspace**
+- Every widget docks to a side strip, tiles in a split layout or floats in its own window
+- Drag widgets by their header; layout, sizes and chart settings are saved
+- Dark theme, keyboard shortcuts ([list](docs/ui-patterns.md#keyboard-shortcuts))
+
+</td>
+<td valign="top">
+
+**🛡️ Respects IB's limits**
+- Request pacing, market data line limit and historical data limits handled by the app
+- One shared account summary subscription instead of IB's dreaded error 322
+- Known IB quirks documented in [docs/ibkr-tws-api.md](docs/ibkr-tws-api.md)
+
+</td>
+</tr>
+</table>
+
+### 🔒 Read-only by design
+
+There is **no order entry**. Nothing in the app can place, modify or cancel an order — the API
+client simply has no methods for it. Trading will come as a deliberate, separate step.
+
+---
+
+## 🚀 Quick start
+
+**You need**
+
+- [.NET SDK 10.0.4xx](https://dotnet.microsoft.com/download)
+- [IBC](https://github.com/IbcAlpha/IBC) (the app can download it for you)
+- The offline/stable **IB Gateway** installer from Interactive Brokers
+- An IBKR account — start with a **paper** account
+
+**Run it**
 
 ```bash
-dotnet run --project src/LT.App      # the app
-dotnet build LimitlessTrading.slnx   # everything
-dotnet test                          # unit tests; never connect to IB
-csharpier format .                   # formatting (CSharpier 1.3, tabs, width 100)
+git clone https://github.com/LimitlessSoft/LimitlessTrading.git
+cd LimitlessTrading
+dotnet run --project src/LT.App
 ```
 
-The log-in dialog opens on start. After login the app connects to `127.0.0.1:4002` (paper) or
-`4001` (live), client id `1`. Username, mode and install folders are saved in `settings.json` in the
-app-data folder; the password never is.
+The log-in dialog opens on start. Pick paper or live, enter your IBKR username and password, and
+approve the login in IB Key if asked. The app starts IB Gateway, then connects to it on
+`127.0.0.1:4002` (paper) or `4001` (live).
 
-## Docs
+> 🔐 Your username, trading mode and install folders are saved in `settings.json` in the app-data
+> folder. **The password is never saved**, and it never appears on a command line.
+
+**Develop**
+
+```bash
+dotnet build LimitlessTrading.slnx   # build everything
+dotnet test                          # unit tests — they never connect to IB
+csharpier format .                   # formatting (tabs, width 100)
+```
+
+---
+
+## 🏗️ How it works
+
+```mermaid
+flowchart LR
+    subgraph App["LimitlessTrading (Avalonia 12 · .NET 10)"]
+        UI["LT.App<br/>widgets · workspace"] --> Domain["LT.Domain<br/>managers"]
+        Domain --> Ibkr["LT.Ibkr<br/>IIbkrApiClient"]
+        Domain --> Repo["LT.Repository<br/>settings · bar cache"]
+    end
+    Ibkr -- "socket API (TwsApi)" --> GW["IB Gateway"]
+    Domain -. "starts via IBC" .-> GW
+    GW <--> IB(("Interactive<br/>Brokers"))
+```
+
+| Project | Role |
+|---|---|
+| `LT.App` | Avalonia app — composition root, shell, workspace, widgets |
+| `LT.Domain` | Managers and validators — the app's logic |
+| `LT.Ibkr` | `IIbkrApiClient` over [`TwsApi`](https://github.com/UtopleMan/tws-api-dotnet), IBC process control |
+| `LT.Repository` | Local persistence (JSON settings, bar cache) |
+| `LT.Contracts` | DTOs, requests, entities, enums, interfaces, helpers, constants |
+| `LT.Tests` | xUnit v3 tests with fakes — no IB connection needed |
+
+Deeper reading:
 
 | Doc | What |
 |---|---|
 | [docs/vision.md](docs/vision.md) | Why, principles, roadmap |
-| [docs/ibkr-tws-api.md](docs/ibkr-tws-api.md) | The `TwsApi` library, TWS setup, IB limits, gaps |
-| [docs/architecture.md](docs/architecture.md) | Layers (mapped from the Termodom ecosystem), DI, rules |
-| [docs/ui-patterns.md](docs/ui-patterns.md) | Avalonia: pages/widgets, MVVM, UI threading |
+| [docs/architecture.md](docs/architecture.md) | Layers, dependency direction, DI |
+| [docs/ibkr-tws-api.md](docs/ibkr-tws-api.md) | The `TwsApi` library, IB Gateway login, IB limits and quirks |
+| [docs/ui-patterns.md](docs/ui-patterns.md) | Widgets, MVVM, UI threading, styling |
+
+---
+
+## 🗺️ Roadmap
+
+| | Phase | Status |
+|---|---|---|
+| ✅ | Shell, connectivity, auto-reconnect, account summary & P&L | done |
+| ✅ | Market data — search, watchlist, quotes, pacing | done |
+| ✅ | Charts — historical + real-time bars, cache | done |
+| ✅ | Positions, open orders, executions (read-only) | done |
+| ✅ | Workspace — docking, split layout, floating windows, saved layout | done |
+| ✅ | Option chain | done |
+| 🔜 | Named layouts | planned |
+| 🔜 | Order ticket with what-if preview, cancel / modify | planned — deliberately separate |
+| 🚧 | L2 depth, scanners, news, alerts | waiting on `TwsApi` support |
+
+Details in [docs/vision.md](docs/vision.md#roadmap-sketch).
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome — bug reports, ideas, docs and code. Read
+[CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+
+---
+
+## 📄 License
+
+LimitlessTrading is **free to use, modify and share — but not to sell**. It is licensed under the
+[MIT License with the Commons Clause](LICENSE): you may not sell the software, or a product or
+service (including hosting or paid support) whose value comes substantially from it. Because of
+that restriction it is *source-available* rather than open source in the OSI sense.
+
+Third-party components keep their own licenses — notably the Interactive Brokers API client bundled
+in `packages/`, and [IBC](https://github.com/IbcAlpha/IBC) (GPL-3.0), which you install separately.
+
+---
+
+<sub>⚠️ LimitlessTrading is an independent project, not affiliated with or endorsed by Interactive
+Brokers. "Interactive Brokers", "IBKR", "TWS" and "IB Gateway" are trademarks of their owners.
+Trading involves risk of loss; this software is provided as is, with no warranty, and is not
+financial advice.</sub>
