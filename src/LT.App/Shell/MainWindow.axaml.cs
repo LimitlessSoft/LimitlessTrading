@@ -87,8 +87,12 @@ public partial class MainWindow : Window, IFullscreenHost
 			e.KeyModifiers.HasFlag(KeyModifiers.Control)
 			|| e.KeyModifiers.HasFlag(KeyModifiers.Meta);
 		var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+		var alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
 		switch (e.Key)
 		{
+			case var key when ctrl && alt && WidgetCatalog.FromFocusKey(key) is { } tool:
+				ViewModel?.FocusTool(tool);
+				break;
 			case Key.F when ctrl && shift:
 				ViewModel?.ToggleFullscreen();
 				break;
@@ -136,7 +140,13 @@ public partial class MainWindow : Window, IFullscreenHost
 			sender is MenuItem { Tag: string tag }
 			&& Enum.TryParse<WorkspaceTool>(tag, out var tool)
 		)
-			ViewModel?.ShowTool(tool);
+		{
+			// Same as the item's shortcut: single-instance widgets also get focus
+			if (WidgetCatalog.GetFocusKey(tool) != null)
+				ViewModel?.FocusTool(tool);
+			else
+				ViewModel?.ShowTool(tool);
+		}
 	}
 
 	private void OnExitClick(object? sender, RoutedEventArgs e) => Close();

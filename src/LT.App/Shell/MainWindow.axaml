@@ -54,37 +54,37 @@
 									<MenuItem Header="Widgets">
 										<MenuItem
 											Header="Watchlist"
-											InputGesture="Ctrl+D1"
+											InputGesture="Ctrl+Alt+W"
 											Click="OnToolClick"
 											Tag="Watchlist"
 										/>
 										<MenuItem
 											Header="Positions"
-											InputGesture="Ctrl+D2"
+											InputGesture="Ctrl+Alt+P"
 											Click="OnToolClick"
 											Tag="Positions"
 										/>
 										<MenuItem
 											Header="Orders"
-											InputGesture="Ctrl+D3"
+											InputGesture="Ctrl+Alt+O"
 											Click="OnToolClick"
 											Tag="Orders"
 										/>
 										<MenuItem
 											Header="Executions"
-											InputGesture="Ctrl+D4"
+											InputGesture="Ctrl+Alt+E"
 											Click="OnToolClick"
 											Tag="Executions"
 										/>
 										<MenuItem
 											Header="Account"
-											InputGesture="Ctrl+D5"
+											InputGesture="Ctrl+Alt+A"
 											Click="OnToolClick"
 											Tag="Account"
 										/>
 										<MenuItem
 											Header="Messages"
-											InputGesture="Ctrl+D6"
+											InputGesture="Ctrl+Alt+M"
 											Click="OnToolClick"
 											Tag="Messages"
 										/>
@@ -97,7 +97,7 @@
 										/>
 										<MenuItem
 											Header="Option chain"
-											InputGesture="Ctrl+D8"
+											InputGesture="Ctrl+Alt+C"
 											Click="OnToolClick"
 											Tag="OptionChain"
 										/>

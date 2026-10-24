@@ -169,10 +169,27 @@ public partial class WorkspaceView : UserControl
 		}
 	}
 
+	// Raise a floating widget's window, then put keyboard focus on the widget's first focusable
+	// control (after layout: a just-expanded side widget isn't arranged yet)
 	private void OnFocusRequested(WidgetItem widget)
 	{
 		if (_windows.TryGetValue(widget.Id, out var window))
 			window.Activate();
+		Dispatcher.UIThread.Post(
+			() =>
+			{
+				if (!_frames.TryGetValue(widget.Id, out var frame) || frame.Body is null)
+					return;
+				frame
+					.Body.GetVisualDescendants()
+					.OfType<InputElement>()
+					.FirstOrDefault(x =>
+						x.Focusable && x.IsEffectivelyVisible && x.IsEffectivelyEnabled
+					)
+					?.Focus();
+			},
+			DispatcherPriority.Loaded
+		);
 	}
 
 	private WidgetFrame GetFrame(WidgetItem widget)

@@ -81,6 +81,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
 	public void ShowTool(WorkspaceTool tool) => CurrentPage.ShowTool(tool);
 
+	/// <summary>Ctrl+Alt+key: shows a single-instance widget and focuses it.</summary>
+	public void FocusTool(WorkspaceTool tool) => CurrentPage.FocusTool(tool);
+
 	public void ToggleTool(WorkspaceTool tool) => CurrentPage.ToggleTool(tool);
 
 	public void SpawnTool(WorkspaceTool tool) => CurrentPage.SpawnTool(tool);

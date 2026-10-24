@@ -118,6 +118,19 @@ public partial class WorkspaceViewModel : ViewModelBase
 	}
 
 	/// <summary>Brings the widget forward: an open instance, else reopens or spawns it.</summary>
+	/// <summary>
+	/// Ctrl+Alt+key: shows the widget (opening, expanding or raising it), makes it the current one
+	/// and moves keyboard focus into it.
+	/// </summary>
+	public void Focus(WorkspaceTool tool)
+	{
+		Show(tool);
+		if (Widgets.FirstOrDefault(x => x.Tool == tool && x.IsOpen) is not { } widget)
+			return;
+		CurrentWidget = widget;
+		widget.RequestFocus();
+	}
+
 	public void Show(WorkspaceTool tool)
 	{
 		var widget =

@@ -22,6 +22,8 @@ public class TradingPageViewModel(
 
 	public void ShowTool(WorkspaceTool tool) => Workspace.Show(tool);
 
+	public void FocusTool(WorkspaceTool tool) => Workspace.Focus(tool);
+
 	public void ToggleTool(WorkspaceTool tool) => Workspace.Toggle(tool);
 
 	public void SpawnTool(WorkspaceTool tool) => Workspace.Spawn(tool);

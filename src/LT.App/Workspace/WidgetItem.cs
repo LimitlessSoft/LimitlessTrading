@@ -32,7 +32,8 @@ public partial class WidgetItem : ObservableObject
 	public WorkspaceTool Tool { get; }
 	public string Title => WidgetCatalog.GetTitle(Tool);
 	public Geometry Icon { get; }
-	public string ToolTip => $"{Title} (Ctrl+{(int)Tool + 1})";
+	public string ToolTip =>
+		WidgetCatalog.GetFocusGesture(Tool) is { } gesture ? $"{Title} ({gesture})" : Title;
 
 	/// <summary>The widget's view model; WidgetViewFactory creates the matching view.</summary>
 	public object Content { get; }

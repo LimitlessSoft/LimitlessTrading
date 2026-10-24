@@ -201,6 +201,7 @@ subscription and frees the market-data line.
 | F5 | Refresh chart, account, positions, orders, executions |
 | Ctrl+, | Settings |
 | Ctrl+1 … Ctrl+8 | Show Watchlist, Positions, Orders, Executions, Account, Messages, Chart, Option chain (collapses an expanded side widget) |
+| Ctrl+Alt+W / P / O / E / A / M / C | Show and focus Watchlist, Positions, Orders, Executions, Account, Messages, Option chain (single-instance widgets; works from floating windows too) |
 | Ctrl+Shift+7 | New chart |
 | Ctrl+Shift+F | Fullscreen the current widget (the one last clicked or typed in, framed in light blue), or restore it |
 
