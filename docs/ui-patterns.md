@@ -24,10 +24,12 @@ Mirrors the Termodom FE split (`pages/` + `widgets/`):
 The main window has no OS title bar: its top line is the title bar
 (`ExtendClientAreaToDecorationsHint` + `WindowDecorations="BorderOnly"`, Avalonia 12's
 client-side decorations). The toolbar border carries
-`WindowDecorationProperties.ElementRole="TitleBar"` (drag to move, double-click to maximize) and
-the minimize / maximize / close buttons carry their roles, so the platform handles them. The
-drawn border and shadow are switched off (`Window.WindowDecorationsTheme`, frame and shadow
-thickness 0); the window ends at the app's own edges. Dialogs and floating widget windows keep the OS title bar.
+`WindowDecorationProperties.ElementRole="TitleBar"` (drag to move, double-click to maximize);
+any interactive control placed in it needs `ElementRole="User"` (the hamburger has it), or a press
+starts a window drag instead of a click. The minimize / maximize / close buttons are `User`
+elements with their own click handlers: the decoration button roles do nothing on Linux. The drawn border and shadow are switched off
+(`Window.WindowDecorationsTheme`, frame and shadow thickness 0); the window ends at the app's own
+edges. Dialogs and floating widget windows keep the OS title bar.
 
 ## Workspace (`LT.App/Workspace`)
 

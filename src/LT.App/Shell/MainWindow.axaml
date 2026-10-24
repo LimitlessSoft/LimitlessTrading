@@ -39,7 +39,12 @@
 			>
 				<Grid ColumnDefinitions="Auto,*,Auto">
 					<StackPanel Orientation="Horizontal" Spacing="4">
-						<Button Classes="tool" ToolTip.Tip="Menu">
+						<!-- Role User: clicks reach the button instead of starting a window drag -->
+						<Button
+							Classes="tool"
+							ToolTip.Tip="Menu"
+							chrome:WindowDecorationProperties.ElementRole="User"
+						>
 							<PathIcon Data="M3,6H21V8H3Z M3,11H21V13H3Z M3,16H21V18H3Z" />
 							<Button.Flyout>
 								<MenuFlyout Placement="BottomEdgeAlignedLeft">
@@ -138,7 +143,8 @@
 						<Button
 							Classes="windowButton"
 							ToolTip.Tip="Minimize"
-							chrome:WindowDecorationProperties.ElementRole="MinimizeButton"
+							chrome:WindowDecorationProperties.ElementRole="User"
+							Click="OnMinimizeClick"
 						>
 							<PathIcon Data="{StaticResource WindowMinimizeIcon}" />
 						</Button>
@@ -146,14 +152,16 @@
 							x:Name="MaximizeButton"
 							Classes="windowButton"
 							ToolTip.Tip="Maximize"
-							chrome:WindowDecorationProperties.ElementRole="MaximizeButton"
+							chrome:WindowDecorationProperties.ElementRole="User"
+							Click="OnMaximizeClick"
 						>
 							<PathIcon x:Name="MaximizeIcon" Data="{StaticResource WindowMaximizeIcon}" />
 						</Button>
 						<Button
 							Classes="windowButton close"
 							ToolTip.Tip="Close"
-							chrome:WindowDecorationProperties.ElementRole="CloseButton"
+							chrome:WindowDecorationProperties.ElementRole="User"
+							Click="OnCloseClick"
 						>
 							<PathIcon Data="{StaticResource FrameCloseIcon}" />
 						</Button>

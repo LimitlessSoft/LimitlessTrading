@@ -132,4 +132,14 @@ public partial class MainWindow : Window, IFullscreenHost
 	}
 
 	private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
+
+	// Title bar buttons act themselves: the decoration button roles do nothing on Linux
+	private void OnMinimizeClick(object? sender, RoutedEventArgs e) =>
+		WindowState = WindowState.Minimized;
+
+	private void OnMaximizeClick(object? sender, RoutedEventArgs e) =>
+		WindowState =
+			WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+	private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
 }
