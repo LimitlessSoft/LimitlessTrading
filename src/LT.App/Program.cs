@@ -16,6 +16,7 @@ using LT.App.Widgets.Positions;
 using LT.App.Widgets.Settings;
 using LT.App.Widgets.Watchlist;
 using LT.App.Workspace;
+using LT.Contracts.Constants;
 using LT.Contracts.Interfaces.IApiClients;
 using LT.Contracts.Interfaces.IManagers;
 using LT.Contracts.Interfaces.IProcesses;
@@ -42,17 +43,18 @@ public static class Program
 
 		BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
 
-		host.StopAsync().GetAwaiter().GetResult();
-		host.Services.GetRequiredService<IConnectionManager>()
-			.ShutdownAsync()
-			.GetAwaiter()
-			.GetResult();
+		// Off the UI thread: its dispatcher has stopped, so awaits that resume there would never
+		// continue (closing froze). Bounded, so a stuck disconnect can't keep the process alive.
+		Task.Run(() => ShutdownAsync(host)).Wait(AppConstants.ShutdownTimeout);
+	}
+
+	private static async Task ShutdownAsync(IHost host)
+	{
+		await host.StopAsync();
+		await host.Services.GetRequiredService<IConnectionManager>().ShutdownAsync();
 		// The Gateway we started lives and dies with the app, unless the user keeps it running
 		if (host.Services.GetRequiredService<ISettingsManager>().GetAppSettings().StopGatewayOnExit)
-			host.Services.GetRequiredService<IGatewayManager>()
-				.StopAsync()
-				.GetAwaiter()
-				.GetResult();
+			await host.Services.GetRequiredService<IGatewayManager>().StopAsync();
 	}
 
 	// Also used by the Avalonia previewer in the IDE
