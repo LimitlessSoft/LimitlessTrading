@@ -45,6 +45,7 @@ public class ContractManager(IIbkrApiClient ibkrApiClient, ISettingsRepository s
 
 		return results
 			.OrderBy(x => x.Contract.Symbol)
+			.ThenBy(x => x.Contract.Currency != MarketDataConstants.PreferredCurrency)
 			.ThenBy(x => x.Contract.LastTradeDateOrContractMonth)
 			.ThenBy(x => x.Contract.Currency)
 			.ToList();

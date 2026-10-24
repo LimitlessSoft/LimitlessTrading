@@ -6,14 +6,19 @@ using Avalonia.Threading;
 namespace LT.App.Widgets.Chart;
 
 /// <summary>
-/// The chart's header title. Clicking it swaps in a ticker box: Enter opens the typed ticker, the
-/// dropdown (chevron, or opening the box) lists recent tickers. Esc or leaving the box cancels.
+/// The chart's header title. Clicking it swaps in a ticker box: typing lists IB's listings of that
+/// symbol, an empty box (or the chevron) lists recent tickers. Enter opens the highlighted listing,
+/// else the typed ticker (US listing first). Esc or leaving the box cancels.
 /// </summary>
 public partial class ChartTitleView : UserControl
 {
+	// Text the dropdown's items were searched for; a highlighted item only counts for that text
+	private string? _suggestedFor;
+
 	public ChartTitleView()
 	{
 		InitializeComponent();
+		TickerBox.AsyncPopulator = PopulateAsync;
 		TitleButton.Click += (_, _) => BeginEdit();
 		RecentButton.Click += (_, _) => TickerBox.IsDropDownOpen = !TickerBox.IsDropDownOpen;
 		TickerBox.AddHandler(KeyDownEvent, OnTickerKeyDown, RoutingStrategies.Tunnel);
@@ -25,16 +30,18 @@ public partial class ChartTitleView : UserControl
 
 	private void BeginEdit()
 	{
-		ViewModel?.RefreshRecentContracts();
+		var recents = ViewModel?.GetRecentSuggestions() ?? [];
 		TickerBox.Text = string.Empty;
 		TickerBox.SelectedItem = null;
+		TickerBox.ItemsSource = recents;
+		_suggestedFor = string.Empty;
 		TitleButton.IsVisible = false;
 		Editor.IsVisible = true;
 		Dispatcher.UIThread.Post(
 			() =>
 			{
 				TickerBox.Focus();
-				TickerBox.IsDropDownOpen = ViewModel?.RecentContracts.Count > 0;
+				TickerBox.IsDropDownOpen = recents.Count > 0;
 			},
 			DispatcherPriority.Loaded
 		);
@@ -65,13 +72,12 @@ public partial class ChartTitleView : UserControl
 				e.Handled = true;
 				break;
 			case Key.Enter:
-				// A recent ticker (typed or highlighted in the dropdown) opens without asking IB
 				var text = TickerBox.Text?.Trim() ?? string.Empty;
-				var recent = ViewModel?.RecentContracts.FirstOrDefault(x =>
-					string.Equals(x.Symbol, text, StringComparison.OrdinalIgnoreCase)
-				);
-				if (recent != null)
-					Open(recent);
+				if (
+					TickerBox.SelectedItem is ContractSuggestionItem item
+					&& string.Equals(_suggestedFor, text, StringComparison.OrdinalIgnoreCase)
+				)
+					Open(item);
 				else
 					_ = OpenTypedAsync(text);
 				e.Handled = true;
@@ -82,11 +88,23 @@ public partial class ChartTitleView : UserControl
 	// Picking a recent ticker with the mouse opens it right away
 	private void OnDropDownClosed(object? sender, EventArgs e)
 	{
-		if (TickerBox.SelectedItem is RecentContractItem item && Editor.IsVisible)
+		if (TickerBox.SelectedItem is ContractSuggestionItem item && Editor.IsVisible)
 			Open(item);
 	}
 
-	private void Open(RecentContractItem item)
+	private async Task<IEnumerable<object>> PopulateAsync(
+		string? text,
+		CancellationToken cancellationToken
+	)
+	{
+		if (ViewModel is not { } viewModel)
+			return [];
+		var items = await viewModel.GetTickerSuggestionsAsync(text, cancellationToken);
+		_suggestedFor = text?.Trim() ?? string.Empty;
+		return items;
+	}
+
+	private void Open(ContractSuggestionItem item)
 	{
 		EndEdit();
 		ViewModel?.OpenContract(item.Contract);

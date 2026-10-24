@@ -99,10 +99,9 @@ public class FakeIbkrApiClient : IIbkrApiClient
 		CancellationToken cancellationToken = default
 	) => AsyncEnumerable.Empty<BarDto>();
 
-	public Task<IReadOnlyList<AccountValueDto>> GetAccountSummaryAsync(
-		IReadOnlyList<string> tags,
+	public IAsyncEnumerable<AccountValueDto> SubscribeAccountSummaryAsync(
 		CancellationToken cancellationToken = default
-	) => Task.FromResult<IReadOnlyList<AccountValueDto>>(AccountValues);
+	) => AccountValues.ToAsyncEnumerable();
 
 	public IAsyncEnumerable<AccountPnlDto> SubscribeAccountPnlAsync(
 		string account,

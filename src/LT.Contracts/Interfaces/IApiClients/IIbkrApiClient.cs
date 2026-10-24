@@ -50,8 +50,11 @@ public interface IIbkrApiClient
 		CancellationToken cancellationToken = default
 	);
 
-	Task<IReadOnlyList<AccountValueDto>> GetAccountSummaryAsync(
-		IReadOnlyList<string> tags,
+	/// <summary>
+	/// Account summary values (<c>AccountConstants.SummaryTags</c>) of every managed account: the
+	/// latest values first, then each change. All callers share one IB subscription per connection.
+	/// </summary>
+	IAsyncEnumerable<AccountValueDto> SubscribeAccountSummaryAsync(
 		CancellationToken cancellationToken = default
 	);
 

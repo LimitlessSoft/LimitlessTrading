@@ -11,6 +11,34 @@ public class AccountManagerTests
 	private readonly FakeIbkrApiClient _ibkr = new() { IsConnected = true };
 
 	[Fact]
+	public async Task Summary_follows_the_latest_value_of_each_tag()
+	{
+		_ibkr.AccountValues =
+		[
+			new AccountValueDto
+			{
+				Account = "DU1",
+				Tag = "NetLiquidation",
+				Value = "100",
+				Currency = "USD",
+			},
+			new AccountValueDto
+			{
+				Account = "DU1",
+				Tag = "NetLiquidation",
+				Value = "250",
+				Currency = "USD",
+			},
+		];
+
+		var summaries = await new AccountManager(_ibkr)
+			.SubscribeSummaryAsync("DU1", TestContext.Current.CancellationToken)
+			.ToListAsync(TestContext.Current.CancellationToken);
+
+		Assert.Equal([100m, 250m], summaries.Select(x => x.NetLiquidation));
+	}
+
+	[Fact]
 	public async Task Summary_is_built_for_the_requested_account()
 	{
 		_ibkr.AccountValues =
@@ -38,10 +66,9 @@ public class AccountManagerTests
 			},
 		];
 
-		var summary = await new AccountManager(_ibkr).GetSummaryAsync(
-			"DU1",
-			TestContext.Current.CancellationToken
-		);
+		var summary = await new AccountManager(_ibkr)
+			.SubscribeSummaryAsync("DU1", TestContext.Current.CancellationToken)
+			.LastAsync(TestContext.Current.CancellationToken);
 
 		Assert.Equal(
 			(100000.50m, 400000m, "USD"),

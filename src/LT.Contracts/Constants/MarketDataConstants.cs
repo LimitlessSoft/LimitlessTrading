@@ -17,6 +17,7 @@ public static class MarketDataConstants
 
 	public const int WatchlistMaxItems = 200;
 	public const int RecentContractsMax = 10;
+	public const int TickerSuggestionsMax = 20;
 	public const int SymbolMaxLength = 32;
 	public const int OptionStrikesAroundAtm = 8;
 	public static readonly TimeSpan UnderlyingPriceTimeout = TimeSpan.FromSeconds(5);
@@ -29,6 +30,12 @@ public static class MarketDataConstants
 	public const string CryptoType = "CRYPTO";
 
 	public const string DefaultExchange = "SMART";
+
+	/// <summary>
+	/// Listings in this currency rank first in search, so a bare ticker (SPY) resolves to the US
+	/// listing rather than e.g. SPY on ASX in AUD, which sorts earlier alphabetically.
+	/// </summary>
+	public const string PreferredCurrency = "USD";
 	public const string CallRight = "C";
 	public const string PutRight = "P";
 

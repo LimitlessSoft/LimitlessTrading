@@ -23,8 +23,6 @@ public static class AccountConstants
 		GrossPositionValue,
 	];
 
-	/// <summary>IB refreshes account summary values every 3 minutes; polling faster gains nothing.</summary>
-	public static readonly TimeSpan SummaryRefreshInterval = TimeSpan.FromMinutes(3);
 	public static readonly TimeSpan OrdersRefreshInterval = TimeSpan.FromSeconds(10);
 	public static readonly TimeSpan ExecutionsRefreshInterval = TimeSpan.FromSeconds(30);
 }

@@ -44,11 +44,6 @@ public enum GatewayValidationCodes
 	)]
 	GVC_012,
 
-	[LSCoreValidationMessage(
-		"Port {0} is already in use — another TWS / Gateway is probably running."
-	)]
-	GVC_013,
-
 	[LSCoreValidationMessage("IB Gateway did not open the API port within {0} minutes.")]
 	GVC_014,
 

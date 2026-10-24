@@ -12,5 +12,6 @@ public class AppSettingsDtoMapper : ILSCoreMapper<GeneralSettingsEntity, AppSett
 			MarketDataType = source.MarketDataType,
 			AutoReconnect = source.AutoReconnect,
 			HeartbeatSeconds = source.HeartbeatSeconds,
+			StopGatewayOnExit = source.StopGatewayOnExit,
 		};
 }

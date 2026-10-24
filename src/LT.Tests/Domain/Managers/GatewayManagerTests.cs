@@ -149,14 +149,31 @@ public class GatewayManagerTests
 	}
 
 	[Fact]
-	public async Task Busy_api_port_throws_before_starting()
+	public async Task Busy_api_port_uses_the_running_gateway_instead_of_starting_one()
 	{
 		_process.PortOpenBeforeStart = true;
 
-		await Assert.ThrowsAsync<LSCoreBadRequestException>(() =>
-			_manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken)
-		);
+		await _manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken);
+
 		Assert.Null(_process.LastLaunch);
+		Assert.Equal(
+			(GatewayState.Running, true, 4002),
+			(_manager.Status.State, _manager.Status.IsExternal, _manager.Status.ApiPort)
+		);
+		Assert.Equal(ConnectionState.Connected, _connection.Status.State);
+	}
+
+	[Fact]
+	public async Task Stopping_an_external_gateway_only_disconnects()
+	{
+		_process.PortOpenBeforeStart = true;
+		await _manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken);
+
+		await _manager.StopAsync();
+
+		Assert.Equal(GatewayState.Stopped, _manager.Status.State);
+		Assert.Equal(ConnectionState.Disconnected, _connection.Status.State);
+		Assert.Equal(0, _process.StopCount);
 	}
 
 	[Fact]

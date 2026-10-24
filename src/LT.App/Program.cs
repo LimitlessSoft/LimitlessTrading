@@ -48,8 +48,12 @@ public static class Program
 			.ShutdownAsync()
 			.GetAwaiter()
 			.GetResult();
-		// The Gateway we started lives and dies with the app
-		host.Services.GetRequiredService<IGatewayManager>().StopAsync().GetAwaiter().GetResult();
+		// The Gateway we started lives and dies with the app, unless the user keeps it running
+		if (host.Services.GetRequiredService<ISettingsManager>().GetAppSettings().StopGatewayOnExit)
+			host.Services.GetRequiredService<IGatewayManager>()
+				.StopAsync()
+				.GetAwaiter()
+				.GetResult();
 	}
 
 	// Also used by the Avalonia previewer in the IDE

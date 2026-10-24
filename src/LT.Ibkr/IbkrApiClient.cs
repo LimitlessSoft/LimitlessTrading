@@ -31,9 +31,8 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 		MarketDataConstants.HistoricalWindow
 	);
 
-	// IB allows only two account summary requests at a time (error 322); keep ours to one
-	private readonly SemaphoreSlim _accountSummaryGate = new(1, 1);
 	private ITwsClient? _client;
+	private AccountSummaryFeed? _accountSummary;
 
 	public bool IsConnected => _client?.IsConnected == true;
 
@@ -55,10 +54,15 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 			},
 			cancellationToken
 		);
+		_accountSummary = new AccountSummaryFeed(_client, _messages);
 	}
 
 	public async Task DisconnectAsync()
 	{
+		var accountSummary = Interlocked.Exchange(ref _accountSummary, null);
+		if (accountSummary != null)
+			await accountSummary.DisposeAsync();
+
 		var client = Interlocked.Exchange(ref _client, null);
 		if (client != null)
 			await client.DisposeAsync();
@@ -139,27 +143,13 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 			cancellationToken
 		);
 
-	public async Task<IReadOnlyList<AccountValueDto>> GetAccountSummaryAsync(
-		IReadOnlyList<string> tags,
+	public IAsyncEnumerable<AccountValueDto> SubscribeAccountSummaryAsync(
 		CancellationToken cancellationToken = default
-	)
-	{
-		await _accountSummaryGate.WaitAsync(cancellationToken);
-		try
-		{
-			await _messages.WaitAsync(cancellationToken);
-			var values = await RequireClient()
-				.GetAccountSummaryAsync(
-					string.Join(",", tags),
-					cancellationToken: cancellationToken
-				);
-			return values.ToMappedList<AccountValue, AccountValueDto>();
-		}
-		finally
-		{
-			_accountSummaryGate.Release();
-		}
-	}
+	) =>
+		(
+			_accountSummary
+			?? throw new InvalidOperationException("Not connected to TWS / IB Gateway.")
+		).SubscribeAsync(cancellationToken);
 
 	public IAsyncEnumerable<AccountPnlDto> SubscribeAccountPnlAsync(
 		string account,

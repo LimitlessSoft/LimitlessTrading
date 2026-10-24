@@ -5,7 +5,7 @@
 	x:Class="LT.App.Widgets.Chart.ChartTitleView"
 	x:DataType="vm:ChartViewModel"
 >
-	<!-- Chart header title: click it to type a ticker or pick a recent one -->
+	<!-- Chart header title: click it to type a ticker (IB listings are suggested) or pick a recent one -->
 	<Panel>
 		<Button
 			x:Name="TitleButton"
@@ -17,15 +17,15 @@
 			<AutoCompleteBox
 				x:Name="TickerBox"
 				Classes="ticker"
-				Width="180"
 				PlaceholderText="Ticker, e.g. AAPL"
+				Width="360"
 				MinimumPrefixLength="0"
-				FilterMode="StartsWith"
+				MinimumPopulateDelay="0:0:0.35"
+				FilterMode="None"
 				MaxDropDownHeight="320"
-				ItemsSource="{Binding RecentContracts}"
 			>
 				<AutoCompleteBox.ItemTemplate>
-					<DataTemplate x:DataType="vm:RecentContractItem">
+					<DataTemplate x:DataType="vm:ContractSuggestionItem">
 						<StackPanel Orientation="Horizontal" Spacing="8">
 							<TextBlock FontWeight="SemiBold" Text="{Binding Symbol}" />
 							<TextBlock Classes="secondary" Text="{Binding Description}" />

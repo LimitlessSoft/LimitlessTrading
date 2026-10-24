@@ -14,6 +14,7 @@ using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IManagers;
 using LT.Contracts.Requests.Charts;
+using LT.Contracts.Requests.Contracts;
 
 namespace LT.App.Widgets.Chart;
 
@@ -54,14 +55,43 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState
 		Reload();
 	}
 
-	/// <summary>Recent tickers offered in the title's ticker box.</summary>
-	public ObservableCollection<RecentContractItem> RecentContracts { get; } = [];
+	/// <summary>Ticker box suggestions for an empty box: the recent contracts.</summary>
+	public IReadOnlyList<ContractSuggestionItem> GetRecentSuggestions() =>
+		_contractManager.GetRecentContracts().Select(x => new ContractSuggestionItem(x)).ToList();
 
-	public void RefreshRecentContracts()
+	/// <summary>
+	/// Ticker box suggestions for typed text: every stock/ETF listing IB has for that symbol, US
+	/// dollar listings first. Errors leave the list empty; Enter still resolves the ticker.
+	/// </summary>
+	public async Task<IEnumerable<object>> GetTickerSuggestionsAsync(
+		string? text,
+		CancellationToken cancellationToken
+	)
 	{
-		RecentContracts.Clear();
-		foreach (var contract in _contractManager.GetRecentContracts())
-			RecentContracts.Add(new RecentContractItem(contract));
+		if (string.IsNullOrWhiteSpace(text))
+			return GetRecentSuggestions();
+		if (!IsConnected)
+			return [];
+
+		try
+		{
+			var results = await _contractManager.SearchAsync(
+				new ContractSearchRequest
+				{
+					Symbol = text,
+					SecurityType = MarketDataConstants.StockType,
+				},
+				cancellationToken
+			);
+			return results
+				.Take(MarketDataConstants.TickerSuggestionsMax)
+				.Select(x => new ContractSuggestionItem(x.Contract, x.LongName))
+				.ToList();
+		}
+		catch (Exception)
+		{
+			return [];
+		}
 	}
 
 	/// <summary>Ticker box: resolves the ticker and pins this chart to it.</summary>

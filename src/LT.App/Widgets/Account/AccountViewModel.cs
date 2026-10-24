@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using LT.App.Helpers;
 using LT.App.Stores;
 using LT.App.ViewModels;
-using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Account;
 using LT.Contracts.Interfaces.IManagers;
 
@@ -91,11 +90,7 @@ public partial class AccountViewModel : ConnectedViewModelBase
 		if (Store.SelectedAccount is not { } account)
 			return;
 
-		_ = RunPeriodicAsync(
-			ct => LoadSummaryAsync(account, ct),
-			AccountConstants.SummaryRefreshInterval,
-			session
-		);
+		_ = StreamSummaryAsync(account, session);
 		_ = StreamPnlAsync(account, session);
 	}
 
@@ -108,8 +103,21 @@ public partial class AccountViewModel : ConnectedViewModelBase
 		RestartSession();
 	}
 
-	private async Task LoadSummaryAsync(string account, CancellationToken cancellationToken) =>
-		Apply(await _accountManager.GetSummaryAsync(account, cancellationToken));
+	private async Task StreamSummaryAsync(string account, CancellationToken cancellationToken)
+	{
+		try
+		{
+			await foreach (
+				var summary in _accountManager.SubscribeSummaryAsync(account, cancellationToken)
+			)
+				Apply(summary);
+		}
+		catch (OperationCanceledException) { }
+		catch (Exception ex)
+		{
+			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
+		}
+	}
 
 	private async Task StreamPnlAsync(string account, CancellationToken cancellationToken)
 	{

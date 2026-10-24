@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Account;
 using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IApiClients;
@@ -9,16 +8,19 @@ namespace LT.Domain.Managers;
 
 public class AccountManager(IIbkrApiClient ibkrApiClient) : IAccountManager
 {
-	public async Task<AccountSummaryDto> GetSummaryAsync(
+	public async IAsyncEnumerable<AccountSummaryDto> SubscribeSummaryAsync(
 		string account,
-		CancellationToken cancellationToken = default
+		[EnumeratorCancellation] CancellationToken cancellationToken = default
 	)
 	{
-		var values = await ibkrApiClient.GetAccountSummaryAsync(
-			AccountConstants.SummaryTags,
-			cancellationToken
-		);
-		return AccountHelpers.BuildSummary(account, values, DateTimeOffset.Now);
+		var values = new Dictionary<string, AccountValueDto>();
+		await foreach (var value in ibkrApiClient.SubscribeAccountSummaryAsync(cancellationToken))
+		{
+			if (value.Account != account)
+				continue;
+			values[value.Tag] = value;
+			yield return AccountHelpers.BuildSummary(account, values.Values, DateTimeOffset.Now);
+		}
 	}
 
 	public async IAsyncEnumerable<AccountPnlDto> SubscribePnlAsync(

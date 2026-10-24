@@ -6,6 +6,12 @@ underneath it. Read it before touching `LT.Ibkr`.
 
 Researched on 2026-10-23 against `TwsApi` **0.5.0** (repo head `b23ddf4`, 2026-08-13).
 
+**We use `0.5.1-lt.1`, a locally built package**: tag `v0.5.0` plus `SubscribeAccountSummaryAsync`
+(see [Account summary](#account-summary-error-322)). It lives in `packages/` and is restored through
+the repo's `nuget.config`. `packages/TwsApi-0.5.1-lt.1.patch` is the source change; rebuild with
+`git apply` on `v0.5.0`, then `dotnet pack src/TwsApi -c Release -p:Version=0.5.1-lt.N`. Go back to
+the nuget.org package once upstream ships that method.
+
 ## What it is
 
 A **.NET 10** async/await facade over IBKR's official C# TWS client (`CSharpAPI`, vendored as a git
@@ -70,8 +76,10 @@ don't link it). Gateway has no official CLI or API for credentials; IBC drives i
 
 Flow (`GatewayManager` → `IIbcGatewayProcess`, implemented by `LT.Ibkr/Ibc/IbcGatewayProcess`):
 
-1. Validate, check `<IBC>/scripts/ibcstart.sh` (`StartIBC.bat` on Windows) exists and the API port
-   (4001 live / 4002 paper) is **not** already in use.
+1. Validate, check `<IBC>/scripts/ibcstart.sh` (`StartIBC.bat` on Windows) exists. If the API port
+   (4001 live / 4002 paper) is already open, a Gateway is running that this app run didn't start
+   (typically left over after the app was killed): mark it Running with `IsExternal`, connect to it
+   and stop here. Stop then only disconnects; the process is left alone.
 2. Write IBC's `config.ini` to `<app-data>/ibc-config.ini`, owner-only (0600 on Unix). It holds
    `IbLoginId`/`IbPassword` — credentials never go on the command line (visible in the process list).
 3. Run `ibcstart.sh <ver> --gateway --tws-path=… --ibc-path=… --ibc-ini=… --mode=… --on2fatimeout=exit`
@@ -80,7 +88,8 @@ Flow (`GatewayManager` → `IIbcGatewayProcess`, implemented by `LT.Ibkr/Ibc/Ibc
    "approve in IB Key" (2FA) and to fail fast on a rejected login.
 5. Delete the config file, mark Running, connect `IConnectionManager` to `127.0.0.1:<port>`.
 6. Stop = disconnect, send `STOP` to IBC's command server (127.0.0.1:7462), kill the process tree
-   after 20 s. The app stops the Gateway it started on exit.
+   after 20 s. On exit the app stops the Gateway it started, unless Settings → "Stop IB Gateway when
+   the app closes" is off; then the next Log in reuses it (step 1).
 
 What we set in `config.ini`: `OverrideTwsApiPort`, `ReadOnlyApi=no`,
 `AcceptIncomingConnectionAction=reject` (localhost is trusted anyway),
@@ -116,7 +125,7 @@ Limits / caveats:
 - `ClientId = 0` is special: it also receives orders placed manually in TWS and can bind them.
 - A different gateway (different login) has its own client id namespace.
 
-## Public surface (`ITwsClient`, 0.5.0)
+## Public surface (`ITwsClient`, 0.5.0 + our patch)
 
 | Member | IB call | Notes |
 |---|---|---|
@@ -126,7 +135,8 @@ Limits / caveats:
 | `ResolveContractAsync(Contract)` | `reqContractDetails` | Disambiguation / conId lookup |
 | `GetHistoricalBarsAsync(...)` | `reqHistoricalData` | IB string formats: `duration "5 D"`, `barSize "1 day"` |
 | `GetFundamentalDataAsync(...)` | `reqFundamentalData` | Raw XML |
-| `GetAccountSummaryAsync(tags, group)` | `reqAccountSummary` | Snapshot |
+| `GetAccountSummaryAsync(tags, group)` | `reqAccountSummary` | Snapshot — **don't use**, see below |
+| `SubscribeAccountSummaryAsync(tags, group)` | `reqAccountSummary` | Stream — added in `0.5.1-lt.1` |
 | `GetPositionsAsync` / `SubscribePositionsAsync` | `reqPositions` | Snapshot / stream |
 | `GetOpenOrdersAsync` | `reqOpenOrders` | Snapshot |
 | `GetExecutionsAsync(filter)` | `reqExecutions` | Fills joined with commission reports |
@@ -170,9 +180,20 @@ the vendored `EClientSocket` inside `LT.Ibkr`:
   (delayed data shown) or `10089/10090` (subscription needed), so on a `Live` market data type
   without a subscription the quote stream ends with that error. We default to `Delayed` (3),
   which returns live data where you are subscribed and delayed otherwise.
-- **Account summary: at most two requests at a time** (error `322`, seen live on 2026-10-23 while
-  polling every 15 s). IB only refreshes the values every 3 minutes, so we poll at that rate and
-  `IbkrApiClient` lets only one request run at a time.
+- **Error `2188` "Up-to-the-second historical data requires additional subscription" means no
+  market data subscription for that listing's exchange at all**, not "history up to now needs
+  live data": for SPY on ASX it fails even with the end a day back, while US SPY and its options
+  load fine without a live subscription (verified 2026-10-24). Usually it means the wrong listing
+  was picked; search ranks `MarketDataConstants.PreferredCurrency` (USD) listings first.
+- <a id="account-summary-error-322"></a>**Account summary: two requests per connection, ever.**
+  IB allows two account summary requests per client at a time, and IB Gateway (server version 225)
+  never frees a slot on `cancelAccountSummary`, in either the protobuf or the legacy encoding.
+  The third request on a connection fails with `322 Maximum number of account summary requests
+  exceeded`, even when the requests run one after another (verified with a probe on 2026-10-23).
+  So snapshots (`GetAccountSummaryAsync`) can't be polled. `AccountSummaryFeed` in `LT.Ibkr` opens
+  one `SubscribeAccountSummaryAsync` per connection, keeps it until disconnect, and shares it:
+  each subscriber gets the cached values, then every change (IB pushes changes about every 3
+  minutes). Don't cancel and resubscribe it, e.g. on account change; filter by account instead.
 - **Real-time bars need a live subscription** — there is no delayed `reqRealTimeBars`. The chart
   keeps historical bars and logs "real-time bars unavailable".
 

@@ -299,6 +299,8 @@ public partial class GatewayViewModel : ViewModelBase
 		{
 			GatewayState.Starting => $"Starting Gateway ({status.TradingMode})…",
 			GatewayState.AwaitingSecondFactor => "Approve the login in IB Key on your phone…",
+			GatewayState.Running when status.IsExternal =>
+				$"Using a Gateway already running on port {status.ApiPort} — not started by this app",
 			GatewayState.Running =>
 				$"Gateway running — {status.TradingMode}, port {status.ApiPort}",
 			GatewayState.Stopping => "Stopping Gateway…",

@@ -4,7 +4,8 @@ namespace LT.Contracts.Interfaces.IManagers;
 
 public interface IAccountManager
 {
-	Task<AccountSummaryDto> GetSummaryAsync(
+	/// <summary>The account's summary now, then again every time one of its values changes.</summary>
+	IAsyncEnumerable<AccountSummaryDto> SubscribeSummaryAsync(
 		string account,
 		CancellationToken cancellationToken = default
 	);

@@ -71,6 +71,22 @@ public class ContractManagerTests
 	}
 
 	[Fact]
+	public async Task ResolveTicker_prefers_the_US_dollar_listing()
+	{
+		var asx = Stock(237937002, "SPY");
+		asx.Currency = "AUD";
+		_ibkr.SearchResults =
+		[
+			new ContractDetailsDto { Contract = asx },
+			new ContractDetailsDto { Contract = Stock(756733, "SPY") },
+		];
+
+		var contract = await new ContractManager(_ibkr, _settings).ResolveTickerAsync("SPY", Ct);
+
+		Assert.Equal(756733, contract.ConId);
+	}
+
+	[Fact]
 	public async Task ResolveTicker_with_no_match_is_rejected() =>
 		await Assert.ThrowsAsync<LSCoreBadRequestException>(() =>
 			new ContractManager(_ibkr, _settings).ResolveTickerAsync("NOPE", Ct)

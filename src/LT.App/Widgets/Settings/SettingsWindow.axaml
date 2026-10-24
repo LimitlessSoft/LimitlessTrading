@@ -31,6 +31,18 @@
 		/>
 
 		<StackPanel Spacing="4">
+			<CheckBox
+				Content="Stop IB Gateway when the app closes"
+				IsChecked="{Binding StopGatewayOnExit}"
+			/>
+			<TextBlock
+				Classes="secondary"
+				TextWrapping="Wrap"
+				Text="Turn off to keep the Gateway logged in between runs; the next Log in reuses it without 2FA."
+			/>
+		</StackPanel>
+
+		<StackPanel Spacing="4">
 			<TextBlock Text="Heartbeat interval (seconds)" FontWeight="SemiBold" />
 			<NumericUpDown
 				Width="140"

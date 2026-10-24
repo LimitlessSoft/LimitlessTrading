@@ -91,7 +91,7 @@ public class GatewayManager : IGatewayManager
 	)
 	{
 		request.Validate();
-		if (_gatewayProcess.IsRunning)
+		if (_gatewayProcess.IsRunning || Status.IsExternal)
 			throw new LSCoreBadRequestException(
 				GatewayValidationCodes.GVC_011.GetValidationMessage()
 			);
@@ -110,9 +110,27 @@ public class GatewayManager : IGatewayManager
 
 		var apiPort = IbcHelpers.GetApiPort(request.TradingMode);
 		if (await _gatewayProcess.IsPortOpenAsync(apiPort, cancellationToken))
-			throw new LSCoreBadRequestException(
-				GatewayValidationCodes.GVC_013.GetValidationMessage(apiPort)
-			);
+		{
+			// A gateway is already listening (e.g. left running when the app was killed): use it
+			Status = new GatewayStatusDto
+			{
+				State = GatewayState.Running,
+				TradingMode = request.TradingMode,
+				ApiPort = apiPort,
+				IsExternal = true,
+			};
+			if (_connectionManager.Status.State != ConnectionState.Connected)
+				await _connectionManager.ConnectAsync(
+					new ConnectRequest
+					{
+						Host = ConnectionConstants.DefaultHost,
+						Port = apiPort,
+						ClientId = _connectionManager.GetLastConnectRequest().ClientId,
+					},
+					cancellationToken
+				);
+			return;
+		}
 
 		var settings = _settingsRepository.Get();
 		settings.Gateway.Username = request.Username;
@@ -227,6 +245,15 @@ public class GatewayManager : IGatewayManager
 
 	public async Task StopAsync()
 	{
+		if (Status.IsExternal)
+		{
+			// Not ours to stop: only let go of it
+			if (_connectionManager.Status.State != ConnectionState.Disconnected)
+				await _connectionManager.DisconnectAsync();
+			Status = new GatewayStatusDto { State = GatewayState.Stopped };
+			return;
+		}
+
 		if (!_gatewayProcess.IsRunning)
 		{
 			Status = new GatewayStatusDto { State = GatewayState.Stopped };
