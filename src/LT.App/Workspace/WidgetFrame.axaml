@@ -26,12 +26,13 @@
 						VerticalAlignment="Center"
 					>
 						<Button
-							Classes="frameAction"
-							ToolTip.Tip="Collapse"
-							Command="{Binding CollapseCommand}"
-							IsVisible="{Binding CanCollapse}"
+							Classes="frameAction pin"
+							Classes.unpinned="{Binding !IsPinned}"
+							ToolTip.Tip="{Binding PinToolTip}"
+							Command="{Binding TogglePinCommand}"
+							IsVisible="{Binding CanPin}"
 						>
-							<PathIcon Data="{StaticResource FrameCollapseIcon}" />
+							<PathIcon Data="{StaticResource FramePinIcon}" />
 						</Button>
 						<!-- Widgets in the same color group show the same contract -->
 						<Button

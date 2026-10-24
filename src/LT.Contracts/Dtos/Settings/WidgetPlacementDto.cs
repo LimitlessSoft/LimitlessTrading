@@ -16,6 +16,9 @@ public class WidgetPlacementDto
 	// Linkable widgets (chart, option chain, watchlist, positions)
 	public LinkGroup LinkGroup { get; set; } = LinkGroup.Red;
 
+	// Side widgets: pinned stays expanded; unpinned collapses when you click elsewhere
+	public bool IsPinned { get; set; } = true;
+
 	// Chart instances
 	public ChartTimeframe? ChartTimeframe { get; set; }
 	public bool ChartLinked { get; set; } = true;

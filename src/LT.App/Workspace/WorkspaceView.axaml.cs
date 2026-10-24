@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
@@ -91,6 +92,49 @@ public partial class WorkspaceView : UserControl
 	{
 		base.OnAttachedToVisualTree(e);
 		SyncFloating();
+		// Unpinned side widgets collapse when a click or focus lands anywhere else in the window
+		if (TopLevel.GetTopLevel(this) is { } window)
+		{
+			window.AddHandler(
+				PointerPressedEvent,
+				OnWindowInput,
+				RoutingStrategies.Tunnel,
+				handledEventsToo: true
+			);
+			window.AddHandler(GotFocusEvent, OnWindowInput, RoutingStrategies.Tunnel);
+		}
+	}
+
+	protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+	{
+		if (TopLevel.GetTopLevel(this) is { } window)
+		{
+			window.RemoveHandler(PointerPressedEvent, OnWindowInput);
+			window.RemoveHandler(GotFocusEvent, OnWindowInput);
+		}
+		base.OnDetachedFromVisualTree(e);
+	}
+
+	private void OnWindowInput(object? sender, RoutedEventArgs e) =>
+		CollapseUnpinnedOutside(e.Source as Visual);
+
+	// Input inside a side panel, its strip or its splitter keeps it open; anything else (another
+	// widget, the toolbar, a floating window: source null) collapses an unpinned one
+	private void CollapseUnpinnedOutside(Visual? source)
+	{
+		if (_viewModel is null)
+			return;
+		CollapseIfOutside(_viewModel.LeftActive, source, LeftHost, LeftStrip, LeftSplitter);
+		CollapseIfOutside(_viewModel.RightActive, source, RightHost, RightStrip, RightSplitter);
+	}
+
+	private void CollapseIfOutside(WidgetItem? active, Visual? source, params Visual[] own)
+	{
+		if (active is not { IsPinned: false, IsFullscreen: false })
+			return;
+		if (source != null && own.Any(x => x == source || x.IsVisualAncestorOf(source)))
+			return;
+		_viewModel!.Collapse(active);
 	}
 
 	private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -425,6 +469,12 @@ public partial class WorkspaceView : UserControl
 				window.Content = null;
 		};
 
+		window.AddHandler(
+			PointerPressedEvent,
+			(_, _) => CollapseUnpinnedOutside(null),
+			RoutingStrategies.Tunnel,
+			handledEventsToo: true
+		);
 		_windows[widget.Id] = window;
 		window.Show(owner);
 	}

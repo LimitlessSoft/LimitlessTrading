@@ -33,6 +33,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 			widget.FloatY = placement.FloatY;
 			widget.FloatWidth = placement.FloatWidth;
 			widget.FloatHeight = placement.FloatHeight;
+			widget.IsPinned = placement.IsPinned;
 			if (widget.Content is ILinkable linkable)
 				linkable.Link.Group = placement.LinkGroup;
 			(widget.Content as IWidgetState)?.LoadState(placement);
@@ -258,6 +259,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 					FloatY = x.FloatY,
 					FloatWidth = x.FloatWidth,
 					FloatHeight = x.FloatHeight,
+					IsPinned = x.IsPinned,
 				};
 				if (x.Content is ILinkable linkable)
 					placement.LinkGroup = linkable.Link.Group;

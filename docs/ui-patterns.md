@@ -26,7 +26,7 @@ Every widget is **independently spawnable** and lives in one of three wrappers:
 | Wrapper | Behaviour |
 |---|---|
 | **Center** | A split layout: widgets side by side and/or stacked, nested to any depth, with a splitter between every pair. |
-| **Left / right side** | Each widget docked there gets an icon on that edge's strip. One is expanded at a time; clicking its icon (or `—`) collapses the side and the center grows. |
+| **Left / right side** | Each widget docked there gets an icon on that edge's strip. One is expanded at a time; clicking its icon again collapses the side and the center grows. |
 | **Floating** | The widget gets its own window (owned by the main window). Closing that window closes the widget. |
 
 - Spawn or reveal a widget from menu → Widgets. Ctrl+1 … Ctrl+8 do the same, but collapse a side
@@ -47,8 +47,8 @@ Every widget is **independently spawnable** and lives in one of three wrappers:
   A ticker picked this way goes to the chart's link group. Closing an extra chart
   discards it (its view model is disposed); single-instance widgets keep theirs while closed.
   Which widgets allow several instances: `WorkspaceHelpers.AllowsMultipleInstances`.
-- Every widget is wrapped in a `WidgetFrame`: icon, title, `✕` (close) and, on a side, `—`
-  (collapse). **The header is the drag handle**; while dragging, a highlight shows the target:
+- Every widget is wrapped in a `WidgetFrame`: icon, title, link, fullscreen, `✕` (close) and, on
+  a side, the pin. **The header is the drag handle**; while dragging, a highlight shows the target:
   - left / right: the strip (+24 px), or the open side panel → dock on that side **at an icon
     position**: the strip's icons part to open a gap at the slot nearest the pointer and the gap
     is highlighted; dropping inserts the icon there (also reorders icons within a strip);
@@ -89,6 +89,14 @@ ViewModels are resolved from DI. They have no interfaces, so the LSCore conventi
 register each one as transient in `Program.cs` (`builder.Services.AddTransient<FooViewModel>()`).
 Row VMs (`WatchlistRowViewModel`, `PositionRowViewModel`, …) are constructed by their parent
 instead.
+
+### Pinned side widgets
+
+A widget docked on a side has a pin in its header. Pinned (the default) it stays expanded until
+you click its strip icon; unpinned (tilted pin) it collapses as soon as you click or move
+focus anywhere outside its panel — another widget, the toolbar, a floating window. Its own strip
+icon, splitter and dropdowns don't count. `WidgetItem.IsPinned`, saved in the layout;
+`WorkspaceView` watches clicks and focus on the window (tunnelling handlers).
 
 ### Fullscreen
 

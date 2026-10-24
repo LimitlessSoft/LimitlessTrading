@@ -57,7 +57,7 @@ public partial class WidgetItem : ObservableObject
 		nameof(IsRight),
 		nameof(IsFloating),
 		nameof(IsSide),
-		nameof(CanCollapse)
+		nameof(CanPin)
 	)]
 	public partial WidgetDock? Dock { get; set; }
 
@@ -66,10 +66,19 @@ public partial class WidgetItem : ObservableObject
 
 	/// <summary>Shown over the whole window (or its floating window maximized).</summary>
 	[ObservableProperty]
-	[NotifyPropertyChangedFor(nameof(FullscreenToolTip), nameof(CanCollapse))]
+	[NotifyPropertyChangedFor(nameof(FullscreenToolTip), nameof(CanPin))]
 	public partial bool IsFullscreen { get; set; }
 
-	public bool CanCollapse => IsSide && !IsFullscreen;
+	/// <summary>Side widgets show the pin (not while fullscreen).</summary>
+	public bool CanPin => IsSide && !IsFullscreen;
+
+	/// <summary>Side widgets: unpinned ones collapse as soon as you click or type elsewhere.</summary>
+	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(PinToolTip))]
+	public partial bool IsPinned { get; set; } = true;
+
+	public string PinToolTip =>
+		IsPinned ? "Pinned: stays open (click to unpin)" : "Unpinned: collapses when you click elsewhere";
 
 	/// <summary>Last clicked or typed in (Ctrl+Shift+F's target); shown with a light frame.</summary>
 	[ObservableProperty]
@@ -105,13 +114,13 @@ public partial class WidgetItem : ObservableObject
 	private void Toggle() => Workspace?.ToggleSide(this);
 
 	[RelayCommand]
-	private void Collapse() => Workspace?.Collapse(this);
-
-	[RelayCommand]
 	private void Close() => Workspace?.Close(this);
 
 	[RelayCommand]
 	private void ToggleFullscreen() => Workspace?.ToggleFullscreen(this);
+
+	[RelayCommand]
+	private void TogglePin() => IsPinned = !IsPinned;
 
 	[RelayCommand]
 	private void SetLinkGroup(LinkGroup group)
