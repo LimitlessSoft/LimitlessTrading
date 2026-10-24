@@ -5,44 +5,127 @@
 	x:Class="LT.App.Widgets.OptionChain.OptionChainView"
 	x:DataType="vm:OptionChainViewModel"
 >
+	<UserControl.Resources>
+		<!-- Arrow fades: solid panel color at the edge, clear toward the tabs -->
+		<LinearGradientBrush x:Key="StripFadeLeft" StartPoint="0%,0%" EndPoint="100%,0%">
+			<GradientStop Offset="0.45" Color="#1B1E24" />
+			<GradientStop Offset="1" Color="#001B1E24" />
+		</LinearGradientBrush>
+		<LinearGradientBrush x:Key="StripFadeRight" StartPoint="0%,0%" EndPoint="100%,0%">
+			<GradientStop Offset="0" Color="#001B1E24" />
+			<GradientStop Offset="0.55" Color="#1B1E24" />
+		</LinearGradientBrush>
+	</UserControl.Resources>
+
 	<!-- The underlying comes from the link group and is shown in the frame header; one tab per
 	     expiration (nearest first), each loading the strikes around the money -->
 	<DockPanel>
 		<DockPanel.Styles>
+			<!-- The theme's selection underline overlaps a two-line header: drawn in the template instead -->
 			<Style Selector="TabStripItem">
 				<Setter Property="Padding" Value="10,3" />
 				<Setter Property="MinHeight" Value="0" />
 				<Setter Property="FontSize" Value="13" />
 			</Style>
+			<Style Selector="TabStripItem /template/ Border#PART_SelectedPipe">
+				<Setter Property="IsVisible" Value="False" />
+			</Style>
+			<Style Selector="Border.selectionBar">
+				<Setter Property="Height" Value="2" />
+				<Setter Property="Margin" Value="0,3,0,0" />
+				<Setter Property="CornerRadius" Value="1" />
+				<Setter Property="Background" Value="Transparent" />
+			</Style>
+			<Style Selector="Border.selectionBar.on">
+				<Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
+			</Style>
+			<!-- Arrows over the strip's ends, fading into the panel so labels slide under them -->
+			<Style Selector="Button.stripArrow">
+				<Setter Property="Width" Value="36" />
+				<Setter Property="VerticalAlignment" Value="Stretch" />
+				<Setter Property="Padding" Value="0" />
+				<Setter Property="BorderThickness" Value="0" />
+				<Setter Property="CornerRadius" Value="0" />
+				<Setter Property="Foreground" Value="{DynamicResource SecondaryText}" />
+			</Style>
+			<Style Selector="Button.stripArrow PathIcon">
+				<Setter Property="Width" Value="10" />
+				<Setter Property="Height" Value="10" />
+			</Style>
+			<!-- Every state keeps the fade (the theme's hover box would show the tabs through it);
+			     hover only brightens the chevron -->
+			<Style Selector="Button.stripArrow.left">
+				<Setter Property="Background" Value="{StaticResource StripFadeLeft}" />
+			</Style>
+			<Style Selector="Button.stripArrow.right">
+				<Setter Property="Background" Value="{StaticResource StripFadeRight}" />
+			</Style>
+			<Style Selector="Button.stripArrow.left:pointerover /template/ ContentPresenter, Button.stripArrow.left:pressed /template/ ContentPresenter">
+				<Setter Property="Background" Value="{StaticResource StripFadeLeft}" />
+				<Setter Property="Foreground" Value="White" />
+			</Style>
+			<Style Selector="Button.stripArrow.right:pointerover /template/ ContentPresenter, Button.stripArrow.right:pressed /template/ ContentPresenter">
+				<Setter Property="Background" Value="{StaticResource StripFadeRight}" />
+				<Setter Property="Foreground" Value="White" />
+			</Style>
 		</DockPanel.Styles>
-		<ScrollViewer
-			DockPanel.Dock="Top"
-			HorizontalScrollBarVisibility="Auto"
-			VerticalScrollBarVisibility="Disabled"
-			Margin="0,0,0,4"
-			IsVisible="{Binding Expirations.Count}"
-		>
-			<!-- Bottom margin: room for the overlay scrollbar under the labels -->
-			<TabStrip
-				Margin="0,0,0,10"
-				ItemsSource="{Binding Expirations}"
-				SelectedItem="{Binding SelectedExpiration}"
-			>
-				<TabStrip.ItemTemplate>
-					<DataTemplate x:DataType="vm:ExpirationTab">
-						<StackPanel HorizontalAlignment="Center">
-							<TextBlock HorizontalAlignment="Center" Text="{Binding Label}" />
-							<TextBlock
-								HorizontalAlignment="Center"
-								Classes="secondary"
-								FontSize="11"
-								Text="{Binding DaysText}"
-							/>
-						</StackPanel>
-					</DataTemplate>
-				</TabStrip.ItemTemplate>
-			</TabStrip>
-		</ScrollViewer>
+		<!-- Expiration tabs: no visible scrollbar; the wheel and the arrows scroll them -->
+		<Panel DockPanel.Dock="Top" Margin="0,0,0,4" IsVisible="{Binding Expirations.Count}">
+				<ScrollViewer
+					x:Name="ExpirationScroll"
+					HorizontalScrollBarVisibility="Hidden"
+					VerticalScrollBarVisibility="Disabled"
+				>
+					<TabStrip ItemsSource="{Binding Expirations}" SelectedItem="{Binding SelectedExpiration}">
+						<TabStrip.ItemTemplate>
+							<DataTemplate x:DataType="vm:ExpirationTab">
+								<StackPanel HorizontalAlignment="Center">
+									<TextBlock HorizontalAlignment="Center" Text="{Binding Label}" />
+									<TextBlock
+										HorizontalAlignment="Center"
+										Classes="secondary"
+										FontSize="11"
+										Text="{Binding DaysText}"
+									/>
+									<!-- Always takes its space, so selecting a tab doesn't change its height -->
+									<Border
+										Classes="selectionBar"
+										Classes.on="{Binding $parent[TabStripItem].IsSelected}"
+									/>
+								</StackPanel>
+							</DataTemplate>
+						</TabStrip.ItemTemplate>
+					</TabStrip>
+				</ScrollViewer>
+				<Button
+					x:Name="ScrollLeftButton"
+					Classes="stripArrow left"
+					HorizontalAlignment="Left"
+					HorizontalContentAlignment="Left"
+					ToolTip.Tip="Earlier expirations"
+					IsVisible="False"
+				>
+					<PathIcon Data="{StaticResource ChevronDownIcon}" Margin="4,0,0,0">
+						<PathIcon.RenderTransform>
+							<RotateTransform Angle="90" />
+						</PathIcon.RenderTransform>
+					</PathIcon>
+				</Button>
+				<Button
+					x:Name="ScrollRightButton"
+					Classes="stripArrow right"
+					HorizontalAlignment="Right"
+					HorizontalContentAlignment="Right"
+					ToolTip.Tip="Later expirations"
+					IsVisible="False"
+				>
+					<PathIcon Data="{StaticResource ChevronDownIcon}" Margin="0,0,4,0">
+						<PathIcon.RenderTransform>
+							<RotateTransform Angle="-90" />
+						</PathIcon.RenderTransform>
+					</PathIcon>
+				</Button>
+		</Panel>
 		<StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="2,0,0,6">
 			<TextBlock Classes="secondary" Text="Loading…" IsVisible="{Binding IsLoading}" />
 			<TextBlock Classes="secondary" Text="{Binding InfoText}" />
