@@ -7,7 +7,7 @@ this app's license. How each message looks on the wire is in that repo's `docs/p
 file covers how the app uses it, IB's limits and the quirks we have hit. Read it before touching
 `LT.Ibkr`.
 
-`IBKR.Net 0.1.0-preview.2` comes from the local feed in `packages/` (see `nuget.config`) until
+`IBKR.Net 0.1.0-preview.3` comes from the local feed in `packages/` (see `nuget.config`) until
 0.1.0 is on nuget.org.
 
 ## Connecting
