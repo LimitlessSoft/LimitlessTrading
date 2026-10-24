@@ -47,6 +47,7 @@ public static class WidgetViewFactory
 		widget.Tool switch
 		{
 			WorkspaceTool.Chart => new ChartTitleView { DataContext = widget.Content },
+			WorkspaceTool.Watchlist => new WatchlistTitleView { DataContext = widget.Content },
 			WorkspaceTool.OptionChain => CreateBoundTitle(
 				widget,
 				nameof(OptionChainViewModel.Title)

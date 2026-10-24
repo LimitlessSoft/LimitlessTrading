@@ -29,6 +29,10 @@
 		<StreamGeometry x:Key="FramePinIcon">
 			M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z
 		</StreamGeometry>
+		<!-- Material Design "pencil" (Apache-2.0), on a 24×24 grid -->
+		<StreamGeometry x:Key="FrameRenameIcon">
+			M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z
+		</StreamGeometry>
 		<!-- Four corners pointing out (fullscreen) / in (restore) -->
 		<StreamGeometry x:Key="FrameFullscreenIcon">
 			M1,1 H5 V2.5 H2.5 V5 H1 Z M7,1 H11 V5 H9.5 V2.5 H7 Z M1,7 H2.5 V9.5 H5 V11 H1 Z M11,7 V11 H7 V9.5 H9.5 V7 Z
@@ -178,6 +182,41 @@
 		</Style>
 		<Style Selector="Button.chartTitle:pointerover /template/ ContentPresenter">
 			<Setter Property="Background" Value="{DynamicResource FrameActionHoverBrush}" />
+		</Style>
+		<!-- Watchlist header: the picker reads as the title; its rows are flat full-width buttons -->
+		<Style Selector="Button.watchlistPicker">
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="BorderThickness" Value="0" />
+			<Setter Property="Padding" Value="4,1" />
+			<Setter Property="MinHeight" Value="0" />
+			<Setter Property="CornerRadius" Value="4" />
+		</Style>
+		<Style Selector="Button.watchlistPicker:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="{DynamicResource FrameActionHoverBrush}" />
+		</Style>
+		<Style Selector="Button.pickerRow">
+			<Setter Property="HorizontalAlignment" Value="Stretch" />
+			<Setter Property="HorizontalContentAlignment" Value="Left" />
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="BorderThickness" Value="0" />
+			<Setter Property="Padding" Value="8,5" />
+			<Setter Property="CornerRadius" Value="4" />
+		</Style>
+		<Style Selector="Button.pickerRow:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="{DynamicResource FrameActionHoverBrush}" />
+		</Style>
+		<Style Selector="Button.pickerRow.active">
+			<Setter Property="FontWeight" Value="SemiBold" />
+			<Setter Property="Foreground" Value="{DynamicResource SystemAccentColorLight2}" />
+		</Style>
+		<Style Selector="TextBox.watchlistName">
+			<Setter Property="MinHeight" Value="26" />
+			<Setter Property="FontSize" Value="13" />
+		</Style>
+		<!-- Confirms something that can't be undone (e.g. deleting a watchlist) -->
+		<Style Selector="Button.danger">
+			<Setter Property="Background" Value="#C42B1C" />
+			<Setter Property="Foreground" Value="White" />
 		</Style>
 		<Style Selector="AutoCompleteBox.ticker">
 			<Setter Property="MinHeight" Value="26" />

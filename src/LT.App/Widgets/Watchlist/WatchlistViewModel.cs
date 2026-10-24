@@ -10,8 +10,10 @@ using LT.App.ViewModels;
 using LT.App.Workspace;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Contracts;
+using LT.Contracts.Dtos.Watchlists;
 using LT.Contracts.Enums;
 using LT.Contracts.Interfaces.IManagers;
+using LT.Contracts.Requests.Watchlists;
 
 namespace LT.App.Widgets.Watchlist;
 
@@ -40,9 +42,8 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable
 		_messageLogManager = messageLogManager;
 		Link = new ContractLink(linkGroupStore, () => SelectedRow?.Contract);
 
-		foreach (var contract in watchlistManager.GetItems())
-			Rows.Add(new WatchlistRowViewModel(contract));
-		SelectedRow = Rows.FirstOrDefault();
+		LoadWatchlists();
+		LoadRows();
 
 		settingsManager.AppSettingsChanged += _ => Dispatcher.UIThread.Post(RestartSession);
 
@@ -58,6 +59,135 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable
 	}
 
 	public ObservableCollection<WatchlistRowViewModel> Rows { get; } = [];
+
+	/// <summary>The named watchlists, as rows of the header picker.</summary>
+	public ObservableCollection<WatchlistItemViewModel> Watchlists { get; } = [];
+
+	/// <summary>The shown watchlist (header button).</summary>
+	[ObservableProperty]
+	public partial WatchlistItemViewModel? ActiveWatchlist { get; set; }
+
+	/// <summary>The last watchlist can't be deleted: rows hide their ✕ then.</summary>
+	public bool CanDelete => Watchlists.Count > 1;
+
+	[RelayCommand]
+	private void SelectWatchlist(WatchlistItemViewModel item)
+	{
+		if (item.IsActive)
+			return;
+		Run(() => _watchlistManager.SetActive(item.Id));
+		LoadWatchlists();
+		LoadRows();
+	}
+
+	/// <summary>Creates "Watchlist N", switches to it and opens its name for editing.</summary>
+	[RelayCommand]
+	private void NewWatchlist()
+	{
+		if (
+			!Run(() =>
+				_watchlistManager.SaveName(
+					new SaveWatchlistNameRequest { Name = _watchlistManager.GetNewName() }
+				)
+			)
+		)
+			return;
+		LoadWatchlists();
+		LoadRows();
+		if (ActiveWatchlist != null)
+			BeginRename(ActiveWatchlist);
+	}
+
+	[RelayCommand]
+	private void BeginRename(WatchlistItemViewModel item)
+	{
+		foreach (var row in Watchlists)
+			row.IsConfirmingDelete = row.IsRenaming = false;
+		item.RenameText = item.Name;
+		item.IsRenaming = true;
+	}
+
+	/// <summary>Saves the typed name; on an error (blank, taken) the name box stays open.</summary>
+	[RelayCommand]
+	private void CommitRename(WatchlistItemViewModel item)
+	{
+		if (!item.IsRenaming)
+			return;
+		if (
+			Run(() =>
+				_watchlistManager.SaveName(
+					new SaveWatchlistNameRequest { Id = item.Id, Name = item.RenameText }
+				)
+			)
+		)
+			LoadWatchlists();
+	}
+
+	[RelayCommand]
+	private void CancelRename(WatchlistItemViewModel item)
+	{
+		item.IsRenaming = false;
+		ErrorMessage = null;
+	}
+
+	[RelayCommand]
+	private void AskDelete(WatchlistItemViewModel item)
+	{
+		foreach (var row in Watchlists)
+			row.IsConfirmingDelete = row.IsRenaming = false;
+		item.IsConfirmingDelete = true;
+	}
+
+	[RelayCommand]
+	private void ConfirmDelete(WatchlistItemViewModel item)
+	{
+		Run(() => _watchlistManager.Delete(item.Id));
+		LoadWatchlists();
+		LoadRows();
+	}
+
+	[RelayCommand]
+	private void CancelDelete(WatchlistItemViewModel item) => item.IsConfirmingDelete = false;
+
+	// Watchlist changes report problems (taken name, last list) in the widget's error line
+	private bool Run(Action change)
+	{
+		try
+		{
+			change();
+			ErrorMessage = null;
+			return true;
+		}
+		catch (Exception ex)
+		{
+			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
+			return false;
+		}
+	}
+
+	private void LoadWatchlists()
+	{
+		var activeId = _watchlistManager.GetActive().Id;
+		Watchlists.Clear();
+		foreach (var watchlist in _watchlistManager.GetWatchlists())
+			Watchlists.Add(new WatchlistItemViewModel(this, watchlist, watchlist.Id == activeId));
+		ActiveWatchlist = Watchlists.FirstOrDefault(x => x.IsActive);
+		OnPropertyChanged(nameof(CanDelete));
+	}
+
+	// The active watchlist's rows, streaming when connected
+	private void LoadRows()
+	{
+		foreach (var row in Rows)
+			Stop(row);
+		Rows.Clear();
+		foreach (var contract in _watchlistManager.GetItems())
+			Rows.Add(new WatchlistRowViewModel(contract));
+		SelectedRow = Rows.FirstOrDefault();
+		if (IsConnected)
+			foreach (var row in Rows)
+				Start(row);
+	}
 
 	/// <summary>Clicking a row sends its contract to the link group.</summary>
 	public ContractLink Link { get; }
@@ -126,6 +256,7 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable
 			if (IsConnected)
 				Start(row);
 			ErrorMessage = null;
+			LoadWatchlists();
 		}
 		catch (Exception ex)
 		{
@@ -143,6 +274,7 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable
 		Stop(row);
 		_watchlistManager.Remove(row.Contract.ConId);
 		Rows.Remove(row);
+		LoadWatchlists();
 	}
 
 	private void Start(WatchlistRowViewModel row)

@@ -103,6 +103,19 @@ register each one as transient in `Program.cs` (`builder.Services.AddTransient<F
 Row VMs (`WatchlistRowViewModel`, `PositionRowViewModel`, …) are constructed by their parent
 instead.
 
+### Watchlists
+
+The watchlist widget shows one of several named watchlists. Its header (`WatchlistTitleView`) is
+the shown watchlist's name; clicking it opens the list of all of them, with symbol counts. Each row
+is picked by clicking its name, renamed in place with the pencil (Enter or clicking away saves,
+Esc cancels) or deleted with ✕ after an inline confirmation (disabled when only one is left); the
+last row, "+ New watchlist", adds "Watchlist N" and opens its name for editing. Rows are
+`WatchlistItemViewModel`s holding their own rename / confirm state; the list lives in a popup, so
+row buttons bind to `Owner` (the widget's view model) commands. Adding and removing symbols works
+on the shown watchlist. `IWatchlistManager` keeps them in `SettingsEntity.Watchlists` with
+`ActiveWatchlistId`; the single list of older settings becomes "Main" on first load
+(`WatchlistHelpers.EnsureWatchlists`).
+
 ### Pinned side widgets
 
 A widget docked on a side has a pin in its header. Pinned (the default) it stays expanded until

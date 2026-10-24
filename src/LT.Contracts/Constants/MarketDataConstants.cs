@@ -16,6 +16,13 @@ public static class MarketDataConstants
 	public static readonly TimeSpan UiFlushInterval = TimeSpan.FromMilliseconds(250);
 
 	public const int WatchlistMaxItems = 200;
+	public const int WatchlistNameMaxLength = 40;
+
+	/// <summary>Name of the first watchlist (and of one migrated from older settings).</summary>
+	public const string DefaultWatchlistName = "Main";
+
+	/// <summary>New watchlists are "Watchlist 2", "Watchlist 3" …</summary>
+	public const string NewWatchlistNamePrefix = "Watchlist";
 	public const int RecentContractsMax = 10;
 	public const int TickerSuggestionsMax = 20;
 	public const int SymbolMaxLength = 32;

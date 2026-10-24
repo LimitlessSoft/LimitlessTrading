@@ -4,20 +4,24 @@ using LSCore.Validation.Domain;
 using LT.Contracts.DtoMappings.Charts;
 using LT.Contracts.DtoMappings.Contracts;
 using LT.Contracts.DtoMappings.Settings;
+using LT.Contracts.DtoMappings.Watchlists;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Settings;
+using LT.Contracts.Dtos.Watchlists;
 using LT.Contracts.Entities;
 using LT.Contracts.Requests.Connection;
 using LT.Contracts.Requests.Contracts;
 using LT.Contracts.Requests.Gateway;
 using LT.Contracts.Requests.Options;
 using LT.Contracts.Requests.Settings;
+using LT.Contracts.Requests.Watchlists;
 using LT.Domain.Validators.Connection;
 using LT.Domain.Validators.Contracts;
 using LT.Domain.Validators.Gateway;
 using LT.Domain.Validators.Options;
 using LT.Domain.Validators.Settings;
+using LT.Domain.Validators.Watchlists;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LT.Tests.Fakes;
@@ -53,6 +57,11 @@ public static class LSCoreContainer
 					SaveAppSettingsRequestValidator
 				>()
 				.AddSingleton<ILSCoreMapper<ContractEntity, ContractDto>, ContractDtoMapper>()
+				.AddSingleton<ILSCoreMapper<WatchlistEntity, WatchlistDto>, WatchlistDtoMapper>()
+				.AddSingleton<
+					LSCoreValidatorBase<SaveWatchlistNameRequest>,
+					SaveWatchlistNameRequestValidator
+				>()
 				.AddSingleton<ILSCoreMapper<ContractDto, ContractEntity>, ContractEntityMapper>()
 				.AddSingleton<ILSCoreMapper<BarEntity, BarDto>, BarDtoMapper>()
 				.AddSingleton<ILSCoreMapper<BarDto, BarEntity>, BarEntityMapper>()
