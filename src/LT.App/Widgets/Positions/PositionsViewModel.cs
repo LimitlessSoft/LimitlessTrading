@@ -5,31 +5,34 @@ using CommunityToolkit.Mvvm.Input;
 using LT.App.Helpers;
 using LT.App.Stores;
 using LT.App.ViewModels;
+using LT.App.Workspace;
 using LT.Contracts.Interfaces.IManagers;
 
 namespace LT.App.Widgets.Positions;
 
 /// <summary>Live positions (reqPositions stream) with per-position P&amp;L (reqPnLSingle).</summary>
-public partial class PositionsViewModel : ConnectedViewModelBase
+public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 {
 	private readonly IPositionManager _positionManager;
 	private readonly AccountStore _accountStore;
-	private readonly SelectedContractStore _selectedContractStore;
 	private readonly Dictionary<(string Account, int ContractId), PositionRowViewModel> _all = [];
 
 	public PositionsViewModel(
 		IPositionManager positionManager,
 		IConnectionManager connectionManager,
 		AccountStore accountStore,
-		SelectedContractStore selectedContractStore
+		LinkGroupStore linkGroupStore
 	)
 		: base(connectionManager)
 	{
 		_positionManager = positionManager;
 		_accountStore = accountStore;
-		_selectedContractStore = selectedContractStore;
+		Link = new ContractLink(linkGroupStore, () => SelectedPosition?.Contract);
 		accountStore.PropertyChanged += OnAccountChanged;
 	}
+
+	/// <summary>Clicking a position sends its contract to the link group.</summary>
+	public ContractLink Link { get; }
 
 	public ObservableCollection<PositionRowViewModel> Positions { get; } = [];
 
@@ -42,11 +45,17 @@ public partial class PositionsViewModel : ConnectedViewModelBase
 	partial void OnSelectedPositionChanged(PositionRowViewModel? value)
 	{
 		if (value != null)
-			_selectedContractStore.SelectedContract = value.Contract;
+			Link.Publish(value.Contract);
 	}
 
 	[RelayCommand]
 	public void Refresh() => RestartSession();
+
+	public override void Dispose()
+	{
+		Link.Dispose();
+		base.Dispose();
+	}
 
 	protected override void OnConnected(CancellationToken session)
 	{

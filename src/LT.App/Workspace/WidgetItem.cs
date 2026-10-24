@@ -1,6 +1,7 @@
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LT.App.Stores;
 using LT.Contracts.Enums;
 
 namespace LT.App.Workspace;
@@ -9,17 +10,41 @@ namespace LT.App.Workspace;
 /// One widget instance: what it is, the view model it shows and where it currently lives.
 /// <see cref="Dock"/> is null while the widget is closed.
 /// </summary>
-public partial class WidgetItem(string id, WorkspaceTool tool, object content) : ObservableObject
+public partial class WidgetItem : ObservableObject
 {
+	public WidgetItem(string id, WorkspaceTool tool, object content)
+	{
+		Id = id;
+		Tool = tool;
+		Content = content;
+		Icon = Geometry.Parse(WidgetCatalog.GetIcon(tool));
+		Link = (content as ILinkable)?.Link;
+		if (Link != null)
+			Link.PropertyChanged += (_, _) =>
+			{
+				OnPropertyChanged(nameof(LinkBrush));
+				OnPropertyChanged(nameof(LinkToolTip));
+			};
+	}
+
 	/// <summary>Instance id; unique in the workspace, kept in the saved layout.</summary>
-	public string Id => id;
-	public WorkspaceTool Tool => tool;
-	public string Title => WidgetCatalog.GetTitle(tool);
-	public Geometry Icon { get; } = Geometry.Parse(WidgetCatalog.GetIcon(tool));
-	public string ToolTip => $"{Title} (Ctrl+{(int)tool + 1})";
+	public string Id { get; }
+	public WorkspaceTool Tool { get; }
+	public string Title => WidgetCatalog.GetTitle(Tool);
+	public Geometry Icon { get; }
+	public string ToolTip => $"{Title} (Ctrl+{(int)Tool + 1})";
 
 	/// <summary>The widget's view model; WidgetViewFactory creates the matching view.</summary>
-	public object Content => content;
+	public object Content { get; }
+
+	/// <summary>Link group membership; null for widgets that can't be linked.</summary>
+	public ContractLink? Link { get; }
+	public bool IsLinkable => Link != null;
+	public IBrush LinkBrush => LinkGroupBrushes.Get(Link?.Group ?? LinkGroup.None);
+	public string LinkToolTip =>
+		Link?.Group is { } group && group != LinkGroup.None
+			? $"Linked: {group} group"
+			: "Not linked";
 
 	/// <summary>Set by the workspace that owns the item.</summary>
 	public WorkspaceViewModel? Workspace { get; set; }
@@ -69,4 +94,11 @@ public partial class WidgetItem(string id, WorkspaceTool tool, object content) :
 
 	[RelayCommand]
 	private void Close() => Workspace?.Close(this);
+
+	[RelayCommand]
+	private void SetLinkGroup(LinkGroup group)
+	{
+		if (Link != null)
+			Link.Group = group;
+	}
 }

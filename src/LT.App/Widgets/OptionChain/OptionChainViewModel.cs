@@ -1,11 +1,11 @@
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LT.App.Helpers;
 using LT.App.Stores;
 using LT.App.ViewModels;
+using LT.App.Workspace;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.MarketData;
@@ -21,13 +21,13 @@ namespace LT.App.Widgets.OptionChain;
 /// Calls and puts per strike for one expiration. Quotes are streamed only for the strikes around
 /// the underlying price, to stay inside the market data line limit.
 /// </summary>
-public partial class OptionChainViewModel : ConnectedViewModelBase
+public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 {
 	private readonly IOptionChainManager _optionChainManager;
 	private readonly IMarketDataManager _marketDataManager;
 	private readonly IMessageLogManager _messageLogManager;
-	private readonly SelectedContractStore _selectedContractStore;
 	private CancellationToken _session = new(true);
+	private ContractDto? _underlying;
 	private CancellationTokenSource? _quotes;
 	private OptionChainDto? _chain;
 
@@ -36,15 +36,16 @@ public partial class OptionChainViewModel : ConnectedViewModelBase
 		IMarketDataManager marketDataManager,
 		IConnectionManager connectionManager,
 		IMessageLogManager messageLogManager,
-		SelectedContractStore selectedContractStore
+		LinkGroupStore linkGroupStore
 	)
 		: base(connectionManager)
 	{
 		_optionChainManager = optionChainManager;
 		_marketDataManager = marketDataManager;
 		_messageLogManager = messageLogManager;
-		_selectedContractStore = selectedContractStore;
-		selectedContractStore.PropertyChanged += OnStoreChanged;
+		Link = new ContractLink(linkGroupStore, () => _underlying);
+		Link.ContractReceived += OnContractReceived;
+		_underlying = linkGroupStore.Get(Link.Group);
 		UpdateUnderlying();
 
 		new DispatcherTimer(
@@ -57,6 +58,9 @@ public partial class OptionChainViewModel : ConnectedViewModelBase
 			}
 		).Start();
 	}
+
+	/// <summary>The underlying comes from the link group (watchlist, positions, a chart).</summary>
+	public ContractLink Link { get; }
 
 	public ObservableCollection<OptionRowViewModel> Rows { get; } = [];
 	public ObservableCollection<string> Expirations { get; } = [];
@@ -98,7 +102,7 @@ public partial class OptionChainViewModel : ConnectedViewModelBase
 	[RelayCommand]
 	private async Task LoadAsync()
 	{
-		if (_selectedContractStore.SelectedContract is not { } underlying)
+		if (_underlying is not { } underlying)
 			return;
 
 		ErrorMessage = null;
@@ -126,11 +130,19 @@ public partial class OptionChainViewModel : ConnectedViewModelBase
 		}
 	}
 
-	private void OnStoreChanged(object? sender, PropertyChangedEventArgs e)
+	public override void Dispose()
 	{
-		if (e.PropertyName != nameof(SelectedContractStore.SelectedContract))
+		Link.Dispose();
+		StopQuotes();
+		base.Dispose();
+	}
+
+	private void OnContractReceived(ContractDto contract)
+	{
+		if (contract.ConId == _underlying?.ConId)
 			return;
 
+		_underlying = contract;
 		StopQuotes();
 		_chain = null;
 		Rows.Clear();
@@ -141,7 +153,7 @@ public partial class OptionChainViewModel : ConnectedViewModelBase
 
 	private void UpdateUnderlying()
 	{
-		var contract = _selectedContractStore.SelectedContract;
+		var contract = _underlying;
 		CanLoad = IsConnected && contract != null && ContractHelpers.SupportsOptionChain(contract);
 		UnderlyingText =
 			contract == null ? "Select a stock or index"

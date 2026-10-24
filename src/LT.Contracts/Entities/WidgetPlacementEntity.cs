@@ -14,6 +14,9 @@ public class WidgetPlacementEntity
 	public double? FloatWidth { get; set; }
 	public double? FloatHeight { get; set; }
 
+	// Linkable widgets (chart, option chain, watchlist, positions)
+	public LinkGroup LinkGroup { get; set; } = LinkGroup.Red;
+
 	// Chart instances
 	public ChartTimeframe? ChartTimeframe { get; set; }
 	public bool ChartLinked { get; set; } = true;

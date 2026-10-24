@@ -32,15 +32,14 @@ Every widget is **independently spawnable** and lives in one of three wrappers:
 - Spawn or reveal a widget from menu → Widgets. Ctrl+1 … Ctrl+8 do the same, but collapse a side
   widget that is already expanded.
 - **Charts can be open several times** (menu → Widgets → New chart, Ctrl+Shift+7). Each chart has
-  its own timeframe and a **linked** state: on, it follows the contract selected in the watchlist
-  or positions; off, it stays on its contract. Both are saved per chart. The chart header's
-  controls (Linked, RTH, timeframe, Reload) are hidden until they are redesigned; F5 reloads.
+  its own timeframe, link group and contract, all saved per chart. The chart header's controls
+  (RTH, timeframe, Reload) are hidden until they are redesigned; F5 reloads.
 - **Picking a chart's ticker:** click the chart's header title (`ChartTitleView`, hosted in the
   frame header via `WidgetViewFactory.CreateTitle`). It turns into a ticker box: type a ticker
   and press Enter (resolved as a SMART stock by `IContractManager.ResolveTickerAsync`), or open
   the dropdown (chevron, or it opens by itself when there is history) to pick one of the last 10
   tickers (`SettingsEntity.RecentContracts`, shared by all charts). Esc or clicking away cancels.
-  A ticker picked this way pins that chart to it. Closing an extra chart
+  A ticker picked this way goes to the chart's link group. Closing an extra chart
   discards it (its view model is disposed); single-instance widgets keep theirs while closed.
   Which widgets allow several instances: `WorkspaceHelpers.AllowsMultipleInstances`.
 - Every widget is wrapped in a `WidgetFrame`: icon, title, `✕` (close) and, on a side, `—`
@@ -85,6 +84,25 @@ ViewModels are resolved from DI. They have no interfaces, so the LSCore conventi
 register each one as transient in `Program.cs` (`builder.Services.AddTransient<FooViewModel>()`).
 Row VMs (`WatchlistRowViewModel`, `PositionRowViewModel`, …) are constructed by their parent
 instead.
+
+### Link groups
+
+Watchlist, Positions, Chart and Option chain can be linked: the chain icon left of the frame's
+close button opens a menu of ten color groups (Red, Green, Blue, Yellow, Orange, Purple, Cyan,
+Pink, Lime, White) or Not linked, and is tinted
+with the current one. Widgets in the same group show the same contract:
+
+- Clicking a watchlist or positions row, or picking a chart's ticker, sends that contract to the
+  group; charts and option chains in the group switch to it.
+- Joining a group shows the group's contract; joining an empty group gives it the widget's own.
+- New widgets start in Red, so out of the box they all follow each other. "Not linked" keeps a
+  widget on its own contract.
+
+A linkable view model implements `ILinkable` (`LT.App/Workspace`) by holding a `ContractLink`
+(`LT.App/Stores`): `Publish(contract)` to send, `ContractReceived` to follow; it never gets its
+own publish back. The frame shows the link button for any `ILinkable`, and the workspace saves
+the group in `WidgetPlacementEntity.LinkGroup`. Layouts from before link groups load pinned
+charts as Not linked.
 
 ## Connected widgets
 

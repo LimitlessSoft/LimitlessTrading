@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LT.App.Helpers;
@@ -22,12 +21,11 @@ namespace LT.App.Widgets.Chart;
 /// One chart. Several can be open; each has its own timeframe and either follows the selected
 /// contract (linked) or stays on the contract it shows (pinned).
 /// </summary>
-public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState
+public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILinkable
 {
 	private readonly IChartManager _chartManager;
 	private readonly IContractManager _contractManager;
 	private readonly IMessageLogManager _messageLogManager;
-	private readonly SelectedContractStore _selectedContractStore;
 	private CancellationTokenSource? _load;
 	private ContractDto? _contract;
 
@@ -37,23 +35,25 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState
 		IConnectionManager connectionManager,
 		IMessageLogManager messageLogManager,
 		ISettingsManager settingsManager,
-		SelectedContractStore selectedContractStore
+		LinkGroupStore linkGroupStore
 	)
 		: base(connectionManager)
 	{
 		_chartManager = chartManager;
 		_contractManager = contractManager;
 		_messageLogManager = messageLogManager;
-		_selectedContractStore = selectedContractStore;
+		Link = new ContractLink(linkGroupStore, () => _contract);
+		Link.ContractReceived += OnContractReceived;
 
 		Timeframes = Enum.GetValues<ChartTimeframe>().Select(x => new TimeframeOption(x)).ToList();
 		var saved = settingsManager.GetLayout().ChartTimeframe;
 		SelectedTimeframe = Timeframes.FirstOrDefault(x => x.Value == saved) ?? Timeframes[1];
 
-		_contract = selectedContractStore.SelectedContract;
-		selectedContractStore.PropertyChanged += OnStoreChanged;
+		_contract = linkGroupStore.Get(Link.Group);
 		Reload();
 	}
+
+	public ContractLink Link { get; }
 
 	/// <summary>Ticker box suggestions for an empty box: the recent contracts.</summary>
 	public IReadOnlyList<ContractSuggestionItem> GetRecentSuggestions() =>
@@ -115,23 +115,19 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState
 		ShowContract(contract);
 	}
 
-	// A ticker picked for this chart stays on it, whatever is selected elsewhere
+	// A ticker picked here moves every widget in this chart's link group along
 	private void ShowContract(ContractDto contract)
 	{
 		_contract = contract;
-		IsLinked = false;
 		Reload();
+		Link.Publish(contract);
 	}
 
-	/// <summary>Follows the contract selected in the watchlist / positions; off = pinned.</summary>
-	[ObservableProperty]
-	public partial bool IsLinked { get; set; } = true;
-
-	partial void OnIsLinkedChanged(bool value)
+	private void OnContractReceived(ContractDto contract)
 	{
-		if (!value || _contract == _selectedContractStore.SelectedContract)
+		if (contract.ConId == _contract?.ConId)
 			return;
-		_contract = _selectedContractStore.SelectedContract;
+		_contract = contract;
 		Reload();
 	}
 
@@ -140,24 +136,23 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState
 		if (placement.ChartTimeframe is { } timeframe)
 			SelectedTimeframe =
 				Timeframes.FirstOrDefault(x => x.Value == timeframe) ?? SelectedTimeframe;
-		if (!placement.ChartLinked && placement.ChartContract != null)
-		{
-			_contract = placement.ChartContract;
-			IsLinked = false;
-			Reload();
-		}
+		// Layouts saved before link groups: a chart pinned to its own ticker is not linked
+		if (!placement.ChartLinked)
+			Link.Group = LinkGroup.None;
+		if (placement.ChartContract != null)
+			ShowContract(placement.ChartContract);
 	}
 
 	public void SaveState(WidgetPlacementDto placement)
 	{
 		placement.ChartTimeframe = SelectedTimeframe.Value;
-		placement.ChartLinked = IsLinked;
-		placement.ChartContract = IsLinked ? null : _contract;
+		placement.ChartLinked = Link.Group != LinkGroup.None;
+		placement.ChartContract = _contract;
 	}
 
 	public override void Dispose()
 	{
-		_selectedContractStore.PropertyChanged -= OnStoreChanged;
+		Link.Dispose();
 		_load?.Cancel();
 		_load?.Dispose();
 		_load = null;
@@ -202,14 +197,6 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState
 		_load?.Dispose();
 		_load = new CancellationTokenSource();
 		_ = LoadAsync(_load.Token);
-	}
-
-	private void OnStoreChanged(object? sender, PropertyChangedEventArgs e)
-	{
-		if (e.PropertyName != nameof(SelectedContractStore.SelectedContract) || !IsLinked)
-			return;
-		_contract = _selectedContractStore.SelectedContract;
-		Reload();
 	}
 
 	private async Task LoadAsync(CancellationToken cancellationToken)

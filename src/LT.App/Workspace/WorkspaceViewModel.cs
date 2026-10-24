@@ -33,6 +33,8 @@ public partial class WorkspaceViewModel : ViewModelBase
 			widget.FloatY = placement.FloatY;
 			widget.FloatWidth = placement.FloatWidth;
 			widget.FloatHeight = placement.FloatHeight;
+			if (widget.Content is ILinkable linkable)
+				linkable.Link.Group = placement.LinkGroup;
 			(widget.Content as IWidgetState)?.LoadState(placement);
 			if (placement.Dock == WidgetDock.Center)
 			{
@@ -225,6 +227,8 @@ public partial class WorkspaceViewModel : ViewModelBase
 					FloatWidth = x.FloatWidth,
 					FloatHeight = x.FloatHeight,
 				};
+				if (x.Content is ILinkable linkable)
+					placement.LinkGroup = linkable.Link.Group;
 				(x.Content as IWidgetState)?.SaveState(placement);
 				return placement;
 			})

@@ -118,8 +118,9 @@ Zustand stores play in Termodom FEs:
 
 - `AccountStore` — managed accounts and the selected one (persisted); positions, orders,
   executions and the account panel follow it.
-- `SelectedContractStore` — the contract picked in the watchlist or positions; the chart and the
-  option chain follow it.
+- `LinkGroupStore` — the contract of each link group (`LinkGroup`: ten colors). A
+  linkable widget holds a `ContractLink` (its group, publish / receive); see
+  [ui-patterns.md → Link groups](ui-patterns.md#link-groups).
 
 ## Persistence
 

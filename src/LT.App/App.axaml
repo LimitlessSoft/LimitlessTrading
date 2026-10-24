@@ -21,6 +21,10 @@
 		<StreamGeometry x:Key="ChevronDownIcon">
 			M1.6,3.6 L6,8 L10.4,3.6 L11.4,4.6 L6,10 L0.6,4.6 Z
 		</StreamGeometry>
+		<!-- Material Design "link" (Apache-2.0), on a 24×24 grid -->
+		<StreamGeometry x:Key="FrameLinkIcon">
+			M3.9,12C3.9,10.29 5.29,8.9 7,8.9H11V7H7A5,5 0 0,0 2,12A5,5 0 0,0 7,17H11V15.1H7C5.29,15.1 3.9,13.71 3.9,12M8,13H16V11H8V13M17,7H13V8.9H17C18.71,8.9 20.1,10.29 20.1,12C20.1,13.71 18.71,15.1 17,15.1H13V17H17A5,5 0 0,0 22,12A5,5 0 0,0 17,7Z
+		</StreamGeometry>
 		<SolidColorBrush x:Key="FrameActionHoverBrush" Color="#2C323C" />
 		<SolidColorBrush x:Key="FrameCloseHoverBrush" Color="#3A2326" />
 	</Application.Resources>
@@ -134,6 +138,10 @@
 		<Style Selector="Button.frameAction PathIcon">
 			<Setter Property="Width" Value="10" />
 			<Setter Property="Height" Value="10" />
+		</Style>
+		<Style Selector="Button.frameAction.link PathIcon">
+			<Setter Property="Width" Value="14" />
+			<Setter Property="Height" Value="14" />
 		</Style>
 		<Style Selector="Button.frameAction:pointerover /template/ ContentPresenter">
 			<Setter Property="Background" Value="{DynamicResource FrameActionHoverBrush}" />

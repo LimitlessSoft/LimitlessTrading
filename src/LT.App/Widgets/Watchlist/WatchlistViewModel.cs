@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using LT.App.Helpers;
 using LT.App.Stores;
 using LT.App.ViewModels;
+using LT.App.Workspace;
 using LT.Contracts.Constants;
 using LT.Contracts.Enums;
 using LT.Contracts.Interfaces.IManagers;
@@ -13,13 +14,12 @@ using LT.Contracts.Requests.Contracts;
 
 namespace LT.App.Widgets.Watchlist;
 
-public partial class WatchlistViewModel : ConnectedViewModelBase
+public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable
 {
 	private readonly IWatchlistManager _watchlistManager;
 	private readonly IContractManager _contractManager;
 	private readonly IMarketDataManager _marketDataManager;
 	private readonly IMessageLogManager _messageLogManager;
-	private readonly SelectedContractStore _selectedContractStore;
 	private CancellationToken _session = new(true);
 
 	public WatchlistViewModel(
@@ -29,7 +29,7 @@ public partial class WatchlistViewModel : ConnectedViewModelBase
 		IConnectionManager connectionManager,
 		IMessageLogManager messageLogManager,
 		ISettingsManager settingsManager,
-		SelectedContractStore selectedContractStore
+		LinkGroupStore linkGroupStore
 	)
 		: base(connectionManager)
 	{
@@ -37,7 +37,7 @@ public partial class WatchlistViewModel : ConnectedViewModelBase
 		_contractManager = contractManager;
 		_marketDataManager = marketDataManager;
 		_messageLogManager = messageLogManager;
-		_selectedContractStore = selectedContractStore;
+		Link = new ContractLink(linkGroupStore, () => SelectedRow?.Contract);
 
 		foreach (var contract in watchlistManager.GetItems())
 			Rows.Add(new WatchlistRowViewModel(contract));
@@ -57,6 +57,10 @@ public partial class WatchlistViewModel : ConnectedViewModelBase
 	}
 
 	public ObservableCollection<WatchlistRowViewModel> Rows { get; } = [];
+
+	/// <summary>Clicking a row sends its contract to the link group.</summary>
+	public ContractLink Link { get; }
+
 	public ObservableCollection<SearchResultItem> SearchResults { get; } = [];
 	public IReadOnlyList<string> SecurityTypes => MarketDataConstants.SearchableSecurityTypes;
 
@@ -78,7 +82,7 @@ public partial class WatchlistViewModel : ConnectedViewModelBase
 	partial void OnSelectedRowChanged(WatchlistRowViewModel? value)
 	{
 		if (value != null)
-			_selectedContractStore.SelectedContract = value.Contract;
+			Link.Publish(value.Contract);
 	}
 
 	protected override void OnConnected(CancellationToken session)
@@ -92,6 +96,12 @@ public partial class WatchlistViewModel : ConnectedViewModelBase
 	{
 		foreach (var row in Rows)
 			Stop(row);
+	}
+
+	public override void Dispose()
+	{
+		Link.Dispose();
+		base.Dispose();
 	}
 
 	[RelayCommand]
