@@ -1,0 +1,49 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.Messages"
+	xmlns:dto="using:LT.Contracts.Dtos.Messages"
+	x:Class="LT.App.Widgets.Messages.MessagesView"
+	x:DataType="vm:MessagesViewModel"
+>
+	<DockPanel>
+		<StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="0,0,0,6">
+			<Button Content="Clear" Command="{Binding ClearCommand}" />
+			<TextBlock
+				VerticalAlignment="Center"
+				Classes="secondary"
+				Text="App events: connection, market data and chart errors. IB's own system messages are not exposed by TwsApi yet."
+			/>
+		</StackPanel>
+		<DataGrid
+			ItemsSource="{Binding Messages}"
+			IsReadOnly="True"
+			GridLinesVisibility="Horizontal"
+			HeadersVisibility="Column"
+		>
+			<DataGrid.Columns>
+				<DataGridTextColumn
+					x:DataType="dto:MessageDto"
+					Header="Time"
+					Binding="{Binding Time, StringFormat='{}{0:HH:mm:ss}'}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:MessageDto"
+					Header="Level"
+					Binding="{Binding Severity}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:MessageDto"
+					Header="Source"
+					Binding="{Binding Source}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:MessageDto"
+					Header="Message"
+					Binding="{Binding Text}"
+					Width="*"
+				/>
+			</DataGrid.Columns>
+		</DataGrid>
+	</DockPanel>
+</UserControl>

@@ -1,0 +1,96 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.Orders"
+	xmlns:dto="using:LT.Contracts.Dtos.Orders"
+	x:Class="LT.App.Widgets.Orders.OrdersView"
+	x:DataType="vm:OrdersViewModel"
+>
+	<DockPanel>
+		<StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="0,0,0,6">
+			<Button
+				Content="Refresh"
+				Command="{Binding RefreshCommand}"
+				IsEnabled="{Binding IsConnected}"
+			/>
+			<TextBlock VerticalAlignment="Center" Classes="secondary" Text="{Binding UpdatedText}" />
+			<TextBlock
+				VerticalAlignment="Center"
+				Classes="secondary"
+				Text="Read-only: orders placed in TWS show up here."
+			/>
+			<TextBlock
+				VerticalAlignment="Center"
+				Classes="negative"
+				Text="{Binding ErrorMessage}"
+				IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+			/>
+		</StackPanel>
+		<DataGrid
+			ItemsSource="{Binding Orders}"
+			IsReadOnly="True"
+			CanUserSortColumns="True"
+			GridLinesVisibility="Horizontal"
+			HeadersVisibility="Column"
+		>
+			<DataGrid.Columns>
+				<DataGridTextColumn x:DataType="dto:OpenOrderDto" Header="Id" Binding="{Binding OrderId}" />
+				<DataGridTextColumn
+					x:DataType="dto:OpenOrderDto"
+					Header="Account"
+					Binding="{Binding Account}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:OpenOrderDto"
+					Header="Symbol"
+					Binding="{Binding Symbol}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:OpenOrderDto"
+					Header="Type"
+					Binding="{Binding SecurityType}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:OpenOrderDto"
+					Header="Side"
+					Binding="{Binding Action}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:OpenOrderDto"
+					Header="Quantity"
+					Binding="{Binding Quantity, StringFormat='{}{0:#,0.####}'}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:OpenOrderDto"
+					Header="Filled"
+					Binding="{Binding Filled, StringFormat='{}{0:#,0.####}'}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:OpenOrderDto"
+					Header="Order type"
+					Binding="{Binding OrderType}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:OpenOrderDto"
+					Header="Limit"
+					Binding="{Binding LimitPrice, StringFormat='{}{0:#,0.00##}'}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:OpenOrderDto"
+					Header="Aux"
+					Binding="{Binding AuxPrice, StringFormat='{}{0:#,0.00##}'}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:OpenOrderDto"
+					Header="TIF"
+					Binding="{Binding TimeInForce}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:OpenOrderDto"
+					Header="Status"
+					Binding="{Binding Status}"
+				/>
+			</DataGrid.Columns>
+		</DataGrid>
+	</DockPanel>
+</UserControl>

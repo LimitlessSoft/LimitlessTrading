@@ -1,0 +1,148 @@
+# UI Patterns (Avalonia)
+
+## Stack
+
+- **Avalonia 12** with the Fluent theme, dark variant by default; Inter font.
+- **CommunityToolkit.Mvvm** — `[ObservableProperty]` partial properties and `[RelayCommand]`.
+- **Compiled bindings** everywhere (`AvaloniaUseCompiledBindingsByDefault`) — every view sets
+  `x:DataType`.
+
+## Pages and widgets
+
+Mirrors the Termodom FE split (`pages/` + `widgets/`):
+
+- **Widget** = one self-contained panel: `Widgets/<Name>/<Name>View.axaml` (+ `.axaml.cs`) and
+  `<Name>ViewModel.cs`. A widget's ViewModel injects managers and owns its own subscriptions.
+- **Page** = a workspace that composes widgets (`Pages/TradingPage`). It doesn't contain trading
+  logic, only layout.
+- **Shell** (`Shell/MainWindow`) = icon toolbar (for now a single hamburger holding every command), the current page, status bar.
+  Connection state sits at the left of the status bar; clicking it opens the endpoint form
+  (`Widgets/ConnectionBar`, a flyout).
+
+## Workspace (`LT.App/Workspace`)
+
+Every widget is **independently spawnable** and lives in one of three wrappers:
+
+| Wrapper | Behaviour |
+|---|---|
+| **Center** | A split layout: widgets side by side and/or stacked, nested to any depth, with a splitter between every pair. |
+| **Left / right side** | Each widget docked there gets an icon on that edge's strip. One is expanded at a time; clicking its icon (or `—`) collapses the side and the center grows. |
+| **Floating** | The widget gets its own window (owned by the main window). Closing that window closes the widget. |
+
+- Spawn or reveal a widget from menu → Widgets. Ctrl+1 … Ctrl+8 do the same, but collapse a side
+  widget that is already expanded.
+- **Charts can be open several times** (menu → Widgets → New chart, Ctrl+Shift+7). Each chart has
+  its own timeframe and a **linked** state: on, it follows the contract selected in the watchlist
+  or positions; off, it stays on its contract. Both are saved per chart. The chart header's
+  controls (Linked, RTH, timeframe, Reload) are hidden until they are redesigned; F5 reloads.
+- **Picking a chart's ticker:** click the chart's header title (`ChartTitleView`, hosted in the
+  frame header via `WidgetViewFactory.CreateTitle`). It turns into a ticker box: type a ticker
+  and press Enter (resolved as a SMART stock by `IContractManager.ResolveTickerAsync`), or open
+  the dropdown (chevron, or it opens by itself when there is history) to pick one of the last 10
+  tickers (`SettingsEntity.RecentContracts`, shared by all charts). Esc or clicking away cancels.
+  A ticker picked this way pins that chart to it. Closing an extra chart
+  discards it (its view model is disposed); single-instance widgets keep theirs while closed.
+  Which widgets allow several instances: `WorkspaceHelpers.AllowsMultipleInstances`.
+- Every widget is wrapped in a `WidgetFrame`: icon, title, `✕` (close) and, on a side, `—`
+  (collapse). **The header is the drag handle**; while dragging, a highlight shows the target:
+  - left / right: the strip (+24 px), or the open side panel → dock on that side **at an icon
+    position**: the strip's icons part to open a gap at the slot nearest the pointer and the gap
+    is highlighted; dropping inserts the icon there (also reorders icons within a strip);
+  - a center widget → the **nearest edge** decides: left / right of it, **above / below** it
+    (that half lights up). Dropping in the same direction as its row/column joins it; otherwise
+    the widget's cell is split;
+  - empty center → fill it;
+  - outside the main window → float, with the window placed under the pointer (dragging a
+    floating widget's header outside just moves its window).
+- Drag positions travel in screen pixels (`PointToScreen` / `PointToClient`), so a drag can start
+  in a floating window and end in the main one (`WorkspaceView.DragDrop.cs`).
+- A frame never moves between windows in one step: the old window is closed (or the frame
+  detached) first and the frame is re-hosted on a later dispatcher pass. Moving a control into
+  another window while the old one still has it queued for layout aborts the process
+  ("InvalidateArrange on wrong LayoutManager").
+- No hover cursor or tooltip on headers; the cursor turns into a move cursor only while dragging.
+- Docked on a side, a frame sits flush against the strip and the window edges (no margins,
+  no rounded border — `Border.panel.docked`); center tiles and floating widgets keep the card look.
+- A widget opens where it last was; a new chart opens where the last chart was. On first run:
+  Watchlist, Positions, Orders and Executions on the left; Account and Messages on the right;
+  Chart in the center; Option chain closed (`WorkspaceHelpers.GetDefaultPlacements`).
+- The frame (and the widget view inside it) is created once per instance and **moved** between
+  hosts, so state and subscriptions survive docking, floating and collapsing. Widget view models
+  are created on first open by `WidgetViewModelFactory`.
+- `WorkspaceViewModel` owns placement: the center split tree (`CenterRoot`, a `CenterNodeDto`
+  edited by `CenterLayoutHelpers`), the `Left` / `Right` / `Floating` collections and the
+  expanded widget per side. `WorkspaceView` only mirrors it: the center is rebuilt as nested
+  grids whenever the tree changes, splitter sizes are written back into the tree after a drag.
+- Saved in `LayoutEntity`: `Widgets` (id, kind, dock, floating bounds, chart settings of each open
+  instance), `Center` (the split tree with sizes), the expanded widget per side and side widths.
+
+**Adding a widget:** a `WorkspaceTool` value (at the end), title and icon in `WidgetCatalog` /
+`WidgetIcons`, a case in `WidgetViewFactory` and `WidgetViewModelFactory`, a default dock in
+`WorkspaceHelpers.GetDefaultDock`, and a menu entry in `MainWindow.axaml`. Per-instance settings:
+implement `IWidgetState` on the view model.
+
+ViewModels are resolved from DI. They have no interfaces, so the LSCore convention scan skips them —
+register each one as transient in `Program.cs` (`builder.Services.AddTransient<FooViewModel>()`).
+Row VMs (`WatchlistRowViewModel`, `PositionRowViewModel`, …) are constructed by their parent
+instead.
+
+## Connected widgets
+
+Widgets that only work while connected derive from `ConnectedViewModelBase`. It gives them
+`IsConnected`, `ErrorMessage` and a **session token**: `OnConnected(session)` runs on every
+(re)connect, the token is cancelled on disconnect, and `RestartSession()` restarts the work (e.g.
+when the selected account changes). `RunPeriodicAsync` covers poll-style data (account summary
+every 3 min — IB only refreshes it that often, orders every 10 s, executions every 30 s).
+
+## Threading — the one rule that matters
+
+IB callbacks and `IAsyncEnumerable` continuations run **off the UI thread**. Never touch an
+observable property or collection bound to the UI from there:
+
+```csharp
+connectionManager.StatusChanged += status => Dispatcher.UIThread.Post(() => Apply(status));
+```
+
+For high-frequency streams (ticks) don't post per tick — coalesce. The pattern used by the
+watchlist and the option chain:
+
+1. Consume the stream on the thread pool: `Task.Run` + `ConfigureAwait(false)`.
+2. Write each quote into the row's `LatestValue<QuoteDto>` (`Interlocked.Exchange`, newest wins).
+3. A `DispatcherTimer` (250 ms) calls `row.Flush()`, which takes the value and updates the bound
+   strings once.
+
+Low-frequency streams (positions, P&L, 5 s bars) are consumed directly on the UI thread — the
+`await foreach` continuation comes back on the Avalonia synchronization context.
+
+## Lifetime of subscriptions
+
+A widget that subscribes to a stream holds a `CancellationTokenSource`, cancels it when the
+connection drops or the widget is closed. Cancelling ends the `await foreach`, which cancels the IB
+subscription and frees the market-data line.
+
+## Keyboard shortcuts
+
+| Keys | Action |
+|---|---|
+| Ctrl+F | Focus watchlist search |
+| Enter / Esc (search box) | Search / close results |
+| Delete (watchlist) | Remove selected row |
+| F5 | Refresh chart, account, positions, orders, executions |
+| Ctrl+, | Settings |
+| Ctrl+1 … Ctrl+8 | Show Watchlist, Positions, Orders, Executions, Account, Messages, Chart, Option chain (collapses an expanded side widget) |
+| Ctrl+Shift+7 | New chart |
+
+The window handles them in a tunnelling `KeyDown` handler (`MainWindow.axaml.cs`), so they work
+while a text box has focus. On macOS, Cmd works in place of Ctrl.
+
+## Charts
+
+`Widgets/Chart/CandlestickChart` is a custom `Control` drawn with `DrawingContext` (no chart
+library): candles, volume, price grid, last-price line, crosshair + OHLCV readout. Wheel zooms,
+drag pans, double-click resets.
+
+## Styling
+
+- Colours/brushes as resources in `App.axaml`; positive/negative P/L via the `positive` /
+  `negative` classes, never hard-coded in a view.
+- Widgets sit in a `Border.panel` with a `TextBlock.panelTitle` header.

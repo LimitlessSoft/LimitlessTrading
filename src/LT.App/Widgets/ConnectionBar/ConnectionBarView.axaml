@@ -1,0 +1,21 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.ConnectionBar"
+	x:Class="LT.App.Widgets.ConnectionBar.ConnectionBarView"
+	x:DataType="vm:ConnectionBarViewModel"
+>
+	<!-- Lives in the status bar; clicking opens the IB Gateway log-in dialog -->
+	<Button Classes="statusItem" ToolTip.Tip="{Binding ErrorMessage}" Click="OnClick">
+		<StackPanel Orientation="Horizontal" Spacing="6">
+			<Ellipse
+				Classes="status"
+				VerticalAlignment="Center"
+				Classes.connected="{Binding IsConnected}"
+				Classes.connecting="{Binding IsConnecting}"
+				Classes.failed="{Binding IsFailed}"
+			/>
+			<TextBlock Classes="secondary" VerticalAlignment="Center" Text="{Binding StateText}" />
+		</StackPanel>
+	</Button>
+</UserControl>

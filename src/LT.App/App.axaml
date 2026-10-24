@@ -1,0 +1,190 @@
+<Application
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	x:Class="LT.App.App"
+	RequestedThemeVariant="Dark"
+>
+	<Application.Resources>
+		<SolidColorBrush x:Key="PanelBackground" Color="#1B1E24" />
+		<SolidColorBrush x:Key="PanelStroke" Color="#2C313A" />
+		<SolidColorBrush x:Key="SecondaryText" Color="#8A93A3" />
+		<SolidColorBrush x:Key="PositiveBrush" Color="#26A69A" />
+		<SolidColorBrush x:Key="NegativeBrush" Color="#EF5350" />
+		<SolidColorBrush x:Key="WarningBrush" Color="#FFB74D" />
+		<SolidColorBrush x:Key="AtmBrush" Color="#2A3140" />
+
+		<!-- Widget frame header actions, drawn on a 12×12 grid -->
+		<StreamGeometry x:Key="FrameCloseIcon">
+			M2.2,1.1 L6,4.9 L9.8,1.1 L10.9,2.2 L7.1,6 L10.9,9.8 L9.8,10.9 L6,7.1 L2.2,10.9 L1.1,9.8 L4.9,6 L1.1,2.2 Z
+		</StreamGeometry>
+		<StreamGeometry x:Key="FrameCollapseIcon">M1.5,5.25 H10.5 V6.75 H1.5 Z</StreamGeometry>
+		<StreamGeometry x:Key="ChevronDownIcon">
+			M1.6,3.6 L6,8 L10.4,3.6 L11.4,4.6 L6,10 L0.6,4.6 Z
+		</StreamGeometry>
+		<SolidColorBrush x:Key="FrameActionHoverBrush" Color="#2C323C" />
+		<SolidColorBrush x:Key="FrameCloseHoverBrush" Color="#3A2326" />
+	</Application.Resources>
+
+	<Application.Styles>
+		<FluentTheme />
+		<StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+
+		<Style Selector="Border.panel">
+			<Setter Property="Background" Value="{DynamicResource PanelBackground}" />
+			<Setter Property="BorderBrush" Value="{DynamicResource PanelStroke}" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="CornerRadius" Value="6" />
+			<Setter Property="Padding" Value="10" />
+		</Style>
+		<Style Selector="Border.panel.docked">
+			<Setter Property="CornerRadius" Value="0" />
+			<Setter Property="BorderThickness" Value="0" />
+		</Style>
+		<Style Selector="TextBlock.panelTitle">
+			<Setter Property="FontWeight" Value="SemiBold" />
+			<Setter Property="VerticalAlignment" Value="Center" />
+		</Style>
+		<Style Selector="TextBlock.secondary">
+			<Setter Property="Foreground" Value="{DynamicResource SecondaryText}" />
+			<Setter Property="FontSize" Value="12" />
+		</Style>
+		<Style Selector="TextBlock.value">
+			<Setter Property="FontFeatures" Value="tnum" />
+			<Setter Property="HorizontalAlignment" Value="Right" />
+		</Style>
+		<Style Selector="Border.strip">
+			<Setter Property="Background" Value="{DynamicResource PanelBackground}" />
+			<Setter Property="BorderBrush" Value="{DynamicResource PanelStroke}" />
+			<Setter Property="Padding" Value="4,8" />
+		</Style>
+		<Style Selector="Border.toolbar">
+			<Setter Property="Background" Value="{DynamicResource PanelBackground}" />
+			<Setter Property="Padding" Value="4,4,4,0" />
+		</Style>
+		<Style Selector="Button.tool">
+			<Setter Property="Width" Value="36" />
+			<Setter Property="Height" Value="36" />
+			<Setter Property="Padding" Value="0" />
+			<Setter Property="Margin" Value="0,0,0,4" />
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="BorderThickness" Value="0" />
+			<Setter Property="CornerRadius" Value="6" />
+			<Setter Property="HorizontalContentAlignment" Value="Center" />
+			<Setter Property="VerticalContentAlignment" Value="Center" />
+			<Setter Property="Foreground" Value="{DynamicResource SecondaryText}" />
+		</Style>
+		<Style Selector="Button.tool PathIcon">
+			<Setter Property="Width" Value="18" />
+			<Setter Property="Height" Value="18" />
+		</Style>
+		<Style Selector="Button.tool.active">
+			<Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
+			<Setter Property="Foreground" Value="White" />
+		</Style>
+		<Style Selector="Button.tool.active:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="{DynamicResource SystemAccentColorLight1}" />
+			<Setter Property="Foreground" Value="White" />
+		</Style>
+		<Style Selector="Border.dropTarget">
+			<Setter Property="Background" Value="#332F7BF6" />
+			<Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+			<Setter Property="BorderThickness" Value="2" />
+			<Setter Property="CornerRadius" Value="6" />
+		</Style>
+		<!-- Widget frame header actions: quiet until the frame is hovered, close turns red -->
+		<Style Selector="StackPanel.frameActions">
+			<Setter Property="Opacity" Value="0.55" />
+			<Setter Property="Transitions">
+				<Transitions>
+					<DoubleTransition Property="Opacity" Duration="0:0:0.12" />
+				</Transitions>
+			</Setter>
+		</Style>
+		<Style Selector="UserControl:pointerover StackPanel.frameActions">
+			<Setter Property="Opacity" Value="1" />
+		</Style>
+		<!-- Chart header title: reads as the title, hints it can be clicked -->
+		<Style Selector="Button.chartTitle">
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="BorderThickness" Value="0" />
+			<Setter Property="Padding" Value="4,1" />
+			<Setter Property="MinHeight" Value="0" />
+			<Setter Property="CornerRadius" Value="4" />
+			<Setter Property="FontWeight" Value="SemiBold" />
+		</Style>
+		<Style Selector="Button.chartTitle:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="{DynamicResource FrameActionHoverBrush}" />
+		</Style>
+		<Style Selector="AutoCompleteBox.ticker">
+			<Setter Property="MinHeight" Value="26" />
+			<Setter Property="FontSize" Value="13" />
+		</Style>
+		<Style Selector="Button.frameAction">
+			<Setter Property="Width" Value="24" />
+			<Setter Property="Height" Value="24" />
+			<Setter Property="MinHeight" Value="0" />
+			<Setter Property="Padding" Value="0" />
+			<Setter Property="CornerRadius" Value="5" />
+			<Setter Property="BorderThickness" Value="0" />
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="Foreground" Value="{DynamicResource SecondaryText}" />
+			<Setter Property="HorizontalContentAlignment" Value="Center" />
+			<Setter Property="VerticalContentAlignment" Value="Center" />
+		</Style>
+		<Style Selector="Button.frameAction PathIcon">
+			<Setter Property="Width" Value="10" />
+			<Setter Property="Height" Value="10" />
+		</Style>
+		<Style Selector="Button.frameAction:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="{DynamicResource FrameActionHoverBrush}" />
+			<Setter Property="Foreground" Value="White" />
+		</Style>
+		<Style Selector="Button.frameAction:pressed /template/ ContentPresenter">
+			<Setter Property="Background" Value="{DynamicResource PanelStroke}" />
+		</Style>
+		<Style Selector="Button.frameAction.close:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="{DynamicResource FrameCloseHoverBrush}" />
+			<Setter Property="Foreground" Value="{DynamicResource NegativeBrush}" />
+		</Style>
+		<Style Selector="Button.statusItem">
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="BorderThickness" Value="0" />
+			<Setter Property="Padding" Value="4,1" />
+			<Setter Property="MinHeight" Value="0" />
+		</Style>
+		<Style Selector="Ellipse.status">
+			<Setter Property="Width" Value="10" />
+			<Setter Property="Height" Value="10" />
+			<Setter Property="Fill" Value="{DynamicResource SecondaryText}" />
+		</Style>
+		<Style Selector="Ellipse.status.connecting">
+			<Setter Property="Fill" Value="{DynamicResource WarningBrush}" />
+		</Style>
+		<Style Selector="Ellipse.status.connected">
+			<Setter Property="Fill" Value="{DynamicResource PositiveBrush}" />
+		</Style>
+		<Style Selector="Ellipse.status.failed">
+			<Setter Property="Fill" Value="{DynamicResource NegativeBrush}" />
+		</Style>
+		<Style Selector="TabItem">
+			<Setter Property="FontSize" Value="14" />
+			<Setter Property="MinHeight" Value="34" />
+			<Setter Property="Padding" Value="10,0" />
+		</Style>
+		<Style Selector="TextBlock.positive">
+			<Setter Property="Foreground" Value="{DynamicResource PositiveBrush}" />
+		</Style>
+		<Style Selector="TextBlock.negative">
+			<Setter Property="Foreground" Value="{DynamicResource NegativeBrush}" />
+		</Style>
+		<Style Selector="TextBlock.warning">
+			<Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+		</Style>
+		<Style Selector="DataGrid">
+			<Setter Property="FontSize" Value="13" />
+		</Style>
+		<Style Selector="DataGridCell">
+			<Setter Property="MinHeight" Value="26" />
+		</Style>
+	</Application.Styles>
+</Application>

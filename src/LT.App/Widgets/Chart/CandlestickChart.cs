@@ -1,0 +1,385 @@
+using System.Globalization;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Media;
+using Avalonia.Media.Immutable;
+using LT.Contracts.Dtos.Charts;
+
+namespace LT.App.Widgets.Chart;
+
+/// <summary>
+/// Lightweight OHLC + volume chart. Wheel zooms, drag pans, double-click resets, hover shows the
+/// bar under the cursor.
+/// </summary>
+public class CandlestickChart : Control
+{
+	public static readonly StyledProperty<IReadOnlyList<BarDto>?> BarsProperty =
+		AvaloniaProperty.Register<CandlestickChart, IReadOnlyList<BarDto>?>(nameof(Bars));
+
+	public static readonly StyledProperty<bool> IsIntradayProperty = AvaloniaProperty.Register<
+		CandlestickChart,
+		bool
+	>(nameof(IsIntraday));
+
+	private const double PriceAxisWidth = 72;
+	private const double TimeAxisHeight = 22;
+	private const double TopPadding = 24;
+	private const double VolumeFraction = 0.18;
+	private const double MinBarSpacing = 2;
+	private const double MaxBarSpacing = 40;
+	private const double DefaultBarSpacing = 8;
+
+	private static readonly ImmutableSolidColorBrush Background = new ImmutableSolidColorBrush(
+		Color.Parse("#15181D")
+	);
+	private static readonly ImmutableSolidColorBrush UpBrush = new ImmutableSolidColorBrush(
+		Color.Parse("#26A69A")
+	);
+	private static readonly ImmutableSolidColorBrush DownBrush = new ImmutableSolidColorBrush(
+		Color.Parse("#EF5350")
+	);
+	private static readonly ImmutableSolidColorBrush UpVolumeBrush = new ImmutableSolidColorBrush(
+		Color.Parse("#5526A69A")
+	);
+	private static readonly ImmutableSolidColorBrush DownVolumeBrush = new ImmutableSolidColorBrush(
+		Color.Parse("#55EF5350")
+	);
+	private static readonly ImmutableSolidColorBrush TextBrush = new ImmutableSolidColorBrush(
+		Color.Parse("#8A93A3")
+	);
+	private static readonly ImmutableSolidColorBrush LabelBrush = new ImmutableSolidColorBrush(
+		Color.Parse("#E6E8EB")
+	);
+	private static readonly ImmutableSolidColorBrush LastPriceBrush = new ImmutableSolidColorBrush(
+		Color.Parse("#4C8DFF")
+	);
+	private static readonly IPen GridPen = new ImmutablePen(
+		new ImmutableSolidColorBrush(Color.Parse("#222731")),
+		1
+	);
+	private static readonly IPen CrosshairPen = new ImmutablePen(
+		new ImmutableSolidColorBrush(Color.Parse("#6B7385")),
+		1,
+		new ImmutableDashStyle([3, 3], 0)
+	);
+	private static readonly IPen LastPricePen = new ImmutablePen(
+		LastPriceBrush,
+		1,
+		new ImmutableDashStyle([2, 3], 0)
+	);
+	private static readonly IPen UpPen = new ImmutablePen(UpBrush, 1);
+	private static readonly IPen DownPen = new ImmutablePen(DownBrush, 1);
+
+	private double _barSpacing = DefaultBarSpacing;
+	private int _offset;
+	private Point? _pointer;
+	private Point? _dragStart;
+	private int _dragStartOffset;
+
+	static CandlestickChart()
+	{
+		AffectsRender<CandlestickChart>(BarsProperty, IsIntradayProperty);
+		ClipToBoundsProperty.OverrideDefaultValue<CandlestickChart>(true);
+		FocusableProperty.OverrideDefaultValue<CandlestickChart>(true);
+	}
+
+	public IReadOnlyList<BarDto>? Bars
+	{
+		get => GetValue(BarsProperty);
+		set => SetValue(BarsProperty, value);
+	}
+
+	public bool IsIntraday
+	{
+		get => GetValue(IsIntradayProperty);
+		set => SetValue(IsIntradayProperty, value);
+	}
+
+	protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+	{
+		base.OnPropertyChanged(change);
+		if (change.Property != BarsProperty)
+			return;
+
+		// A different series (new contract / timeframe) starts at the latest bar again
+		var oldBars = change.GetOldValue<IReadOnlyList<BarDto>?>();
+		var newBars = change.GetNewValue<IReadOnlyList<BarDto>?>();
+		if (
+			oldBars is not { Count: > 0 }
+			|| newBars is not { Count: > 0 }
+			|| oldBars[0].Time != newBars[0].Time
+		)
+		{
+			_offset = 0;
+			_barSpacing = DefaultBarSpacing;
+		}
+	}
+
+	public override void Render(DrawingContext context)
+	{
+		var size = Bounds.Size;
+		context.DrawRectangle(Background, null, new Rect(size));
+
+		var bars = Bars;
+		if (bars is not { Count: > 0 } || size.Width < PriceAxisWidth + 20 || size.Height < 80)
+		{
+			var empty = Text("No data", 13, TextBrush);
+			context.DrawText(
+				empty,
+				new Point((size.Width - empty.Width) / 2, (size.Height - empty.Height) / 2)
+			);
+			return;
+		}
+
+		var plot = new Rect(
+			0,
+			TopPadding,
+			size.Width - PriceAxisWidth,
+			size.Height - TopPadding - TimeAxisHeight
+		);
+		var volumeHeight = plot.Height * VolumeFraction;
+		var priceRect = new Rect(plot.X, plot.Y, plot.Width, plot.Height - volumeHeight - 6);
+		var volumeRect = new Rect(plot.X, plot.Bottom - volumeHeight, plot.Width, volumeHeight);
+
+		var visible = Math.Max(1, (int)(plot.Width / _barSpacing));
+		_offset = Math.Clamp(_offset, 0, bars.Count - 1);
+		var end = bars.Count - _offset;
+		var start = Math.Max(0, end - visible);
+
+		var low = double.MaxValue;
+		var high = double.MinValue;
+		decimal maxVolume = 0;
+		for (var i = start; i < end; i++)
+		{
+			low = Math.Min(low, bars[i].Low);
+			high = Math.Max(high, bars[i].High);
+			maxVolume = Math.Max(maxVolume, bars[i].Volume);
+		}
+		if (high <= low)
+		{
+			high += 0.5;
+			low -= 0.5;
+		}
+		var padding = (high - low) * 0.06;
+		low -= padding;
+		high += padding;
+
+		double Y(double price) =>
+			priceRect.Bottom - (price - low) / (high - low) * priceRect.Height;
+		double X(int index) => plot.Right - (end - index - 0.5) * _barSpacing;
+
+		// price grid + axis labels
+		var step = NiceStep((high - low) / Math.Max(2, priceRect.Height / 48));
+		var decimals = step >= 1 ? 2 : Math.Min(6, (int)Math.Ceiling(-Math.Log10(step)) + 1);
+		for (var price = Math.Ceiling(low / step) * step; price <= high; price += step)
+		{
+			var y = Math.Round(Y(price)) + 0.5;
+			context.DrawLine(GridPen, new Point(plot.X, y), new Point(plot.Right, y));
+			var label = Text(
+				price.ToString("N" + decimals, CultureInfo.CurrentCulture),
+				11,
+				TextBrush
+			);
+			context.DrawText(label, new Point(plot.Right + 6, y - label.Height / 2));
+		}
+
+		// time labels
+		var labelEvery = Math.Max(1, (int)Math.Ceiling(96 / _barSpacing));
+		DateTimeOffset? previous = null;
+		for (var i = start; i < end; i++)
+		{
+			if ((bars.Count - 1 - i) % labelEvery != 0)
+				continue;
+			var time = bars[i].Time.ToLocalTime();
+			var x = Math.Round(X(i)) + 0.5;
+			context.DrawLine(GridPen, new Point(x, plot.Y), new Point(x, plot.Bottom));
+			var label = Text(FormatTime(time, previous), 11, TextBrush);
+			context.DrawText(label, new Point(x - label.Width / 2, plot.Bottom + 4));
+			previous = time;
+		}
+
+		// volume + candles
+		var bodyWidth = Math.Max(1, _barSpacing * 0.7);
+		for (var i = start; i < end; i++)
+		{
+			var bar = bars[i];
+			var up = bar.Close >= bar.Open;
+			var x = X(i);
+
+			if (maxVolume > 0 && bar.Volume > 0)
+			{
+				var h = (double)(bar.Volume / maxVolume) * volumeRect.Height;
+				context.DrawRectangle(
+					up ? UpVolumeBrush : DownVolumeBrush,
+					null,
+					new Rect(x - bodyWidth / 2, volumeRect.Bottom - h, bodyWidth, h)
+				);
+			}
+
+			var wickX = Math.Round(x) + 0.5;
+			context.DrawLine(
+				up ? UpPen : DownPen,
+				new Point(wickX, Y(bar.High)),
+				new Point(wickX, Y(bar.Low))
+			);
+			var top = Y(Math.Max(bar.Open, bar.Close));
+			var bottom = Y(Math.Min(bar.Open, bar.Close));
+			context.DrawRectangle(
+				up ? UpBrush : DownBrush,
+				null,
+				new Rect(x - bodyWidth / 2, top, bodyWidth, Math.Max(1, bottom - top))
+			);
+		}
+
+		// last price
+		var last = bars[^1].Close;
+		var lastY = Math.Round(Y(last)) + 0.5;
+		if (lastY >= priceRect.Top && lastY <= priceRect.Bottom)
+		{
+			context.DrawLine(LastPricePen, new Point(plot.X, lastY), new Point(plot.Right, lastY));
+			var label = Text(
+				last.ToString("N" + decimals, CultureInfo.CurrentCulture),
+				11,
+				LabelBrush
+			);
+			context.DrawRectangle(
+				LastPriceBrush,
+				null,
+				new Rect(plot.Right, lastY - label.Height / 2 - 2, PriceAxisWidth, label.Height + 4)
+			);
+			context.DrawText(label, new Point(plot.Right + 6, lastY - label.Height / 2));
+		}
+
+		// crosshair + readout
+		var hovered = end - 1;
+		if (_pointer is { } p && plot.Contains(p))
+		{
+			context.DrawLine(CrosshairPen, new Point(p.X, plot.Y), new Point(p.X, plot.Bottom));
+			context.DrawLine(CrosshairPen, new Point(plot.X, p.Y), new Point(plot.Right, p.Y));
+			hovered = Math.Clamp(
+				end - 1 - (int)Math.Floor((plot.Right - p.X) / _barSpacing),
+				start,
+				end - 1
+			);
+			if (p.Y <= priceRect.Bottom)
+			{
+				var price = low + (priceRect.Bottom - p.Y) / priceRect.Height * (high - low);
+				var label = Text(
+					price.ToString("N" + decimals, CultureInfo.CurrentCulture),
+					11,
+					LabelBrush
+				);
+				context.DrawRectangle(
+					new ImmutableSolidColorBrush(Color.Parse("#3A4150")),
+					null,
+					new Rect(
+						plot.Right,
+						p.Y - label.Height / 2 - 2,
+						PriceAxisWidth,
+						label.Height + 4
+					)
+				);
+				context.DrawText(label, new Point(plot.Right + 6, p.Y - label.Height / 2));
+			}
+		}
+
+		var b = bars[hovered];
+		var readout = Text(
+			$"{FormatTime(b.Time.ToLocalTime(), null)}   O {b.Open.ToString("N" + decimals)}   H {b.High.ToString("N" + decimals)}   L {b.Low.ToString("N" + decimals)}   C {b.Close.ToString("N" + decimals)}   V {b.Volume:#,0}",
+			12,
+			b.Close >= b.Open ? UpBrush : DownBrush
+		);
+		context.DrawText(readout, new Point(6, 4));
+	}
+
+	protected override void OnPointerMoved(PointerEventArgs e)
+	{
+		base.OnPointerMoved(e);
+		var position = e.GetPosition(this);
+		_pointer = position;
+		if (_dragStart is { } start)
+			_offset = Math.Max(
+				0,
+				_dragStartOffset + (int)Math.Round((position.X - start.X) / _barSpacing)
+			);
+		InvalidateVisual();
+	}
+
+	protected override void OnPointerPressed(PointerPressedEventArgs e)
+	{
+		base.OnPointerPressed(e);
+		if (e.ClickCount == 2)
+		{
+			_offset = 0;
+			_barSpacing = DefaultBarSpacing;
+			InvalidateVisual();
+			return;
+		}
+		_dragStart = e.GetPosition(this);
+		_dragStartOffset = _offset;
+		e.Pointer.Capture(this);
+	}
+
+	protected override void OnPointerReleased(PointerReleasedEventArgs e)
+	{
+		base.OnPointerReleased(e);
+		_dragStart = null;
+		e.Pointer.Capture(null);
+	}
+
+	protected override void OnPointerExited(PointerEventArgs e)
+	{
+		base.OnPointerExited(e);
+		_pointer = null;
+		InvalidateVisual();
+	}
+
+	protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
+	{
+		base.OnPointerWheelChanged(e);
+		_barSpacing = Math.Clamp(
+			e.Delta.Y > 0 ? _barSpacing * 1.15 : _barSpacing / 1.15,
+			MinBarSpacing,
+			MaxBarSpacing
+		);
+		e.Handled = true;
+		InvalidateVisual();
+	}
+
+	private string FormatTime(DateTimeOffset time, DateTimeOffset? previous)
+	{
+		if (!IsIntraday)
+			return previous is { } p && p.Year != time.Year
+				? time.ToString("yyyy")
+				: time.ToString("dd MMM yy");
+		return previous is { } q && q.Date == time.Date
+			? time.ToString("HH:mm")
+			: time.ToString("dd MMM HH:mm");
+	}
+
+	private static FormattedText Text(string text, double size, IBrush brush) =>
+		new(
+			text,
+			CultureInfo.CurrentCulture,
+			FlowDirection.LeftToRight,
+			Typeface.Default,
+			size,
+			brush
+		);
+
+	/// <summary>1, 2 or 5 times a power of ten, at least <paramref name="raw"/>.</summary>
+	private static double NiceStep(double raw)
+	{
+		if (raw <= 0 || double.IsNaN(raw))
+			return 1;
+		var magnitude = Math.Pow(10, Math.Floor(Math.Log10(raw)));
+		var normalized = raw / magnitude;
+		return (
+				normalized <= 1 ? 1
+				: normalized <= 2 ? 2
+				: normalized <= 5 ? 5
+				: 10
+			) * magnitude;
+	}
+}

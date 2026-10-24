@@ -1,0 +1,55 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Workspace"
+	x:Class="LT.App.Workspace.WidgetFrame"
+	x:DataType="vm:WidgetItem"
+>
+	<!-- The wrapper every widget sits in, whichever host (center, side, floating) holds it.
+	     Docked on a side it is flush with the strip and window edges (no card look). -->
+	<Border Classes="panel" Classes.docked="{Binding IsSide}">
+		<DockPanel>
+			<!-- The header is the drag handle: drop on a side, a center tile or outside to float -->
+			<Border x:Name="Header" DockPanel.Dock="Top" Margin="0,0,0,8" Background="Transparent">
+				<DockPanel>
+					<StackPanel
+						DockPanel.Dock="Right"
+						Classes="frameActions"
+						Orientation="Horizontal"
+						Spacing="2"
+						VerticalAlignment="Center"
+					>
+						<Button
+							Classes="frameAction"
+							ToolTip.Tip="Collapse"
+							Command="{Binding CollapseCommand}"
+							IsVisible="{Binding IsSide}"
+						>
+							<PathIcon Data="{StaticResource FrameCollapseIcon}" />
+						</Button>
+						<Button
+							Classes="frameAction close"
+							ToolTip.Tip="Close"
+							Command="{Binding CloseCommand}"
+						>
+							<PathIcon Data="{StaticResource FrameCloseIcon}" />
+						</Button>
+					</StackPanel>
+					<StackPanel Orientation="Horizontal" Spacing="8">
+						<PathIcon
+							Width="14"
+							Height="14"
+							Foreground="{DynamicResource SecondaryText}"
+							Data="{Binding Icon}"
+						/>
+						<!-- Widget-specific title (the chart's ticker box) replaces the plain one -->
+						<ContentControl x:Name="TitleHost" VerticalAlignment="Center">
+							<TextBlock Classes="panelTitle" Text="{Binding Title}" />
+						</ContentControl>
+					</StackPanel>
+				</DockPanel>
+			</Border>
+			<ContentControl x:Name="BodyHost" />
+		</DockPanel>
+	</Border>
+</UserControl>
