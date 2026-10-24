@@ -13,8 +13,7 @@ namespace LT.Contracts.Interfaces.IApiClients;
 
 /// <summary>
 /// Boundary to Interactive Brokers (TWS / IB Gateway socket API). Implemented in LT.Ibkr; the only
-/// place where IBKR.Net / TwsApi / IBApi types exist. Everything crossing this interface is an LT
-/// DTO.
+/// place where IBKR.Net types exist. Everything crossing this interface is an LT DTO.
 /// Read-only: there are deliberately no order placement methods.
 /// </summary>
 public interface IIbkrApiClient

@@ -18,7 +18,7 @@ say the changes are ready.
 
 0. **Read-only build** — there is no order placement/cancel/modify code. Don't add order
    methods to `IIbkrApiClient` unless the user explicitly asks for trading.
-1. **`IBKR.Net`, `TwsApi` and `IBApi` types live only in `LT.Ibkr`.** Everything crossing `IIbkrApiClient` is an
+1. **`IBKR.Net` types live only in `LT.Ibkr`.** Everything crossing `IIbkrApiClient` is an
    `LT.Contracts` DTO; map IB types in `LT.Ibkr/DtoMappings/`. See
    [docs/ibkr-tws-api.md](docs/ibkr-tws-api.md).
 2. **Always update interfaces when modifying implementations** — the interface in
@@ -59,7 +59,7 @@ Layers follow the Termodom ecosystem and use LSCore (`DependencyInjection`, `Val
 | `LT.Contracts` | DTOs, Requests, Entities, Enums, Interfaces, Helpers, Constants |
 | `LT.Domain` | Managers, Validators |
 | `LT.Repository` | Local persistence (JSON settings) |
-| `LT.Ibkr` | `IIbkrApiClient` over `TwsApi` |
+| `LT.Ibkr` | `IIbkrApiClient` over IBKR.Net (our own IB client, no IB code) |
 | `LT.App` | Avalonia app — `Program.cs` composition root, Shell, Pages, Widgets |
 | `LT.Tests` | xUnit v3 on Microsoft.Testing.Platform |
 

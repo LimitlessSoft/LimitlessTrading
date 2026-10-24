@@ -129,7 +129,7 @@ flowchart LR
         Domain --> Ibkr["LT.Ibkr<br/>IIbkrApiClient"]
         Domain --> Repo["LT.Repository<br/>settings · bar cache"]
     end
-    Ibkr -- "socket API (TwsApi)" --> GW["IB Gateway"]
+    Ibkr -- "socket API (IBKR.Net)" --> GW["IB Gateway"]
     Domain -. "starts via IBC" .-> GW
     GW <--> IB(("Interactive<br/>Brokers"))
 ```
@@ -138,7 +138,7 @@ flowchart LR
 |---|---|
 | `LT.App` | Avalonia app — composition root, shell, workspace, widgets |
 | `LT.Domain` | Managers and validators — the app's logic |
-| `LT.Ibkr` | `IIbkrApiClient` over [`TwsApi`](https://github.com/UtopleMan/tws-api-dotnet), IBC process control |
+| `LT.Ibkr` | `IIbkrApiClient` over [IBKR.Net](https://github.com/LimitlessSoft/IBKR.Net) (our own IB client), IBC process control |
 | `LT.Repository` | Local persistence (JSON settings, bar cache) |
 | `LT.Contracts` | DTOs, requests, entities, enums, interfaces, helpers, constants |
 | `LT.Tests` | xUnit v3 tests with fakes — no IB connection needed |
@@ -149,7 +149,7 @@ Deeper reading:
 |---|---|
 | [docs/vision.md](docs/vision.md) | Why, principles, roadmap |
 | [docs/architecture.md](docs/architecture.md) | Layers, dependency direction, DI |
-| [docs/ibkr-tws-api.md](docs/ibkr-tws-api.md) | The `TwsApi` library, IB Gateway login, IB limits and quirks |
+| [docs/ibkr-tws-api.md](docs/ibkr-tws-api.md) | IBKR.Net, IB Gateway login, IB limits and quirks |
 | [docs/ui-patterns.md](docs/ui-patterns.md) | Widgets, MVVM, UI threading, styling |
 
 ---
@@ -166,7 +166,7 @@ Deeper reading:
 | ✅ | Option chain | done |
 | 🔜 | Named layouts | planned |
 | 🔜 | Order ticket with what-if preview, cancel / modify | planned — deliberately separate |
-| 🚧 | L2 depth, scanners, news, alerts | waiting on `TwsApi` support |
+| 🚧 | Open orders and executions on IBKR.Net, L2 depth, scanners, news, alerts | waiting on IBKR.Net support |
 
 Details in [docs/vision.md](docs/vision.md#roadmap-sketch).
 

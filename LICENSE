@@ -43,8 +43,7 @@ SOFTWARE.
 
 ---
 
-Third-party components keep their own licenses and are not covered by the above. In particular,
-packages/TwsApi.0.5.1-lt.1.nupkg contains TwsApi (MIT, UtopleMan) and the Interactive Brokers TWS
-API client (CSharpAPI.dll), which is subject to Interactive Brokers' own license terms. IBC
-(GPL-3.0) and IB Gateway are not included; the app runs them as separate programs installed by
-the user.
+Third-party components keep their own licenses and are not covered by the above. The app
+contains no Interactive Brokers code: it talks to IB Gateway through IBKR.Net (MIT,
+LimitlessSoft). IBC (GPL-3.0) and IB Gateway are not included; the app runs them as separate
+programs installed by the user.

@@ -1,69 +1,28 @@
-# IBKR TWS API — IBKR.Net and `TwsApi`
+# IB socket API — IBKR.Net
 
-**We are moving to our own client, [IBKR.Net](https://github.com/LimitlessSoft/IBKR.Net)** (MIT,
-clean-room: no Interactive Brokers code). IB's API client is GPL-3.0 from 10.50 and non-commercial
-before, and TwsApi bundles it, which would bind this app's license. Its protocol notes live in
-that repo's `docs/protocol.md`.
+The app talks to IB Gateway through **[IBKR.Net](https://github.com/LimitlessSoft/IBKR.Net)**, our
+own client for the TWS / IB Gateway socket API (MIT, clean-room: **no Interactive Brokers code**).
+IB's own API client is GPL-3.0 from 10.50 and non-commercial before, so bundling it would bind
+this app's license. How each message looks on the wire is in that repo's `docs/protocol.md`; this
+file covers how the app uses it, IB's limits and the quirks we have hit. Read it before touching
+`LT.Ibkr`.
 
-Right now `LT.Ibkr` holds **two connections** to the Gateway:
-
-- **IBKR.Net** (`0.1.0-preview.1`, from `packages/` until it is on nuget.org), with the configured
-  client id: everything except the three calls below.
-- **TwsApi**, with client id + 1 (`ConnectionConstants.TwsApiClientIdOffset`): only real-time bars,
-  open orders and executions. IBKR.Net adds them once a trading-day recording shows their
-  messages; then TwsApi, its package and patch are removed.
-- Quote "last trade time" (string ticks) stays empty until that recording too.
-
-The rest of this file describes TwsApi and the IB socket API as researched below; the IB limits
-and quirks apply to both clients.
-
-Researched on 2026-10-23 against `TwsApi` **0.5.0** (repo head `b23ddf4`, 2026-08-13).
-
-**We use `0.5.1-lt.2`, a locally built package**: tag `v0.5.0` plus `SubscribeAccountSummaryAsync`
-(see [Account summary](#account-summary-error-322)) and `GetOptionChainParametersAsync`
-(`reqSecDefOptParams`). It lives in `packages/` and is restored through
-the repo's `nuget.config`. `packages/TwsApi-0.5.1-lt.2.patch` is the source change; rebuild with
-`git apply` on `v0.5.0`, then `dotnet pack src/TwsApi -c Release -p:Version=0.5.1-lt.N`. Go back to
-the nuget.org package once upstream ships that method.
-
-## What it is
-
-A **.NET 10** async/await facade over IBKR's official C# TWS client (`CSharpAPI`, vendored as a git
-submodule of `InteractiveBrokers/tws-api`). It hides the legacy `EWrapper` callbacks, `EReader`
-thread and request ids behind:
-
-- `Task<T>` for one-shot requests (contract details, historical bars, positions snapshot, …)
-- `IAsyncEnumerable<T>` (backed by `System.Threading.Channels`) for streams (ticks, real-time bars,
-  positions, P/L, order status). **Breaking out of `await foreach` / cancelling the token cancels
-  the IB subscription.**
-
-| Fact | Value |
-|---|---|
-| Package | `TwsApi` (NuGet), MIT |
-| Target | `net10.0` only — so every project referencing it must be `net10.0`+ |
-| Bundles | `CSharpAPI.dll` (IB's client) + `RestApi.dll` (Client Portal Web API client) |
-| Dependencies | `Google.Protobuf`, `Microsoft.Extensions.Options/DependencyInjection.Abstractions/Http` |
-| Maturity | `0.x` — API can break between minor versions; pin the exact version |
-
-There is also a second, independent client in the same package — `RestApi.IRestClient` for the
-**Client Portal Web API** (HTTPS gateway or OAuth 1.0a). It shares no session with the socket
-client. We use the **socket client** (`ITwsClient`) for everything real-time and trading; the REST
-client is an option later for portal-only features (PortfolioAnalyst, FYI, alerts).
+`IBKR.Net 0.1.0-preview.2` comes from the local feed in `packages/` (see `nuget.config`) until
+0.1.0 is on nuget.org.
 
 ## Connecting
 
 ```csharp
-services.AddTwsApi(o => { o.Host = "127.0.0.1"; o.Port = 4002; o.ClientId = 1; });
-
-// inject ITwsClientFactory
-await using ITwsClient tws = await factory.ConnectAsync(new TwsConnectionOptions
+await using var client = await IbkrClient.ConnectAsync(new IbkrClientOptions
 {
     Host = "127.0.0.1", Port = 4002, ClientId = 1, ConnectTimeout = TimeSpan.FromSeconds(15),
 }, ct);
 ```
 
-`ConnectAsync` completes when TWS sends `nextValidId`. Each `ITwsClient` is a fully independent
-connection (own socket, reader thread, id sequence). `DisposeAsync` disconnects.
+`ConnectAsync` agrees on protocol version 187 (IBKR.Net caps it below the versions that switch
+messages to protobuf) and completes when the Gateway sends `nextValidId`. `ManagedAccounts` is
+known by then. `DisposeAsync` disconnects; `Disconnected` and `Notice` report drops and IB's
+informational messages.
 
 ### Ports
 
@@ -139,77 +98,59 @@ Limits / caveats:
 - `ClientId = 0` is special: it also receives orders placed manually in TWS and can bind them.
 - A different gateway (different login) has its own client id namespace.
 
-## Public surface (`ITwsClient`, 0.5.0 + our patch)
+## What IBKR.Net covers
 
-| Member | IB call | Notes |
+| `IbkrClient` | IB request | Notes |
 |---|---|---|
-| `ManagedAccounts`, `IsConnected` | `managedAccounts` | Comma-separated account ids |
-| `SetMarketDataType(int)` | `reqMarketDataType` | 1 live, 2 frozen, 3 delayed, 4 delayed-frozen |
-| `GetServerTimeAsync` | `reqCurrentTime` | Cheap round trip — usable as a heartbeat |
-| `ResolveContractAsync(Contract)` | `reqContractDetails` | Disambiguation / conId lookup |
-| `GetHistoricalBarsAsync(...)` | `reqHistoricalData` | IB string formats: `duration "5 D"`, `barSize "1 day"` |
-| `GetFundamentalDataAsync(...)` | `reqFundamentalData` | Raw XML |
-| `GetAccountSummaryAsync(tags, group)` | `reqAccountSummary` | Snapshot — **don't use**, see below |
-| `SubscribeAccountSummaryAsync(tags, group)` | `reqAccountSummary` | Stream — added in `0.5.1-lt.1` |
-| `GetOptionChainParametersAsync(symbol, secType, conId)` | `reqSecDefOptParams` | Expirations + strikes per exchange / trading class — added in `0.5.1-lt.2` |
+| `GetServerTimeAsync` | `reqCurrentTime` | Cheap round trip — the heartbeat |
+| `SetMarketDataTypeAsync` | `reqMarketDataType` | 1 live, 2 frozen, 3 delayed, 4 delayed-frozen |
+| `GetContractDetailsAsync(Contract)` | `reqContractDetails` | Search by symbol, conId lookup, one expiration's options |
+| `GetOptionChainParametersAsync` | `reqSecDefOptParams` | Expirations + strikes per exchange / trading class |
+| `SubscribeMarketDataAsync` | `reqMktData` | Price, size, generic and string ticks |
+| `GetHistoricalBarsAsync` | `reqHistoricalData` | IB strings: duration `"5 D"`, bar size `"5 mins"` |
+| `SubscribeRealtimeBarsAsync` | `reqRealTimeBars` | 5-second bars |
 | `GetPositionsAsync` / `SubscribePositionsAsync` | `reqPositions` | Snapshot / stream |
-| `GetOpenOrdersAsync` | `reqOpenOrders` | Snapshot |
-| `GetExecutionsAsync(filter)` | `reqExecutions` | Fills joined with commission reports |
-| `PlaceOrderAsync(Contract, Order)` | `placeOrder` | Completes on first acknowledged state |
-| `CancelOrder(id)`, `NextOrderId()` | `cancelOrder` | |
-| `StreamOrderStatusAsync(orderId)` | `orderStatus` | |
-| `SubscribeMarketDataAsync(Contract, ticks)` | `reqMktData` | Level 1 ticks |
-| `SubscribeRealtimeBarsAsync(...)` | `reqRealTimeBars` | 5-second bars only |
+| `SubscribeAccountSummaryAsync` | `reqAccountSummary` | Stream — see error 322 below |
 | `SubscribeAccountPnlAsync` / `SubscribePositionPnlAsync` | `reqPnL` / `reqPnLSingle` | |
 
-`Contracts.Stock("AAPL")` etc. build `IBApi.Contract`s. Note that `Contract`, `Order`,
-`ContractDetails`, `Bar`, `ExecutionFilter` are the **vendored `IBApi` types** — they leak through
-the facade. That is the main reason all of it is confined to `LT.Ibkr` (see
-[architecture.md](architecture.md)).
+### Not covered yet
 
-### Not covered yet (we will need these for "TWS but better")
-
-The facade is young. Missing compared to the raw IB API — we either contribute upstream or drop to
-the vendored `EClientSocket` inside `LT.Ibkr`:
-
-- **Connection-lost notification** — there is no public event. `ConnectionManager` internally
-  listens to `connectionClosed`/`error`, but `ITwsClient` only exposes `IsConnected`. We need a
-  heartbeat (`GetServerTimeAsync`) or an upstream event to detect drops and error codes 1100/1102.
-- **No fast failure on refused connections** — with nothing listening on the port, `ConnectAsync`
-  still waits the whole `ConnectTimeout` (15 s) and then reports a `nextValidId` timeout
-  (observed 2026-10-23). The UI shows "Connecting…" for that long.
-- **Error/info message stream** — IB error callbacks (farm status, pacing, order rejects) are not
-  surfaced as a stream.
-- Market depth / Level 2 (`reqMktDepth`), tick-by-tick (`reqTickByTickData`).
-- Option greeks (`tickOptionComputation`) are not routed at all. (`reqSecDefOptParams` was missing
-  too; our `0.5.1-lt.2` adds it. The option chain lists expirations from it, ~1 s, and loads one
-  expiration's strikes with `reqContractDetails` on `OPT` + that date + trading class.)
-- Scanners (`reqScannerSubscription`), news (`reqNewsProviders`/`reqHistoricalNews`).
-- Matching symbols / search (`reqMatchingSymbols`). Search is by exact symbol + type via
+- **Open orders and executions** (`reqOpenOrders`, `reqExecutions`, commission reports): their
+  frames have not been recorded yet (no open order or fill when we recorded). Until then the
+  Orders and Executions widgets show "not supported yet" (`ConnectionValidationCodes.CVC_006/007`).
+- Market depth / Level 2 (`reqMktDepth`), tick-by-tick (`reqTickByTickData`), option greeks
+  (`tickOptionComputation`).
+- Scanners (`reqScannerSubscription`), news (`reqNewsProviders` / `reqHistoricalNews`).
+- Matching symbols (`reqMatchingSymbols`): search is by exact symbol + type via
   `reqContractDetails`.
-- `reqAccountUpdates` (portfolio with market value/P&L per position in one stream).
-- Order modification (re-`placeOrder` with the same id), what-if orders, bracket/OCA helpers.
-- Historical tick data, head timestamp, histogram data.
+- `reqAccountUpdates` (portfolio with market value / P&L per position in one stream).
+- Order placement of any kind: the build is read-only.
 
-- **Some "warnings" kill streams.** `TwsException.IsInformational` doesn't include `10167`
-  (delayed data shown) or `10089/10090` (subscription needed), so on a `Live` market data type
-  without a subscription the quote stream ends with that error. We default to `Delayed` (3),
-  which returns live data where you are subscribed and delayed otherwise.
+New calls are added to IBKR.Net from a wire recording first (`tools/IbkrWireRecorder` there).
+
+## Quirks we have hit
+
+- **Notices vs errors.** IBKR.Net treats codes 2100–2199 (farm status, 2150 on position P&L) and
+  `10167` (delayed data shown) as notices; any other code with a request id fails that request.
+  `10089/10090` (subscription needed) therefore end a quote stream on a `Live` market data type
+  without a subscription. We default to `Delayed` (3), which returns live data where you are
+  subscribed and delayed otherwise.
 - **Unset numbers are `double.MaxValue`, not 0.** A contract sent with `Strike = 0` asks for
   strike 0 and fails with `200 No security definition` (seen 2026-10-24 loading an option
-  expiration). `IbContractMapper` sends `double.MaxValue` when the DTO has no strike.
+  expiration). `IbkrContractMapper` sends no strike (an empty field) when the DTO has none.
 - **Error `2188` "Up-to-the-second historical data requires additional subscription" means no
   market data subscription for that listing's exchange at all**, not "history up to now needs
   live data": for SPY on ASX it fails even with the end a day back, while US SPY and its options
-  load fine without a live subscription (verified 2026-10-24). Usually it means the wrong listing
-  was picked; search ranks `MarketDataConstants.PreferredCurrency` (USD) listings first.
+  load fine without a live subscription (verified 2026-10-24, protocol version 225). At version
+  187, which IBKR.Net uses, the same ASX request returned bars. Usually it means the wrong
+  listing was picked; search ranks `MarketDataConstants.PreferredCurrency` (USD) listings first.
 - <a id="account-summary-error-322"></a>**Account summary: two requests per connection, ever.**
   IB allows two account summary requests per client at a time, and IB Gateway (server version 225)
   never frees a slot on `cancelAccountSummary`, in either the protobuf or the legacy encoding.
   The third request on a connection fails with `322 Maximum number of account summary requests
   exceeded`, even when the requests run one after another (verified with a probe on 2026-10-23).
-  So snapshots (`GetAccountSummaryAsync`) can't be polled. `AccountSummaryFeed` in `LT.Ibkr` opens
-  one `SubscribeAccountSummaryAsync` per connection, keeps it until disconnect, and shares it:
+  So snapshots can't be polled. `AccountSummaryFeed` in `LT.Ibkr` opens one
+  `IbkrClient.SubscribeAccountSummaryAsync` per connection, keeps it until disconnect, and shares it:
   each subscriber gets the cached values, then every change (IB pushes changes about every 3
   minutes). Don't cancel and resubscribe it, e.g. on account change; filter by account instead.
 - **Real-time bars need a live subscription** — there is no delayed `reqRealTimeBars`. The chart
@@ -236,8 +177,8 @@ the vendored `EClientSocket` inside `LT.Ibkr`:
   seconds are rejected. Cache bars locally.
 - **Market data subscriptions:** without paid subscriptions you get error 354/10167; call
   `SetMarketDataType(3)` to fall back to delayed data (default for paper accounts).
-- **Threading:** callbacks arrive on the `EReader` thread; the facade hands us channels/tasks, but
-  continuations still run off the UI thread. **Every UI update goes through
+- **Threading:** IBKR.Net reads the socket on a background thread and hands us channels/tasks;
+  continuations run off the UI thread. **Every UI update goes through
   `Dispatcher.UIThread`.** See [ui-patterns.md](ui-patterns.md).
 - **Common message codes:** `502` can't connect, `504` not connected, `1100` connectivity lost,
   `1102` restored (data maintained), `2104/2106/2158` data farm OK (informational, not errors),
@@ -246,12 +187,15 @@ the vendored `EClientSocket` inside `LT.Ibkr`:
 ## Testing against IB
 
 - **Paper account** (Gateway on 4002, usually no 2FA) for manual testing.
-- The upstream repo ships `docker-compose.yml` with `ghcr.io/gnzsnz/ib-gateway` (IBC auto-login,
-  2FA off on paper) — useful for integration tests later.
+- `ghcr.io/gnzsnz/ib-gateway` (Docker, IBC auto-login, 2FA off on paper) — useful for
+  integration tests later.
 - Unit tests in `LT.Tests` never connect: managers depend on `IIbkrApiClient`, which tests fake.
 
 ## Alternatives considered
 
-- **Raw `CSharpAPI`** — complete but callback/request-id based; we'd rewrite what `TwsApi` already does.
-- **Client Portal Web API only** — no TWS needed, but higher latency, session tickling, weaker
-  streaming. Possible secondary transport via the bundled `RestApi` client.
+- **TwsApi (UtopleMan/tws-api-dotnet)** — used until 2026-10-24. It wraps IB's own C# client,
+  which is GPL-3.0 from 10.50 and non-commercial before; bundling it would bind this app's
+  license, and a fork can't build it (IB's repo is private).
+- **IB's `CSharpAPI` directly** — same license problem.
+- **Client Portal Web API only** — no Gateway socket needed, but higher latency, session
+  tickling, weaker streaming.

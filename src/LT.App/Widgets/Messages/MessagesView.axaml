@@ -12,7 +12,7 @@
 			<TextBlock
 				VerticalAlignment="Center"
 				Classes="secondary"
-				Text="App events: connection, market data and chart errors. IB's own system messages are not exposed by TwsApi yet."
+				Text="App events: connection, market data and chart errors. IB's own system messages are not shown here yet."
 			/>
 		</StackPanel>
 		<DataGrid

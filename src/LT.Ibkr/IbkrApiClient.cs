@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using IBKR.Net;
 using LSCore.Mapper.Domain;
+using LSCore.Validation.Contracts;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Account;
 using LT.Contracts.Dtos.Charts;
@@ -10,27 +11,20 @@ using LT.Contracts.Dtos.MarketData;
 using LT.Contracts.Dtos.Options;
 using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Dtos.Positions;
+using LT.Contracts.Enums.ValidationCodes;
 using LT.Contracts.Interfaces.IApiClients;
 using LT.Contracts.Requests.Connection;
 using Contract = IBKR.Net.Contract;
-using ExecutionInfo = TwsApi.ExecutionInfo;
-using ITwsClient = TwsApi.ITwsClient;
-using ITwsClientFactory = TwsApi.ITwsClientFactory;
 using MarketDataType = LT.Contracts.Enums.MarketDataType;
-using OpenOrderInfo = TwsApi.OpenOrderInfo;
-using RealtimeBar = TwsApi.RealtimeBar;
-using TwsConnectionOptions = TwsApi.TwsConnectionOptions;
-using TwsContract = IBApi.Contract;
 
 namespace LT.Ibkr;
 
 /// <summary>
-/// IIbkrApiClient over our own IBKR.Net, plus a second connection through TwsApi for the three
-/// calls IBKR.Net does not cover yet (real-time bars, open orders, executions; see
-/// docs/ibkr-tws-api.md). Paces every request so the app stays inside IB's limits. Registered as
-/// a singleton.
+/// IIbkrApiClient over our own IBKR.Net (no Interactive Brokers code; see docs/ibkr-tws-api.md).
+/// Holds the one live connection and paces every request so the app stays inside IB's limits.
+/// Registered as a singleton.
 /// </summary>
-public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
+public class IbkrApiClient : IIbkrApiClient
 {
 	private readonly RequestThrottle _messages = new(
 		MarketDataConstants.MaxMessagesPerSecond,
@@ -42,10 +36,9 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 	);
 
 	private IbkrClient? _client;
-	private ITwsClient? _tws;
 	private AccountSummaryFeed? _accountSummary;
 
-	public bool IsConnected => _client?.IsConnected == true && _tws?.IsConnected == true;
+	public bool IsConnected => _client?.IsConnected == true;
 
 	public string? ManagedAccounts =>
 		_client is { } client ? string.Join(",", client.ManagedAccounts) : null;
@@ -56,7 +49,7 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 	)
 	{
 		await DisconnectAsync();
-		var client = await IbkrClient.ConnectAsync(
+		_client = await IbkrClient.ConnectAsync(
 			new IbkrClientOptions
 			{
 				Host = request.Host,
@@ -66,29 +59,10 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 			},
 			cancellationToken
 		);
-		try
-		{
-			_tws = await twsClientFactory.ConnectAsync(
-				new TwsConnectionOptions
-				{
-					Host = request.Host,
-					Port = request.Port,
-					ClientId = request.ClientId + ConnectionConstants.TwsApiClientIdOffset,
-					ConnectTimeout = ConnectionConstants.ConnectTimeout,
-				},
-				cancellationToken
-			);
-		}
-		catch
-		{
-			await client.DisposeAsync();
-			throw;
-		}
-		_client = client;
 		_accountSummary = new AccountSummaryFeed(ct =>
 			StreamAsync<AccountValue, AccountValueDto>(
-				(c, token) =>
-					c.SubscribeAccountSummaryAsync(
+				(client, token) =>
+					client.SubscribeAccountSummaryAsync(
 						AccountConstants.SummaryTags,
 						cancellationToken: token
 					),
@@ -106,10 +80,6 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 		var client = Interlocked.Exchange(ref _client, null);
 		if (client != null)
 			await client.DisposeAsync();
-
-		var tws = Interlocked.Exchange(ref _tws, null);
-		if (tws != null)
-			await tws.DisposeAsync();
 	}
 
 	public async Task<DateTimeOffset> GetServerTimeAsync(
@@ -191,25 +161,22 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 		return bars.ToMappedList<Bar, BarDto>();
 	}
 
-	public async IAsyncEnumerable<BarDto> SubscribeRealtimeBarsAsync(
+	public IAsyncEnumerable<BarDto> SubscribeRealtimeBarsAsync(
 		ContractDto contract,
 		string whatToShow,
 		bool useRegularTradingHours,
-		[EnumeratorCancellation] CancellationToken cancellationToken = default
-	)
-	{
-		var tws = RequireTws();
-		await _messages.WaitAsync(cancellationToken);
-		await foreach (
-			var bar in tws.SubscribeRealtimeBarsAsync(
-				contract.ToMapped<ContractDto, TwsContract>(),
-				whatToShow,
-				useRegularTradingHours,
-				cancellationToken
-			)
-		)
-			yield return bar.ToMapped<RealtimeBar, BarDto>();
-	}
+		CancellationToken cancellationToken = default
+	) =>
+		StreamAsync<Bar, BarDto>(
+			(client, ct) =>
+				client.SubscribeRealtimeBarsAsync(
+					contract.ToMapped<ContractDto, Contract>(),
+					whatToShow,
+					useRegularTradingHours,
+					ct
+				),
+			cancellationToken
+		);
 
 	public IAsyncEnumerable<AccountValueDto> SubscribeAccountSummaryAsync(
 		CancellationToken cancellationToken = default
@@ -255,30 +222,17 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 			cancellationToken
 		);
 
-	public async Task<IReadOnlyList<OpenOrderDto>> GetOpenOrdersAsync(
+	// Not decoded by IBKR.Net yet: no open order or fill has been recorded from IB
+	public Task<IReadOnlyList<OpenOrderDto>> GetOpenOrdersAsync(
 		CancellationToken cancellationToken = default
-	)
-	{
-		await _messages.WaitAsync(cancellationToken);
-		var orders = await RequireTws().GetOpenOrdersAsync(cancellationToken);
-		return orders.ToMappedList<OpenOrderInfo, OpenOrderDto>();
-	}
+	) => throw new NotSupportedException(ConnectionValidationCodes.CVC_006.GetValidationMessage());
 
-	public async Task<IReadOnlyList<ExecutionDto>> GetExecutionsAsync(
+	public Task<IReadOnlyList<ExecutionDto>> GetExecutionsAsync(
 		CancellationToken cancellationToken = default
-	)
-	{
-		await _messages.WaitAsync(cancellationToken);
-		var executions = await RequireTws()
-			.GetExecutionsAsync(cancellationToken: cancellationToken);
-		return executions.ToMappedList<ExecutionInfo, ExecutionDto>();
-	}
+	) => throw new NotSupportedException(ConnectionValidationCodes.CVC_007.GetValidationMessage());
 
 	private IbkrClient RequireClient() =>
 		_client ?? throw new InvalidOperationException("Not connected to TWS / IB Gateway.");
-
-	private ITwsClient RequireTws() =>
-		_tws ?? throw new InvalidOperationException("Not connected to TWS / IB Gateway.");
 
 	private static async Task SendQuietlyAsync(Func<Task> send)
 	{

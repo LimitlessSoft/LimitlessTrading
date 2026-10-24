@@ -26,7 +26,6 @@ using LT.Ibkr.Ibc;
 using LT.Repository.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using TwsApi;
 
 namespace LT.App;
 
@@ -66,7 +65,6 @@ public static class Program
 
 		// Registers every Foo : IFoo from LT.* assemblies as transient, plus mappers and validators
 		builder.AddLSCoreDependencyInjection("LT");
-		builder.Services.AddTwsApi(_ => { });
 		builder.Services.AddSingleton(TimeProvider.System);
 
 		// Stateful services: registered after the scan so the singleton registration wins

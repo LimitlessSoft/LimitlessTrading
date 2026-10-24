@@ -27,13 +27,14 @@ dotnet test
 dotnet run --project src/LT.App
 ```
 
-`TwsApi` is restored from the local feed in `packages/` (see `nuget.config`); no extra steps.
+`IBKR.Net` is restored from the local feed in `packages/` (see `nuget.config`) until it is on
+nuget.org; no extra steps.
 
 ## Making a change
 
 1. **Branch** from `master`: `feature/<short-name>`, `bugfix/<short-name>` or `docs/<short-name>`.
 2. **Follow the layering** ([docs/architecture.md](docs/architecture.md)):
-   - `TwsApi` / `IBApi` types stay inside `LT.Ibkr`; everything crossing `IIbkrApiClient` is an
+   - `IBKR.Net` types stay inside `LT.Ibkr`; everything crossing `IIbkrApiClient` is an
      `LT.Contracts` DTO.
    - Change the interface in `LT.Contracts/Interfaces/` first, then the implementation.
    - ViewModels inject managers only; reusable logic goes to `LT.Contracts/Helpers/`.

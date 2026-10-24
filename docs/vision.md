@@ -33,18 +33,18 @@ TWS is powerful but:
 | Phase | Scope | Status |
 |---|---|---|
 | 0 — Shell | Solution layout, DI, connection bar, positions widget | **done** |
-| 1 — Connectivity | Heartbeat + auto-reconnect with backoff, reconnect on start when the last session ended connected, message log, account summary + P&L, account picker | **done** — the log holds app events only (TwsApi exposes no IB message stream) |
+| 1 — Connectivity | Heartbeat + auto-reconnect with backoff, reconnect on start when the last session ended connected, message log, account summary + P&L, account picker | **done** — the log holds app events only (IB notices are not routed to it yet) |
 | 2 — Market data | Contract search, watchlist with L1 quotes, request pacing, line limit, delayed-data fallback | **done** — search is by exact symbol (no `reqMatchingSymbols`) |
 | 3 — Charts | Candlestick chart, historical + 5 s real-time bars, local bar cache | **done** |
-| 4 — Trading | Live positions with P&L, open orders, executions | **read-only part done** |
+| 4 — Trading | Live positions with P&L, open orders, executions | **read-only part done** — open orders and executions wait for IBKR.Net support |
 | 4 — Trading | Order ticket, cancel/modify, what-if preview | not started — deliberately out of the read-only build |
 | 5 — Workspaces | Settings dialog, workspace where every widget can be spawned (charts several times) and dragged into the center split layout (beside / above / below), a collapsible side strip or its own floating window, saved layout (window, open panels, widths, tab, timeframe), hotkeys | **done** |
 | 5 — Workspaces | Multiple named layouts, dragging strip icons | not started |
-| 6 — Advanced | Option chain (a tab per expiration, strikes around the money, L1 quotes) | **done** — no greeks (not routed by TwsApi) |
-| 6 — Advanced | L2 depth, scanners, news, alerts | blocked — not in TwsApi 0.5.0 |
+| 6 — Advanced | Option chain (a tab per expiration, strikes around the money, L1 quotes) | **done** — no greeks yet |
+| 6 — Advanced | L2 depth, scanners, news, alerts | not started — needs IBKR.Net support |
 
 The read-only build has **no order placement code anywhere**: `IIbkrApiClient` has no order
 methods. Adding them is a deliberate step, not something to slip into another change.
 
-Phase 1+ items that `TwsApi` does not cover yet are listed in
-[ibkr-tws-api.md → Not covered yet](ibkr-tws-api.md#not-covered-yet-we-will-need-these-for-tws-but-better).
+Items IBKR.Net does not cover yet are listed in
+[ibkr-tws-api.md → Not covered yet](ibkr-tws-api.md#not-covered-yet).

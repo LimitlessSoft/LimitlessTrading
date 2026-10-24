@@ -13,7 +13,7 @@ by ViewModels.
 | `TD.X.Contracts` | DTOs, Requests, Enums, Interfaces, Helpers, Constants | `LT.Contracts` |
 | `TD.X.Domain` | Managers (business logic), Validators | `LT.Domain` |
 | `TD.X.Repository` | Data access (EF + LSCore.Repository) | `LT.Repository` (local persistence — JSON for now) |
-| `TD.X.Client` / `Domain/ApiClients` | Typed client for an external API | `LT.Ibkr` — the only project that references `TwsApi` |
+| `TD.X.Client` / `Domain/ApiClients` | Typed client for an external API | `LT.Ibkr` — the only project that references `IBKR.Net` |
 | `TD.X.Api` | `Program.cs`, DI, controllers | `LT.App` — `Program.cs`, DI, ViewModels |
 | `TD.X.Fe` (`pages/`, `widgets/`, `zStore/`, `helpers/`) | UI | `LT.App` (`Pages/`, `Widgets/`, `Helpers/`) |
 | `TD.X.Tests` | Unit tests | `LT.Tests` |
@@ -23,7 +23,7 @@ by ViewModels.
 ```
 LimitlessTrading.slnx
 src/
-├── LT.Contracts/                  # no dependency on Avalonia or TwsApi
+├── LT.Contracts/                  # no dependency on Avalonia or IBKR.Net
 │   ├── Constants/                 # limits, defaults, paths (ConnectionConstants, AppConstants)
 │   ├── Dtos/<Feature>/            # what managers return to the UI
 │   ├── Entities/                  # what repositories persist
@@ -41,10 +41,10 @@ src/
 ├── LT.Repository/
 │   └── Repositories/              # SettingsRepository (JSON in the user's app-data folder)
 ├── LT.Ibkr/
-│   ├── DtoMappings/               # IBApi types → LT.Contracts DTOs
+│   ├── DtoMappings/               # IBKR.Net types ↔ LT.Contracts DTOs
 │   ├── Ibc/                       # IbcGatewayProcess — starts / stops IB Gateway via IBC
 │   ├── RequestThrottle.cs         # IB pacing (messages/s, historical requests / 10 min)
-│   └── IbkrApiClient.cs           # implements IIbkrApiClient over TwsApi (read-only)
+│   └── IbkrApiClient.cs           # implements IIbkrApiClient over IBKR.Net (read-only)
 ├── LT.App/                        # Avalonia (Fluent, dark)
 │   ├── Program.cs                 # composition root (generic host + LSCore DI)
 │   ├── App.axaml                  # themes, global styles
@@ -64,10 +64,10 @@ src/
 ```
 LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
    │                          ▲
-   └──► LT.Ibkr ──────────────┘   (LT.Ibkr ──► TwsApi)
+   └──► LT.Ibkr ──────────────┘   (LT.Ibkr ──► IBKR.Net)
 ```
 
-- `LT.Contracts` references nothing of ours, and **never** `TwsApi`/`IBApi` or Avalonia.
+- `LT.Contracts` references nothing of ours, and **never** `IBKR.Net` or Avalonia.
 - `LT.Domain` depends only on `LT.Contracts` interfaces — it doesn't know IBKR is behind
   `IIbkrApiClient`, so managers are unit-testable with fakes.
 - `LT.Ibkr` maps every IB type to a DTO at the boundary. IB types never reach the Domain or UI.
@@ -90,7 +90,6 @@ LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
   heartbeat; it's stopped after the Avalonia lifetime ends.
 - `host.UseLSCoreDependencyInjection()` must run right after `Build()` — `request.Validate()`
   resolves validators through it.
-- `services.AddTwsApi(...)` registers `ITwsClientFactory`.
 - ViewModels have no interfaces, so they're registered explicitly as transient.
 
 > **Known issue — Windows publish.** The LSCore scan calls `Assembly.LoadFrom` on *every* `*.dll`
