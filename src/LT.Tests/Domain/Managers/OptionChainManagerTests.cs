@@ -1,6 +1,7 @@
 using LSCore.Exceptions;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.MarketData;
+using LT.Contracts.Dtos.Options;
 using LT.Contracts.Helpers;
 using LT.Contracts.Requests.Options;
 using LT.Domain.Managers;
@@ -65,6 +66,36 @@ public class OptionChainManagerTests
 			)
 		);
 	}
+
+	[Fact]
+	public async Task Expirations_come_from_the_option_parameters()
+	{
+		_ibkr.OptionChainParameters =
+		[
+			new OptionChainParametersDto
+			{
+				Exchange = "SMART",
+				TradingClass = "AAPL",
+				Expirations = ["20261127", "20261120"],
+			},
+		];
+
+		var expirations = await new OptionChainManager(
+			_ibkr,
+			new MarketDataManager(_ibkr)
+		).GetExpirationsAsync(Aapl, TestContext.Current.CancellationToken);
+
+		Assert.Equal(["20261120", "20261127"], expirations.Select(x => x.Expiration));
+	}
+
+	[Fact]
+	public async Task No_listed_options_is_reported() =>
+		await Assert.ThrowsAsync<LSCoreBadRequestException>(() =>
+			new OptionChainManager(_ibkr, new MarketDataManager(_ibkr)).GetExpirationsAsync(
+				Aapl,
+				TestContext.Current.CancellationToken
+			)
+		);
 
 	[Fact]
 	public async Task Empty_chain_is_reported() =>

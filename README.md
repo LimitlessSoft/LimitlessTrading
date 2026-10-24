@@ -47,7 +47,7 @@ Runs IB Gateway for you, keeps the connection alive and puts everything you watc
 **👀 Market data**
 - Watchlist with contract search and streaming quotes
 - Live or delayed data — delayed still shows live where you're subscribed
-- Option chain around the money with live quotes
+- Option chain with a tab per expiration, strikes around the money and live quotes
 
 </td>
 <td valign="top">

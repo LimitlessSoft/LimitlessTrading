@@ -3,6 +3,7 @@ using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Executions;
 using LT.Contracts.Dtos.MarketData;
+using LT.Contracts.Dtos.Options;
 using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Dtos.Positions;
 using LT.Contracts.Enums;
@@ -26,6 +27,12 @@ public interface IIbkrApiClient
 
 	Task<IReadOnlyList<ContractDetailsDto>> SearchContractsAsync(
 		ContractDto query,
+		CancellationToken cancellationToken = default
+	);
+
+	/// <summary>Expirations and strikes of the underlying's options (reqSecDefOptParams).</summary>
+	Task<IReadOnlyList<OptionChainParametersDto>> GetOptionChainParametersAsync(
+		ContractDto underlying,
 		CancellationToken cancellationToken = default
 	);
 

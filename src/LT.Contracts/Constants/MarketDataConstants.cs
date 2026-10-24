@@ -37,6 +37,9 @@ public static class MarketDataConstants
 	/// </summary>
 	public const string PreferredCurrency = "USD";
 	public const string CallRight = "C";
+
+	/// <summary>Weekly options trade under the symbol plus W, e.g. SPXW for SPX.</summary>
+	public const string WeeklyTradingClassSuffix = "W";
 	public const string PutRight = "P";
 
 	public static readonly IReadOnlyList<string> SearchableSecurityTypes =

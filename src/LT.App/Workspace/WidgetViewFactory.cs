@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Data;
 using LT.App.Widgets.Account;
 using LT.App.Widgets.Chart;
 using LT.App.Widgets.Executions;
@@ -32,11 +33,24 @@ public static class WidgetViewFactory
 		return view;
 	}
 
+	// Plain header title text bound to the view model, e.g. the option chain's ticker
+	private static TextBlock CreateBoundTitle(WidgetItem widget, string property) =>
+		new()
+		{
+			Classes = { "panelTitle" },
+			DataContext = widget.Content,
+			[!TextBlock.TextProperty] = new Binding(property),
+		};
+
 	/// <summary>A header title of the widget's own, or null for the plain title text.</summary>
 	public static Control? CreateTitle(WidgetItem widget) =>
 		widget.Tool switch
 		{
 			WorkspaceTool.Chart => new ChartTitleView { DataContext = widget.Content },
+			WorkspaceTool.OptionChain => CreateBoundTitle(
+				widget,
+				nameof(OptionChainViewModel.Title)
+			),
 			_ => null,
 		};
 }

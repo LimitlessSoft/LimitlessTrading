@@ -8,4 +8,7 @@ public class GetOptionChainRequest
 
 	/// <summary>yyyyMM (whole month) or yyyyMMdd (one expiration).</summary>
 	public string Expiry { get; set; } = string.Empty;
+
+	/// <summary>Optional; picks one class when several expire the same day (SPX vs SPXW).</summary>
+	public string TradingClass { get; set; } = string.Empty;
 }

@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using LT.App.Helpers;
 using LT.App.Stores;
 using LT.App.ViewModels;
@@ -28,6 +27,7 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 	private readonly IMessageLogManager _messageLogManager;
 	private CancellationToken _session = new(true);
 	private ContractDto? _underlying;
+	private CancellationTokenSource? _load;
 	private CancellationTokenSource? _quotes;
 	private OptionChainDto? _chain;
 
@@ -46,7 +46,7 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 		Link = new ContractLink(linkGroupStore, () => _underlying);
 		Link.ContractReceived += OnContractReceived;
 		_underlying = linkGroupStore.Get(Link.Group);
-		UpdateUnderlying();
+		_ = LoadExpirationsAsync();
 
 		new DispatcherTimer(
 			MarketDataConstants.UiFlushInterval,
@@ -62,20 +62,15 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 	/// <summary>The underlying comes from the link group (watchlist, positions, a chart).</summary>
 	public ContractLink Link { get; }
 
+	public ObservableCollection<ExpirationTab> Expirations { get; } = [];
 	public ObservableCollection<OptionRowViewModel> Rows { get; } = [];
-	public ObservableCollection<string> Expirations { get; } = [];
+
+	/// <summary>Frame header title: the underlying's ticker.</summary>
+	[ObservableProperty]
+	public partial string Title { get; set; } = "Option chain";
 
 	[ObservableProperty]
-	public partial string Expiry { get; set; } = DateTime.Today.ToString("yyyyMM");
-
-	[ObservableProperty]
-	public partial string? SelectedExpiration { get; set; }
-
-	[ObservableProperty]
-	public partial string UnderlyingText { get; set; } = string.Empty;
-
-	[ObservableProperty]
-	public partial bool CanLoad { get; set; }
+	public partial ExpirationTab? SelectedExpiration { get; set; }
 
 	[ObservableProperty]
 	public partial bool IsLoading { get; set; }
@@ -83,56 +78,28 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 	[ObservableProperty]
 	public partial string? InfoText { get; set; }
 
-	partial void OnSelectedExpirationChanged(string? value) => ShowExpiration();
+	partial void OnSelectedExpirationChanged(ExpirationTab? value)
+	{
+		if (value != null)
+			_ = LoadChainAsync(value);
+	}
 
 	protected override void OnConnected(CancellationToken session)
 	{
 		_session = session;
-		UpdateUnderlying();
-		if (_chain != null)
-			ShowExpiration();
+		_ = LoadExpirationsAsync();
 	}
 
 	protected override void OnDisconnected()
 	{
+		CancelLoad();
 		StopQuotes();
-		UpdateUnderlying();
-	}
-
-	[RelayCommand]
-	private async Task LoadAsync()
-	{
-		if (_underlying is not { } underlying)
-			return;
-
-		ErrorMessage = null;
-		IsLoading = true;
-		try
-		{
-			_chain = await _optionChainManager.GetChainAsync(
-				new GetOptionChainRequest { Underlying = underlying, Expiry = Expiry.Trim() },
-				_session
-			);
-			Expirations.Clear();
-			foreach (var expiration in _chain.Expirations)
-				Expirations.Add(expiration);
-			SelectedExpiration = Expirations.FirstOrDefault();
-			ShowExpiration();
-		}
-		catch (OperationCanceledException) { }
-		catch (Exception ex)
-		{
-			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
-		}
-		finally
-		{
-			IsLoading = false;
-		}
 	}
 
 	public override void Dispose()
 	{
 		Link.Dispose();
+		CancelLoad();
 		StopQuotes();
 		base.Dispose();
 	}
@@ -141,37 +108,102 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 	{
 		if (contract.ConId == _underlying?.ConId)
 			return;
-
 		_underlying = contract;
+		_ = LoadExpirationsAsync();
+	}
+
+	// New underlying or connection: list its expirations and open the nearest
+	private async Task LoadExpirationsAsync()
+	{
+		var load = RestartLoad();
 		StopQuotes();
 		_chain = null;
 		Rows.Clear();
+		SelectedExpiration = null;
 		Expirations.Clear();
+		ErrorMessage = null;
+
+		var underlying = _underlying;
+		Title = underlying == null ? "Option chain" : ContractHelpers.GetDisplayName(underlying);
+		if (underlying == null)
+		{
+			InfoText = "Pick a stock or index in a widget of the same link group.";
+			return;
+		}
+		if (!ContractHelpers.SupportsOptionChain(underlying))
+		{
+			InfoText = $"{ContractHelpers.GetDisplayName(underlying)} has no option chain.";
+			return;
+		}
 		InfoText = null;
-		UpdateUnderlying();
-	}
-
-	private void UpdateUnderlying()
-	{
-		var contract = _underlying;
-		CanLoad = IsConnected && contract != null && ContractHelpers.SupportsOptionChain(contract);
-		UnderlyingText =
-			contract == null ? "Select a stock or index"
-			: ContractHelpers.SupportsOptionChain(contract)
-				? ContractHelpers.GetDisplayName(contract)
-			: $"{ContractHelpers.GetDisplayName(contract)} has no option chain";
-	}
-
-	private void ShowExpiration()
-	{
-		StopQuotes();
-		Rows.Clear();
-		if (_chain == null || SelectedExpiration == null)
+		if (!IsConnected)
 			return;
 
-		var strikes = _chain.Strikes.Where(x => x.Expiration == SelectedExpiration).ToList();
+		IsLoading = true;
+		try
+		{
+			var expirations = await _optionChainManager.GetExpirationsAsync(underlying, load);
+			var today = DateTime.Today;
+			foreach (var expiration in expirations)
+				Expirations.Add(new ExpirationTab(expiration, today));
+			SelectedExpiration = Expirations.FirstOrDefault();
+		}
+		catch (OperationCanceledException) { }
+		catch (Exception ex)
+		{
+			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
+		}
+		finally
+		{
+			if (!load.IsCancellationRequested)
+				IsLoading = false;
+		}
+	}
+
+	private async Task LoadChainAsync(ExpirationTab tab)
+	{
+		if (_underlying is not { } underlying)
+			return;
+
+		var load = RestartLoad();
+		StopQuotes();
+		_chain = null;
+		Rows.Clear();
+		ErrorMessage = null;
+		InfoText = null;
+		IsLoading = true;
+		try
+		{
+			_chain = await _optionChainManager.GetChainAsync(
+				new GetOptionChainRequest
+				{
+					Underlying = underlying,
+					Expiry = tab.Expiration.Expiration,
+					TradingClass = tab.Expiration.TradingClass,
+				},
+				load
+			);
+			ShowChain();
+		}
+		catch (OperationCanceledException) { }
+		catch (Exception ex)
+		{
+			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
+		}
+		finally
+		{
+			if (!load.IsCancellationRequested)
+				IsLoading = false;
+		}
+	}
+
+	private void ShowChain()
+	{
+		if (_chain == null)
+			return;
+
 		var visible = OptionChainHelpers.AroundPrice(
-			strikes,
+			_chain.Strikes,
 			_chain.UnderlyingPrice,
 			MarketDataConstants.OptionStrikesAroundAtm
 		);
@@ -182,7 +214,7 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 			Rows.Add(new OptionRowViewModel(strike, strike == atm));
 
 		InfoText =
-			$"Underlying {FormatHelpers.Price(_chain.UnderlyingPrice)} · showing {visible.Count} of {strikes.Count} strikes around the money";
+			$"Underlying {FormatHelpers.Price(_chain.UnderlyingPrice)} · {visible.Count} of {_chain.Strikes.Count} strikes around the money";
 
 		if (!IsConnected)
 			return;
@@ -195,6 +227,21 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 			if (row.Strike.Put is { } put)
 				StartQuote(put, row.PutPending, _quotes.Token);
 		}
+	}
+
+	// One load at a time: a newer underlying or tab cancels the one in flight
+	private CancellationToken RestartLoad()
+	{
+		CancelLoad();
+		_load = CancellationTokenSource.CreateLinkedTokenSource(_session);
+		return _load.Token;
+	}
+
+	private void CancelLoad()
+	{
+		_load?.Cancel();
+		_load?.Dispose();
+		_load = null;
 	}
 
 	private void StartQuote(

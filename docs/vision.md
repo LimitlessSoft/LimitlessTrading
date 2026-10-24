@@ -40,7 +40,7 @@ TWS is powerful but:
 | 4 — Trading | Order ticket, cancel/modify, what-if preview | not started — deliberately out of the read-only build |
 | 5 — Workspaces | Settings dialog, workspace where every widget can be spawned (charts several times) and dragged into the center split layout (beside / above / below), a collapsible side strip or its own floating window, saved layout (window, open panels, widths, tab, timeframe), hotkeys | **done** |
 | 5 — Workspaces | Multiple named layouts, dragging strip icons | not started |
-| 6 — Advanced | Option chain (strikes around the money, L1 quotes) | **done** — no greeks (not routed by TwsApi) |
+| 6 — Advanced | Option chain (a tab per expiration, strikes around the money, L1 quotes) | **done** — no greeks (not routed by TwsApi) |
 | 6 — Advanced | L2 depth, scanners, news, alerts | blocked — not in TwsApi 0.5.0 |
 
 The read-only build has **no order placement code anywhere**: `IIbkrApiClient` has no order

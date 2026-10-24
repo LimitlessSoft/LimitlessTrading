@@ -12,4 +12,7 @@ public enum OptionChainValidationCodes
 
 	[LSCoreValidationMessage("No options found for {0} expiring {1}.")]
 	OCVC_003,
+
+	[LSCoreValidationMessage("{0} has no listed options.")]
+	OCVC_004,
 }

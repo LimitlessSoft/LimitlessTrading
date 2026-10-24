@@ -26,7 +26,8 @@ public class IbContractMapper : ILSCoreMapper<ContractDto, Contract>
 				Currency = source.Currency,
 				LocalSymbol = source.LocalSymbol,
 				LastTradeDateOrContractMonth = source.LastTradeDateOrContractMonth,
-				Strike = source.Strike,
+				// IB reads 0 as "strike 0" (error 200); "any strike" is its unset value
+				Strike = source.Strike > 0 ? source.Strike : double.MaxValue,
 				Right = source.Right,
 				Multiplier = source.Multiplier,
 				TradingClass = source.TradingClass,

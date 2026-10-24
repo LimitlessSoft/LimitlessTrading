@@ -4,6 +4,7 @@ using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Executions;
 using LT.Contracts.Dtos.MarketData;
+using LT.Contracts.Dtos.Options;
 using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Dtos.Positions;
 using LT.Contracts.Enums;
@@ -30,6 +31,7 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	public Exception? HistoricalException { get; set; }
 	public int HistoricalCalls { get; private set; }
 	public List<AccountValueDto> AccountValues { get; set; } = [];
+	public List<OptionChainParametersDto> OptionChainParameters { get; set; } = [];
 	public List<OpenOrderDto> OpenOrders { get; set; } = [];
 	public List<ExecutionDto> Executions { get; set; } = [];
 
@@ -91,6 +93,11 @@ public class FakeIbkrApiClient : IIbkrApiClient
 			? Task.FromException<IReadOnlyList<BarDto>>(HistoricalException)
 			: Task.FromResult<IReadOnlyList<BarDto>>(HistoricalBars);
 	}
+
+	public Task<IReadOnlyList<OptionChainParametersDto>> GetOptionChainParametersAsync(
+		ContractDto underlying,
+		CancellationToken cancellationToken = default
+	) => Task.FromResult<IReadOnlyList<OptionChainParametersDto>>(OptionChainParameters);
 
 	public IAsyncEnumerable<BarDto> SubscribeRealtimeBarsAsync(
 		ContractDto contract,

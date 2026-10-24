@@ -13,12 +13,38 @@ using LT.Contracts.Requests.Options;
 namespace LT.Domain.Managers;
 
 /// <summary>
-/// Option chain from reqContractDetails (TwsApi has no reqSecDefOptParams): every option of the
-/// underlying for one month or one expiration, plus the underlying's current price.
+/// Expirations from reqSecDefOptParams; the chain of one expiration (or month) from
+/// reqContractDetails, so only strikes that exist that day are listed, plus the underlying's price.
 /// </summary>
 public class OptionChainManager(IIbkrApiClient ibkrApiClient, IMarketDataManager marketDataManager)
 	: IOptionChainManager
 {
+	public async Task<IReadOnlyList<OptionExpirationDto>> GetExpirationsAsync(
+		ContractDto underlying,
+		CancellationToken cancellationToken = default
+	)
+	{
+		if (!ContractHelpers.SupportsOptionChain(underlying))
+			throw new LSCoreBadRequestException(
+				OptionChainValidationCodes.OCVC_002.GetValidationMessage()
+			);
+		if (underlying.ConId <= 0)
+			throw new LSCoreBadRequestException(
+				ContractValidationCodes.CTVC_004.GetValidationMessage()
+			);
+
+		var parameters = await ibkrApiClient.GetOptionChainParametersAsync(
+			underlying,
+			cancellationToken
+		);
+		var expirations = OptionChainHelpers.SelectExpirations(underlying.Symbol, parameters);
+		if (expirations.Count == 0)
+			throw new LSCoreBadRequestException(
+				OptionChainValidationCodes.OCVC_004.GetValidationMessage(underlying.Symbol)
+			);
+		return expirations;
+	}
+
 	public async Task<OptionChainDto> GetChainAsync(
 		GetOptionChainRequest request,
 		CancellationToken cancellationToken = default
@@ -34,6 +60,7 @@ public class OptionChainManager(IIbkrApiClient ibkrApiClient, IMarketDataManager
 				Exchange = MarketDataConstants.DefaultExchange,
 				Currency = request.Underlying.Currency,
 				LastTradeDateOrContractMonth = request.Expiry,
+				TradingClass = request.TradingClass,
 			},
 			cancellationToken
 		);

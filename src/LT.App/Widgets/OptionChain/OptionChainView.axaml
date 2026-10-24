@@ -5,28 +5,50 @@
 	x:Class="LT.App.Widgets.OptionChain.OptionChainView"
 	x:DataType="vm:OptionChainViewModel"
 >
+	<!-- The underlying comes from the link group and is shown in the frame header; one tab per
+	     expiration (nearest first), each loading the strikes around the money -->
 	<DockPanel>
-		<StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
-			<TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding UnderlyingText}" />
-			<TextBlock VerticalAlignment="Center" Classes="secondary" Text="Expiry" Margin="8,0,0,0" />
-			<TextBox Width="100" PlaceholderText="YYYYMM" Text="{Binding Expiry}" />
-			<Button Content="Load chain" Command="{Binding LoadCommand}" IsEnabled="{Binding CanLoad}" />
-			<ComboBox
-				Width="130"
-				PlaceholderText="Expiration"
+		<DockPanel.Styles>
+			<Style Selector="TabStripItem">
+				<Setter Property="Padding" Value="10,3" />
+				<Setter Property="MinHeight" Value="0" />
+				<Setter Property="FontSize" Value="13" />
+			</Style>
+		</DockPanel.Styles>
+		<ScrollViewer
+			DockPanel.Dock="Top"
+			HorizontalScrollBarVisibility="Auto"
+			VerticalScrollBarVisibility="Disabled"
+			Margin="0,0,0,4"
+			IsVisible="{Binding Expirations.Count}"
+		>
+			<!-- Bottom margin: room for the overlay scrollbar under the labels -->
+			<TabStrip
+				Margin="0,0,0,10"
 				ItemsSource="{Binding Expirations}"
 				SelectedItem="{Binding SelectedExpiration}"
-			/>
+			>
+				<TabStrip.ItemTemplate>
+					<DataTemplate x:DataType="vm:ExpirationTab">
+						<StackPanel HorizontalAlignment="Center">
+							<TextBlock HorizontalAlignment="Center" Text="{Binding Label}" />
+							<TextBlock
+								HorizontalAlignment="Center"
+								Classes="secondary"
+								FontSize="11"
+								Text="{Binding DaysText}"
+							/>
+						</StackPanel>
+					</DataTemplate>
+				</TabStrip.ItemTemplate>
+			</TabStrip>
+		</ScrollViewer>
+		<StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="2,0,0,6">
+			<TextBlock Classes="secondary" Text="Loading…" IsVisible="{Binding IsLoading}" />
+			<TextBlock Classes="secondary" Text="{Binding InfoText}" />
 			<TextBlock
-				VerticalAlignment="Center"
-				Classes="secondary"
-				Text="Loading chain…"
-				IsVisible="{Binding IsLoading}"
-			/>
-			<TextBlock VerticalAlignment="Center" Classes="secondary" Text="{Binding InfoText}" />
-			<TextBlock
-				VerticalAlignment="Center"
 				Classes="negative"
+				TextWrapping="Wrap"
 				Text="{Binding ErrorMessage}"
 				IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
 			/>
@@ -38,6 +60,20 @@
 			HeadersVisibility="Column"
 		>
 			<DataGrid.Styles>
+				<!-- Columns share the width; centred so calls and puts mirror around the strike -->
+				<Style Selector="DataGridCell">
+					<Setter Property="HorizontalContentAlignment" Value="Center" />
+				</Style>
+				<!-- The strike cell stays full width so the ATM highlight spans it -->
+				<Style Selector="DataGridCell.strike">
+					<Setter Property="HorizontalContentAlignment" Value="Stretch" />
+				</Style>
+				<Style Selector="DataGridColumnHeader">
+					<Setter Property="HorizontalContentAlignment" Value="Center" />
+					<Setter Property="Background" Value="Transparent" />
+					<Setter Property="Foreground" Value="{DynamicResource SecondaryText}" />
+					<Setter Property="FontSize" Value="12" />
+				</Style>
 				<Style Selector="Border.strike">
 					<Setter Property="Padding" Value="12,0" />
 				</Style>
@@ -47,31 +83,36 @@
 			</DataGrid.Styles>
 			<DataGrid.Columns>
 				<DataGridTextColumn
+					Width="*"
 					x:DataType="vm:OptionRowViewModel"
 					Header="Call vol"
 					Binding="{Binding CallVolume}"
 				/>
 				<DataGridTextColumn
+					Width="*"
 					x:DataType="vm:OptionRowViewModel"
 					Header="Call last"
 					Binding="{Binding CallLast}"
 				/>
 				<DataGridTextColumn
+					Width="*"
 					x:DataType="vm:OptionRowViewModel"
 					Header="Call bid"
 					Binding="{Binding CallBid}"
 				/>
 				<DataGridTextColumn
+					Width="*"
 					x:DataType="vm:OptionRowViewModel"
 					Header="Call ask"
 					Binding="{Binding CallAsk}"
 				/>
-				<DataGridTemplateColumn Header="Strike">
+				<DataGridTemplateColumn Header="Strike" Width="*" CellStyleClasses="strike">
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:OptionRowViewModel">
 							<Border Classes="strike" Classes.atm="{Binding IsAtm}">
 								<TextBlock
 									FontWeight="SemiBold"
+									HorizontalAlignment="Center"
 									VerticalAlignment="Center"
 									Text="{Binding StrikeText}"
 								/>
@@ -80,21 +121,25 @@
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
 				<DataGridTextColumn
+					Width="*"
 					x:DataType="vm:OptionRowViewModel"
 					Header="Put bid"
 					Binding="{Binding PutBid}"
 				/>
 				<DataGridTextColumn
+					Width="*"
 					x:DataType="vm:OptionRowViewModel"
 					Header="Put ask"
 					Binding="{Binding PutAsk}"
 				/>
 				<DataGridTextColumn
+					Width="*"
 					x:DataType="vm:OptionRowViewModel"
 					Header="Put last"
 					Binding="{Binding PutLast}"
 				/>
 				<DataGridTextColumn
+					Width="*"
 					x:DataType="vm:OptionRowViewModel"
 					Header="Put vol"
 					Binding="{Binding PutVolume}"

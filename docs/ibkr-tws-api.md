@@ -6,9 +6,10 @@ underneath it. Read it before touching `LT.Ibkr`.
 
 Researched on 2026-10-23 against `TwsApi` **0.5.0** (repo head `b23ddf4`, 2026-08-13).
 
-**We use `0.5.1-lt.1`, a locally built package**: tag `v0.5.0` plus `SubscribeAccountSummaryAsync`
-(see [Account summary](#account-summary-error-322)). It lives in `packages/` and is restored through
-the repo's `nuget.config`. `packages/TwsApi-0.5.1-lt.1.patch` is the source change; rebuild with
+**We use `0.5.1-lt.2`, a locally built package**: tag `v0.5.0` plus `SubscribeAccountSummaryAsync`
+(see [Account summary](#account-summary-error-322)) and `GetOptionChainParametersAsync`
+(`reqSecDefOptParams`). It lives in `packages/` and is restored through
+the repo's `nuget.config`. `packages/TwsApi-0.5.1-lt.2.patch` is the source change; rebuild with
 `git apply` on `v0.5.0`, then `dotnet pack src/TwsApi -c Release -p:Version=0.5.1-lt.N`. Go back to
 the nuget.org package once upstream ships that method.
 
@@ -137,6 +138,7 @@ Limits / caveats:
 | `GetFundamentalDataAsync(...)` | `reqFundamentalData` | Raw XML |
 | `GetAccountSummaryAsync(tags, group)` | `reqAccountSummary` | Snapshot — **don't use**, see below |
 | `SubscribeAccountSummaryAsync(tags, group)` | `reqAccountSummary` | Stream — added in `0.5.1-lt.1` |
+| `GetOptionChainParametersAsync(symbol, secType, conId)` | `reqSecDefOptParams` | Expirations + strikes per exchange / trading class — added in `0.5.1-lt.2` |
 | `GetPositionsAsync` / `SubscribePositionsAsync` | `reqPositions` | Snapshot / stream |
 | `GetOpenOrdersAsync` | `reqOpenOrders` | Snapshot |
 | `GetExecutionsAsync(filter)` | `reqExecutions` | Fills joined with commission reports |
@@ -166,9 +168,9 @@ the vendored `EClientSocket` inside `LT.Ibkr`:
 - **Error/info message stream** — IB error callbacks (farm status, pacing, order rejects) are not
   surfaced as a stream.
 - Market depth / Level 2 (`reqMktDepth`), tick-by-tick (`reqTickByTickData`).
-- Option chains (`reqSecDefOptParams`). We build chains from `reqContractDetails` on
-  `OPT` + expiry month instead — slower and heavier, but works. Option greeks
-  (`tickOptionComputation`) are not routed at all.
+- Option greeks (`tickOptionComputation`) are not routed at all. (`reqSecDefOptParams` was missing
+  too; our `0.5.1-lt.2` adds it. The option chain lists expirations from it, ~1 s, and loads one
+  expiration's strikes with `reqContractDetails` on `OPT` + that date + trading class.)
 - Scanners (`reqScannerSubscription`), news (`reqNewsProviders`/`reqHistoricalNews`).
 - Matching symbols / search (`reqMatchingSymbols`). Search is by exact symbol + type via
   `reqContractDetails`.
@@ -180,6 +182,9 @@ the vendored `EClientSocket` inside `LT.Ibkr`:
   (delayed data shown) or `10089/10090` (subscription needed), so on a `Live` market data type
   without a subscription the quote stream ends with that error. We default to `Delayed` (3),
   which returns live data where you are subscribed and delayed otherwise.
+- **Unset numbers are `double.MaxValue`, not 0.** A contract sent with `Strike = 0` asks for
+  strike 0 and fails with `200 No security definition` (seen 2026-10-24 loading an option
+  expiration). `IbContractMapper` sends `double.MaxValue` when the DTO has no strike.
 - **Error `2188` "Up-to-the-second historical data requires additional subscription" means no
   market data subscription for that listing's exchange at all**, not "history up to now needs
   live data": for SPY on ASX it fails even with the end a day back, while US SPY and its options

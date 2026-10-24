@@ -7,6 +7,7 @@ using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Executions;
 using LT.Contracts.Dtos.MarketData;
+using LT.Contracts.Dtos.Options;
 using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Dtos.Positions;
 using LT.Contracts.Enums;
@@ -88,6 +89,22 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 		var details = await RequireClient()
 			.ResolveContractAsync(query.ToMapped<ContractDto, Contract>(), cancellationToken);
 		return details.ToMappedList<ContractDetails, ContractDetailsDto>();
+	}
+
+	public async Task<IReadOnlyList<OptionChainParametersDto>> GetOptionChainParametersAsync(
+		ContractDto underlying,
+		CancellationToken cancellationToken = default
+	)
+	{
+		await _messages.WaitAsync(cancellationToken);
+		var parameters = await RequireClient()
+			.GetOptionChainParametersAsync(
+				underlying.Symbol,
+				underlying.SecurityType,
+				underlying.ConId,
+				cancellationToken: cancellationToken
+			);
+		return parameters.ToMappedList<OptionChainParameters, OptionChainParametersDto>();
 	}
 
 	public IAsyncEnumerable<MarketDataTickDto> SubscribeMarketDataAsync(

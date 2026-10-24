@@ -1,0 +1,251 @@
+diff --git a/API.md b/API.md
+index c9df1a9..7b1802a 100644
+--- a/API.md
++++ b/API.md
+@@ -66,6 +66,7 @@ Properties: `string? ManagedAccounts { get; }`, `bool IsConnected { get; }`.
+ | `Task<DateTimeOffset> GetServerTimeAsync()` | one-shot | Server time (`reqCurrentTime`) |
+ | `Task<IReadOnlyList<ContractDetails>> ResolveContractAsync(Contract contract)` | one-shot | Resolve/disambiguate a contract (`reqContractDetails`) |
+ | `Task<IReadOnlyList<Bar>> GetHistoricalBarsAsync(Contract contract, string duration, string barSize, string whatToShow = "TRADES", string endDateTime = "", bool useRegularTradingHours = true)` | one-shot | Historical bars (`reqHistoricalData`) |
++| `Task<IReadOnlyList<OptionChainParameters>> GetOptionChainParametersAsync(string underlyingSymbol, string underlyingSecType, int underlyingConId, string futFopExchange = "")` | one-shot | Option expirations and strikes (`reqSecDefOptParams`) |
+ | `Task<IReadOnlyList<AccountValue>> GetAccountSummaryAsync(string tags = "NetLiquidation,TotalCashValue,BuyingPower,AvailableFunds", string group = "All")` | one-shot | Account summary (`reqAccountSummary`) |
+ | `Task<IReadOnlyList<PositionInfo>> GetPositionsAsync()` | one-shot | Positions snapshot (`reqPositions`) |
+ | `Task<IReadOnlyList<OpenOrderInfo>> GetOpenOrdersAsync()` | one-shot | Open orders (`reqOpenOrders`) |
+@@ -77,6 +78,7 @@ Properties: `string? ManagedAccounts { get; }`, `bool IsConnected { get; }`.
+ | `IAsyncEnumerable<MarketDataTick> SubscribeMarketDataAsync(Contract contract, string genericTickList = "")` | stream | Streaming ticks (`reqMktData`) |
+ | `IAsyncEnumerable<RealtimeBar> SubscribeRealtimeBarsAsync(Contract contract, string whatToShow = "TRADES", bool useRegularTradingHours = true)` | stream | 5-second bars (`reqRealTimeBars`) |
+ | `IAsyncEnumerable<PositionInfo> SubscribePositionsAsync()` | stream | Live position updates |
++| `IAsyncEnumerable<AccountValue> SubscribeAccountSummaryAsync(string tags = "NetLiquidation,TotalCashValue,BuyingPower,AvailableFunds", string group = "All")` | stream | Account summary values, then each change (`reqAccountSummary`) |
+ | `IAsyncEnumerable<AccountPnl> SubscribeAccountPnlAsync(string account, string modelCode = "")` | stream | Account P/L (`reqPnL`) |
+ | `IAsyncEnumerable<PositionPnl> SubscribePositionPnlAsync(string account, int contractId, string modelCode = "")` | stream | Per-position P/L (`reqPnLSingle`) |
+ 
+diff --git a/src/Tests/GatewayIntegrationTests.cs b/src/Tests/GatewayIntegrationTests.cs
+index f945d41..ae3f049 100644
+--- a/src/Tests/GatewayIntegrationTests.cs
++++ b/src/Tests/GatewayIntegrationTests.cs
+@@ -93,6 +93,37 @@ public sealed class GatewayIntegrationTests(IbGatewayFixture gateway)
+         summary.Should().Contain(v => v.Tag == "NetLiquidation");
+     }
+ 
++    [SkippableFact]
++    public async Task GetOptionChainParametersAsync_returns_expirations_and_strikes()
++    {
++        gateway.EnsureAvailable();
++        await using var client = await gateway.ConnectAsync();
++        var spy = (await client.ResolveContractAsync(Contracts.Stock("SPY"))).First().Contract;
++
++        var parameters = await client.GetOptionChainParametersAsync("SPY", "STK", spy.ConId);
++
++        parameters.Should().Contain(p => p.Exchange == "SMART");
++        parameters.Should().OnlyContain(p => p.Expirations.Count > 0 && p.Strikes.Count > 0);
++    }
++
++    [SkippableFact]
++    public async Task SubscribeAccountSummaryAsync_yields_initial_values()
++    {
++        gateway.EnsureAvailable();
++        await using var client = await gateway.ConnectAsync();
++
++        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
++        AccountValue? first = null;
++        await foreach (var value in client.SubscribeAccountSummaryAsync("NetLiquidation", cancellationToken: cts.Token))
++        {
++            first = value;
++            break; // enumeration dispose triggers cancelAccountSummary
++        }
++
++        first.Should().NotBeNull("reqAccountSummary should emit the current values within the timeout");
++        first!.Tag.Should().Be("NetLiquidation");
++    }
++
+     [SkippableFact]
+     public async Task GetPositionsAsync_returns_without_error()
+     {
+diff --git a/src/TwsApi/ITwsClient.cs b/src/TwsApi/ITwsClient.cs
+index a9c4a06..195ae7e 100644
+--- a/src/TwsApi/ITwsClient.cs
++++ b/src/TwsApi/ITwsClient.cs
+@@ -44,6 +44,17 @@ public interface ITwsClient : IAsyncDisposable
+         bool useRegularTradingHours = true,
+         CancellationToken cancellationToken = default);
+ 
++    /// <summary>
++    /// Expirations and strikes of an underlying's options, one entry per exchange and trading
++    /// class (<c>reqSecDefOptParams</c>). Much lighter than resolving every option contract.
++    /// </summary>
++    Task<IReadOnlyList<OptionChainParameters>> GetOptionChainParametersAsync(
++        string underlyingSymbol,
++        string underlyingSecType,
++        int underlyingConId,
++        string futFopExchange = "",
++        CancellationToken cancellationToken = default);
++
+     /// <summary>Snapshot of account summary values (<c>reqAccountSummary</c>).</summary>
+     Task<IReadOnlyList<AccountValue>> GetAccountSummaryAsync(
+         string tags = "NetLiquidation,TotalCashValue,BuyingPower,AvailableFunds",
+@@ -102,6 +113,17 @@ public interface ITwsClient : IAsyncDisposable
+     /// <summary>Subscribe to a live stream of position updates (<c>reqPositions</c>).</summary>
+     IAsyncEnumerable<PositionInfo> SubscribePositionsAsync(CancellationToken cancellationToken = default);
+ 
++    /// <summary>
++    /// Subscribe to account summary values (<c>reqAccountSummary</c>): the current values first, then
++    /// each value again whenever it changes; cancelled (<c>cancelAccountSummary</c>) when the
++    /// enumeration ends. IB allows only two account summary requests per client at a time, so keep
++    /// one subscription open instead of taking repeated snapshots.
++    /// </summary>
++    IAsyncEnumerable<AccountValue> SubscribeAccountSummaryAsync(
++        string tags = "NetLiquidation,TotalCashValue,BuyingPower,AvailableFunds",
++        string group = "All",
++        CancellationToken cancellationToken = default);
++
+     /// <summary>
+     /// Subscribe to account-level daily/unrealized/realized P/L updates (<c>reqPnL</c>);
+     /// cancelled (<c>cancelPnL</c>) when the enumeration ends.
+diff --git a/src/TwsApi/Internal/TwsEventDispatcher.cs b/src/TwsApi/Internal/TwsEventDispatcher.cs
+index f4b469d..4bb8e72 100644
+--- a/src/TwsApi/Internal/TwsEventDispatcher.cs
++++ b/src/TwsApi/Internal/TwsEventDispatcher.cs
+@@ -33,6 +33,10 @@ internal sealed class TwsEventDispatcher : DefaultEWrapper
+     public event Action<int, ContractDetails>? ContractDetailsReceived;
+     public event Action<int>? ContractDetailsEndReceived;
+ 
++    // --- Option chain parameters ---------------------------------------------
++    public event Action<int, string, int, string, string, HashSet<string>, HashSet<double>>? SecurityDefinitionOptionParameterReceived;
++    public event Action<int>? SecurityDefinitionOptionParameterEndReceived;
++
+     // --- Historical data ------------------------------------------------------
+     public event Action<int, Bar>? HistoricalDataReceived;
+     public event Action<int, string, string>? HistoricalDataEndReceived;
+@@ -99,6 +103,15 @@ internal sealed class TwsEventDispatcher : DefaultEWrapper
+ 
+     public override void contractDetailsEnd(int reqId) => ContractDetailsEndReceived?.Invoke(reqId);
+ 
++    public override void securityDefinitionOptionParameter(
++        int reqId, string exchange, int underlyingConId, string tradingClass, string multiplier,
++        HashSet<string> expirations, HashSet<double> strikes) =>
++        SecurityDefinitionOptionParameterReceived?.Invoke(
++            reqId, exchange, underlyingConId, tradingClass, multiplier, expirations, strikes);
++
++    public override void securityDefinitionOptionParameterEnd(int reqId) =>
++        SecurityDefinitionOptionParameterEndReceived?.Invoke(reqId);
++
+     public override void historicalData(int reqId, Bar bar) => HistoricalDataReceived?.Invoke(reqId, bar);
+ 
+     public override void historicalDataEnd(int reqId, string start, string end) =>
+diff --git a/src/TwsApi/Models/Models.cs b/src/TwsApi/Models/Models.cs
+index 188d413..afbf937 100644
+--- a/src/TwsApi/Models/Models.cs
++++ b/src/TwsApi/Models/Models.cs
+@@ -92,6 +92,19 @@ public sealed record AccountPnl(
+     double? UnrealizedPnL,
+     double? RealizedPnL);
+ 
++/// <summary>
++/// Option chain parameters of one exchange / trading class from <c>reqSecDefOptParams</c> →
++/// <c>securityDefinitionOptionParameter</c>. <see cref="Strikes"/> is the union over all
++/// <see cref="Expirations"/> (yyyyMMdd), so not every strike exists for every expiration.
++/// </summary>
++public sealed record OptionChainParameters(
++    string Exchange,
++    int UnderlyingConId,
++    string TradingClass,
++    string Multiplier,
++    IReadOnlyList<string> Expirations,
++    IReadOnlyList<double> Strikes);
++
+ /// <summary>
+ /// Per-position P/L from <c>reqPnLSingle</c> → <c>pnlSingle</c>. The P/L fields are <c>null</c>
+ /// until available (see <see cref="AccountPnl"/>); <see cref="Position"/> and
+diff --git a/src/TwsApi/TwsClient.cs b/src/TwsApi/TwsClient.cs
+index 32932a1..c2992f7 100644
+--- a/src/TwsApi/TwsClient.cs
++++ b/src/TwsApi/TwsClient.cs
+@@ -147,6 +147,52 @@ public sealed class TwsClient : ITwsClient
+             cancellationToken);
+     }
+ 
++    /// <summary>
++    /// Option chain parameters. Backed by <c>reqSecDefOptParams</c> →
++    /// <c>securityDefinitionOptionParameter*</c> → <c>securityDefinitionOptionParameterEnd</c>.
++    /// </summary>
++    /// <param name="underlyingSymbol">e.g. "SPY".</param>
++    /// <param name="underlyingSecType">"STK", "IND" or "FUT".</param>
++    /// <param name="underlyingConId">The underlying's contract id.</param>
++    /// <param name="futFopExchange">Exchange of a futures underlying; "" for stocks and indices.</param>
++    public Task<IReadOnlyList<OptionChainParameters>> GetOptionChainParametersAsync(
++        string underlyingSymbol,
++        string underlyingSecType,
++        int underlyingConId,
++        string futFopExchange = "",
++        CancellationToken cancellationToken = default)
++    {
++        var reqId = _ids.Next();
++        var acc = new List<OptionChainParameters>();
++        var tcs = NewTcs<IReadOnlyList<OptionChainParameters>>();
++
++        void OnData(int id, string exchange, int conId, string tradingClass, string multiplier,
++            HashSet<string> expirations, HashSet<double> strikes)
++        {
++            if (id == reqId)
++                acc.Add(new OptionChainParameters(
++                    exchange, conId, tradingClass, multiplier,
++                    expirations.Order().ToList(), strikes.Order().ToList()));
++        }
++        void OnEnd(int id) { if (id == reqId) tcs.TrySetResult(acc); }
++
++        return RunRequestAsync(
++            reqId, tcs,
++            subscribe: () =>
++            {
++                _dispatcher.SecurityDefinitionOptionParameterReceived += OnData;
++                _dispatcher.SecurityDefinitionOptionParameterEndReceived += OnEnd;
++            },
++            unsubscribe: () =>
++            {
++                _dispatcher.SecurityDefinitionOptionParameterReceived -= OnData;
++                _dispatcher.SecurityDefinitionOptionParameterEndReceived -= OnEnd;
++            },
++            invokeRequest: () => Socket.reqSecDefOptParams(
++                reqId, underlyingSymbol, futFopExchange, underlyingSecType, underlyingConId),
++            cancellationToken);
++    }
++
+     /// <summary>
+     /// Snapshot of account summary values. Backed by <c>reqAccountSummary</c> →
+     /// <c>accountSummary*</c> → <c>accountSummaryEnd</c> (then cancelled).
+@@ -452,6 +498,36 @@ public sealed class TwsClient : ITwsClient
+             cancellationToken);
+     }
+ 
++    /// <summary>
++    /// Subscribe to account summary values. Backed by <c>reqAccountSummary</c> →
++    /// <c>accountSummary*</c> (initial values, then each change); cancelled
++    /// (<c>cancelAccountSummary</c>) when the enumeration ends.
++    /// </summary>
++    /// <param name="tags">Comma-separated tags, e.g. "NetLiquidation,TotalCashValue,BuyingPower".</param>
++    /// <param name="group">Account group; "All" covers every managed account.</param>
++    public IAsyncEnumerable<AccountValue> SubscribeAccountSummaryAsync(
++        string tags = "NetLiquidation,TotalCashValue,BuyingPower,AvailableFunds",
++        string group = "All",
++        CancellationToken cancellationToken = default)
++    {
++        var reqId = _ids.Next();
++        return StreamAsync<AccountValue>(
++            reqId,
++            wire: writer =>
++            {
++                void OnData(int id, string account, string tag, string value, string currency)
++                {
++                    if (id == reqId) writer.TryWrite(new AccountValue(account, tag, value, currency));
++                }
++                _dispatcher.AccountSummaryReceived += OnData;
++                return new ActionDisposable(() => _dispatcher.AccountSummaryReceived -= OnData);
++            },
++            invokeRequest: () => Socket.reqAccountSummary(reqId, group, tags),
++            invokeCancel: () => Socket.cancelAccountSummary(reqId),
++            errorAppliesToStream: true,
++            cancellationToken);
++    }
++
+     /// <summary>
+     /// Subscribe to account-level P/L. Backed by <c>reqPnL</c>; cancelled (<c>cancelPnL</c>)
+     /// when the enumeration ends.

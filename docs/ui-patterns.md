@@ -98,6 +98,11 @@ with the current one. Widgets in the same group show the same contract:
 - New widgets start in Red, so out of the box they all follow each other. "Not linked" keeps a
   widget on its own contract.
 
+The option chain has no ticker input of its own: its underlying comes from its group, and the
+frame header shows that ticker (`WidgetViewFactory.CreateTitle` binds `OptionChainViewModel.Title`).
+It lists one tab per expiration (`IOptionChainManager.GetExpirationsAsync`, from
+`reqSecDefOptParams`); the selected tab loads that day's strikes around the money.
+
 A linkable view model implements `ILinkable` (`LT.App/Workspace`) by holding a `ContractLink`
 (`LT.App/Stores`): `Publish(contract)` to send, `ContractReceived` to follow; it never gets its
 own publish back. The frame shows the link button for any `ILinkable`, and the workspace saves
