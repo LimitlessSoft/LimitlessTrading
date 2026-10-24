@@ -27,6 +27,9 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	public List<MarketDataTickDto> Ticks { get; set; } = [];
 	public List<ContractDetailsDto> SearchResults { get; set; } = [];
 	public ContractDto? LastSearch { get; private set; }
+
+	/// <summary>Answers each search by its query (e.g. per security type); throw to fail one.</summary>
+	public Func<ContractDto, IReadOnlyList<ContractDetailsDto>>? SearchBy { get; set; }
 	public List<BarDto> HistoricalBars { get; set; } = [];
 	public Exception? HistoricalException { get; set; }
 	public int HistoricalCalls { get; private set; }
@@ -64,7 +67,9 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	)
 	{
 		LastSearch = query;
-		return Task.FromResult<IReadOnlyList<ContractDetailsDto>>(SearchResults);
+		return SearchBy != null
+			? Task.Run(() => SearchBy(query), cancellationToken)
+			: Task.FromResult<IReadOnlyList<ContractDetailsDto>>(SearchResults);
 	}
 
 	public async IAsyncEnumerable<MarketDataTickDto> SubscribeMarketDataAsync(

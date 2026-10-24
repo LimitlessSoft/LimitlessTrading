@@ -42,6 +42,17 @@ public static class MarketDataConstants
 	public const string WeeklyTradingClassSuffix = "W";
 	public const string PutRight = "P";
 
+	/// <summary>
+	/// What a typed symbol is looked up as (ticker boxes), in result order. Futures (every contract
+	/// month) and forex (symbol = base currency) don't fit a plain symbol search.
+	/// </summary>
+	public static readonly IReadOnlyList<string> SymbolSearchTypes =
+	[
+		StockType,
+		IndexType,
+		CryptoType,
+	];
+
 	public static readonly IReadOnlyList<string> SearchableSecurityTypes =
 	[
 		StockType,

@@ -10,7 +10,16 @@ public interface IContractManager
 		CancellationToken cancellationToken = default
 	);
 
-	/// <summary>Resolves a typed ticker to a stock (SMART) and remembers it as recent.</summary>
+	/// <summary>
+	/// Every stock / ETF, index and crypto listing of a symbol (ticker boxes), in that order, US
+	/// dollar listings first. Fails only when no type could be searched.
+	/// </summary>
+	Task<IReadOnlyList<ContractDetailsDto>> SearchSymbolAsync(
+		string symbol,
+		CancellationToken cancellationToken = default
+	);
+
+	/// <summary>Resolves a typed ticker to its first listing and remembers it as recent.</summary>
 	Task<ContractDto> ResolveTickerAsync(
 		string ticker,
 		CancellationToken cancellationToken = default

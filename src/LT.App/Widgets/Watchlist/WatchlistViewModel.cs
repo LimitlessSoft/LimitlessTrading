@@ -3,14 +3,15 @@ using System.ComponentModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LT.App.Controls;
 using LT.App.Helpers;
 using LT.App.Stores;
 using LT.App.ViewModels;
 using LT.App.Workspace;
 using LT.Contracts.Constants;
+using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Enums;
 using LT.Contracts.Interfaces.IManagers;
-using LT.Contracts.Requests.Contracts;
 
 namespace LT.App.Widgets.Watchlist;
 
@@ -61,23 +62,8 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable
 	/// <summary>Clicking a row sends its contract to the link group.</summary>
 	public ContractLink Link { get; }
 
-	public ObservableCollection<SearchResultItem> SearchResults { get; } = [];
-	public IReadOnlyList<string> SecurityTypes => MarketDataConstants.SearchableSecurityTypes;
-
 	[ObservableProperty]
 	public partial WatchlistRowViewModel? SelectedRow { get; set; }
-
-	[ObservableProperty]
-	public partial string SearchText { get; set; } = string.Empty;
-
-	[ObservableProperty]
-	public partial string SecurityType { get; set; } = MarketDataConstants.StockType;
-
-	[ObservableProperty]
-	public partial bool IsSearching { get; set; }
-
-	[ObservableProperty]
-	public partial bool HasSearchResults { get; set; }
 
 	partial void OnSelectedRowChanged(WatchlistRowViewModel? value)
 	{
@@ -104,68 +90,47 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable
 		base.Dispose();
 	}
 
-	[RelayCommand]
-	private async Task SearchAsync()
+	/// <summary>Search box suggestions: IB's listings of the typed symbol.</summary>
+	public Task<IEnumerable<object>> GetSuggestionsAsync(
+		string? text,
+		CancellationToken cancellationToken
+	) =>
+		string.IsNullOrWhiteSpace(text) || !IsConnected
+			? Task.FromResult(Enumerable.Empty<object>())
+			: ContractSuggestionItem.SearchAsync(_contractManager, text, cancellationToken);
+
+	/// <summary>Search box: a typed ticker, resolved to its first listing (US first).</summary>
+	public async Task AddTickerAsync(string ticker)
 	{
 		ErrorMessage = null;
-		SearchResults.Clear();
-		HasSearchResults = false;
-		if (string.IsNullOrWhiteSpace(SearchText))
-			return;
-
-		IsSearching = true;
 		try
 		{
-			var results = await _contractManager.SearchAsync(
-				new ContractSearchRequest { Symbol = SearchText, SecurityType = SecurityType },
-				_session
-			);
-			foreach (var result in results.Take(50))
-				SearchResults.Add(new SearchResultItem(result));
-			HasSearchResults = SearchResults.Count > 0;
-			if (!HasSearchResults)
-				ErrorMessage = $"No {SecurityType} contracts found for '{SearchText.Trim()}'.";
+			AddContract(await _contractManager.ResolveTickerAsync(ticker, _session));
 		}
+		catch (OperationCanceledException) { }
 		catch (Exception ex)
 		{
 			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
 		}
-		finally
-		{
-			IsSearching = false;
-		}
 	}
 
-	[RelayCommand]
-	private void Add(SearchResultItem? item)
+	/// <summary>Search box: a picked listing.</summary>
+	public void AddContract(ContractDto contract)
 	{
-		if (item == null)
-			return;
-
 		try
 		{
-			_watchlistManager.Add(item.Details.Contract);
-			var row = new WatchlistRowViewModel(item.Details.Contract);
+			_watchlistManager.Add(contract);
+			var row = new WatchlistRowViewModel(contract);
 			Rows.Add(row);
 			SelectedRow = row;
 			if (IsConnected)
 				Start(row);
-			SearchResults.Clear();
-			HasSearchResults = false;
-			SearchText = string.Empty;
 			ErrorMessage = null;
 		}
 		catch (Exception ex)
 		{
 			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
 		}
-	}
-
-	[RelayCommand]
-	private void CloseSearch()
-	{
-		SearchResults.Clear();
-		HasSearchResults = false;
 	}
 
 	[RelayCommand]

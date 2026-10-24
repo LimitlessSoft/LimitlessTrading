@@ -1,7 +1,6 @@
 using Avalonia.Controls;
-using Avalonia.Input;
-using Avalonia.Interactivity;
 using Avalonia.Threading;
+using LT.App.Controls;
 
 namespace LT.App.Widgets.Chart;
 
@@ -12,17 +11,17 @@ namespace LT.App.Widgets.Chart;
 /// </summary>
 public partial class ChartTitleView : UserControl
 {
-	// Text the dropdown's items were searched for; a highlighted item only counts for that text
-	private string? _suggestedFor;
-
 	public ChartTitleView()
 	{
 		InitializeComponent();
-		TickerBox.AsyncPopulator = PopulateAsync;
+		TickerBox.Suggest = (text, ct) =>
+			ViewModel?.GetTickerSuggestionsAsync(text, ct)
+			?? Task.FromResult(Enumerable.Empty<object>());
+		TickerBox.Picked += Open;
+		TickerBox.Entered += text => _ = OpenTypedAsync(text);
+		TickerBox.Cancelled += EndEdit;
 		TitleButton.Click += (_, _) => BeginEdit();
 		RecentButton.Click += (_, _) => TickerBox.IsDropDownOpen = !TickerBox.IsDropDownOpen;
-		TickerBox.AddHandler(KeyDownEvent, OnTickerKeyDown, RoutingStrategies.Tunnel);
-		TickerBox.DropDownClosed += OnDropDownClosed;
 		TickerBox.LostFocus += (_, _) => Dispatcher.UIThread.Post(EndEditIfUnfocused);
 	}
 
@@ -31,16 +30,13 @@ public partial class ChartTitleView : UserControl
 	private void BeginEdit()
 	{
 		var recents = ViewModel?.GetRecentSuggestions() ?? [];
-		TickerBox.Text = string.Empty;
-		TickerBox.SelectedItem = null;
-		TickerBox.ItemsSource = recents;
-		_suggestedFor = string.Empty;
+		TickerBox.Reset(recents);
 		TitleButton.IsVisible = false;
 		Editor.IsVisible = true;
 		Dispatcher.UIThread.Post(
 			() =>
 			{
-				TickerBox.Focus();
+				TickerBox.FocusBox();
 				TickerBox.IsDropDownOpen = recents.Count > 0;
 			},
 			DispatcherPriority.Loaded
@@ -49,7 +45,7 @@ public partial class ChartTitleView : UserControl
 
 	private void EndEdit()
 	{
-		TickerBox.IsDropDownOpen = false;
+		TickerBox.Reset();
 		Editor.IsVisible = false;
 		TitleButton.IsVisible = true;
 	}
@@ -59,49 +55,8 @@ public partial class ChartTitleView : UserControl
 	{
 		if (!Editor.IsVisible || TickerBox.IsDropDownOpen || RecentButton.IsFocused)
 			return;
-		if (!TickerBox.IsKeyboardFocusWithin)
+		if (!TickerBox.HasFocus)
 			EndEdit();
-	}
-
-	private void OnTickerKeyDown(object? sender, KeyEventArgs e)
-	{
-		switch (e.Key)
-		{
-			case Key.Escape:
-				EndEdit();
-				e.Handled = true;
-				break;
-			case Key.Enter:
-				var text = TickerBox.Text?.Trim() ?? string.Empty;
-				if (
-					TickerBox.SelectedItem is ContractSuggestionItem item
-					&& string.Equals(_suggestedFor, text, StringComparison.OrdinalIgnoreCase)
-				)
-					Open(item);
-				else
-					_ = OpenTypedAsync(text);
-				e.Handled = true;
-				break;
-		}
-	}
-
-	// Picking a recent ticker with the mouse opens it right away
-	private void OnDropDownClosed(object? sender, EventArgs e)
-	{
-		if (TickerBox.SelectedItem is ContractSuggestionItem item && Editor.IsVisible)
-			Open(item);
-	}
-
-	private async Task<IEnumerable<object>> PopulateAsync(
-		string? text,
-		CancellationToken cancellationToken
-	)
-	{
-		if (ViewModel is not { } viewModel)
-			return [];
-		var items = await viewModel.GetTickerSuggestionsAsync(text, cancellationToken);
-		_suggestedFor = text?.Trim() ?? string.Empty;
-		return items;
 	}
 
 	private void Open(ContractSuggestionItem item)
@@ -110,9 +65,9 @@ public partial class ChartTitleView : UserControl
 		ViewModel?.OpenContract(item.Contract);
 	}
 
-	private async Task OpenTypedAsync(string? text)
+	private async Task OpenTypedAsync(string text)
 	{
-		if (string.IsNullOrWhiteSpace(text) || ViewModel is not { } viewModel)
+		if (ViewModel is not { } viewModel)
 			return;
 		EndEdit();
 		await viewModel.OpenTickerAsync(text);

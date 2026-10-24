@@ -1,0 +1,25 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:controls="using:LT.App.Controls"
+	x:Class="LT.App.Controls.ContractSearchBox"
+>
+	<!-- Typed text lists IB's listings of the symbol; see ContractSearchBox.axaml.cs -->
+	<AutoCompleteBox
+		x:Name="Box"
+		Classes="ticker"
+		MinimumPrefixLength="0"
+		MinimumPopulateDelay="0:0:0.35"
+		FilterMode="None"
+		MaxDropDownHeight="320"
+	>
+		<AutoCompleteBox.ItemTemplate>
+			<DataTemplate x:DataType="controls:ContractSuggestionItem">
+				<StackPanel Orientation="Horizontal" Spacing="8">
+					<TextBlock FontWeight="SemiBold" Text="{Binding Symbol}" />
+					<TextBlock Classes="secondary" Text="{Binding Description}" />
+				</StackPanel>
+			</DataTemplate>
+		</AutoCompleteBox.ItemTemplate>
+	</AutoCompleteBox>
+</UserControl>

@@ -35,10 +35,15 @@ Every widget is **independently spawnable** and lives in one of three wrappers:
   its own timeframe, link group and contract, all saved per chart. The chart header's controls
   (RTH, timeframe, Reload) are hidden until they are redesigned; F5 reloads.
 - **Picking a chart's ticker:** click the chart's header title (`ChartTitleView`, hosted in the
-  frame header via `WidgetViewFactory.CreateTitle`). It turns into a ticker box: type a ticker
-  and press Enter (resolved as a SMART stock by `IContractManager.ResolveTickerAsync`), or open
-  the dropdown (chevron, or it opens by itself when there is history) to pick one of the last 10
-  tickers (`SettingsEntity.RecentContracts`, shared by all charts). Esc or clicking away cancels.
+  frame header via `WidgetViewFactory.CreateTitle`). It turns into a ticker box: typing lists
+  IB's listings of the symbol to pick from, Enter takes the highlighted one or the typed ticker's
+  first listing (`IContractManager.ResolveTickerAsync`); an empty box (or the chevron) lists the
+  last 10 tickers (`SettingsEntity.RecentContracts`, shared by all charts). Esc or clicking away
+  cancels.
+- **Ticker search boxes** (chart title, watchlist) are one control, `Controls/ContractSearchBox`.
+  A typed symbol is looked up as stock / ETF, index and crypto at once
+  (`IContractManager.SearchSymbolAsync`, `MarketDataConstants.SymbolSearchTypes`), US-dollar
+  listings first. Futures and forex are not searched (every contract month / currency pairs).
   A ticker picked this way goes to the chart's link group. Closing an extra chart
   discards it (its view model is disposed); single-instance widgets keep theirs while closed.
   Which widgets allow several instances: `WorkspaceHelpers.AllowsMultipleInstances`.
@@ -156,8 +161,8 @@ subscription and frees the market-data line.
 
 | Keys | Action |
 |---|---|
-| Ctrl+F | Focus watchlist search |
-| Enter / Esc (search box) | Search / close results |
+| Ctrl+F | Focus the watchlist's add-symbol box |
+| Enter / Esc (ticker box) | Take the highlighted listing (or the typed ticker) / cancel |
 | Delete (watchlist) | Remove selected row |
 | F5 | Refresh chart, account, positions, orders, executions |
 | Ctrl+, | Settings |

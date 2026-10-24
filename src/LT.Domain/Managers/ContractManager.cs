@@ -51,20 +51,42 @@ public class ContractManager(IIbkrApiClient ibkrApiClient, ISettingsRepository s
 			.ToList();
 	}
 
+	public async Task<IReadOnlyList<ContractDetailsDto>> SearchSymbolAsync(
+		string symbol,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var searches = await Task.WhenAll(
+			MarketDataConstants.SymbolSearchTypes.Select(async type =>
+			{
+				try
+				{
+					var results = await SearchAsync(
+						new ContractSearchRequest { Symbol = symbol, SecurityType = type },
+						cancellationToken
+					);
+					return (Results: results, Error: (Exception?)null);
+				}
+				catch (Exception ex) when (ex is not OperationCanceledException)
+				{
+					return (Results: (IReadOnlyList<ContractDetailsDto>)[], Error: ex);
+				}
+			})
+		);
+
+		// A type without that symbol fails ("no security definition"); only all failing is an error
+		if (searches.All(x => x.Error != null))
+			throw searches[0].Error!;
+		return searches.SelectMany(x => x.Results).ToList();
+	}
+
 	public async Task<ContractDto> ResolveTickerAsync(
 		string ticker,
 		CancellationToken cancellationToken = default
 	)
 	{
 		var symbol = ticker.Trim().ToUpperInvariant();
-		var results = await SearchAsync(
-			new ContractSearchRequest
-			{
-				Symbol = symbol,
-				SecurityType = MarketDataConstants.StockType,
-			},
-			cancellationToken
-		);
+		var results = await SearchSymbolAsync(symbol, cancellationToken);
 		var contract =
 			results.FirstOrDefault()?.Contract
 			?? throw new LSCoreBadRequestException(

@@ -71,60 +71,60 @@
 		</DockPanel.Styles>
 		<!-- Expiration tabs: no visible scrollbar; the wheel and the arrows scroll them -->
 		<Panel DockPanel.Dock="Top" Margin="0,0,0,4" IsVisible="{Binding Expirations.Count}">
-				<ScrollViewer
-					x:Name="ExpirationScroll"
-					HorizontalScrollBarVisibility="Hidden"
-					VerticalScrollBarVisibility="Disabled"
-				>
-					<TabStrip ItemsSource="{Binding Expirations}" SelectedItem="{Binding SelectedExpiration}">
-						<TabStrip.ItemTemplate>
-							<DataTemplate x:DataType="vm:ExpirationTab">
-								<StackPanel HorizontalAlignment="Center">
-									<TextBlock HorizontalAlignment="Center" Text="{Binding Label}" />
-									<TextBlock
-										HorizontalAlignment="Center"
-										Classes="secondary"
-										FontSize="11"
-										Text="{Binding DaysText}"
-									/>
-									<!-- Always takes its space, so selecting a tab doesn't change its height -->
-									<Border
-										Classes="selectionBar"
-										Classes.on="{Binding $parent[TabStripItem].IsSelected}"
-									/>
-								</StackPanel>
-							</DataTemplate>
-						</TabStrip.ItemTemplate>
-					</TabStrip>
-				</ScrollViewer>
-				<Button
-					x:Name="ScrollLeftButton"
-					Classes="stripArrow left"
-					HorizontalAlignment="Left"
-					HorizontalContentAlignment="Left"
-					ToolTip.Tip="Earlier expirations"
-					IsVisible="False"
-				>
-					<PathIcon Data="{StaticResource ChevronDownIcon}" Margin="4,0,0,0">
-						<PathIcon.RenderTransform>
-							<RotateTransform Angle="90" />
-						</PathIcon.RenderTransform>
-					</PathIcon>
-				</Button>
-				<Button
-					x:Name="ScrollRightButton"
-					Classes="stripArrow right"
-					HorizontalAlignment="Right"
-					HorizontalContentAlignment="Right"
-					ToolTip.Tip="Later expirations"
-					IsVisible="False"
-				>
-					<PathIcon Data="{StaticResource ChevronDownIcon}" Margin="0,0,4,0">
-						<PathIcon.RenderTransform>
-							<RotateTransform Angle="-90" />
-						</PathIcon.RenderTransform>
-					</PathIcon>
-				</Button>
+			<ScrollViewer
+				x:Name="ExpirationScroll"
+				HorizontalScrollBarVisibility="Hidden"
+				VerticalScrollBarVisibility="Disabled"
+			>
+				<TabStrip ItemsSource="{Binding Expirations}" SelectedItem="{Binding SelectedExpiration}">
+					<TabStrip.ItemTemplate>
+						<DataTemplate x:DataType="vm:ExpirationTab">
+							<StackPanel HorizontalAlignment="Center">
+								<TextBlock HorizontalAlignment="Center" Text="{Binding Label}" />
+								<TextBlock
+									HorizontalAlignment="Center"
+									Classes="secondary"
+									FontSize="11"
+									Text="{Binding DaysText}"
+								/>
+								<!-- Always takes its space, so selecting a tab doesn't change its height -->
+								<Border
+									Classes="selectionBar"
+									Classes.on="{Binding $parent[TabStripItem].IsSelected}"
+								/>
+							</StackPanel>
+						</DataTemplate>
+					</TabStrip.ItemTemplate>
+				</TabStrip>
+			</ScrollViewer>
+			<Button
+				x:Name="ScrollLeftButton"
+				Classes="stripArrow left"
+				HorizontalAlignment="Left"
+				HorizontalContentAlignment="Left"
+				ToolTip.Tip="Earlier expirations"
+				IsVisible="False"
+			>
+				<PathIcon Data="{StaticResource ChevronDownIcon}" Margin="4,0,0,0">
+					<PathIcon.RenderTransform>
+						<RotateTransform Angle="90" />
+					</PathIcon.RenderTransform>
+				</PathIcon>
+			</Button>
+			<Button
+				x:Name="ScrollRightButton"
+				Classes="stripArrow right"
+				HorizontalAlignment="Right"
+				HorizontalContentAlignment="Right"
+				ToolTip.Tip="Later expirations"
+				IsVisible="False"
+			>
+				<PathIcon Data="{StaticResource ChevronDownIcon}" Margin="0,0,4,0">
+					<PathIcon.RenderTransform>
+						<RotateTransform Angle="-90" />
+					</PathIcon.RenderTransform>
+				</PathIcon>
+			</Button>
 		</Panel>
 		<StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="2,0,0,6">
 			<TextBlock Classes="secondary" Text="Loading…" IsVisible="{Binding IsLoading}" />

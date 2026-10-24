@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LT.App.Controls;
 using LT.App.Helpers;
 using LT.App.Stores;
 using LT.App.ViewModels;
@@ -59,40 +60,16 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 	public IReadOnlyList<ContractSuggestionItem> GetRecentSuggestions() =>
 		_contractManager.GetRecentContracts().Select(x => new ContractSuggestionItem(x)).ToList();
 
-	/// <summary>
-	/// Ticker box suggestions for typed text: every stock/ETF listing IB has for that symbol, US
-	/// dollar listings first. Errors leave the list empty; Enter still resolves the ticker.
-	/// </summary>
-	public async Task<IEnumerable<object>> GetTickerSuggestionsAsync(
+	/// <summary>Ticker box suggestions for typed text: IB's listings of the symbol.</summary>
+	public Task<IEnumerable<object>> GetTickerSuggestionsAsync(
 		string? text,
 		CancellationToken cancellationToken
-	)
-	{
-		if (string.IsNullOrWhiteSpace(text))
-			return GetRecentSuggestions();
-		if (!IsConnected)
-			return [];
-
-		try
-		{
-			var results = await _contractManager.SearchAsync(
-				new ContractSearchRequest
-				{
-					Symbol = text,
-					SecurityType = MarketDataConstants.StockType,
-				},
-				cancellationToken
-			);
-			return results
-				.Take(MarketDataConstants.TickerSuggestionsMax)
-				.Select(x => new ContractSuggestionItem(x.Contract, x.LongName))
-				.ToList();
-		}
-		catch (Exception)
-		{
-			return [];
-		}
-	}
+	) =>
+		string.IsNullOrWhiteSpace(text)
+			? Task.FromResult<IEnumerable<object>>(GetRecentSuggestions())
+		: IsConnected
+			? ContractSuggestionItem.SearchAsync(_contractManager, text, cancellationToken)
+		: Task.FromResult(Enumerable.Empty<object>());
 
 	/// <summary>Ticker box: resolves the ticker and pins this chart to it.</summary>
 	public async Task OpenTickerAsync(string ticker)

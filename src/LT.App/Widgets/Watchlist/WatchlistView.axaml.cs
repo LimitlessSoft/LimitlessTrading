@@ -5,26 +5,27 @@ namespace LT.App.Widgets.Watchlist;
 
 public partial class WatchlistView : UserControl
 {
-	public WatchlistView() => InitializeComponent();
-
-	public void FocusSearch()
+	public WatchlistView()
 	{
-		WatchlistSearchBox.Focus();
-		WatchlistSearchBox.SelectAll();
+		InitializeComponent();
+		SearchBox.Suggest = (text, ct) =>
+			ViewModel?.GetSuggestionsAsync(text, ct) ?? Task.FromResult(Enumerable.Empty<object>());
+		SearchBox.Picked += item =>
+		{
+			SearchBox.Reset();
+			ViewModel?.AddContract(item.Contract);
+		};
+		SearchBox.Entered += text =>
+		{
+			SearchBox.Reset();
+			_ = ViewModel?.AddTickerAsync(text);
+		};
+		SearchBox.Cancelled += () => SearchBox.Reset();
 	}
+
+	public void FocusSearch() => SearchBox.FocusBox();
 
 	private WatchlistViewModel? ViewModel => DataContext as WatchlistViewModel;
-
-	private void OnSearchResultDoubleTapped(object? sender, TappedEventArgs e) =>
-		ViewModel?.AddCommand.Execute(SearchResultsList.SelectedItem as SearchResultItem);
-
-	private void OnSearchResultKeyDown(object? sender, KeyEventArgs e)
-	{
-		if (e.Key != Key.Enter)
-			return;
-		ViewModel?.AddCommand.Execute(SearchResultsList.SelectedItem as SearchResultItem);
-		e.Handled = true;
-	}
 
 	private void OnGridKeyDown(object? sender, KeyEventArgs e)
 	{

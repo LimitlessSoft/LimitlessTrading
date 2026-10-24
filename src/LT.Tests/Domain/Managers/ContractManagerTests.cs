@@ -66,7 +66,7 @@ public class ContractManagerTests
 		var contract = await manager.ResolveTickerAsync(" aapl ", Ct);
 
 		Assert.Equal(265598, contract.ConId);
-		Assert.Equal(("AAPL", "STK"), (_ibkr.LastSearch!.Symbol, _ibkr.LastSearch.SecurityType));
+		Assert.Equal("AAPL", _ibkr.LastSearch!.Symbol);
 		Assert.Equal(["AAPL"], manager.GetRecentContracts().Select(x => x.Symbol));
 	}
 
@@ -84,6 +84,43 @@ public class ContractManagerTests
 		var contract = await new ContractManager(_ibkr, _settings).ResolveTickerAsync("SPY", Ct);
 
 		Assert.Equal(756733, contract.ConId);
+	}
+
+	[Fact]
+	public async Task Symbol_search_merges_stocks_indices_and_crypto_in_that_order()
+	{
+		_ibkr.SearchBy = query =>
+			query.SecurityType switch
+			{
+				"STK" => [new ContractDetailsDto { Contract = Stock(1, "BTC") }],
+				"CRYPTO" =>
+				[
+					new ContractDetailsDto
+					{
+						Contract = new ContractDto
+						{
+							ConId = 2,
+							Symbol = "BTC",
+							SecurityType = "CRYPTO",
+						},
+					},
+				],
+				_ => throw new InvalidOperationException("No security definition"),
+			};
+
+		var results = await new ContractManager(_ibkr, _settings).SearchSymbolAsync("BTC", Ct);
+
+		Assert.Equal(["STK", "CRYPTO"], results.Select(x => x.Contract.SecurityType));
+	}
+
+	[Fact]
+	public async Task Symbol_search_fails_only_when_every_type_fails()
+	{
+		_ibkr.SearchBy = _ => throw new InvalidOperationException("Not connected");
+
+		await Assert.ThrowsAsync<InvalidOperationException>(() =>
+			new ContractManager(_ibkr, _settings).SearchSymbolAsync("SPY", Ct)
+		);
 	}
 
 	[Fact]

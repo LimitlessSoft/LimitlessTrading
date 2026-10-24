@@ -2,43 +2,19 @@
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:LT.App.Widgets.Watchlist"
+	xmlns:controls="using:LT.App.Controls"
 	x:Class="LT.App.Widgets.Watchlist.WatchlistView"
 	x:DataType="vm:WatchlistViewModel"
 >
 	<DockPanel>
-		<Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6" Margin="0,0,0,6">
-			<TextBox
-				x:Name="WatchlistSearchBox"
-				Grid.Column="0"
-				PlaceholderText="Symbol (Ctrl+F)"
-				Text="{Binding SearchText}"
-			>
-				<TextBox.KeyBindings>
-					<KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" />
-					<KeyBinding Gesture="Escape" Command="{Binding CloseSearchCommand}" />
-				</TextBox.KeyBindings>
-			</TextBox>
-			<ComboBox
-				Grid.Column="1"
-				Width="92"
-				ItemsSource="{Binding SecurityTypes}"
-				SelectedItem="{Binding SecurityType}"
-			/>
-			<Button
-				Grid.Column="2"
-				Content="Search"
-				Command="{Binding SearchCommand}"
-				IsEnabled="{Binding IsConnected}"
-			/>
-		</Grid>
-
-		<TextBlock
+		<!-- Typing lists IB's listings of the symbol; pick one or press Enter to add it -->
+		<controls:ContractSearchBox
+			x:Name="SearchBox"
 			DockPanel.Dock="Top"
-			Classes="secondary"
 			Margin="0,0,0,6"
-			Text="Searching…"
-			IsVisible="{Binding IsSearching}"
+			Placeholder="Add symbol (Ctrl+F)"
 		/>
+
 		<TextBlock
 			DockPanel.Dock="Top"
 			Classes="negative"
@@ -48,31 +24,6 @@
 			Text="{Binding ErrorMessage}"
 			IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
 		/>
-
-		<Border
-			DockPanel.Dock="Top"
-			Margin="0,0,0,6"
-			BorderBrush="{DynamicResource PanelStroke}"
-			BorderThickness="1"
-			CornerRadius="4"
-			IsVisible="{Binding HasSearchResults}"
-		>
-			<DockPanel>
-				<TextBlock
-					DockPanel.Dock="Top"
-					Classes="secondary"
-					Margin="8,4"
-					Text="Double-click or Enter to add"
-				/>
-				<ListBox
-					x:Name="SearchResultsList"
-					MaxHeight="220"
-					ItemsSource="{Binding SearchResults}"
-					DoubleTapped="OnSearchResultDoubleTapped"
-					KeyDown="OnSearchResultKeyDown"
-				/>
-			</DockPanel>
-		</Border>
 
 		<DataGrid
 			ItemsSource="{Binding Rows}"
