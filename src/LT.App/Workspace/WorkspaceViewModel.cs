@@ -350,6 +350,8 @@ public partial class WorkspaceViewModel : ViewModelBase
 		widget.Dock = null;
 	}
 
+	// Expanding a docked widget or raising a floating one also focuses it: it becomes current and
+	// gets keyboard focus
 	private void Reveal(WidgetItem widget)
 	{
 		switch (widget.Dock)
@@ -361,9 +363,12 @@ public partial class WorkspaceViewModel : ViewModelBase
 				RightActive = widget;
 				break;
 			case WidgetDock.Floating:
-				widget.RequestFocus();
 				break;
+			default:
+				return;
 		}
+		CurrentWidget = widget;
+		widget.RequestFocus();
 	}
 
 	private void RaiseCenterChanged()
