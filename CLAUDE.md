@@ -16,6 +16,8 @@ say the changes are ready.
 
 ## Code rules
 
+0. **Read-only build** — there is no order placement/cancel/modify code. Don't add order
+   methods to `IIbkrApiClient` unless the user explicitly asks for trading.
 1. **`TwsApi` / `IBApi` types live only in `LT.Ibkr`.** Everything crossing `IIbkrApiClient` is an
    `LT.Contracts` DTO; map IB types in `LT.Ibkr/DtoMappings/`. See
    [docs/ibkr-tws-api.md](docs/ibkr-tws-api.md).
@@ -32,8 +34,13 @@ say the changes are ready.
 7. **Add enum values at the END only** — persisted enums are integer-backed.
 8. **Stateful services are singletons registered after `AddLSCoreDependencyInjection`** in
    `Program.cs`; new ViewModels must be registered there too (the scan skips them).
-9. **Respect IB limits** — pacing (~50 msg/s), market-data lines, historical-data pacing. Never
-   fire unbounded batches of requests.
+9. **Respect IB limits** — every request goes through `RequestThrottle` in `IbkrApiClient`;
+   quotes go through `IMarketDataManager` (line limit). Never fire unbounded batches.
+12. **Shared UI state lives in `LT.App/Stores`**; widgets needing a connection derive from
+    `ConnectedViewModelBase` and use its session token.
+13. **Time-dependent managers take `TimeProvider`**, tests use `FakeTimeProvider`.
+14. **Widgets are placed only through the workspace** (`LT.App/Workspace`) — never put a widget
+    view straight into a page. Adding one is listed in [docs/ui-patterns.md](docs/ui-patterns.md#workspace-ltappworkspace).
 10. **Tests never connect to IB** — fake `IIbkrApiClient` (`LT.Tests/Fakes`).
 11. **Format with CSharpier** (`csharpier format .`) — tabs, width 100.
 

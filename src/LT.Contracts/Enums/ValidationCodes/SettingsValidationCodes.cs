@@ -1,0 +1,12 @@
+using LSCore.Validation.Contracts;
+
+namespace LT.Contracts.Enums.ValidationCodes;
+
+public enum SettingsValidationCodes
+{
+	[LSCoreValidationMessage("Heartbeat interval must be between {0} and {1} seconds.")]
+	SVC_001,
+
+	[LSCoreValidationMessage("Unknown market data type.")]
+	SVC_002,
+}

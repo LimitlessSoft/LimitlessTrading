@@ -1,0 +1,111 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.Account"
+	x:Class="LT.App.Widgets.Account.AccountView"
+	x:DataType="vm:AccountViewModel"
+>
+	<UserControl.Styles>
+		<Style Selector="Grid.rows > TextBlock">
+			<Setter Property="Margin" Value="0,3" />
+		</Style>
+	</UserControl.Styles>
+	<ScrollViewer>
+		<StackPanel Spacing="8">
+			<ComboBox
+				HorizontalAlignment="Stretch"
+				PlaceholderText="Connect to load accounts"
+				ItemsSource="{Binding Store.Accounts}"
+				SelectedItem="{Binding Store.SelectedAccount}"
+			/>
+
+			<TextBlock
+				Classes="secondary"
+				Text="Connect to TWS / IB Gateway to see account values."
+				TextWrapping="Wrap"
+				IsVisible="{Binding !IsConnected}"
+			/>
+
+			<StackPanel Spacing="2">
+				<TextBlock Classes="secondary" Text="Net liquidation" />
+				<StackPanel Orientation="Horizontal" Spacing="6">
+					<TextBlock FontSize="24" FontWeight="SemiBold" Text="{Binding NetLiquidation}" />
+					<TextBlock
+						Classes="secondary"
+						VerticalAlignment="Bottom"
+						Margin="0,0,0,4"
+						Text="{Binding Currency}"
+					/>
+				</StackPanel>
+			</StackPanel>
+
+			<Border BorderBrush="{DynamicResource PanelStroke}" BorderThickness="0,1,0,1" Padding="0,6">
+				<Grid Classes="rows" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
+					<TextBlock Grid.Row="0" Classes="secondary" Text="Daily P&amp;L" />
+					<TextBlock
+						Grid.Row="0"
+						Grid.Column="1"
+						Classes="value"
+						FontWeight="SemiBold"
+						Classes.positive="{Binding DailyUp}"
+						Classes.negative="{Binding DailyDown}"
+						Text="{Binding DailyPnl}"
+					/>
+					<TextBlock Grid.Row="1" Classes="secondary" Text="Unrealized P&amp;L" />
+					<TextBlock
+						Grid.Row="1"
+						Grid.Column="1"
+						Classes="value"
+						Classes.positive="{Binding UnrealizedUp}"
+						Classes.negative="{Binding UnrealizedDown}"
+						Text="{Binding UnrealizedPnl}"
+					/>
+					<TextBlock Grid.Row="2" Classes="secondary" Text="Realized P&amp;L" />
+					<TextBlock
+						Grid.Row="2"
+						Grid.Column="1"
+						Classes="value"
+						Classes.positive="{Binding RealizedUp}"
+						Classes.negative="{Binding RealizedDown}"
+						Text="{Binding RealizedPnl}"
+					/>
+				</Grid>
+			</Border>
+
+			<Grid
+				Classes="rows"
+				ColumnDefinitions="*,Auto"
+				RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+			>
+				<TextBlock Grid.Row="0" Classes="secondary" Text="Total cash" />
+				<TextBlock Grid.Row="0" Grid.Column="1" Classes="value" Text="{Binding TotalCash}" />
+				<TextBlock Grid.Row="1" Classes="secondary" Text="Buying power" />
+				<TextBlock Grid.Row="1" Grid.Column="1" Classes="value" Text="{Binding BuyingPower}" />
+				<TextBlock Grid.Row="2" Classes="secondary" Text="Available funds" />
+				<TextBlock Grid.Row="2" Grid.Column="1" Classes="value" Text="{Binding AvailableFunds}" />
+				<TextBlock Grid.Row="3" Classes="secondary" Text="Excess liquidity" />
+				<TextBlock Grid.Row="3" Grid.Column="1" Classes="value" Text="{Binding ExcessLiquidity}" />
+				<TextBlock Grid.Row="4" Classes="secondary" Text="Initial margin" />
+				<TextBlock Grid.Row="4" Grid.Column="1" Classes="value" Text="{Binding InitMargin}" />
+				<TextBlock Grid.Row="5" Classes="secondary" Text="Maintenance margin" />
+				<TextBlock Grid.Row="5" Grid.Column="1" Classes="value" Text="{Binding MaintMargin}" />
+				<TextBlock Grid.Row="6" Classes="secondary" Text="Gross position value" />
+				<TextBlock
+					Grid.Row="6"
+					Grid.Column="1"
+					Classes="value"
+					Text="{Binding GrossPositionValue}"
+				/>
+			</Grid>
+
+			<TextBlock Classes="secondary" Text="{Binding UpdatedText}" />
+			<TextBlock
+				Classes="negative"
+				FontSize="12"
+				TextWrapping="Wrap"
+				Text="{Binding ErrorMessage}"
+				IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+			/>
+		</StackPanel>
+	</ScrollViewer>
+</UserControl>

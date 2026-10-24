@@ -13,4 +13,15 @@ public static class AppPathHelpers
 
 	public static string GetSettingsFilePath() =>
 		Path.Combine(GetAppDataDirectory(), AppConstants.SettingsFileName);
+
+	public static string GetBarCacheDirectory() =>
+		Path.Combine(GetAppDataDirectory(), AppConstants.BarCacheDirectoryName);
+
+	/// <summary>Where "Install IBC" puts IBC: ~/.config/LimitlessTrading/ibc and the like.</summary>
+	public static string GetIbcInstallDirectory() =>
+		Path.Combine(GetAppDataDirectory(), GatewayConstants.IbcInstallDirectoryName);
+
+	/// <summary>Temporary IBC config holding the password; deleted once Gateway has logged in.</summary>
+	public static string GetIbcConfigFilePath() =>
+		Path.Combine(GetAppDataDirectory(), GatewayConstants.IbcConfigFileName);
 }

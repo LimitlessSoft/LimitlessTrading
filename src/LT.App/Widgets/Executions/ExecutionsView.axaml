@@ -1,0 +1,91 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.Executions"
+	xmlns:dto="using:LT.Contracts.Dtos.Executions"
+	x:Class="LT.App.Widgets.Executions.ExecutionsView"
+	x:DataType="vm:ExecutionsViewModel"
+>
+	<DockPanel>
+		<StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="0,0,0,6">
+			<Button
+				Content="Refresh"
+				Command="{Binding RefreshCommand}"
+				IsEnabled="{Binding IsConnected}"
+			/>
+			<TextBlock VerticalAlignment="Center" Classes="secondary" Text="{Binding UpdatedText}" />
+			<TextBlock
+				VerticalAlignment="Center"
+				Classes="negative"
+				Text="{Binding ErrorMessage}"
+				IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+			/>
+		</StackPanel>
+		<DataGrid
+			ItemsSource="{Binding Executions}"
+			IsReadOnly="True"
+			CanUserSortColumns="True"
+			GridLinesVisibility="Horizontal"
+			HeadersVisibility="Column"
+		>
+			<DataGrid.Columns>
+				<DataGridTextColumn
+					x:DataType="dto:ExecutionDto"
+					Header="Time"
+					Binding="{Binding Time, StringFormat='{}{0:HH:mm:ss}'}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:ExecutionDto"
+					Header="Account"
+					Binding="{Binding Account}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:ExecutionDto"
+					Header="Symbol"
+					Binding="{Binding Symbol}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:ExecutionDto"
+					Header="Type"
+					Binding="{Binding SecurityType}"
+				/>
+				<DataGridTextColumn x:DataType="dto:ExecutionDto" Header="Side" Binding="{Binding Side}" />
+				<DataGridTextColumn
+					x:DataType="dto:ExecutionDto"
+					Header="Shares"
+					Binding="{Binding Shares, StringFormat='{}{0:#,0.####}'}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:ExecutionDto"
+					Header="Price"
+					Binding="{Binding Price, StringFormat='{}{0:#,0.00##}'}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:ExecutionDto"
+					Header="Exchange"
+					Binding="{Binding Exchange}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:ExecutionDto"
+					Header="Commission"
+					Binding="{Binding Commission, StringFormat='{}{0:#,0.00##}'}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:ExecutionDto"
+					Header="Ccy"
+					Binding="{Binding CommissionCurrency}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:ExecutionDto"
+					Header="Realized P&amp;L"
+					Binding="{Binding RealizedPnl, StringFormat='{}{0:+#,0.00;-#,0.00;0.00}'}"
+				/>
+				<DataGridTextColumn
+					x:DataType="dto:ExecutionDto"
+					Header="Order"
+					Binding="{Binding OrderId}"
+				/>
+			</DataGrid.Columns>
+		</DataGrid>
+	</DockPanel>
+</UserControl>

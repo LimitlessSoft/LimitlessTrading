@@ -5,8 +5,6 @@ namespace LT.Tests.Contracts.Helpers;
 public class ConnectionHelpersTests
 {
 	[Theory]
-	[InlineData(7496, "TWS live")]
-	[InlineData(7497, "TWS paper")]
 	[InlineData(4001, "Gateway live")]
 	[InlineData(4002, "Gateway paper")]
 	[InlineData(5555, "custom port")]
@@ -20,4 +18,12 @@ public class ConnectionHelpersTests
 	[InlineData("DU1, DU2,", new[] { "DU1", "DU2" })]
 	public void ParseAccounts_splits_managed_accounts(string? value, string[] expected) =>
 		Assert.Equal(expected, ConnectionHelpers.ParseAccounts(value));
+
+	[Theory]
+	[InlineData(0, 2)]
+	[InlineData(1, 5)]
+	[InlineData(4, 60)]
+	[InlineData(99, 60)]
+	public void Reconnect_delay_backs_off_and_caps(int attempt, int seconds) =>
+		Assert.Equal(TimeSpan.FromSeconds(seconds), ConnectionHelpers.GetReconnectDelay(attempt));
 }

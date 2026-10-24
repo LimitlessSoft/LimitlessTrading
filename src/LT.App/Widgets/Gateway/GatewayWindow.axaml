@@ -1,0 +1,182 @@
+<Window
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.Gateway"
+	x:Class="LT.App.Widgets.Gateway.GatewayWindow"
+	x:DataType="vm:GatewayViewModel"
+	Title="Log in — IB Gateway"
+	Width="480"
+	SizeToContent="Height"
+	CanResize="False"
+	WindowStartupLocation="CenterOwner"
+>
+	<StackPanel Margin="20" Spacing="14">
+		<TextBlock
+			Classes="secondary"
+			TextWrapping="Wrap"
+			Text="LimitlessTrading runs IB Gateway for you (through IBC) and connects to it. The password is not saved. Live accounts still need IB Key approval on your phone."
+		/>
+
+		<Grid
+			ColumnDefinitions="Auto,*"
+			RowDefinitions="Auto,Auto,Auto"
+			ColumnSpacing="10"
+			RowSpacing="8"
+		>
+			<TextBlock Grid.Row="0" VerticalAlignment="Center" Text="Username" />
+			<TextBox
+				Grid.Row="0"
+				Grid.Column="1"
+				Text="{Binding Username}"
+				IsEnabled="{Binding CanEdit}"
+			/>
+
+			<TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Password" />
+			<TextBox
+				Grid.Row="1"
+				Grid.Column="1"
+				PasswordChar="•"
+				Text="{Binding Password}"
+				IsEnabled="{Binding CanEdit}"
+			/>
+
+			<TextBlock Grid.Row="2" VerticalAlignment="Center" Text="Mode" />
+			<ComboBox
+				Grid.Row="2"
+				Grid.Column="1"
+				HorizontalAlignment="Stretch"
+				ItemsSource="{Binding TradingModes}"
+				SelectedItem="{Binding TradingMode}"
+				IsEnabled="{Binding CanEdit}"
+			/>
+		</Grid>
+
+		<Expander
+			Header="Install"
+			HorizontalAlignment="Stretch"
+			IsExpanded="{Binding !IsInstallReady, Mode=OneWay}"
+		>
+			<StackPanel Spacing="8">
+				<Grid
+					ColumnDefinitions="Auto,*,Auto"
+					RowDefinitions="Auto,Auto,Auto"
+					ColumnSpacing="8"
+					RowSpacing="8"
+				>
+					<TextBlock
+						Grid.Row="0"
+						VerticalAlignment="Center"
+						Classes="secondary"
+						Text="IBC folder"
+					/>
+					<TextBox
+						Grid.Row="0"
+						Grid.Column="1"
+						Text="{Binding IbcPath}"
+						IsEnabled="{Binding CanEdit}"
+					/>
+					<Button
+						Grid.Row="0"
+						Grid.Column="2"
+						Content="Browse…"
+						Click="OnBrowseIbcClick"
+						IsEnabled="{Binding CanEdit}"
+					/>
+
+					<TextBlock
+						Grid.Row="1"
+						VerticalAlignment="Center"
+						Classes="secondary"
+						Text="Gateway folder"
+					/>
+					<TextBox
+						Grid.Row="1"
+						Grid.Column="1"
+						Text="{Binding GatewayPath}"
+						IsEnabled="{Binding CanEdit}"
+					/>
+					<Button
+						Grid.Row="1"
+						Grid.Column="2"
+						Content="Browse…"
+						Click="OnBrowseGatewayClick"
+						IsEnabled="{Binding CanEdit}"
+					/>
+
+					<TextBlock Grid.Row="2" VerticalAlignment="Center" Classes="secondary" Text="Version" />
+					<TextBox
+						Grid.Row="2"
+						Grid.Column="1"
+						Width="90"
+						HorizontalAlignment="Left"
+						Text="{Binding GatewayVersion}"
+						IsEnabled="{Binding CanEdit}"
+					/>
+				</Grid>
+
+				<TextBlock
+					TextWrapping="Wrap"
+					Classes="secondary"
+					Classes.positive="{Binding IsIbcFound}"
+					Classes.negative="{Binding !IsIbcFound}"
+					Text="{Binding IbcStatusText}"
+				/>
+				<TextBlock
+					TextWrapping="Wrap"
+					Classes="secondary"
+					Classes.positive="{Binding IsGatewayFound}"
+					Classes.negative="{Binding !IsGatewayFound}"
+					Text="{Binding GatewayStatusText}"
+				/>
+				<TextBlock
+					Classes="negative"
+					TextWrapping="Wrap"
+					Text="{Binding InstallError}"
+					IsVisible="{Binding InstallError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+				/>
+
+				<DockPanel>
+					<StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+						<Button
+							Classes="accent"
+							Content="Install IBC"
+							ToolTip.Tip="Download the latest IBC release from github.com/IbcAlpha/IBC"
+							Command="{Binding InstallIbcCommand}"
+							IsVisible="{Binding !IsIbcFound}"
+						/>
+						<Button Content="Locate" Command="{Binding LocateCommand}" />
+					</StackPanel>
+					<CheckBox
+						Content="Hide the Gateway window (Xvfb)"
+						IsChecked="{Binding UseVirtualDisplay}"
+						IsEnabled="{Binding CanEdit}"
+						IsVisible="{Binding IsLinux}"
+					/>
+				</DockPanel>
+			</StackPanel>
+		</Expander>
+
+		<StackPanel Orientation="Horizontal" Spacing="8">
+			<Ellipse
+				Classes="status"
+				VerticalAlignment="Center"
+				Classes.connected="{Binding IsRunning}"
+				Classes.connecting="{Binding IsBusy}"
+				Classes.failed="{Binding IsFailed}"
+			/>
+			<TextBlock VerticalAlignment="Center" Text="{Binding StateText}" />
+		</StackPanel>
+		<TextBlock
+			Classes="negative"
+			TextWrapping="Wrap"
+			Text="{Binding ErrorMessage}"
+			IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+		/>
+
+		<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+			<Button Content="Close" IsCancel="True" Click="OnCloseClick" />
+			<Button Content="Log out" Command="{Binding StopCommand}" />
+			<Button Classes="accent" Content="Log in" IsDefault="True" Command="{Binding StartCommand}" />
+		</StackPanel>
+	</StackPanel>
+</Window>

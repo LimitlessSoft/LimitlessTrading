@@ -4,6 +4,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="LSCore.Mapper.Domain" Version="10.0.0" />
 		<PackageReference Include="LSCore.Validation.Domain" Version="10.0.0" />
 	</ItemGroup>
 </Project>

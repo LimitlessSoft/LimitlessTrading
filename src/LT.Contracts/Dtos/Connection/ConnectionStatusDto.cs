@@ -9,4 +9,6 @@ public class ConnectionStatusDto
 	public IReadOnlyList<string> Accounts { get; set; } = [];
 	public DateTimeOffset? ServerTime { get; set; }
 	public string? Error { get; set; }
+	public int ReconnectAttempt { get; set; }
+	public DateTimeOffset? NextAttemptAt { get; set; }
 }

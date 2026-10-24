@@ -1,0 +1,58 @@
+<Window
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.Settings"
+	x:Class="LT.App.Widgets.Settings.SettingsWindow"
+	x:DataType="vm:SettingsViewModel"
+	Title="Settings"
+	Width="460"
+	SizeToContent="Height"
+	CanResize="False"
+	WindowStartupLocation="CenterOwner"
+>
+	<StackPanel Margin="20" Spacing="14">
+		<StackPanel Spacing="4">
+			<TextBlock Text="Market data type" FontWeight="SemiBold" />
+			<ComboBox
+				HorizontalAlignment="Stretch"
+				ItemsSource="{Binding MarketDataTypes}"
+				SelectedItem="{Binding MarketDataType}"
+			/>
+			<TextBlock
+				Classes="secondary"
+				TextWrapping="Wrap"
+				Text="Delayed still shows live data for instruments you have a subscription for. Applies to new subscriptions."
+			/>
+		</StackPanel>
+
+		<CheckBox
+			Content="Reconnect automatically when the connection drops"
+			IsChecked="{Binding AutoReconnect}"
+		/>
+
+		<StackPanel Spacing="4">
+			<TextBlock Text="Heartbeat interval (seconds)" FontWeight="SemiBold" />
+			<NumericUpDown
+				Width="140"
+				HorizontalAlignment="Left"
+				FormatString="0"
+				Increment="1"
+				Minimum="{Binding HeartbeatSecondsMin}"
+				Maximum="{Binding HeartbeatSecondsMax}"
+				Value="{Binding HeartbeatSeconds}"
+			/>
+		</StackPanel>
+
+		<TextBlock
+			Classes="negative"
+			TextWrapping="Wrap"
+			Text="{Binding ErrorMessage}"
+			IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+		/>
+
+		<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+			<Button Content="Cancel" IsCancel="True" Click="OnCancelClick" />
+			<Button Classes="accent" Content="Save" IsDefault="True" Click="OnSaveClick" />
+		</StackPanel>
+	</StackPanel>
+</Window>

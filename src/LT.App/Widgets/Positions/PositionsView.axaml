@@ -2,19 +2,23 @@
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:LT.App.Widgets.Positions"
-	xmlns:dto="using:LT.Contracts.Dtos.Positions"
 	x:Class="LT.App.Widgets.Positions.PositionsView"
 	x:DataType="vm:PositionsViewModel"
 >
 	<DockPanel>
-		<StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
-			<Button Content="Refresh" Command="{Binding RefreshCommand}" />
+		<StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="0,0,0,6">
+			<Button
+				Content="Refresh"
+				Command="{Binding RefreshCommand}"
+				IsEnabled="{Binding IsConnected}"
+			/>
 			<TextBlock
 				VerticalAlignment="Center"
 				Classes="secondary"
 				Text="Connect to TWS / IB Gateway to load positions."
 				IsVisible="{Binding !IsConnected}"
 			/>
+			<TextBlock VerticalAlignment="Center" Classes="secondary" Text="{Binding TotalsText}" />
 			<TextBlock
 				VerticalAlignment="Center"
 				Classes="negative"
@@ -24,45 +28,85 @@
 		</StackPanel>
 		<DataGrid
 			ItemsSource="{Binding Positions}"
+			SelectedItem="{Binding SelectedPosition}"
 			IsReadOnly="True"
 			CanUserSortColumns="True"
 			GridLinesVisibility="Horizontal"
+			HeadersVisibility="Column"
 		>
 			<DataGrid.Columns>
 				<DataGridTextColumn
-					x:DataType="dto:PositionDto"
+					x:DataType="vm:PositionRowViewModel"
 					Header="Account"
 					Binding="{Binding Account}"
 				/>
 				<DataGridTextColumn
-					x:DataType="dto:PositionDto"
+					x:DataType="vm:PositionRowViewModel"
 					Header="Symbol"
 					Binding="{Binding Symbol}"
 				/>
 				<DataGridTextColumn
-					x:DataType="dto:PositionDto"
+					x:DataType="vm:PositionRowViewModel"
 					Header="Type"
 					Binding="{Binding SecurityType}"
 				/>
 				<DataGridTextColumn
-					x:DataType="dto:PositionDto"
+					x:DataType="vm:PositionRowViewModel"
 					Header="Exchange"
 					Binding="{Binding Exchange}"
 				/>
 				<DataGridTextColumn
-					x:DataType="dto:PositionDto"
-					Header="Currency"
+					x:DataType="vm:PositionRowViewModel"
+					Header="Ccy"
 					Binding="{Binding Currency}"
 				/>
 				<DataGridTextColumn
-					x:DataType="dto:PositionDto"
+					x:DataType="vm:PositionRowViewModel"
 					Header="Quantity"
-					Binding="{Binding Quantity, StringFormat='{}{0:#,0.####}'}"
+					Binding="{Binding Quantity}"
 				/>
 				<DataGridTextColumn
-					x:DataType="dto:PositionDto"
+					x:DataType="vm:PositionRowViewModel"
 					Header="Avg cost"
-					Binding="{Binding AverageCost, StringFormat='{}{0:#,0.00##}'}"
+					Binding="{Binding AverageCost}"
+				/>
+				<DataGridTextColumn
+					x:DataType="vm:PositionRowViewModel"
+					Header="Market value"
+					Binding="{Binding MarketValue}"
+				/>
+				<DataGridTemplateColumn Header="Unrealized P&amp;L">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:PositionRowViewModel">
+							<TextBlock
+								Classes="value"
+								Margin="8,0"
+								VerticalAlignment="Center"
+								Classes.positive="{Binding UnrealizedUp}"
+								Classes.negative="{Binding UnrealizedDown}"
+								Text="{Binding UnrealizedPnl}"
+							/>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
+				<DataGridTemplateColumn Header="Daily P&amp;L">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:PositionRowViewModel">
+							<TextBlock
+								Classes="value"
+								Margin="8,0"
+								VerticalAlignment="Center"
+								Classes.positive="{Binding DailyUp}"
+								Classes.negative="{Binding DailyDown}"
+								Text="{Binding DailyPnl}"
+							/>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
+				<DataGridTextColumn
+					x:DataType="vm:PositionRowViewModel"
+					Header="Realized P&amp;L"
+					Binding="{Binding RealizedPnl}"
 				/>
 			</DataGrid.Columns>
 		</DataGrid>
