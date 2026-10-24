@@ -1,8 +1,21 @@
-# IBKR TWS API — `TwsApi` (UtopleMan/tws-api-dotnet)
+# IBKR TWS API — IBKR.Net and `TwsApi`
 
-The app talks to Interactive Brokers through **[UtopleMan/tws-api-dotnet](https://github.com/UtopleMan/tws-api-dotnet)**,
-published on NuGet as **`TwsApi`**. This file is what we know about it and about the IB socket API
-underneath it. Read it before touching `LT.Ibkr`.
+**We are moving to our own client, [IBKR.Net](https://github.com/LimitlessSoft/IBKR.Net)** (MIT,
+clean-room: no Interactive Brokers code). IB's API client is GPL-3.0 from 10.50 and non-commercial
+before, and TwsApi bundles it, which would bind this app's license. Its protocol notes live in
+that repo's `docs/protocol.md`.
+
+Right now `LT.Ibkr` holds **two connections** to the Gateway:
+
+- **IBKR.Net** (`0.1.0-preview.1`, from `packages/` until it is on nuget.org), with the configured
+  client id: everything except the three calls below.
+- **TwsApi**, with client id + 1 (`ConnectionConstants.TwsApiClientIdOffset`): only real-time bars,
+  open orders and executions. IBKR.Net adds them once a trading-day recording shows their
+  messages; then TwsApi, its package and patch are removed.
+- Quote "last trade time" (string ticks) stays empty until that recording too.
+
+The rest of this file describes TwsApi and the IB socket API as researched below; the IB limits
+and quirks apply to both clients.
 
 Researched on 2026-10-23 against `TwsApi` **0.5.0** (repo head `b23ddf4`, 2026-08-13).
 

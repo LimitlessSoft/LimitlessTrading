@@ -18,7 +18,7 @@ say the changes are ready.
 
 0. **Read-only build** — there is no order placement/cancel/modify code. Don't add order
    methods to `IIbkrApiClient` unless the user explicitly asks for trading.
-1. **`TwsApi` / `IBApi` types live only in `LT.Ibkr`.** Everything crossing `IIbkrApiClient` is an
+1. **`IBKR.Net`, `TwsApi` and `IBApi` types live only in `LT.Ibkr`.** Everything crossing `IIbkrApiClient` is an
    `LT.Contracts` DTO; map IB types in `LT.Ibkr/DtoMappings/`. See
    [docs/ibkr-tws-api.md](docs/ibkr-tws-api.md).
 2. **Always update interfaces when modifying implementations** — the interface in

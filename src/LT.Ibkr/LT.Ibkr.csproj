@@ -7,8 +7,10 @@
 		<PackageReference Include="LSCore.Mapper.Domain" Version="10.0.0" />
 	</ItemGroup>
 
-	<!-- The only project allowed to reference TwsApi / IBApi types (see docs/ibkr-tws-api.md) -->
+	<!-- The only project allowed to reference IBKR.Net / TwsApi / IBApi types (see docs/ibkr-tws-api.md).
+	     TwsApi stays only for real-time bars, open orders and executions until IBKR.Net covers them. -->
 	<ItemGroup>
+		<PackageReference Include="IBKR.Net" Version="0.1.0-preview.1" />
 		<PackageReference Include="TwsApi" Version="0.5.1-lt.2" />
 	</ItemGroup>
 </Project>

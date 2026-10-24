@@ -1,16 +1,16 @@
-using IBApi;
+using IBKR.Net;
 using LSCore.Mapper.Contracts;
 using LSCore.Mapper.Domain;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Positions;
 using LT.Contracts.Helpers;
-using TwsApi;
+using Contract = IBKR.Net.Contract;
 
 namespace LT.Ibkr.DtoMappings.Positions;
 
-public class PositionDtoMapper : ILSCoreMapper<PositionInfo, PositionDto>
+public class PositionDtoMapper : ILSCoreMapper<Position, PositionDto>
 {
-	public PositionDto ToMapped(PositionInfo source)
+	public PositionDto ToMapped(Position source)
 	{
 		var contract = source.Contract.ToMapped<Contract, ContractDto>();
 		return new PositionDto
@@ -21,8 +21,8 @@ public class PositionDtoMapper : ILSCoreMapper<PositionInfo, PositionDto>
 			SecurityType = contract.SecurityType,
 			Currency = contract.Currency,
 			Exchange = ContractHelpers.GetListingExchange(contract),
-			Quantity = source.Position,
-			AverageCost = source.AvgCost,
+			Quantity = source.Quantity,
+			AverageCost = source.AverageCost,
 			Contract = contract,
 		};
 	}

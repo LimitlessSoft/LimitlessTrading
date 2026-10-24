@@ -1,6 +1,6 @@
+using IBKR.Net;
 using LSCore.Mapper.Contracts;
 using LT.Contracts.Dtos.Positions;
-using TwsApi;
 
 namespace LT.Ibkr.DtoMappings.Positions;
 
@@ -10,9 +10,9 @@ public class PositionPnlDtoMapper : ILSCoreMapper<PositionPnl, PositionPnlDto>
 		new()
 		{
 			Position = source.Position,
-			DailyPnl = source.DailyPnL,
-			UnrealizedPnl = source.UnrealizedPnL,
-			RealizedPnl = source.RealizedPnL,
+			DailyPnl = source.DailyPnl,
+			UnrealizedPnl = source.UnrealizedPnl,
+			RealizedPnl = source.RealizedPnl,
 			MarketValue = source.MarketValue,
 		};
 }

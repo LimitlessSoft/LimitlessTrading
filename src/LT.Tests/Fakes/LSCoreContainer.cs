@@ -4,7 +4,6 @@ using LSCore.Validation.Domain;
 using LT.Contracts.DtoMappings.Charts;
 using LT.Contracts.DtoMappings.Contracts;
 using LT.Contracts.DtoMappings.Settings;
-using LT.Contracts.Dtos.Account;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Settings;
@@ -19,9 +18,7 @@ using LT.Domain.Validators.Contracts;
 using LT.Domain.Validators.Gateway;
 using LT.Domain.Validators.Options;
 using LT.Domain.Validators.Settings;
-using LT.Ibkr.DtoMappings.Account;
 using Microsoft.Extensions.DependencyInjection;
-using TwsApi;
 
 namespace LT.Tests.Fakes;
 
@@ -61,7 +58,6 @@ public static class LSCoreContainer
 				.AddSingleton<ILSCoreMapper<BarDto, BarEntity>, BarEntityMapper>()
 				.AddSingleton<ILSCoreMapper<LayoutEntity, LayoutDto>, LayoutDtoMapper>()
 				.AddSingleton<ILSCoreMapper<LayoutDto, LayoutEntity>, LayoutEntityMapper>()
-				.AddSingleton<ILSCoreMapper<AccountValue, AccountValueDto>, AccountValueDtoMapper>()
 				.AddSingleton<
 					ILSCoreMapper<GeneralSettingsEntity, AppSettingsDto>,
 					AppSettingsDtoMapper

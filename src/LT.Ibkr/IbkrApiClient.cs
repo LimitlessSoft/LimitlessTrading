@@ -1,5 +1,5 @@
 using System.Runtime.CompilerServices;
-using IBApi;
+using IBKR.Net;
 using LSCore.Mapper.Domain;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Account;
@@ -10,16 +10,25 @@ using LT.Contracts.Dtos.MarketData;
 using LT.Contracts.Dtos.Options;
 using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Dtos.Positions;
-using LT.Contracts.Enums;
 using LT.Contracts.Interfaces.IApiClients;
 using LT.Contracts.Requests.Connection;
-using TwsApi;
+using Contract = IBKR.Net.Contract;
+using ExecutionInfo = TwsApi.ExecutionInfo;
+using ITwsClient = TwsApi.ITwsClient;
+using ITwsClientFactory = TwsApi.ITwsClientFactory;
+using MarketDataType = LT.Contracts.Enums.MarketDataType;
+using OpenOrderInfo = TwsApi.OpenOrderInfo;
+using RealtimeBar = TwsApi.RealtimeBar;
+using TwsConnectionOptions = TwsApi.TwsConnectionOptions;
+using TwsContract = IBApi.Contract;
 
 namespace LT.Ibkr;
 
 /// <summary>
-/// IIbkrApiClient over TwsApi. Holds the one live ITwsClient and paces every request so the app
-/// stays inside IB's limits. Registered as a singleton.
+/// IIbkrApiClient over our own IBKR.Net, plus a second connection through TwsApi for the three
+/// calls IBKR.Net does not cover yet (real-time bars, open orders, executions; see
+/// docs/ibkr-tws-api.md). Paces every request so the app stays inside IB's limits. Registered as
+/// a singleton.
 /// </summary>
 public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 {
@@ -32,12 +41,14 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 		MarketDataConstants.HistoricalWindow
 	);
 
-	private ITwsClient? _client;
+	private IbkrClient? _client;
+	private ITwsClient? _tws;
 	private AccountSummaryFeed? _accountSummary;
 
-	public bool IsConnected => _client?.IsConnected == true;
+	public bool IsConnected => _client?.IsConnected == true && _tws?.IsConnected == true;
 
-	public string? ManagedAccounts => _client?.ManagedAccounts;
+	public string? ManagedAccounts =>
+		_client is { } client ? string.Join(",", client.ManagedAccounts) : null;
 
 	public async Task ConnectAsync(
 		ConnectRequest request,
@@ -45,8 +56,8 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 	)
 	{
 		await DisconnectAsync();
-		_client = await twsClientFactory.ConnectAsync(
-			new TwsConnectionOptions
+		var client = await IbkrClient.ConnectAsync(
+			new IbkrClientOptions
 			{
 				Host = request.Host,
 				Port = request.Port,
@@ -55,7 +66,35 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 			},
 			cancellationToken
 		);
-		_accountSummary = new AccountSummaryFeed(_client, _messages);
+		try
+		{
+			_tws = await twsClientFactory.ConnectAsync(
+				new TwsConnectionOptions
+				{
+					Host = request.Host,
+					Port = request.Port,
+					ClientId = request.ClientId + ConnectionConstants.TwsApiClientIdOffset,
+					ConnectTimeout = ConnectionConstants.ConnectTimeout,
+				},
+				cancellationToken
+			);
+		}
+		catch
+		{
+			await client.DisposeAsync();
+			throw;
+		}
+		_client = client;
+		_accountSummary = new AccountSummaryFeed(ct =>
+			StreamAsync<AccountValue, AccountValueDto>(
+				(c, token) =>
+					c.SubscribeAccountSummaryAsync(
+						AccountConstants.SummaryTags,
+						cancellationToken: token
+					),
+				ct
+			)
+		);
 	}
 
 	public async Task DisconnectAsync()
@@ -67,6 +106,10 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 		var client = Interlocked.Exchange(ref _client, null);
 		if (client != null)
 			await client.DisposeAsync();
+
+		var tws = Interlocked.Exchange(ref _tws, null);
+		if (tws != null)
+			await tws.DisposeAsync();
 	}
 
 	public async Task<DateTimeOffset> GetServerTimeAsync(
@@ -77,8 +120,13 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 		return await RequireClient().GetServerTimeAsync(cancellationToken);
 	}
 
-	public void SetMarketDataType(MarketDataType marketDataType) =>
-		_client?.SetMarketDataType((int)marketDataType);
+	public void SetMarketDataType(MarketDataType marketDataType)
+	{
+		if (_client is { } client)
+			_ = SendQuietlyAsync(() =>
+				client.SetMarketDataTypeAsync((IBKR.Net.MarketDataType)marketDataType)
+			);
+	}
 
 	public async Task<IReadOnlyList<ContractDetailsDto>> SearchContractsAsync(
 		ContractDto query,
@@ -87,7 +135,7 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 	{
 		await _messages.WaitAsync(cancellationToken);
 		var details = await RequireClient()
-			.ResolveContractAsync(query.ToMapped<ContractDto, Contract>(), cancellationToken);
+			.GetContractDetailsAsync(query.ToMapped<ContractDto, Contract>(), cancellationToken);
 		return details.ToMappedList<ContractDetails, ContractDetailsDto>();
 	}
 
@@ -137,28 +185,31 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 				duration,
 				barSize,
 				whatToShow,
-				useRegularTradingHours: useRegularTradingHours,
+				useRegularTradingHours,
 				cancellationToken: cancellationToken
 			);
 		return bars.ToMappedList<Bar, BarDto>();
 	}
 
-	public IAsyncEnumerable<BarDto> SubscribeRealtimeBarsAsync(
+	public async IAsyncEnumerable<BarDto> SubscribeRealtimeBarsAsync(
 		ContractDto contract,
 		string whatToShow,
 		bool useRegularTradingHours,
-		CancellationToken cancellationToken = default
-	) =>
-		StreamAsync<RealtimeBar, BarDto>(
-			(client, ct) =>
-				client.SubscribeRealtimeBarsAsync(
-					contract.ToMapped<ContractDto, Contract>(),
-					whatToShow,
-					useRegularTradingHours,
-					ct
-				),
-			cancellationToken
-		);
+		[EnumeratorCancellation] CancellationToken cancellationToken = default
+	)
+	{
+		var tws = RequireTws();
+		await _messages.WaitAsync(cancellationToken);
+		await foreach (
+			var bar in tws.SubscribeRealtimeBarsAsync(
+				contract.ToMapped<ContractDto, TwsContract>(),
+				whatToShow,
+				useRegularTradingHours,
+				cancellationToken
+			)
+		)
+			yield return bar.ToMapped<RealtimeBar, BarDto>();
+	}
 
 	public IAsyncEnumerable<AccountValueDto> SubscribeAccountSummaryAsync(
 		CancellationToken cancellationToken = default
@@ -173,7 +224,7 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 		CancellationToken cancellationToken = default
 	) =>
 		StreamAsync<AccountPnl, AccountPnlDto>(
-			(client, ct) => client.SubscribeAccountPnlAsync(account, cancellationToken: ct),
+			(client, ct) => client.SubscribeAccountPnlAsync(account, ct),
 			cancellationToken
 		);
 
@@ -183,13 +234,13 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 	{
 		await _messages.WaitAsync(cancellationToken);
 		var positions = await RequireClient().GetPositionsAsync(cancellationToken);
-		return positions.ToMappedList<PositionInfo, PositionDto>();
+		return positions.ToMappedList<Position, PositionDto>();
 	}
 
 	public IAsyncEnumerable<PositionDto> SubscribePositionsAsync(
 		CancellationToken cancellationToken = default
 	) =>
-		StreamAsync<PositionInfo, PositionDto>(
+		StreamAsync<Position, PositionDto>(
 			(client, ct) => client.SubscribePositionsAsync(ct),
 			cancellationToken
 		);
@@ -200,8 +251,7 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 		CancellationToken cancellationToken = default
 	) =>
 		StreamAsync<PositionPnl, PositionPnlDto>(
-			(client, ct) =>
-				client.SubscribePositionPnlAsync(account, contractId, cancellationToken: ct),
+			(client, ct) => client.SubscribePositionPnlAsync(account, contractId, ct),
 			cancellationToken
 		);
 
@@ -210,7 +260,7 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 	)
 	{
 		await _messages.WaitAsync(cancellationToken);
-		var orders = await RequireClient().GetOpenOrdersAsync(cancellationToken);
+		var orders = await RequireTws().GetOpenOrdersAsync(cancellationToken);
 		return orders.ToMappedList<OpenOrderInfo, OpenOrderDto>();
 	}
 
@@ -219,17 +269,29 @@ public class IbkrApiClient(ITwsClientFactory twsClientFactory) : IIbkrApiClient
 	)
 	{
 		await _messages.WaitAsync(cancellationToken);
-		var executions = await RequireClient()
+		var executions = await RequireTws()
 			.GetExecutionsAsync(cancellationToken: cancellationToken);
 		return executions.ToMappedList<ExecutionInfo, ExecutionDto>();
 	}
 
-	private ITwsClient RequireClient() =>
+	private IbkrClient RequireClient() =>
 		_client ?? throw new InvalidOperationException("Not connected to TWS / IB Gateway.");
 
-	// TwsApi sends the subscribe request when enumeration starts, so pacing happens right before it
+	private ITwsClient RequireTws() =>
+		_tws ?? throw new InvalidOperationException("Not connected to TWS / IB Gateway.");
+
+	private static async Task SendQuietlyAsync(Func<Task> send)
+	{
+		try
+		{
+			await send();
+		}
+		catch (IOException) { }
+	}
+
+	// The subscribe request goes out when enumeration starts, so pacing happens right before it
 	private async IAsyncEnumerable<TDto> StreamAsync<TSource, TDto>(
-		Func<ITwsClient, CancellationToken, IAsyncEnumerable<TSource>> subscribe,
+		Func<IbkrClient, CancellationToken, IAsyncEnumerable<TSource>> subscribe,
 		[EnumeratorCancellation] CancellationToken cancellationToken
 	)
 		where TSource : class

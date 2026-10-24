@@ -17,6 +17,13 @@ public static class ConnectionConstants
 	public const int DefaultPort = GatewayPaperPort;
 	public static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(15);
 
+	/// <summary>
+	/// The second API connection (TwsApi, for real-time bars, open orders and executions until
+	/// IBKR.Net covers them) uses the configured client id plus this: every connection to one
+	/// Gateway needs its own id.
+	/// </summary>
+	public const int TwsApiClientIdOffset = 1;
+
 	public const int DefaultHeartbeatSeconds = 5;
 	public const int HeartbeatSecondsMin = 2;
 	public const int HeartbeatSecondsMax = 60;

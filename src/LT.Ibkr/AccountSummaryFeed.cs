@@ -1,9 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
-using LSCore.Mapper.Domain;
-using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Account;
-using TwsApi;
 
 namespace LT.Ibkr;
 
@@ -13,8 +10,10 @@ namespace LT.Ibkr;
 /// (error 322 from the third request on, seen 2026-10-23), so the subscription is opened once and
 /// kept until the connection ends. New subscribers get the latest values first, then each change.
 /// </summary>
-public sealed class AccountSummaryFeed(ITwsClient client, RequestThrottle messages)
-	: IAsyncDisposable
+/// <param name="subscribe">Opens the one IB subscription (already paced and mapped).</param>
+public sealed class AccountSummaryFeed(
+	Func<CancellationToken, IAsyncEnumerable<AccountValueDto>> subscribe
+) : IAsyncDisposable
 {
 	private readonly Lock _lock = new();
 	private readonly Dictionary<(string Account, string Tag), AccountValueDto> _values = [];
@@ -62,15 +61,8 @@ public sealed class AccountSummaryFeed(ITwsClient client, RequestThrottle messag
 		Exception? error = null;
 		try
 		{
-			await messages.WaitAsync(_stop.Token);
-			await foreach (
-				var value in client.SubscribeAccountSummaryAsync(
-					string.Join(",", AccountConstants.SummaryTags),
-					cancellationToken: _stop.Token
-				)
-			)
+			await foreach (var dto in subscribe(_stop.Token))
 			{
-				var dto = value.ToMapped<AccountValue, AccountValueDto>();
 				lock (_lock)
 				{
 					_values[(dto.Account, dto.Tag)] = dto;
