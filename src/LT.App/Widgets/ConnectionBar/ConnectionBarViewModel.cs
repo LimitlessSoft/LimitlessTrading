@@ -1,50 +1,50 @@
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using LT.App.Helpers;
 using LT.App.ViewModels;
-using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Connection;
+using LT.Contracts.Dtos.Gateway;
 using LT.Contracts.Enums;
 using LT.Contracts.Interfaces.IManagers;
-using LT.Contracts.Requests.Connection;
 
 namespace LT.App.Widgets.ConnectionBar;
 
+/// <summary>
+/// Status-bar item for the IB Gateway session + API connection; clicking it opens the log-in
+/// dialog. There is no manual endpoint — the app only connects to the Gateway it started.
+/// </summary>
 public partial class ConnectionBarViewModel : ViewModelBase
 {
 	private readonly IConnectionManager _connectionManager;
+	private readonly IGatewayManager _gatewayManager;
 
-	public ConnectionBarViewModel(IConnectionManager connectionManager)
+	public ConnectionBarViewModel(
+		IConnectionManager connectionManager,
+		IGatewayManager gatewayManager
+	)
 	{
 		_connectionManager = connectionManager;
+		_gatewayManager = gatewayManager;
 
-		var last = connectionManager.GetLastConnectRequest();
-		Host = last.Host;
-		Port = last.Port;
-		ClientId = last.ClientId;
-
-		Apply(connectionManager.Status);
-		connectionManager.StatusChanged += status => Dispatcher.UIThread.Post(() => Apply(status));
+		Apply();
+		connectionManager.StatusChanged += _ => Dispatcher.UIThread.Post(Apply);
+		gatewayManager.StatusChanged += _ => Dispatcher.UIThread.Post(Apply);
 	}
 
-	public int PortMin => ConnectionConstants.PortMin;
-	public int PortMax => ConnectionConstants.PortMax;
-	public int ClientIdMin => ConnectionConstants.ClientIdMin;
-	public int ClientIdMax => ConnectionConstants.ClientIdMax;
+	[ObservableProperty]
+	[NotifyCanExecuteChangedFor(nameof(LogOutCommand))]
+	public partial bool IsConnected { get; set; }
 
 	[ObservableProperty]
-	public partial string Host { get; set; } = string.Empty;
+	[NotifyCanExecuteChangedFor(nameof(LogOutCommand))]
+	public partial bool IsConnecting { get; set; }
 
 	[ObservableProperty]
-	public partial decimal? Port { get; set; }
+	public partial bool IsFailed { get; set; }
 
 	[ObservableProperty]
-	public partial decimal? ClientId { get; set; }
-
-	[ObservableProperty]
-	[NotifyCanExecuteChangedFor(nameof(ConnectCommand), nameof(DisconnectCommand))]
-	public partial ConnectionState State { get; set; }
+	[NotifyCanExecuteChangedFor(nameof(LogOutCommand))]
+	public partial bool CanLogIn { get; set; }
 
 	[ObservableProperty]
 	public partial string StateText { get; set; } = string.Empty;
@@ -52,53 +52,55 @@ public partial class ConnectionBarViewModel : ViewModelBase
 	[ObservableProperty]
 	public partial string? ErrorMessage { get; set; }
 
-	public bool IsConnected => State == ConnectionState.Connected;
-	public bool IsConnecting => State == ConnectionState.Connecting;
-	public bool IsFailed => State == ConnectionState.Failed;
-	public bool CanEditEndpoint => State is ConnectionState.Disconnected or ConnectionState.Failed;
+	public bool CanLogOut => !CanLogIn;
 
-	partial void OnStateChanged(ConnectionState value)
-	{
-		OnPropertyChanged(nameof(IsConnected));
-		OnPropertyChanged(nameof(IsConnecting));
-		OnPropertyChanged(nameof(IsFailed));
-		OnPropertyChanged(nameof(CanEditEndpoint));
-	}
+	[RelayCommand(CanExecute = nameof(CanLogOut))]
+	private Task LogOutAsync() => _gatewayManager.StopAsync();
 
-	[RelayCommand(CanExecute = nameof(CanEditEndpoint))]
-	private async Task ConnectAsync()
+	private void Apply()
 	{
-		ErrorMessage = null;
-		try
-		{
-			await _connectionManager.ConnectAsync(
-				new ConnectRequest
-				{
-					Host = Host.Trim(),
-					Port = (int)(Port ?? 0),
-					ClientId = (int)(ClientId ?? -1),
-				}
+		var gateway = _gatewayManager.Status;
+		var connection = _connectionManager.Status;
+
+		IsConnected =
+			gateway.State == GatewayState.Running && connection.State == ConnectionState.Connected;
+		IsConnecting =
+			gateway.State
+				is GatewayState.Starting
+					or GatewayState.AwaitingSecondFactor
+					or GatewayState.Stopping
+			|| (
+				gateway.State == GatewayState.Running
+				&& connection.State is ConnectionState.Connecting or ConnectionState.Reconnecting
 			);
-		}
-		catch (Exception ex)
+		IsFailed =
+			gateway.State == GatewayState.Failed
+			|| (
+				gateway.State == GatewayState.Running && connection.State == ConnectionState.Failed
+			);
+		CanLogIn = gateway.State is GatewayState.Stopped or GatewayState.Failed;
+		OnPropertyChanged(nameof(CanLogOut));
+
+		StateText = gateway.State switch
 		{
-			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
-		}
+			GatewayState.Starting => $"Logging in to IB Gateway ({gateway.TradingMode})…",
+			GatewayState.AwaitingSecondFactor => "Approve the login in IB Key…",
+			GatewayState.Stopping => "Logging out…",
+			GatewayState.Failed => "Login failed — click to retry",
+			GatewayState.Running => FormatConnection(connection),
+			_ => "Not logged in — click to log in",
+		};
+		ErrorMessage = gateway.State == GatewayState.Running ? connection.Error : gateway.Error;
 	}
 
-	[RelayCommand(CanExecute = nameof(IsConnected))]
-	private Task DisconnectAsync() => _connectionManager.DisconnectAsync();
-
-	private void Apply(ConnectionStatusDto status)
-	{
-		State = status.State;
-		StateText = status.State switch
+	private static string FormatConnection(ConnectionStatusDto status) =>
+		status.State switch
 		{
 			ConnectionState.Connecting => $"Connecting to {status.Endpoint}…",
 			ConnectionState.Connected => $"Connected — {status.Endpoint}",
 			ConnectionState.Failed => $"Connection failed — {status.Endpoint}",
-			_ => "Disconnected",
+			ConnectionState.Reconnecting =>
+				$"Reconnecting to {status.Endpoint} (attempt {status.ReconnectAttempt + 1}, next at {status.NextAttemptAt?.ToLocalTime():HH:mm:ss})",
+			_ => "Gateway running — not connected",
 		};
-		ErrorMessage = status.Error;
-	}
 }

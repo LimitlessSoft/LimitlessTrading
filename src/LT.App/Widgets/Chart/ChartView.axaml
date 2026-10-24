@@ -1,0 +1,30 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.Chart"
+	x:Class="LT.App.Widgets.Chart.ChartView"
+	x:DataType="vm:ChartViewModel"
+>
+	<!-- The ticker is picked in the frame header (ChartTitleView). Linked / RTH / timeframe / Reload
+	     controls are hidden until they are redesigned; the view model keeps their state. -->
+	<Panel>
+		<vm:CandlestickChart Bars="{Binding Bars}" IsIntraday="{Binding IsIntraday}" />
+		<StackPanel
+			HorizontalAlignment="Left"
+			VerticalAlignment="Top"
+			Margin="8"
+			Spacing="2"
+			IsHitTestVisible="False"
+		>
+			<TextBlock Classes="secondary" Text="Loading…" IsVisible="{Binding IsLoading}" />
+			<TextBlock
+				Classes="negative"
+				FontSize="12"
+				TextWrapping="Wrap"
+				MaxWidth="420"
+				Text="{Binding ErrorMessage}"
+				IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+			/>
+		</StackPanel>
+	</Panel>
+</UserControl>

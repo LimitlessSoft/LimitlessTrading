@@ -4,4 +4,5 @@ public static class AppConstants
 {
 	public const string AppName = "LimitlessTrading";
 	public const string SettingsFileName = "settings.json";
+	public const string BarCacheDirectoryName = "bar-cache";
 }

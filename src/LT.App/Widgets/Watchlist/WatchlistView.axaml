@@ -1,0 +1,177 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.Watchlist"
+	x:Class="LT.App.Widgets.Watchlist.WatchlistView"
+	x:DataType="vm:WatchlistViewModel"
+>
+	<DockPanel>
+		<Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6" Margin="0,0,0,6">
+			<TextBox
+				x:Name="WatchlistSearchBox"
+				Grid.Column="0"
+				PlaceholderText="Symbol (Ctrl+F)"
+				Text="{Binding SearchText}"
+			>
+				<TextBox.KeyBindings>
+					<KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" />
+					<KeyBinding Gesture="Escape" Command="{Binding CloseSearchCommand}" />
+				</TextBox.KeyBindings>
+			</TextBox>
+			<ComboBox
+				Grid.Column="1"
+				Width="92"
+				ItemsSource="{Binding SecurityTypes}"
+				SelectedItem="{Binding SecurityType}"
+			/>
+			<Button
+				Grid.Column="2"
+				Content="Search"
+				Command="{Binding SearchCommand}"
+				IsEnabled="{Binding IsConnected}"
+			/>
+		</Grid>
+
+		<TextBlock
+			DockPanel.Dock="Top"
+			Classes="secondary"
+			Margin="0,0,0,6"
+			Text="Searching…"
+			IsVisible="{Binding IsSearching}"
+		/>
+		<TextBlock
+			DockPanel.Dock="Top"
+			Classes="negative"
+			FontSize="12"
+			TextWrapping="Wrap"
+			Margin="0,0,0,6"
+			Text="{Binding ErrorMessage}"
+			IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+		/>
+
+		<Border
+			DockPanel.Dock="Top"
+			Margin="0,0,0,6"
+			BorderBrush="{DynamicResource PanelStroke}"
+			BorderThickness="1"
+			CornerRadius="4"
+			IsVisible="{Binding HasSearchResults}"
+		>
+			<DockPanel>
+				<TextBlock
+					DockPanel.Dock="Top"
+					Classes="secondary"
+					Margin="8,4"
+					Text="Double-click or Enter to add"
+				/>
+				<ListBox
+					x:Name="SearchResultsList"
+					MaxHeight="220"
+					ItemsSource="{Binding SearchResults}"
+					DoubleTapped="OnSearchResultDoubleTapped"
+					KeyDown="OnSearchResultKeyDown"
+				/>
+			</DockPanel>
+		</Border>
+
+		<DataGrid
+			ItemsSource="{Binding Rows}"
+			SelectedItem="{Binding SelectedRow}"
+			IsReadOnly="True"
+			CanUserSortColumns="True"
+			GridLinesVisibility="Horizontal"
+			HeadersVisibility="Column"
+			KeyDown="OnGridKeyDown"
+		>
+			<DataGrid.ContextMenu>
+				<ContextMenu>
+					<MenuItem Header="Remove from watchlist" Command="{Binding RemoveCommand}" />
+				</ContextMenu>
+			</DataGrid.ContextMenu>
+			<DataGrid.Columns>
+				<DataGridTemplateColumn Header="Symbol" Width="*" MinWidth="130" SortMemberPath="Symbol">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:WatchlistRowViewModel">
+							<StackPanel Margin="8,2" VerticalAlignment="Center">
+								<StackPanel Orientation="Horizontal" Spacing="4">
+									<TextBlock FontWeight="SemiBold" Text="{Binding Symbol}" />
+									<TextBlock
+										Classes="warning"
+										FontSize="10"
+										Text="D"
+										VerticalAlignment="Center"
+										IsVisible="{Binding IsDelayed}"
+										ToolTip.Tip="Delayed data"
+									/>
+								</StackPanel>
+								<TextBlock Classes="secondary" FontSize="10" Text="{Binding Description}" />
+								<TextBlock
+									Classes="negative"
+									FontSize="10"
+									TextWrapping="Wrap"
+									Text="{Binding Error}"
+									IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+								/>
+							</StackPanel>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
+				<DataGridTemplateColumn Header="Last" Width="Auto">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:WatchlistRowViewModel">
+							<TextBlock
+								Classes="value"
+								Margin="8,0"
+								VerticalAlignment="Center"
+								Text="{Binding Last}"
+							/>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
+				<DataGridTemplateColumn Header="Chg %" Width="Auto">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:WatchlistRowViewModel">
+							<StackPanel Margin="8,0" VerticalAlignment="Center">
+								<TextBlock
+									Classes="value"
+									Classes.positive="{Binding IsUp}"
+									Classes.negative="{Binding IsDown}"
+									Text="{Binding ChangePercent}"
+								/>
+								<TextBlock
+									Classes="value secondary"
+									FontSize="10"
+									Classes.positive="{Binding IsUp}"
+									Classes.negative="{Binding IsDown}"
+									Text="{Binding Change}"
+								/>
+							</StackPanel>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
+				<DataGridTemplateColumn Header="Bid / Ask" Width="Auto">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:WatchlistRowViewModel">
+							<StackPanel Margin="8,0" VerticalAlignment="Center">
+								<TextBlock Classes="value" FontSize="12" Text="{Binding Bid}" />
+								<TextBlock Classes="value" FontSize="12" Text="{Binding Ask}" />
+							</StackPanel>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
+				<DataGridTemplateColumn Header="Vol" Width="Auto">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:WatchlistRowViewModel">
+							<TextBlock
+								Classes="value secondary"
+								Margin="8,0"
+								VerticalAlignment="Center"
+								Text="{Binding Volume}"
+							/>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
+			</DataGrid.Columns>
+		</DataGrid>
+	</DockPanel>
+</UserControl>

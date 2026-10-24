@@ -1,0 +1,73 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Workspace"
+	x:Class="LT.App.Workspace.WorkspaceView"
+	x:DataType="vm:WorkspaceViewModel"
+>
+	<UserControl.DataTemplates>
+		<!-- Strip icon of a side-docked widget -->
+		<DataTemplate DataType="vm:WidgetItem">
+			<Button
+				Classes="tool"
+				Classes.active="{Binding IsActive}"
+				Command="{Binding ToggleCommand}"
+				ToolTip.Tip="{Binding ToolTip}"
+			>
+				<PathIcon Data="{Binding Icon}" />
+			</Button>
+		</DataTemplate>
+	</UserControl.DataTemplates>
+
+	<!-- strip | left host | splitter | center | splitter | right host | strip -->
+	<Grid x:Name="LayoutGrid" ColumnDefinitions="Auto,380,6,*,6,300,Auto">
+		<Border x:Name="LeftStrip" Grid.Column="0" Classes="strip" BorderThickness="0,0,1,0">
+			<ItemsControl x:Name="LeftIcons" ItemsSource="{Binding Left}" />
+		</Border>
+
+		<Border x:Name="LeftHost" Grid.Column="1" />
+		<GridSplitter
+			x:Name="LeftSplitter"
+			Grid.Column="2"
+			ResizeDirection="Columns"
+			Background="Transparent"
+		/>
+
+		<Panel x:Name="CenterHost" Grid.Column="3" Margin="0,8">
+			<!-- Built from the center split tree: nested grids with splitters -->
+			<Border x:Name="CenterContent" />
+			<TextBlock
+				Classes="secondary"
+				HorizontalAlignment="Center"
+				VerticalAlignment="Center"
+				TextAlignment="Center"
+				Text="No widgets in the center.&#10;Open one from the menu, or drag one here by its header."
+				IsVisible="{Binding !HasCenterWidgets}"
+			/>
+		</Panel>
+
+		<GridSplitter
+			x:Name="RightSplitter"
+			Grid.Column="4"
+			ResizeDirection="Columns"
+			Background="Transparent"
+		/>
+		<Border x:Name="RightHost" Grid.Column="5" />
+
+		<Border x:Name="RightStrip" Grid.Column="6" Classes="strip" BorderThickness="1,0,0,0">
+			<ItemsControl x:Name="RightIcons" ItemsSource="{Binding Right}" />
+		</Border>
+
+		<!-- Drag and drop feedback: where the dragged widget will land -->
+		<Canvas x:Name="DropOverlay" Grid.ColumnSpan="7" IsVisible="False" IsHitTestVisible="False">
+			<Border x:Name="DropHighlight" Classes="dropTarget">
+				<TextBlock
+					x:Name="DropLabel"
+					HorizontalAlignment="Center"
+					VerticalAlignment="Center"
+					FontWeight="SemiBold"
+				/>
+			</Border>
+		</Canvas>
+	</Grid>
+</UserControl>

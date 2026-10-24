@@ -1,0 +1,105 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.OptionChain"
+	x:Class="LT.App.Widgets.OptionChain.OptionChainView"
+	x:DataType="vm:OptionChainViewModel"
+>
+	<DockPanel>
+		<StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
+			<TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding UnderlyingText}" />
+			<TextBlock VerticalAlignment="Center" Classes="secondary" Text="Expiry" Margin="8,0,0,0" />
+			<TextBox Width="100" PlaceholderText="YYYYMM" Text="{Binding Expiry}" />
+			<Button Content="Load chain" Command="{Binding LoadCommand}" IsEnabled="{Binding CanLoad}" />
+			<ComboBox
+				Width="130"
+				PlaceholderText="Expiration"
+				ItemsSource="{Binding Expirations}"
+				SelectedItem="{Binding SelectedExpiration}"
+			/>
+			<TextBlock
+				VerticalAlignment="Center"
+				Classes="secondary"
+				Text="Loading chain…"
+				IsVisible="{Binding IsLoading}"
+			/>
+			<TextBlock VerticalAlignment="Center" Classes="secondary" Text="{Binding InfoText}" />
+			<TextBlock
+				VerticalAlignment="Center"
+				Classes="negative"
+				Text="{Binding ErrorMessage}"
+				IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+			/>
+		</StackPanel>
+		<DataGrid
+			ItemsSource="{Binding Rows}"
+			IsReadOnly="True"
+			GridLinesVisibility="Horizontal"
+			HeadersVisibility="Column"
+		>
+			<DataGrid.Styles>
+				<Style Selector="Border.strike">
+					<Setter Property="Padding" Value="12,0" />
+				</Style>
+				<Style Selector="Border.strike.atm">
+					<Setter Property="Background" Value="{DynamicResource AtmBrush}" />
+				</Style>
+			</DataGrid.Styles>
+			<DataGrid.Columns>
+				<DataGridTextColumn
+					x:DataType="vm:OptionRowViewModel"
+					Header="Call vol"
+					Binding="{Binding CallVolume}"
+				/>
+				<DataGridTextColumn
+					x:DataType="vm:OptionRowViewModel"
+					Header="Call last"
+					Binding="{Binding CallLast}"
+				/>
+				<DataGridTextColumn
+					x:DataType="vm:OptionRowViewModel"
+					Header="Call bid"
+					Binding="{Binding CallBid}"
+				/>
+				<DataGridTextColumn
+					x:DataType="vm:OptionRowViewModel"
+					Header="Call ask"
+					Binding="{Binding CallAsk}"
+				/>
+				<DataGridTemplateColumn Header="Strike">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:OptionRowViewModel">
+							<Border Classes="strike" Classes.atm="{Binding IsAtm}">
+								<TextBlock
+									FontWeight="SemiBold"
+									VerticalAlignment="Center"
+									Text="{Binding StrikeText}"
+								/>
+							</Border>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
+				<DataGridTextColumn
+					x:DataType="vm:OptionRowViewModel"
+					Header="Put bid"
+					Binding="{Binding PutBid}"
+				/>
+				<DataGridTextColumn
+					x:DataType="vm:OptionRowViewModel"
+					Header="Put ask"
+					Binding="{Binding PutAsk}"
+				/>
+				<DataGridTextColumn
+					x:DataType="vm:OptionRowViewModel"
+					Header="Put last"
+					Binding="{Binding PutLast}"
+				/>
+				<DataGridTextColumn
+					x:DataType="vm:OptionRowViewModel"
+					Header="Put vol"
+					Binding="{Binding PutVolume}"
+				/>
+			</DataGrid.Columns>
+		</DataGrid>
+	</DockPanel>
+</UserControl>
