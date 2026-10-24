@@ -2,6 +2,8 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using LT.Contracts.Constants;
@@ -29,6 +31,9 @@ public partial class WorkspaceView : UserControl
 	// Split node → the grid built for it, to read splitter-set sizes back into the tree
 	private readonly Dictionary<CenterNodeDto, Grid> _splitGrids = [];
 	private WorkspaceViewModel? _viewModel;
+
+	// The widget whose frame sits in the window's fullscreen layer (or whose window is maximized)
+	private WidgetItem? _fullscreen;
 
 	public WorkspaceView() => InitializeComponent();
 
@@ -98,6 +103,9 @@ public partial class WorkspaceView : UserControl
 			case nameof(WorkspaceViewModel.RightActive):
 				ApplySide(_viewModel!.RightActive, RightHost, RightColumn, RightSplitter, false);
 				break;
+			case nameof(WorkspaceViewModel.FullscreenWidget):
+				ApplyFullscreen();
+				break;
 		}
 	}
 
@@ -129,6 +137,14 @@ public partial class WorkspaceView : UserControl
 		{
 			_frames[widget.Id] = frame = new WidgetFrame(widget);
 			AttachDrag(frame);
+			// The last widget clicked or typed in is what Ctrl+Shift+F acts on
+			frame.AddHandler(
+				PointerPressedEvent,
+				(_, _) => SetCurrent(widget),
+				RoutingStrategies.Tunnel,
+				handledEventsToo: true
+			);
+			frame.GotFocus += (_, _) => SetCurrent(widget);
 		}
 		return frame;
 	}
@@ -175,7 +191,7 @@ public partial class WorkspaceView : UserControl
 		}
 
 		var frame = GetFrame(active);
-		if (host.Child != frame)
+		if (host.Child != frame && active != _fullscreen)
 		{
 			Detach(frame);
 			host.Child = frame;
@@ -183,6 +199,51 @@ public partial class WorkspaceView : UserControl
 		var width = isLeft ? _viewModel!.LeftWidth : _viewModel!.RightWidth;
 		definition.Width = new GridLength(Math.Max(MinPanelWidth, width));
 		splitter.IsVisible = true;
+	}
+
+	private void SetCurrent(WidgetItem widget)
+	{
+		if (_viewModel != null)
+			_viewModel.CurrentWidget = widget;
+	}
+
+	// Floating widgets maximize their own window; the others move into the main window's layer
+	private void ApplyFullscreen()
+	{
+		var next = _viewModel?.FullscreenWidget;
+		if (next == _fullscreen)
+			return;
+		var previous = _fullscreen;
+		_fullscreen = next;
+		if (previous != null)
+			Restore(previous);
+		if (next is null)
+			return;
+
+		if (_windows.TryGetValue(next.Id, out var window))
+		{
+			window.WindowState = WindowState.Maximized;
+			return;
+		}
+		var frame = GetFrame(next);
+		Detach(frame);
+		(TopLevel.GetTopLevel(this) as IFullscreenHost)?.ShowFullscreen(frame);
+	}
+
+	private void Restore(WidgetItem widget)
+	{
+		if (_windows.TryGetValue(widget.Id, out var window))
+		{
+			window.WindowState = WindowState.Normal;
+			return;
+		}
+		(TopLevel.GetTopLevel(this) as IFullscreenHost)?.ShowFullscreen(null);
+		if (widget.IsCenter)
+			RebuildCenter();
+		else if (widget == _viewModel?.LeftActive)
+			ApplySide(widget, LeftHost, LeftColumn, LeftSplitter, true);
+		else if (widget == _viewModel?.RightActive)
+			ApplySide(widget, RightHost, RightColumn, RightSplitter, false);
 	}
 
 	private void SetSideWidth(bool isLeft, double width)
@@ -210,7 +271,8 @@ public partial class WorkspaceView : UserControl
 		if (node.IsLeaf)
 		{
 			var widget = _viewModel!.Find(node.WidgetId!);
-			if (widget is null)
+			// A fullscreen widget keeps its cell empty until it is restored
+			if (widget is null || widget == _fullscreen)
 				return new Panel();
 			var frame = GetFrame(widget);
 			Detach(frame);

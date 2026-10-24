@@ -85,6 +85,15 @@ register each one as transient in `Program.cs` (`builder.Services.AddTransient<F
 Row VMs (`WatchlistRowViewModel`, `PositionRowViewModel`, …) are constructed by their parent
 instead.
 
+### Fullscreen
+
+The fullscreen button next to a widget's ✕, or Ctrl+Shift+F, shows the widget over the whole
+window (toolbar and status bar included), framed in orange; the same button or shortcut restores it.
+One widget at a time. `WorkspaceViewModel.FullscreenWidget` holds it; `WorkspaceView` moves its frame into the
+window's fullscreen layer (`IFullscreenHost`, implemented by `MainWindow`) and back, so the widget
+keeps its state. A floating widget maximizes its own window instead. Moving or closing a
+fullscreen widget restores it first; its header doesn't start a drag while fullscreen.
+
 ### Link groups
 
 Watchlist, Positions, Chart and Option chain can be linked: the chain icon left of the frame's
@@ -154,6 +163,9 @@ subscription and frees the market-data line.
 | Ctrl+, | Settings |
 | Ctrl+1 … Ctrl+8 | Show Watchlist, Positions, Orders, Executions, Account, Messages, Chart, Option chain (collapses an expanded side widget) |
 | Ctrl+Shift+7 | New chart |
+| Ctrl+Shift+F | Fullscreen the current widget (the one last clicked or typed in, framed in light blue), or restore it |
+
+Ctrl+Shift+*key* combos act on a widget.
 
 The window handles them in a tunnelling `KeyDown` handler (`MainWindow.axaml.cs`), so they work
 while a text box has focus. On macOS, Cmd works in place of Ctrl.

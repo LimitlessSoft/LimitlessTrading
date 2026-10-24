@@ -3,12 +3,13 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using LT.App.Widgets.Gateway;
 using LT.App.Widgets.Settings;
+using LT.App.Workspace;
 using LT.Contracts.Enums;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LT.App.Shell;
 
-public partial class MainWindow : Window
+public partial class MainWindow : Window, IFullscreenHost
 {
 	public MainWindow()
 	{
@@ -19,6 +20,12 @@ public partial class MainWindow : Window
 	}
 
 	private MainWindowViewModel? ViewModel => DataContext as MainWindowViewModel;
+
+	public void ShowFullscreen(Control? frame)
+	{
+		FullscreenLayer.Child = frame;
+		FullscreenLayer.IsVisible = frame != null;
+	}
 
 	protected override void OnDataContextChanged(EventArgs e)
 	{
@@ -55,8 +62,12 @@ public partial class MainWindow : Window
 		var ctrl =
 			e.KeyModifiers.HasFlag(KeyModifiers.Control)
 			|| e.KeyModifiers.HasFlag(KeyModifiers.Meta);
+		var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
 		switch (e.Key)
 		{
+			case Key.F when ctrl && shift:
+				ViewModel?.ToggleFullscreen();
+				break;
 			case Key.F when ctrl:
 				Page.FocusSearch();
 				break;
@@ -66,7 +77,7 @@ public partial class MainWindow : Window
 			case Key.OemComma when ctrl:
 				_ = OpenSettingsAsync();
 				break;
-			case Key.D7 when ctrl && e.KeyModifiers.HasFlag(KeyModifiers.Shift):
+			case Key.D7 when ctrl && shift:
 				ViewModel?.SpawnTool(WorkspaceTool.Chart);
 				break;
 			case >= Key.D1 and <= Key.D8 when ctrl:
@@ -93,6 +104,9 @@ public partial class MainWindow : Window
 
 	private void OnNewChartClick(object? sender, RoutedEventArgs e) =>
 		ViewModel?.SpawnTool(WorkspaceTool.Chart);
+
+	private void OnFullscreenClick(object? sender, RoutedEventArgs e) =>
+		ViewModel?.ToggleFullscreen();
 
 	private void OnToolClick(object? sender, RoutedEventArgs e)
 	{

@@ -56,12 +56,27 @@ public partial class WidgetItem : ObservableObject
 		nameof(IsLeft),
 		nameof(IsRight),
 		nameof(IsFloating),
-		nameof(IsSide)
+		nameof(IsSide),
+		nameof(CanCollapse)
 	)]
 	public partial WidgetDock? Dock { get; set; }
 
 	/// <summary>Where the widget was last open, so reopening puts it back there.</summary>
 	public WidgetDock? LastDock { get; set; }
+
+	/// <summary>Shown over the whole window (or its floating window maximized).</summary>
+	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(FullscreenToolTip), nameof(CanCollapse))]
+	public partial bool IsFullscreen { get; set; }
+
+	public bool CanCollapse => IsSide && !IsFullscreen;
+
+	/// <summary>Last clicked or typed in (Ctrl+Shift+F's target); shown with a light frame.</summary>
+	[ObservableProperty]
+	public partial bool IsCurrent { get; set; }
+
+	public string FullscreenToolTip =>
+		IsFullscreen ? "Restore (Ctrl+Shift+F)" : "Fullscreen (Ctrl+Shift+F)";
 
 	/// <summary>Side widgets only: this one is expanded in its side panel.</summary>
 	[ObservableProperty]
@@ -94,6 +109,9 @@ public partial class WidgetItem : ObservableObject
 
 	[RelayCommand]
 	private void Close() => Workspace?.Close(this);
+
+	[RelayCommand]
+	private void ToggleFullscreen() => Workspace?.ToggleFullscreen(this);
 
 	[RelayCommand]
 	private void SetLinkGroup(LinkGroup group)

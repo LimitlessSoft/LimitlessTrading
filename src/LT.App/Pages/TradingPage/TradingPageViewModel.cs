@@ -26,6 +26,8 @@ public class TradingPageViewModel(
 
 	public void SpawnTool(WorkspaceTool tool) => Workspace.Spawn(tool);
 
+	public void ToggleFullscreen() => Workspace.ToggleFullscreen();
+
 	public void FillLayout(LayoutDto layout)
 	{
 		Workspace.FillLayout(layout);

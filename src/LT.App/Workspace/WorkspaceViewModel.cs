@@ -84,6 +84,38 @@ public partial class WorkspaceViewModel : ViewModelBase
 
 	public WidgetItem? Find(string id) => Widgets.FirstOrDefault(x => x.Id == id);
 
+	/// <summary>The widget shown over the whole window (Ctrl+Shift+F); at most one.</summary>
+	[ObservableProperty]
+	public partial WidgetItem? FullscreenWidget { get; set; }
+
+	/// <summary>The widget last clicked or typed in: what Ctrl+Shift+F acts on, framed in blue.</summary>
+	[ObservableProperty]
+	public partial WidgetItem? CurrentWidget { get; set; }
+
+	partial void OnCurrentWidgetChanged(WidgetItem? oldValue, WidgetItem? newValue)
+	{
+		oldValue?.IsCurrent = false;
+		newValue?.IsCurrent = true;
+	}
+
+	/// <summary>
+	/// Fullscreen on/off. Without a widget (the shortcut) it restores the fullscreen one, or makes
+	/// the current one fullscreen.
+	/// </summary>
+	public void ToggleFullscreen(WidgetItem? widget = null)
+	{
+		widget ??= FullscreenWidget ?? CurrentWidget;
+		if (widget is not { IsOpen: true })
+			return;
+		FullscreenWidget = FullscreenWidget == widget ? null : widget;
+	}
+
+	partial void OnFullscreenWidgetChanged(WidgetItem? oldValue, WidgetItem? newValue)
+	{
+		oldValue?.IsFullscreen = false;
+		newValue?.IsFullscreen = true;
+	}
+
 	/// <summary>Brings the widget forward: an open instance, else reopens or spawns it.</summary>
 	public void Show(WorkspaceTool tool)
 	{
@@ -261,6 +293,11 @@ public partial class WorkspaceViewModel : ViewModelBase
 
 	private void SetDock(WidgetItem widget, WidgetDock? dock)
 	{
+		// Moving or closing a fullscreen widget brings the normal layout back first
+		if (FullscreenWidget == widget)
+			FullscreenWidget = null;
+		if (dock is null && CurrentWidget == widget)
+			CurrentWidget = null;
 		widget.Dock = dock;
 		if (dock is not { } value)
 			return;

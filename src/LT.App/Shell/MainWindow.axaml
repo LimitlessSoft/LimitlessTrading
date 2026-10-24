@@ -13,104 +13,132 @@
 	MinHeight="680"
 	WindowStartupLocation="CenterScreen"
 >
-	<DockPanel>
-		<!-- Icon toolbar; for now everything lives under the hamburger -->
-		<Border
-			DockPanel.Dock="Top"
-			Classes="toolbar"
-			BorderBrush="{DynamicResource PanelStroke}"
-			BorderThickness="0,0,0,1"
-		>
-			<StackPanel Orientation="Horizontal" Spacing="4">
-				<Button Classes="tool" ToolTip.Tip="Menu">
-					<PathIcon Data="M3,6H21V8H3Z M3,11H21V13H3Z M3,16H21V18H3Z" />
-					<Button.Flyout>
-						<MenuFlyout Placement="BottomEdgeAlignedLeft">
-							<MenuItem Header="Log in…" Click="OnGatewayClick" />
-							<MenuItem Header="Log out" Command="{Binding ConnectionBar.LogOutCommand}" />
-							<Separator />
-							<MenuItem Header="Find symbol" InputGesture="Ctrl+F" Click="OnFindClick" />
-							<MenuItem
-								Header="Refresh all"
-								InputGesture="F5"
-								Command="{Binding RefreshAllCommand}"
-							/>
-							<MenuItem Header="Widgets">
-								<MenuItem
-									Header="Watchlist"
-									InputGesture="Ctrl+D1"
-									Click="OnToolClick"
-									Tag="Watchlist"
-								/>
-								<MenuItem
-									Header="Positions"
-									InputGesture="Ctrl+D2"
-									Click="OnToolClick"
-									Tag="Positions"
-								/>
-								<MenuItem Header="Orders" InputGesture="Ctrl+D3" Click="OnToolClick" Tag="Orders" />
-								<MenuItem
-									Header="Executions"
-									InputGesture="Ctrl+D4"
-									Click="OnToolClick"
-									Tag="Executions"
-								/>
-								<MenuItem
-									Header="Account"
-									InputGesture="Ctrl+D5"
-									Click="OnToolClick"
-									Tag="Account"
-								/>
-								<MenuItem
-									Header="Messages"
-									InputGesture="Ctrl+D6"
-									Click="OnToolClick"
-									Tag="Messages"
-								/>
+	<Panel>
+		<DockPanel>
+			<!-- Icon toolbar; for now everything lives under the hamburger -->
+			<Border
+				DockPanel.Dock="Top"
+				Classes="toolbar"
+				BorderBrush="{DynamicResource PanelStroke}"
+				BorderThickness="0,0,0,1"
+			>
+				<StackPanel Orientation="Horizontal" Spacing="4">
+					<Button Classes="tool" ToolTip.Tip="Menu">
+						<PathIcon Data="M3,6H21V8H3Z M3,11H21V13H3Z M3,16H21V18H3Z" />
+						<Button.Flyout>
+							<MenuFlyout Placement="BottomEdgeAlignedLeft">
+								<MenuItem Header="Log in…" Click="OnGatewayClick" />
+								<MenuItem Header="Log out" Command="{Binding ConnectionBar.LogOutCommand}" />
 								<Separator />
-								<MenuItem Header="Chart" InputGesture="Ctrl+D7" Click="OnToolClick" Tag="Chart" />
+								<MenuItem Header="Find symbol" InputGesture="Ctrl+F" Click="OnFindClick" />
 								<MenuItem
-									Header="Option chain"
-									InputGesture="Ctrl+D8"
-									Click="OnToolClick"
-									Tag="OptionChain"
+									Header="Refresh all"
+									InputGesture="F5"
+									Command="{Binding RefreshAllCommand}"
 								/>
+								<MenuItem Header="Widgets">
+									<MenuItem
+										Header="Watchlist"
+										InputGesture="Ctrl+D1"
+										Click="OnToolClick"
+										Tag="Watchlist"
+									/>
+									<MenuItem
+										Header="Positions"
+										InputGesture="Ctrl+D2"
+										Click="OnToolClick"
+										Tag="Positions"
+									/>
+									<MenuItem
+										Header="Orders"
+										InputGesture="Ctrl+D3"
+										Click="OnToolClick"
+										Tag="Orders"
+									/>
+									<MenuItem
+										Header="Executions"
+										InputGesture="Ctrl+D4"
+										Click="OnToolClick"
+										Tag="Executions"
+									/>
+									<MenuItem
+										Header="Account"
+										InputGesture="Ctrl+D5"
+										Click="OnToolClick"
+										Tag="Account"
+									/>
+									<MenuItem
+										Header="Messages"
+										InputGesture="Ctrl+D6"
+										Click="OnToolClick"
+										Tag="Messages"
+									/>
+									<Separator />
+									<MenuItem Header="Chart" InputGesture="Ctrl+D7" Click="OnToolClick" Tag="Chart" />
+									<MenuItem
+										Header="Option chain"
+										InputGesture="Ctrl+D8"
+										Click="OnToolClick"
+										Tag="OptionChain"
+									/>
+									<Separator />
+									<MenuItem
+										Header="New chart"
+										InputGesture="Ctrl+Shift+D7"
+										Click="OnNewChartClick"
+									/>
+									<MenuItem
+										Header="Fullscreen widget"
+										InputGesture="Ctrl+Shift+F"
+										Click="OnFullscreenClick"
+									/>
+								</MenuItem>
 								<Separator />
-								<MenuItem Header="New chart" InputGesture="Ctrl+Shift+D7" Click="OnNewChartClick" />
-							</MenuItem>
-							<Separator />
-							<MenuItem Header="Settings…" InputGesture="Ctrl+OemComma" Click="OnSettingsClick" />
-							<Separator />
-							<MenuItem Header="Exit" Click="OnExitClick" />
-						</MenuFlyout>
-					</Button.Flyout>
-				</Button>
-			</StackPanel>
-		</Border>
-
-		<Border
-			DockPanel.Dock="Bottom"
-			Padding="10,4"
-			BorderBrush="{DynamicResource PanelStroke}"
-			BorderThickness="0,1,0,0"
-		>
-			<DockPanel>
-				<TextBlock DockPanel.Dock="Right" Classes="secondary" Text="{Binding ServerTimeText}" />
-				<StackPanel Orientation="Horizontal" Spacing="16">
-					<connectionBar:ConnectionBarView
-						VerticalAlignment="Center"
-						DataContext="{Binding ConnectionBar}"
-					/>
-					<TextBlock VerticalAlignment="Center" Classes="secondary" Text="{Binding AccountsText}" />
-					<TextBlock
-						VerticalAlignment="Center"
-						Classes="secondary"
-						Text="{Binding MarketDataText}"
-					/>
+								<MenuItem Header="Settings…" InputGesture="Ctrl+OemComma" Click="OnSettingsClick" />
+								<Separator />
+								<MenuItem Header="Exit" Click="OnExitClick" />
+							</MenuFlyout>
+						</Button.Flyout>
+					</Button>
 				</StackPanel>
-			</DockPanel>
-		</Border>
+			</Border>
 
-		<tradingPage:TradingPageView x:Name="Page" DataContext="{Binding CurrentPage}" />
-	</DockPanel>
+			<Border
+				DockPanel.Dock="Bottom"
+				Padding="10,4"
+				BorderBrush="{DynamicResource PanelStroke}"
+				BorderThickness="0,1,0,0"
+			>
+				<DockPanel>
+					<TextBlock DockPanel.Dock="Right" Classes="secondary" Text="{Binding ServerTimeText}" />
+					<StackPanel Orientation="Horizontal" Spacing="16">
+						<connectionBar:ConnectionBarView
+							VerticalAlignment="Center"
+							DataContext="{Binding ConnectionBar}"
+						/>
+						<TextBlock
+							VerticalAlignment="Center"
+							Classes="secondary"
+							Text="{Binding AccountsText}"
+						/>
+						<TextBlock
+							VerticalAlignment="Center"
+							Classes="secondary"
+							Text="{Binding MarketDataText}"
+						/>
+					</StackPanel>
+				</DockPanel>
+			</Border>
+
+			<tradingPage:TradingPageView x:Name="Page" DataContext="{Binding CurrentPage}" />
+		</DockPanel>
+		<!-- Fullscreen widget (Ctrl+Shift+F): its frame moves here, over the toolbar, workspace and
+		     status bar, and back on restore -->
+		<Border
+			x:Name="FullscreenLayer"
+			Padding="8"
+			Background="{DynamicResource SystemRegionBrush}"
+			IsVisible="False"
+		/>
+	</Panel>
 </Window>

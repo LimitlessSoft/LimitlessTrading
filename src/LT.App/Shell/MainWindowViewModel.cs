@@ -85,6 +85,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
 	public void SpawnTool(WorkspaceTool tool) => CurrentPage.SpawnTool(tool);
 
+	/// <summary>Ctrl+Shift+F: the current widget over the whole window, or back.</summary>
+	public void ToggleFullscreen() => CurrentPage.ToggleFullscreen();
+
 	private void Apply(ConnectionStatusDto status)
 	{
 		ServerTimeText =

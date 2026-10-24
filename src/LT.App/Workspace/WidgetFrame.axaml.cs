@@ -47,7 +47,11 @@ public partial class WidgetFrame : UserControl
 
 	private void OnHeaderPointerPressed(object? sender, PointerPressedEventArgs e)
 	{
-		if (!e.GetCurrentPoint(Header).Properties.IsLeftButtonPressed)
+		// A fullscreen widget stays put: restore it before moving it
+		if (
+			!e.GetCurrentPoint(Header).Properties.IsLeftButtonPressed
+			|| Widget?.IsFullscreen == true
+		)
 			return;
 		_pressPoint = e.GetPosition(this);
 		e.Pointer.Capture(Header);

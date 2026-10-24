@@ -18,6 +18,13 @@
 			M2.2,1.1 L6,4.9 L9.8,1.1 L10.9,2.2 L7.1,6 L10.9,9.8 L9.8,10.9 L6,7.1 L2.2,10.9 L1.1,9.8 L4.9,6 L1.1,2.2 Z
 		</StreamGeometry>
 		<StreamGeometry x:Key="FrameCollapseIcon">M1.5,5.25 H10.5 V6.75 H1.5 Z</StreamGeometry>
+		<!-- Four corners pointing out (fullscreen) / in (restore) -->
+		<StreamGeometry x:Key="FrameFullscreenIcon">
+			M1,1 H5 V2.5 H2.5 V5 H1 Z M7,1 H11 V5 H9.5 V2.5 H7 Z M1,7 H2.5 V9.5 H5 V11 H1 Z M11,7 V11 H7 V9.5 H9.5 V7 Z
+		</StreamGeometry>
+		<StreamGeometry x:Key="FrameRestoreIcon">
+			M3.5,1 H5 V5 H1 V3.5 H3.5 Z M7,1 H8.5 V3.5 H11 V5 H7 Z M1,7 H5 V11 H3.5 V8.5 H1 Z M7,7 H11 V8.5 H8.5 V11 H7 Z
+		</StreamGeometry>
 		<StreamGeometry x:Key="ChevronDownIcon">
 			M1.6,3.6 L6,8 L10.4,3.6 L11.4,4.6 L6,10 L0.6,4.6 Z
 		</StreamGeometry>
@@ -26,6 +33,7 @@
 			M3.9,12C3.9,10.29 5.29,8.9 7,8.9H11V7H7A5,5 0 0,0 2,12A5,5 0 0,0 7,17H11V15.1H7C5.29,15.1 3.9,13.71 3.9,12M8,13H16V11H8V13M17,7H13V8.9H17C18.71,8.9 20.1,10.29 20.1,12C20.1,13.71 18.71,15.1 17,15.1H13V17H17A5,5 0 0,0 22,12A5,5 0 0,0 17,7Z
 		</StreamGeometry>
 		<SolidColorBrush x:Key="FrameActionHoverBrush" Color="#2C323C" />
+		<SolidColorBrush x:Key="CurrentFrameBrush" Color="#7FA7E8" Opacity="0.55" />
 		<SolidColorBrush x:Key="FrameCloseHoverBrush" Color="#3A2326" />
 	</Application.Resources>
 
@@ -43,6 +51,23 @@
 		<Style Selector="Border.panel.docked">
 			<Setter Property="CornerRadius" Value="0" />
 			<Setter Property="BorderThickness" Value="0" />
+		</Style>
+		<!-- The current widget (last clicked or typed in): a light frame. Docked side widgets have no
+		     border, so they get one here with 1px less padding to keep content put. -->
+		<Style Selector="Border.panel.current">
+			<Setter Property="BorderBrush" Value="{DynamicResource CurrentFrameBrush}" />
+		</Style>
+		<Style Selector="Border.panel.docked.current">
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="Padding" Value="9" />
+		</Style>
+		<!-- Fullscreen widget: an orange frame says you're not looking at the normal layout.
+		     After .docked so it wins for side widgets too; 1px less padding keeps content put. -->
+		<Style Selector="Border.panel.fullscreen">
+			<Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}" />
+			<Setter Property="BorderThickness" Value="2" />
+			<Setter Property="CornerRadius" Value="6" />
+			<Setter Property="Padding" Value="9" />
 		</Style>
 		<Style Selector="TextBlock.panelTitle">
 			<Setter Property="FontWeight" Value="SemiBold" />
