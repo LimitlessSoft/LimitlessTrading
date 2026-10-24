@@ -4,6 +4,7 @@
 	xmlns:vm="using:LT.App.Shell"
 	xmlns:connectionBar="using:LT.App.Widgets.ConnectionBar"
 	xmlns:tradingPage="using:LT.App.Pages.TradingPage"
+	xmlns:chrome="using:Avalonia.Controls.Chrome"
 	x:Class="LT.App.Shell.MainWindow"
 	x:DataType="vm:MainWindowViewModel"
 	Title="{Binding Title}"
@@ -12,95 +13,152 @@
 	MinWidth="1100"
 	MinHeight="680"
 	WindowStartupLocation="CenterScreen"
+	ExtendClientAreaToDecorationsHint="True"
+	WindowDecorations="BorderOnly"
 >
+	<!-- No drawn border or shadow around the window: the app's own panels frame it -->
+	<Window.WindowDecorationsTheme>
+		<ControlTheme
+			TargetType="chrome:WindowDrawnDecorations"
+			BasedOn="{StaticResource {x:Type chrome:WindowDrawnDecorations}}"
+		>
+			<Setter Property="DefaultFrameThickness" Value="0" />
+			<Setter Property="DefaultShadowThickness" Value="0" />
+		</ControlTheme>
+	</Window.WindowDecorationsTheme>
 	<Panel>
 		<DockPanel>
-			<!-- Icon toolbar; for now everything lives under the hamburger -->
+			<!-- The app's title bar (the OS one is off): drag it to move the window, double-click to
+			     maximize. Everything lives under the hamburger for now. -->
 			<Border
 				DockPanel.Dock="Top"
 				Classes="toolbar"
 				BorderBrush="{DynamicResource PanelStroke}"
 				BorderThickness="0,0,0,1"
+				chrome:WindowDecorationProperties.ElementRole="TitleBar"
 			>
-				<StackPanel Orientation="Horizontal" Spacing="4">
-					<Button Classes="tool" ToolTip.Tip="Menu">
-						<PathIcon Data="M3,6H21V8H3Z M3,11H21V13H3Z M3,16H21V18H3Z" />
-						<Button.Flyout>
-							<MenuFlyout Placement="BottomEdgeAlignedLeft">
-								<MenuItem Header="Log in…" Click="OnGatewayClick" />
-								<MenuItem Header="Log out" Command="{Binding ConnectionBar.LogOutCommand}" />
-								<Separator />
-								<MenuItem Header="Find symbol" InputGesture="Ctrl+F" Click="OnFindClick" />
-								<MenuItem
-									Header="Refresh all"
-									InputGesture="F5"
-									Command="{Binding RefreshAllCommand}"
-								/>
-								<MenuItem Header="Widgets">
+				<Grid ColumnDefinitions="Auto,*,Auto">
+					<StackPanel Orientation="Horizontal" Spacing="4">
+						<Button Classes="tool" ToolTip.Tip="Menu">
+							<PathIcon Data="M3,6H21V8H3Z M3,11H21V13H3Z M3,16H21V18H3Z" />
+							<Button.Flyout>
+								<MenuFlyout Placement="BottomEdgeAlignedLeft">
+									<MenuItem Header="Log in…" Click="OnGatewayClick" />
+									<MenuItem Header="Log out" Command="{Binding ConnectionBar.LogOutCommand}" />
+									<Separator />
+									<MenuItem Header="Find symbol" InputGesture="Ctrl+F" Click="OnFindClick" />
 									<MenuItem
-										Header="Watchlist"
-										InputGesture="Ctrl+D1"
-										Click="OnToolClick"
-										Tag="Watchlist"
+										Header="Refresh all"
+										InputGesture="F5"
+										Command="{Binding RefreshAllCommand}"
 									/>
+									<MenuItem Header="Widgets">
+										<MenuItem
+											Header="Watchlist"
+											InputGesture="Ctrl+D1"
+											Click="OnToolClick"
+											Tag="Watchlist"
+										/>
+										<MenuItem
+											Header="Positions"
+											InputGesture="Ctrl+D2"
+											Click="OnToolClick"
+											Tag="Positions"
+										/>
+										<MenuItem
+											Header="Orders"
+											InputGesture="Ctrl+D3"
+											Click="OnToolClick"
+											Tag="Orders"
+										/>
+										<MenuItem
+											Header="Executions"
+											InputGesture="Ctrl+D4"
+											Click="OnToolClick"
+											Tag="Executions"
+										/>
+										<MenuItem
+											Header="Account"
+											InputGesture="Ctrl+D5"
+											Click="OnToolClick"
+											Tag="Account"
+										/>
+										<MenuItem
+											Header="Messages"
+											InputGesture="Ctrl+D6"
+											Click="OnToolClick"
+											Tag="Messages"
+										/>
+										<Separator />
+										<MenuItem
+											Header="Chart"
+											InputGesture="Ctrl+D7"
+											Click="OnToolClick"
+											Tag="Chart"
+										/>
+										<MenuItem
+											Header="Option chain"
+											InputGesture="Ctrl+D8"
+											Click="OnToolClick"
+											Tag="OptionChain"
+										/>
+										<Separator />
+										<MenuItem
+											Header="New chart"
+											InputGesture="Ctrl+Shift+D7"
+											Click="OnNewChartClick"
+										/>
+										<MenuItem
+											Header="Fullscreen widget"
+											InputGesture="Ctrl+Shift+F"
+											Click="OnFullscreenClick"
+										/>
+									</MenuItem>
+									<Separator />
 									<MenuItem
-										Header="Positions"
-										InputGesture="Ctrl+D2"
-										Click="OnToolClick"
-										Tag="Positions"
-									/>
-									<MenuItem
-										Header="Orders"
-										InputGesture="Ctrl+D3"
-										Click="OnToolClick"
-										Tag="Orders"
-									/>
-									<MenuItem
-										Header="Executions"
-										InputGesture="Ctrl+D4"
-										Click="OnToolClick"
-										Tag="Executions"
-									/>
-									<MenuItem
-										Header="Account"
-										InputGesture="Ctrl+D5"
-										Click="OnToolClick"
-										Tag="Account"
-									/>
-									<MenuItem
-										Header="Messages"
-										InputGesture="Ctrl+D6"
-										Click="OnToolClick"
-										Tag="Messages"
+										Header="Settings…"
+										InputGesture="Ctrl+OemComma"
+										Click="OnSettingsClick"
 									/>
 									<Separator />
-									<MenuItem Header="Chart" InputGesture="Ctrl+D7" Click="OnToolClick" Tag="Chart" />
-									<MenuItem
-										Header="Option chain"
-										InputGesture="Ctrl+D8"
-										Click="OnToolClick"
-										Tag="OptionChain"
-									/>
-									<Separator />
-									<MenuItem
-										Header="New chart"
-										InputGesture="Ctrl+Shift+D7"
-										Click="OnNewChartClick"
-									/>
-									<MenuItem
-										Header="Fullscreen widget"
-										InputGesture="Ctrl+Shift+F"
-										Click="OnFullscreenClick"
-									/>
-								</MenuItem>
-								<Separator />
-								<MenuItem Header="Settings…" InputGesture="Ctrl+OemComma" Click="OnSettingsClick" />
-								<Separator />
-								<MenuItem Header="Exit" Click="OnExitClick" />
-							</MenuFlyout>
-						</Button.Flyout>
-					</Button>
-				</StackPanel>
+									<MenuItem Header="Exit" Click="OnExitClick" />
+								</MenuFlyout>
+							</Button.Flyout>
+						</Button>
+					</StackPanel>
+					<TextBlock
+						Grid.Column="1"
+						Classes="secondary windowTitle"
+						HorizontalAlignment="Center"
+						VerticalAlignment="Center"
+						Text="{Binding Title}"
+						IsHitTestVisible="False"
+					/>
+					<StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
+						<Button
+							Classes="windowButton"
+							ToolTip.Tip="Minimize"
+							chrome:WindowDecorationProperties.ElementRole="MinimizeButton"
+						>
+							<PathIcon Data="{StaticResource WindowMinimizeIcon}" />
+						</Button>
+						<Button
+							x:Name="MaximizeButton"
+							Classes="windowButton"
+							ToolTip.Tip="Maximize"
+							chrome:WindowDecorationProperties.ElementRole="MaximizeButton"
+						>
+							<PathIcon x:Name="MaximizeIcon" Data="{StaticResource WindowMaximizeIcon}" />
+						</Button>
+						<Button
+							Classes="windowButton close"
+							ToolTip.Tip="Close"
+							chrome:WindowDecorationProperties.ElementRole="CloseButton"
+						>
+							<PathIcon Data="{StaticResource FrameCloseIcon}" />
+						</Button>
+					</StackPanel>
+				</Grid>
 			</Border>
 
 			<Border

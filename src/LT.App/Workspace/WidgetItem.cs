@@ -78,7 +78,9 @@ public partial class WidgetItem : ObservableObject
 	public partial bool IsPinned { get; set; } = true;
 
 	public string PinToolTip =>
-		IsPinned ? "Pinned: stays open (click to unpin)" : "Unpinned: collapses when you click elsewhere";
+		IsPinned
+			? "Pinned: stays open (click to unpin)"
+			: "Unpinned: collapses when you click elsewhere";
 
 	/// <summary>Last clicked or typed in (Ctrl+Shift+F's target); shown with a light frame.</summary>
 	[ObservableProperty]

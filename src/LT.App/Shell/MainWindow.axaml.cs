@@ -1,6 +1,8 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using LT.App.Widgets.Gateway;
 using LT.App.Widgets.Settings;
 using LT.App.Workspace;
@@ -20,6 +22,18 @@ public partial class MainWindow : Window, IFullscreenHost
 	}
 
 	private MainWindowViewModel? ViewModel => DataContext as MainWindowViewModel;
+
+	// The title bar's maximize button shows restore while maximized
+	protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+	{
+		base.OnPropertyChanged(change);
+		if (change.Property != WindowStateProperty || MaximizeIcon is null)
+			return;
+		var maximized = WindowState == WindowState.Maximized;
+		MaximizeIcon.Data = (Geometry)
+			this.FindResource(maximized ? "WindowRestoreIcon" : "WindowMaximizeIcon")!;
+		ToolTip.SetTip(MaximizeButton, maximized ? "Restore" : "Maximize");
+	}
 
 	public void ShowFullscreen(Control? frame)
 	{
