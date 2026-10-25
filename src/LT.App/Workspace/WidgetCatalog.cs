@@ -10,6 +10,7 @@ public static class WidgetCatalog
 		tool switch
 		{
 			WorkspaceTool.OptionChain => "Option chain",
+			WorkspaceTool.OrderTicket => "Order ticket",
 			_ => tool.ToString(),
 		};
 
@@ -24,6 +25,7 @@ public static class WidgetCatalog
 			WorkspaceTool.Messages => WidgetIcons.Messages,
 			WorkspaceTool.Chart => WidgetIcons.Chart,
 			WorkspaceTool.OptionChain => WidgetIcons.OptionChain,
+			WorkspaceTool.OrderTicket => WidgetIcons.OrderTicket,
 			_ => throw new ArgumentOutOfRangeException(nameof(tool), tool, null),
 		};
 
@@ -41,6 +43,7 @@ public static class WidgetCatalog
 			WorkspaceTool.Account => Key.A,
 			WorkspaceTool.Messages => Key.M,
 			WorkspaceTool.OptionChain => Key.C,
+			WorkspaceTool.OrderTicket => Key.B,
 			_ => null,
 		};
 

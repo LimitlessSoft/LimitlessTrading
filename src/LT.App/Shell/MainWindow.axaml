@@ -101,6 +101,12 @@
 											Click="OnToolClick"
 											Tag="OptionChain"
 										/>
+										<MenuItem
+											Header="Order ticket"
+											InputGesture="Ctrl+Alt+B"
+											Click="OnToolClick"
+											Tag="OrderTicket"
+										/>
 										<Separator />
 										<MenuItem
 											Header="New chart"

@@ -38,6 +38,13 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	public List<OpenOrderDto> OpenOrders { get; set; } = [];
 	public List<ExecutionDto> Executions { get; set; } = [];
 
+	/// <summary>Orders sent through <see cref="PlaceOrderAsync"/>, in order.</summary>
+	public List<(ContractDto Contract, OrderDto Order)> PlacedOrders { get; } = [];
+
+	/// <summary>Statuses every placed order streams; the next order id is 100, 101 …</summary>
+	public List<OrderStatusDto> OrderStatuses { get; set; } = [];
+	public List<int> CancelledOrderIds { get; } = [];
+
 	public Task ConnectAsync(ConnectRequest request, CancellationToken cancellationToken = default)
 	{
 		ConnectCount++;
@@ -141,4 +148,26 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	public Task<IReadOnlyList<ExecutionDto>> GetExecutionsAsync(
 		CancellationToken cancellationToken = default
 	) => Task.FromResult<IReadOnlyList<ExecutionDto>>(Executions);
+
+	public Task<PlacedOrderDto> PlaceOrderAsync(
+		ContractDto contract,
+		OrderDto order,
+		CancellationToken cancellationToken = default
+	)
+	{
+		PlacedOrders.Add((contract, order));
+		return Task.FromResult(
+			new PlacedOrderDto
+			{
+				OrderId = 99 + PlacedOrders.Count,
+				Statuses = OrderStatuses.ToAsyncEnumerable(),
+			}
+		);
+	}
+
+	public Task CancelOrderAsync(int orderId, CancellationToken cancellationToken = default)
+	{
+		CancelledOrderIds.Add(orderId);
+		return Task.CompletedTask;
+	}
 }

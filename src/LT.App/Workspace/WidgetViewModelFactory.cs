@@ -4,6 +4,7 @@ using LT.App.Widgets.Executions;
 using LT.App.Widgets.Messages;
 using LT.App.Widgets.OptionChain;
 using LT.App.Widgets.Orders;
+using LT.App.Widgets.OrderTicket;
 using LT.App.Widgets.Positions;
 using LT.App.Widgets.Watchlist;
 using LT.Contracts.Enums;
@@ -28,6 +29,7 @@ public class WidgetViewModelFactory(IServiceProvider services)
 			WorkspaceTool.Messages => services.GetRequiredService<MessagesViewModel>(),
 			WorkspaceTool.Chart => services.GetRequiredService<ChartViewModel>(),
 			WorkspaceTool.OptionChain => services.GetRequiredService<OptionChainViewModel>(),
+			WorkspaceTool.OrderTicket => services.GetRequiredService<OrderTicketViewModel>(),
 			_ => throw new ArgumentOutOfRangeException(nameof(tool), tool, null),
 		};
 }

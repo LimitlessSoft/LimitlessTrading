@@ -11,4 +11,5 @@ public enum WorkspaceTool
 	Messages = 5,
 	Chart = 6,
 	OptionChain = 7,
+	OrderTicket = 8,
 }

@@ -7,7 +7,7 @@ this app's license. How each message looks on the wire is in that repo's `docs/p
 file covers how the app uses it, IB's limits and the quirks we have hit. Read it before touching
 `LT.Ibkr`.
 
-`IBKR.Net` comes from nuget.org (0.1.0).
+`IBKR.Net` comes from nuget.org (0.2.0).
 
 ## Connecting
 
@@ -123,7 +123,20 @@ Limits / caveats:
 - Matching symbols (`reqMatchingSymbols`): search is by exact symbol + type via
   `reqContractDetails`.
 - `reqAccountUpdates` (portfolio with market value / P&L per position in one stream).
-- Order placement of any kind: the build is read-only.
+- Order modification, what-if previews, bracket / OCA orders; open order, execution and
+  commission frames (no order was accepted while recording).
+
+## Orders
+
+- `IIbkrApiClient.PlaceOrderAsync` / `CancelOrderAsync`, used by `IOrderManager` and the Order
+  ticket widget. IBKR.Net places orders only at protocol version **178** (the only order layout
+  recorded), so `IbkrApiClient` opens a **second connection** for orders on the first order:
+  same host and port, client id `OrderHelpers.GetOrderClientId` (main + 100), capped at 178.
+- An order is a quantity, or for a market order a **cash amount** (`cashQty`, e.g. $10 of BTC).
+- Status comes from orderStatus only; a rejection is an IB error for the order id (e.g. 460 "No
+  trading permissions", 435 "You must specify an account" — so the ticket always sends one).
+- Crypto: GTC or IOC only (error 10052 otherwise); market = IOC. Before the first crypto order IB
+  Gateway shows a "Cryptocurrency order confirmation" dialog and holds the order until clicked.
 
 New calls are added to IBKR.Net from a wire recording first (`tools/IbkrWireRecorder` there).
 

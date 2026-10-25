@@ -10,7 +10,7 @@ Runs IB Gateway for you, keeps the connection alive and puts everything you watc
 [![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![Avalonia 12](https://img.shields.io/badge/Avalonia-12-8B44AC?logo=avaloniaui&logoColor=white)](https://avaloniaui.net/)
 [![Platforms](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-2EA44F)](#-quick-start)
-[![Read-only](https://img.shields.io/badge/orders-read--only-F0A202)](#-read-only-by-design)
+[![Orders](https://img.shields.io/badge/orders-review%20before%20send-F0A202)](#-orders-review-before-send)
 [![License](https://img.shields.io/badge/license-MIT%20%2B%20Commons%20Clause-blue)](LICENSE)
 
 [Features](#-features) · [Quick start](#-quick-start) · [How it works](#-how-it-works) ·
@@ -79,10 +79,12 @@ Runs IB Gateway for you, keeps the connection alive and puts everything you watc
 </tr>
 </table>
 
-### 🔒 Read-only by design
+### 🔒 Orders: review before send
 
-There is **no order entry**. Nothing in the app can place, modify or cancel an order — the API
-client simply has no methods for it. Trading will come as a deliberate, separate step.
+The **Order ticket** (menu → Widgets, Ctrl+Alt+B) places market and limit orders, by quantity or
+— for market orders — by amount of money (e.g. $10 of BTC). Every order is spelled out with its
+account and endpoint and only sent on **Send order**. It trades for real on a live account.
+Modifying orders is not built.
 
 ---
 

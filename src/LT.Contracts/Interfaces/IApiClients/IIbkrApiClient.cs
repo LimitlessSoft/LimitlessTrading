@@ -14,7 +14,7 @@ namespace LT.Contracts.Interfaces.IApiClients;
 /// <summary>
 /// Boundary to Interactive Brokers (TWS / IB Gateway socket API). Implemented in LT.Ibkr; the only
 /// place where IBKR.Net types exist. Everything crossing this interface is an LT DTO.
-/// Read-only: there are deliberately no order placement methods.
+/// Orders go over a second connection of their own (see <see cref="PlaceOrderAsync"/>).
 /// </summary>
 public interface IIbkrApiClient
 {
@@ -91,4 +91,18 @@ public interface IIbkrApiClient
 	Task<IReadOnlyList<ExecutionDto>> GetExecutionsAsync(
 		CancellationToken cancellationToken = default
 	);
+
+	/// <summary>
+	/// Sends an order. This trades for real on a live account. Uses a second connection at the
+	/// protocol version orders were observed at, opened on the first order (client id:
+	/// <c>OrderHelpers.GetOrderClientId</c>).
+	/// </summary>
+	Task<PlacedOrderDto> PlaceOrderAsync(
+		ContractDto contract,
+		OrderDto order,
+		CancellationToken cancellationToken = default
+	);
+
+	/// <summary>Asks IB to cancel an order placed by <see cref="PlaceOrderAsync"/>.</summary>
+	Task CancelOrderAsync(int orderId, CancellationToken cancellationToken = default);
 }

@@ -1,0 +1,173 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.OrderTicket"
+	x:Class="LT.App.Widgets.OrderTicket.OrderTicketView"
+	x:DataType="vm:OrderTicketViewModel"
+>
+	<!-- Review first, then send: see OrderTicketViewModel -->
+	<ScrollViewer>
+		<StackPanel Spacing="8" Margin="0,0,4,0">
+			<TextBlock
+				Classes="secondary"
+				TextWrapping="Wrap"
+				Text="Pick a contract in the watchlist, positions or a chart of the same link group."
+				IsVisible="{Binding !HasContract}"
+			/>
+			<StackPanel Spacing="2" IsVisible="{Binding HasContract}">
+				<TextBlock FontWeight="SemiBold" Text="{Binding ContractText}" />
+				<TextBlock Classes="secondary" FontSize="12" Text="{Binding QuoteText}" />
+			</StackPanel>
+
+			<Grid
+				ColumnDefinitions="Auto,*"
+				RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
+				RowSpacing="6"
+				ColumnSpacing="10"
+			>
+				<TextBlock Grid.Row="0" VerticalAlignment="Center" Text="Account" />
+				<ComboBox
+					Grid.Row="0"
+					Grid.Column="1"
+					HorizontalAlignment="Stretch"
+					ItemsSource="{Binding Accounts}"
+					SelectedItem="{Binding SelectedAccount}"
+				/>
+
+				<TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Side" />
+				<StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="4">
+					<ToggleButton Content="Buy" MinWidth="64" IsChecked="{Binding IsBuy}" />
+					<ToggleButton Content="Sell" MinWidth="64" IsChecked="{Binding IsSell}" />
+				</StackPanel>
+
+				<TextBlock Grid.Row="2" VerticalAlignment="Center" Text="Type" />
+				<ComboBox
+					Grid.Row="2"
+					Grid.Column="1"
+					HorizontalAlignment="Stretch"
+					ItemsSource="{Binding OrderTypes}"
+					SelectedItem="{Binding SelectedOrderType}"
+				/>
+
+				<TextBlock Grid.Row="3" VerticalAlignment="Center" Text="{Binding SizeLabel}" />
+				<DockPanel Grid.Row="3" Grid.Column="1">
+					<CheckBox
+						DockPanel.Dock="Right"
+						Margin="8,0,0,0"
+						Content="in $"
+						IsChecked="{Binding IsAmount}"
+						IsEnabled="{Binding CanUseAmount}"
+						ToolTip.Tip="Spend an amount of money (market orders only), e.g. $10 of BTC"
+					/>
+					<TextBox Text="{Binding SizeText}" PlaceholderText="0" />
+				</DockPanel>
+
+				<TextBlock
+					Grid.Row="4"
+					VerticalAlignment="Center"
+					Text="Limit price"
+					IsVisible="{Binding IsLimit}"
+				/>
+				<TextBox
+					Grid.Row="4"
+					Grid.Column="1"
+					Text="{Binding LimitPriceText}"
+					PlaceholderText="0.00"
+					IsVisible="{Binding IsLimit}"
+				/>
+
+				<TextBlock Grid.Row="5" VerticalAlignment="Center" Text="Time in force" />
+				<ComboBox
+					Grid.Row="5"
+					Grid.Column="1"
+					HorizontalAlignment="Stretch"
+					ItemsSource="{Binding TimeInForces}"
+					SelectedItem="{Binding SelectedTimeInForce}"
+				/>
+			</Grid>
+
+			<TextBlock Classes="secondary" FontSize="12" Text="{Binding EstimateText}" />
+
+			<TextBlock
+				Classes="negative"
+				TextWrapping="Wrap"
+				Text="{Binding ErrorMessage}"
+				IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+			/>
+
+			<Button
+				HorizontalAlignment="Stretch"
+				HorizontalContentAlignment="Center"
+				Content="Review order"
+				Command="{Binding ReviewCommand}"
+				IsVisible="{Binding !IsReviewing}"
+				IsEnabled="{Binding IsConnected}"
+			/>
+
+			<!-- Nothing is sent until "Send order" -->
+			<Border
+				Padding="10"
+				CornerRadius="6"
+				BorderThickness="1"
+				BorderBrush="{DynamicResource WarningBrush}"
+				IsVisible="{Binding IsReviewing}"
+			>
+				<StackPanel Spacing="6">
+					<TextBlock Classes="warning" FontWeight="SemiBold" Text="Confirm order" />
+					<TextBlock TextWrapping="Wrap" Text="{Binding ReviewText}" />
+					<TextBlock
+						Classes="secondary"
+						FontSize="12"
+						TextWrapping="Wrap"
+						Text="{Binding EndpointText}"
+					/>
+					<StackPanel Orientation="Horizontal" Spacing="6">
+						<Button
+							Content="Send order"
+							Command="{Binding SendCommand}"
+							IsEnabled="{Binding !IsSending}"
+						/>
+						<Button Content="Back" Command="{Binding BackCommand}" />
+					</StackPanel>
+				</StackPanel>
+			</Border>
+
+			<TextBlock
+				Classes="secondary"
+				Margin="0,6,0,0"
+				Text="Sent this session"
+				IsVisible="{Binding HasOrders}"
+			/>
+			<ItemsControl ItemsSource="{Binding Orders}">
+				<ItemsControl.ItemTemplate>
+					<DataTemplate x:DataType="vm:TicketOrderViewModel">
+						<DockPanel Margin="0,0,0,6">
+							<Button
+								DockPanel.Dock="Right"
+								VerticalAlignment="Center"
+								Content="Cancel"
+								Command="{Binding $parent[ItemsControl].((vm:OrderTicketViewModel)DataContext).CancelOrderCommand}"
+								CommandParameter="{Binding}"
+								IsVisible="{Binding !IsDone}"
+							/>
+							<StackPanel Spacing="1">
+								<TextBlock FontSize="12" TextWrapping="Wrap" Text="{Binding Description}" />
+								<TextBlock Classes="secondary" FontSize="12">
+									<Run Text="{Binding Status}" />
+									<Run Text="{Binding FillText}" />
+								</TextBlock>
+								<TextBlock
+									Classes="negative"
+									FontSize="12"
+									TextWrapping="Wrap"
+									Text="{Binding Error}"
+									IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+								/>
+							</StackPanel>
+						</DockPanel>
+					</DataTemplate>
+				</ItemsControl.ItemTemplate>
+			</ItemsControl>
+		</StackPanel>
+	</ScrollViewer>
+</UserControl>

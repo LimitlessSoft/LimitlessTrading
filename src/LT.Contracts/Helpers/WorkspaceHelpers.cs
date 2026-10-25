@@ -14,7 +14,8 @@ public static class WorkspaceHelpers
 			or WorkspaceTool.Positions
 			or WorkspaceTool.Orders
 			or WorkspaceTool.Executions => WidgetDock.Left,
-			WorkspaceTool.Account or WorkspaceTool.Messages => WidgetDock.Right,
+			WorkspaceTool.Account or WorkspaceTool.Messages or WorkspaceTool.OrderTicket =>
+				WidgetDock.Right,
 			_ => WidgetDock.Center,
 		};
 
@@ -24,10 +25,13 @@ public static class WorkspaceHelpers
 	/// <summary>Instance id of a single-instance widget (and of the first instance of the others).</summary>
 	public static string GetDefaultId(WorkspaceTool tool) => tool.ToString();
 
-	/// <summary>First-run workspace: every widget except the option chain, in its default dock.</summary>
+	/// <summary>
+	/// First-run workspace: every widget except the option chain and the order ticket (opened on
+	/// purpose, from the menu), in its default dock.
+	/// </summary>
 	public static List<WidgetPlacementEntity> GetDefaultPlacements() =>
 		Enum.GetValues<WorkspaceTool>()
-			.Where(x => x != WorkspaceTool.OptionChain)
+			.Where(x => x is not (WorkspaceTool.OptionChain or WorkspaceTool.OrderTicket))
 			.Select(x => new WidgetPlacementEntity
 			{
 				Id = GetDefaultId(x),

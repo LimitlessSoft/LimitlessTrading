@@ -39,10 +39,10 @@ Every widget is **independently spawnable** and lives in one of three wrappers:
 | Wrapper | Behaviour |
 |---|---|
 | **Center** | A split layout: widgets side by side and/or stacked, nested to any depth, with a splitter between every pair. |
-| **Left / right side** | Each widget docked there gets an icon on that edge's strip. One is expanded at a time; expanding one (its icon, Ctrl+1…8, the menu) makes it current and gives it keyboard focus; clicking its icon again collapses the side and the center grows. Each widget keeps its own panel width (`WidgetItem.SideWidth`, saved in the layout); one without a width of its own starts at the side's last width. |
+| **Left / right side** | Each widget docked there gets an icon on that edge's strip. One is expanded at a time; expanding one (its icon, Ctrl+1…9, the menu) makes it current and gives it keyboard focus; clicking its icon again collapses the side and the center grows. Each widget keeps its own panel width (`WidgetItem.SideWidth`, saved in the layout); one without a width of its own starts at the side's last width. |
 | **Floating** | The widget gets its own window (owned by the main window). Closing that window closes the widget. |
 
-- Spawn or reveal a widget from menu → Widgets. Ctrl+1 … Ctrl+8 do the same, but collapse a side
+- Spawn or reveal a widget from menu → Widgets. Ctrl+1 … Ctrl+9 do the same, but collapse a side
   widget that is already expanded.
 - **Charts can be open several times** (menu → Widgets → New chart, Ctrl+Shift+7). Each chart has
   its own timeframe, link group and contract, all saved per chart. The chart header's controls
@@ -82,7 +82,13 @@ Every widget is **independently spawnable** and lives in one of three wrappers:
   no rounded border — `Border.panel.docked`); center tiles and floating widgets keep the card look.
 - A widget opens where it last was; a new chart opens where the last chart was. On first run:
   Watchlist, Positions, Orders and Executions on the left; Account and Messages on the right;
-  Chart in the center; Option chain closed (`WorkspaceHelpers.GetDefaultPlacements`).
+  Chart in the center; Option chain and Order ticket closed (`WorkspaceHelpers.GetDefaultPlacements`).
+- **Order ticket** (`Widgets/OrderTicket`, right side): takes its contract from the link group.
+  Account, side, market / limit, quantity or amount in $ (market only), limit price, time in force
+  (crypto: GTC / IOC). "Review order" validates (`IOrderManager.ValidateOrder`) and spells the
+  order out with the endpoint; any edit drops the review; only "Send order" sends. Orders sent
+  this session list their status below, with Cancel while working; everything is also logged
+  to Messages.
 - The frame (and the widget view inside it) is created once per instance and **moved** between
   hosts, so state and subscriptions survive docking, floating and collapsing. Widget view models
   are created on first open by `WidgetViewModelFactory`.
@@ -200,8 +206,8 @@ subscription and frees the market-data line.
 | Delete (watchlist) | Remove selected row |
 | F5 | Refresh chart, account, positions, orders, executions |
 | Ctrl+, | Settings |
-| Ctrl+1 … Ctrl+8 | Show Watchlist, Positions, Orders, Executions, Account, Messages, Chart, Option chain (collapses an expanded side widget) |
-| Ctrl+Alt+W / P / O / E / A / M / C | Show and focus Watchlist, Positions, Orders, Executions, Account, Messages, Option chain (single-instance widgets; works from floating windows too) |
+| Ctrl+1 … Ctrl+9 | Show Watchlist, Positions, Orders, Executions, Account, Messages, Chart, Option chain, Order ticket (collapses an expanded side widget) |
+| Ctrl+Alt+W / P / O / E / A / M / C / B | Show and focus Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket (single-instance widgets; works from floating windows too) |
 | Ctrl+Shift+7 | New chart |
 | Ctrl+Shift+F | Fullscreen the current widget (the one last clicked or typed in, framed in light blue), or restore it |
 

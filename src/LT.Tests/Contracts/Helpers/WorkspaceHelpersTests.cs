@@ -7,12 +7,13 @@ namespace LT.Tests.Contracts.Helpers;
 public class WorkspaceHelpersTests
 {
 	[Fact]
-	public void Default_placements_open_everything_but_the_option_chain_in_default_docks()
+	public void Default_placements_open_everything_but_the_option_chain_and_order_ticket()
 	{
 		var placements = WorkspaceHelpers.GetDefaultPlacements();
 
 		Assert.DoesNotContain(placements, x => x.Tool == WorkspaceTool.OptionChain);
-		Assert.Equal(Enum.GetValues<WorkspaceTool>().Length - 1, placements.Count);
+		Assert.DoesNotContain(placements, x => x.Tool == WorkspaceTool.OrderTicket);
+		Assert.Equal(Enum.GetValues<WorkspaceTool>().Length - 2, placements.Count);
 		Assert.All(placements, x => Assert.Equal(WorkspaceHelpers.GetDefaultDock(x.Tool), x.Dock));
 		Assert.All(placements, x => Assert.Equal(WorkspaceHelpers.GetDefaultId(x.Tool), x.Id));
 	}

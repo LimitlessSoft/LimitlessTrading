@@ -44,7 +44,7 @@ src/
 │   ├── DtoMappings/               # IBKR.Net types ↔ LT.Contracts DTOs
 │   ├── Ibc/                       # IbcGatewayProcess — starts / stops IB Gateway via IBC
 │   ├── RequestThrottle.cs         # IB pacing (messages/s, historical requests / 10 min)
-│   └── IbkrApiClient.cs           # implements IIbkrApiClient over IBKR.Net (read-only)
+│   └── IbkrApiClient.cs           # implements IIbkrApiClient over IBKR.Net (+ order connection)
 ├── LT.App/                        # Avalonia (Fluent, dark)
 │   ├── Program.cs                 # composition root (generic host + LSCore DI)
 │   ├── App.axaml                  # themes, global styles

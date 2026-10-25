@@ -6,6 +6,7 @@ using LT.App.Widgets.Executions;
 using LT.App.Widgets.Messages;
 using LT.App.Widgets.OptionChain;
 using LT.App.Widgets.Orders;
+using LT.App.Widgets.OrderTicket;
 using LT.App.Widgets.Positions;
 using LT.App.Widgets.Watchlist;
 using LT.Contracts.Enums;
@@ -27,6 +28,7 @@ public static class WidgetViewFactory
 			WorkspaceTool.Messages => new MessagesView(),
 			WorkspaceTool.Chart => new ChartView(),
 			WorkspaceTool.OptionChain => new OptionChainView(),
+			WorkspaceTool.OrderTicket => new OrderTicketView(),
 			_ => throw new ArgumentOutOfRangeException(nameof(widget), widget.Tool, null),
 		};
 		view.DataContext = widget.Content;
@@ -51,6 +53,10 @@ public static class WidgetViewFactory
 			WorkspaceTool.OptionChain => CreateBoundTitle(
 				widget,
 				nameof(OptionChainViewModel.Title)
+			),
+			WorkspaceTool.OrderTicket => CreateBoundTitle(
+				widget,
+				nameof(OrderTicketViewModel.Title)
 			),
 			_ => null,
 		};

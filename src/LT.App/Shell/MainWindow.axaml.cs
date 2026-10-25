@@ -111,7 +111,7 @@ public partial class MainWindow : Window, IFullscreenHost
 			case Key.D7 when ctrl && shift:
 				ViewModel?.SpawnTool(WorkspaceTool.Chart);
 				break;
-			case >= Key.D1 and <= Key.D8 when ctrl:
+			case >= Key.D1 and <= Key.D9 when ctrl:
 				ViewModel?.ToggleTool((WorkspaceTool)(e.Key - Key.D1));
 				break;
 			default:

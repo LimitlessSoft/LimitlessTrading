@@ -12,6 +12,7 @@ using LT.App.Widgets.Gateway;
 using LT.App.Widgets.Messages;
 using LT.App.Widgets.OptionChain;
 using LT.App.Widgets.Orders;
+using LT.App.Widgets.OrderTicket;
 using LT.App.Widgets.Positions;
 using LT.App.Widgets.Settings;
 using LT.App.Widgets.Watchlist;
@@ -114,6 +115,7 @@ public static class Program
 		builder.Services.AddTransient<OrdersViewModel>();
 		builder.Services.AddTransient<ExecutionsViewModel>();
 		builder.Services.AddTransient<OptionChainViewModel>();
+		builder.Services.AddTransient<OrderTicketViewModel>();
 		builder.Services.AddTransient<MessagesViewModel>();
 		builder.Services.AddTransient<SettingsViewModel>();
 		builder.Services.AddTransient<GatewayViewModel>();

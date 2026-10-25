@@ -25,5 +25,9 @@ public static class WidgetIcons
 	public const string OptionChain =
 		"M3,4H21V8H3Z M3,10H11V14H3Z M13,10H21V14H13Z M3,16H11V20H3Z M13,16H21V20H13Z";
 
+	/// <summary>A price tag: buy / sell.</summary>
+	public const string OrderTicket =
+		"M2,12L12,2H21C21.6,2 22,2.4 22,3V12L12,22Z M17,5A2,2 0 1,1 17,9A2,2 0 1,1 17,5Z";
+
 	public const string Messages = "M3,3H21V17H8L3,21Z M7,7V9H17V7Z M7,11V13H14V11Z";
 }

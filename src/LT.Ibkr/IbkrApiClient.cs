@@ -12,17 +12,19 @@ using LT.Contracts.Dtos.Options;
 using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Dtos.Positions;
 using LT.Contracts.Enums.ValidationCodes;
+using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IApiClients;
 using LT.Contracts.Requests.Connection;
 using Contract = IBKR.Net.Contract;
 using MarketDataType = LT.Contracts.Enums.MarketDataType;
+using Order = IBKR.Net.Order;
 
 namespace LT.Ibkr;
 
 /// <summary>
 /// IIbkrApiClient over our own IBKR.Net (no Interactive Brokers code; see docs/ibkr-tws-api.md).
-/// Holds the one live connection and paces every request so the app stays inside IB's limits.
-/// Registered as a singleton.
+/// Holds the live connection (plus one for orders, opened on the first order) and paces every
+/// request so the app stays inside IB's limits. Registered as a singleton.
 /// </summary>
 public class IbkrApiClient : IIbkrApiClient
 {
@@ -35,8 +37,14 @@ public class IbkrApiClient : IIbkrApiClient
 		MarketDataConstants.HistoricalWindow
 	);
 
+	private readonly SemaphoreSlim _orderConnect = new(1, 1);
+
 	private IbkrClient? _client;
 	private AccountSummaryFeed? _accountSummary;
+	private ConnectRequest? _endpoint;
+
+	// IBKR.Net places orders only at the protocol version they were observed at (178)
+	private IbkrClient? _orderClient;
 
 	public bool IsConnected => _client?.IsConnected == true;
 
@@ -49,6 +57,7 @@ public class IbkrApiClient : IIbkrApiClient
 	)
 	{
 		await DisconnectAsync();
+		_endpoint = request;
 		_client = await IbkrClient.ConnectAsync(
 			new IbkrClientOptions
 			{
@@ -80,6 +89,10 @@ public class IbkrApiClient : IIbkrApiClient
 		var client = Interlocked.Exchange(ref _client, null);
 		if (client != null)
 			await client.DisposeAsync();
+
+		var orderClient = Interlocked.Exchange(ref _orderClient, null);
+		if (orderClient != null)
+			await orderClient.DisposeAsync();
 	}
 
 	public async Task<DateTimeOffset> GetServerTimeAsync(
@@ -230,6 +243,75 @@ public class IbkrApiClient : IIbkrApiClient
 	public Task<IReadOnlyList<ExecutionDto>> GetExecutionsAsync(
 		CancellationToken cancellationToken = default
 	) => throw new NotSupportedException(ConnectionValidationCodes.CVC_007.GetValidationMessage());
+
+	public async Task<PlacedOrderDto> PlaceOrderAsync(
+		ContractDto contract,
+		OrderDto order,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var client = await RequireOrderClientAsync(cancellationToken);
+		await _messages.WaitAsync(cancellationToken);
+		var placed = await client.PlaceOrderAsync(
+			contract.ToMapped<ContractDto, Contract>(),
+			order.ToMapped<OrderDto, Order>(),
+			cancellationToken
+		);
+		return new PlacedOrderDto
+		{
+			OrderId = placed.OrderId,
+			Statuses = MapStatusesAsync(placed.Statuses),
+		};
+	}
+
+	public async Task CancelOrderAsync(int orderId, CancellationToken cancellationToken = default)
+	{
+		var client = await RequireOrderClientAsync(cancellationToken);
+		await _messages.WaitAsync(cancellationToken);
+		await client.CancelOrderAsync(orderId, cancellationToken);
+	}
+
+	// The order connection: opened on the first order, again after it dropped
+	private async Task<IbkrClient> RequireOrderClientAsync(CancellationToken cancellationToken)
+	{
+		var endpoint =
+			_client != null && _endpoint is { } connected
+				? connected
+				: throw new InvalidOperationException("Not connected to TWS / IB Gateway.");
+		await _orderConnect.WaitAsync(cancellationToken);
+		try
+		{
+			if (_orderClient is { IsConnected: true } open)
+				return open;
+			if (_orderClient is { } closed)
+				await closed.DisposeAsync();
+			_orderClient = await IbkrClient.ConnectAsync(
+				new IbkrClientOptions
+				{
+					Host = endpoint.Host,
+					Port = endpoint.Port,
+					ClientId = OrderHelpers.GetOrderClientId(endpoint.ClientId),
+					ConnectTimeout = ConnectionConstants.ConnectTimeout,
+					MaxServerVersion = IbkrClient.OrderProtocolVersion,
+				},
+				cancellationToken
+			);
+			return _orderClient;
+		}
+		finally
+		{
+			_orderConnect.Release();
+		}
+	}
+
+	private static async IAsyncEnumerable<OrderStatusDto> MapStatusesAsync(
+		IAsyncEnumerable<OrderStatus> statuses,
+		[EnumeratorCancellation] CancellationToken cancellationToken = default
+	)
+	{
+		await foreach (var status in statuses.WithCancellation(cancellationToken))
+			yield return status.ToMapped<OrderStatus, OrderStatusDto>();
+	}
 
 	private IbkrClient RequireClient() =>
 		_client ?? throw new InvalidOperationException("Not connected to TWS / IB Gateway.");

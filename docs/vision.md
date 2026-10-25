@@ -37,14 +37,14 @@ TWS is powerful but:
 | 2 — Market data | Contract search, watchlist with L1 quotes, request pacing, line limit, delayed-data fallback | **done** — search is by exact symbol (no `reqMatchingSymbols`) |
 | 3 — Charts | Candlestick chart, historical + 5 s real-time bars, local bar cache | **done** |
 | 4 — Trading | Live positions with P&L, open orders, executions | **read-only part done** — open orders and executions wait for IBKR.Net support |
-| 4 — Trading | Order ticket, cancel/modify, what-if preview | not started — deliberately out of the read-only build |
+| 4 — Trading | Order ticket: market / limit, quantity or cash amount, review before send, status, cancel | **built, not yet traded** — no account had crypto permission to fill one; modify and what-if not started |
 | 5 — Workspaces | Settings dialog, workspace where every widget can be spawned (charts several times) and dragged into the center split layout (beside / above / below), a collapsible side strip or its own floating window, saved layout (window, open panels, widths, tab, timeframe), hotkeys | **done** |
 | 5 — Workspaces | Multiple named layouts, dragging strip icons | not started |
 | 6 — Advanced | Option chain (a tab per expiration, strikes around the money, L1 quotes) | **done** — no greeks yet |
 | 6 — Advanced | L2 depth, scanners, news, alerts | not started — needs IBKR.Net support |
 
-The read-only build has **no order placement code anywhere**: `IIbkrApiClient` has no order
-methods. Adding them is a deliberate step, not something to slip into another change.
+Orders exist since the order ticket (`IIbkrApiClient.PlaceOrderAsync`): every order is reviewed
+in the ticket and sent only on "Send order". Never send one from code without the user's yes.
 
 Items IBKR.Net does not cover yet are listed in
 [ibkr-tws-api.md → Not covered yet](ibkr-tws-api.md#not-covered-yet).
