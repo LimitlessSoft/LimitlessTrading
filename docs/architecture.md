@@ -88,6 +88,15 @@ LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
   cache TTL) are testable with `FakeTimeProvider`.
 - The host is started (`host.Start()`) so `ConnectionWatchdog` (a `BackgroundService`) runs the
   heartbeat; it's stopped after the Avalonia lifetime ends.
+- `UpdateScheduler` (also a `BackgroundService`) clears the previous version's folder left by an
+  update, then has `IUpdateManager` check GitHub Releases ~10 s after start and every 6 h.
+  `AppUpdater` (`LT.App/Services`) does the platform work: download, SHA-256 check against
+  GitHub's asset digest, unpack next to the app folder as `.LimitlessTrading.update`, swap the
+  folders (the old one becomes `.LimitlessTrading.old`) and start the new executable from a shell
+  that waits for this process to exit. While the update manager is `Restarting`, shutdown keeps IB
+  Gateway running so the new version reuses it. Builds from source have version `0.0.0-dev`
+  (`Directory.Build.props`; the release workflow passes `-p:Version`): they never check by
+  themselves and can't install.
 - `host.UseLSCoreDependencyInjection()` must run right after `Build()` — `request.Validate()`
   resolves validators through it.
 - ViewModels have no interfaces, so they're registered explicitly as transient.

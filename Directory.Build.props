@@ -4,5 +4,8 @@
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<LangVersion>latest</LangVersion>
+		<!-- Builds from source; release builds set the version from the tag (-p:Version=0.2.0).
+		     The -dev suffix tells the updater it isn't a release it can replace. -->
+		<Version>0.0.0-dev</Version>
 	</PropertyGroup>
 </Project>

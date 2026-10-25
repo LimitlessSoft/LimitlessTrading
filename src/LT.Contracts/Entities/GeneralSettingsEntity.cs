@@ -9,4 +9,5 @@ public class GeneralSettingsEntity
 	public bool AutoReconnect { get; set; } = true;
 	public int HeartbeatSeconds { get; set; } = ConnectionConstants.DefaultHeartbeatSeconds;
 	public bool StopGatewayOnExit { get; set; } = true;
+	public bool CheckForUpdates { get; set; } = true;
 }

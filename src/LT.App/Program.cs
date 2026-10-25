@@ -17,6 +17,7 @@ using LT.App.Widgets.Settings;
 using LT.App.Widgets.Watchlist;
 using LT.App.Workspace;
 using LT.Contracts.Constants;
+using LT.Contracts.Enums;
 using LT.Contracts.Interfaces.IApiClients;
 using LT.Contracts.Interfaces.IManagers;
 using LT.Contracts.Interfaces.IProcesses;
@@ -52,8 +53,17 @@ public static class Program
 	{
 		await host.StopAsync();
 		await host.Services.GetRequiredService<IConnectionManager>().ShutdownAsync();
-		// The Gateway we started lives and dies with the app, unless the user keeps it running
-		if (host.Services.GetRequiredService<ISettingsManager>().GetAppSettings().StopGatewayOnExit)
+		// The Gateway we started lives and dies with the app, unless the user keeps it running or
+		// the app is restarting into an update (the new version reuses it, no new login)
+		var restarting =
+			host.Services.GetRequiredService<IUpdateManager>().Status.State
+			== UpdateState.Restarting;
+		if (
+			!restarting
+			&& host.Services.GetRequiredService<ISettingsManager>()
+				.GetAppSettings()
+				.StopGatewayOnExit
+		)
 			await host.Services.GetRequiredService<IGatewayManager>().StopAsync();
 	}
 
@@ -79,6 +89,8 @@ public static class Program
 		builder.Services.AddSingleton<IGatewayManager, GatewayManager>();
 		builder.Services.AddSingleton<IMarketDataManager, MarketDataManager>();
 		builder.Services.AddSingleton<ISettingsManager, SettingsManager>();
+		builder.Services.AddSingleton<IAppUpdater, AppUpdater>();
+		builder.Services.AddSingleton<IUpdateManager, UpdateManager>();
 
 		// App-wide UI state shared between widgets (the zStore of this app)
 		builder.Services.AddSingleton<AccountStore>();
@@ -88,9 +100,11 @@ public static class Program
 		builder.Services.AddSingleton<WidgetViewModelFactory>();
 
 		builder.Services.AddHostedService<ConnectionWatchdog>();
+		builder.Services.AddHostedService<UpdateScheduler>();
 
 		// ViewModels have no interfaces, so the convention scan skips them
 		builder.Services.AddTransient<MainWindowViewModel>();
+		builder.Services.AddTransient<UpdateViewModel>();
 		builder.Services.AddTransient<ConnectionBarViewModel>();
 		builder.Services.AddTransient<TradingPageViewModel>();
 		builder.Services.AddTransient<WatchlistViewModel>();

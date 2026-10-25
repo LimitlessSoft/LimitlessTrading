@@ -43,6 +43,15 @@
 		</StackPanel>
 
 		<StackPanel Spacing="4">
+			<CheckBox Content="Check for updates" IsChecked="{Binding CheckForUpdates}" />
+			<TextBlock
+				Classes="secondary"
+				TextWrapping="Wrap"
+				Text="On start and every 6 hours; a newer version shows in the title bar. Installing always waits for you."
+			/>
+		</StackPanel>
+
+		<StackPanel Spacing="4">
 			<TextBlock Text="Heartbeat interval (seconds)" FontWeight="SemiBold" />
 			<NumericUpDown
 				Width="140"

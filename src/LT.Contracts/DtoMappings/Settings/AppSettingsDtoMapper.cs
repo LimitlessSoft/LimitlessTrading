@@ -13,5 +13,6 @@ public class AppSettingsDtoMapper : ILSCoreMapper<GeneralSettingsEntity, AppSett
 			AutoReconnect = source.AutoReconnect,
 			HeartbeatSeconds = source.HeartbeatSeconds,
 			StopGatewayOnExit = source.StopGatewayOnExit,
+			CheckForUpdates = source.CheckForUpdates,
 		};
 }

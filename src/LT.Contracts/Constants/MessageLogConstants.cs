@@ -10,4 +10,5 @@ public static class MessageLogConstants
 	public const string SourceAccount = "Account";
 	public const string SourceOrders = "Orders";
 	public const string SourceOptions = "Options";
+	public const string SourceUpdates = "Updates";
 }

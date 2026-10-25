@@ -20,6 +20,7 @@ public partial class SettingsViewModel : ViewModelBase
 		AutoReconnect = settings.AutoReconnect;
 		HeartbeatSeconds = settings.HeartbeatSeconds;
 		StopGatewayOnExit = settings.StopGatewayOnExit;
+		CheckForUpdates = settings.CheckForUpdates;
 	}
 
 	public IReadOnlyList<MarketDataType> MarketDataTypes { get; } =
@@ -40,6 +41,9 @@ public partial class SettingsViewModel : ViewModelBase
 	public partial bool StopGatewayOnExit { get; set; }
 
 	[ObservableProperty]
+	public partial bool CheckForUpdates { get; set; }
+
+	[ObservableProperty]
 	public partial string? ErrorMessage { get; set; }
 
 	/// <summary>Returns true when the settings were saved and the dialog can close.</summary>
@@ -54,6 +58,7 @@ public partial class SettingsViewModel : ViewModelBase
 					AutoReconnect = AutoReconnect,
 					HeartbeatSeconds = (int)(HeartbeatSeconds ?? 0),
 					StopGatewayOnExit = StopGatewayOnExit,
+					CheckForUpdates = CheckForUpdates,
 				}
 			);
 			return true;

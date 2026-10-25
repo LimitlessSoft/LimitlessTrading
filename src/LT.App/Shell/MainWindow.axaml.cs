@@ -48,6 +48,9 @@ public partial class MainWindow : Window, IFullscreenHost
 	protected override void OnDataContextChanged(EventArgs e)
 	{
 		base.OnDataContextChanged(e);
+		if (ViewModel is { } viewModel)
+			// The new version starts once this process has exited
+			viewModel.Update.RestartRequested += Close;
 		if (ViewModel?.GetLayout() is not { } layout)
 			return;
 
@@ -147,6 +150,12 @@ public partial class MainWindow : Window, IFullscreenHost
 			else
 				ViewModel?.ShowTool(tool);
 		}
+	}
+
+	private void OnReleaseNotesClick(object? sender, RoutedEventArgs e)
+	{
+		if (ViewModel?.Update.ReleasePageUrl is { } url)
+			_ = Launcher.LaunchUriAsync(new Uri(url));
 	}
 
 	private void OnExitClick(object? sender, RoutedEventArgs e) => Close();

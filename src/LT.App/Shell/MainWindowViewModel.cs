@@ -25,13 +25,15 @@ public partial class MainWindowViewModel : ViewModelBase
 		ISettingsManager settingsManager,
 		AccountStore accountStore,
 		ConnectionBarViewModel connectionBar,
-		TradingPageViewModel tradingPage
+		TradingPageViewModel tradingPage,
+		UpdateViewModel update
 	)
 	{
 		_marketDataManager = marketDataManager;
 		_settingsManager = settingsManager;
 		_accountStore = accountStore;
 		ConnectionBar = connectionBar;
+		Update = update;
 		CurrentPage = tradingPage;
 
 		Apply(connectionManager.Status);
@@ -49,6 +51,8 @@ public partial class MainWindowViewModel : ViewModelBase
 	public string Title => "LimitlessTrading";
 
 	public ConnectionBarViewModel ConnectionBar { get; }
+
+	public UpdateViewModel Update { get; }
 
 	public TradingPageViewModel CurrentPage { get; }
 

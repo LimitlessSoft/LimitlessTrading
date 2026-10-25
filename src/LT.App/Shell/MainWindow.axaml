@@ -114,6 +114,7 @@
 										/>
 									</MenuItem>
 									<Separator />
+									<MenuItem Header="Check for updates" Command="{Binding Update.CheckCommand}" />
 									<MenuItem
 										Header="Settings…"
 										InputGesture="Ctrl+OemComma"
@@ -134,6 +135,55 @@
 						IsHitTestVisible="False"
 					/>
 					<StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
+						<Button
+							Classes="update"
+							Margin="0,0,8,0"
+							VerticalAlignment="Center"
+							IsVisible="{Binding Update.IsVisible}"
+							Content="{Binding Update.ButtonText}"
+						>
+							<Button.Flyout>
+								<Flyout Placement="BottomEdgeAlignedRight">
+									<StackPanel
+										Width="320"
+										Spacing="10"
+										DataContext="{Binding Update}"
+										x:DataType="vm:UpdateViewModel"
+									>
+										<TextBlock
+											FontWeight="SemiBold"
+											TextWrapping="Wrap"
+											Text="{Binding VersionsText}"
+										/>
+										<HyperlinkButton
+											Padding="0"
+											Content="What's new"
+											IsVisible="{Binding ReleasePageUrl, Converter={x:Static ObjectConverters.IsNotNull}}"
+											Click="OnReleaseNotesClick"
+										/>
+										<ProgressBar IsVisible="{Binding IsDownloading}" Value="{Binding Progress}" />
+										<TextBlock
+											Foreground="{DynamicResource NegativeBrush}"
+											TextWrapping="Wrap"
+											IsVisible="{Binding ErrorText, Converter={x:Static ObjectConverters.IsNotNull}}"
+											Text="{Binding ErrorText}"
+										/>
+										<TextBlock
+											Classes="secondary"
+											TextWrapping="Wrap"
+											IsVisible="{Binding CannotInstallReason, Converter={x:Static ObjectConverters.IsNotNull}}"
+											Text="{Binding CannotInstallReason}"
+										/>
+										<Button
+											Classes="accent"
+											HorizontalAlignment="Right"
+											Content="Install and restart"
+											Command="{Binding InstallCommand}"
+										/>
+									</StackPanel>
+								</Flyout>
+							</Button.Flyout>
+						</Button>
 						<Button Classes="windowButton" ToolTip.Tip="Minimize" Click="OnMinimizeClick">
 							<PathIcon Data="{StaticResource WindowMinimizeIcon}" />
 						</Button>

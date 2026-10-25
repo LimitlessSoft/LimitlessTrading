@@ -106,6 +106,11 @@ tar -xzf LimitlessTrading-*-linux-x64.tar.gz
 ./LimitlessTrading/LimitlessTrading
 ```
 
+The app checks for a newer release on start and every 6 hours (Settings → Check for updates). When
+one is out, an **Update** button shows in the title bar: one click downloads it, checks its SHA-256,
+swaps it into the folder and restarts, and the running IB Gateway is kept, so there's no new
+login. The folder's parent must be writable, so unpack it somewhere you own (e.g. `~/Apps`).
+
 Windows and macOS builds come later; until then, build from source (.NET SDK 10.0.4xx):
 
 ```bash

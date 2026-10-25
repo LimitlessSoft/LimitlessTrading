@@ -8,4 +8,5 @@ public class AppSettingsDto
 	public bool AutoReconnect { get; set; }
 	public int HeartbeatSeconds { get; set; }
 	public bool StopGatewayOnExit { get; set; }
+	public bool CheckForUpdates { get; set; }
 }
