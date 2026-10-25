@@ -21,6 +21,10 @@ public interface IWatchlistManager
 	void Delete(string id);
 
 	IReadOnlyList<ContractDto> GetItems();
+
+	/// <summary>Adds a listing; the same conId on another exchange is a separate item.</summary>
 	void Add(ContractDto contract);
-	void Remove(int conId);
+
+	/// <summary>Removes the item for this listing (conId and exchange).</summary>
+	void Remove(ContractDto contract);
 }

@@ -34,6 +34,14 @@ public static class ContractHelpers
 				&& a.SecurityType == b.SecurityType
 				&& a.Currency == b.Currency;
 
+	/// <summary>
+	/// Same listing: same conId on the same exchange. One conId can trade on several venues
+	/// (crypto on PAXOS and ZEROHASH), each its own listing.
+	/// </summary>
+	public static bool IsSameListing(ContractDto a, ContractDto b) =>
+		a.ConId == b.ConId
+		&& string.Equals(a.Exchange, b.Exchange, StringComparison.OrdinalIgnoreCase);
+
 	/// <summary>Puts <paramref name="contract"/> first, drops its older entry, keeps at most <paramref name="max"/>.</summary>
 	public static List<ContractDto> PushRecent(
 		IEnumerable<ContractDto> recent,

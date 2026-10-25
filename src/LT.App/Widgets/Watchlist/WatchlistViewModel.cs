@@ -272,7 +272,7 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable
 			return;
 
 		Stop(row);
-		_watchlistManager.Remove(row.Contract.ConId);
+		_watchlistManager.Remove(row.Contract);
 		Rows.Remove(row);
 		LoadWatchlists();
 	}

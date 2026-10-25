@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 
 namespace LT.App.Controls;
 
@@ -91,7 +92,8 @@ public partial class ContractSearchBox : UserControl
 		}
 	}
 
-	// A click on a listing closes the dropdown with it selected
+	// A click on a listing closes the dropdown on pointer release, but the list selects the
+	// clicked listing only afterwards (on tap): read the selection once that input is done
 	private void OnDropDownClosed(object? sender, EventArgs e)
 	{
 		if (_ignoreClose)
@@ -99,8 +101,11 @@ public partial class ContractSearchBox : UserControl
 			_ignoreClose = false;
 			return;
 		}
-		if (Box.SelectedItem is ContractSuggestionItem item)
-			Picked?.Invoke(item);
+		Dispatcher.UIThread.Post(() =>
+		{
+			if (Box.SelectedItem is ContractSuggestionItem item)
+				Picked?.Invoke(item);
+		});
 	}
 
 	private async Task<IEnumerable<object>> PopulateAsync(

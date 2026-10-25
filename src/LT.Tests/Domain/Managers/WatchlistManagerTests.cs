@@ -71,9 +71,36 @@ public class WatchlistManagerTests
 		_manager.Add(new ContractDto { ConId = 1, Symbol = "AAPL" });
 		_manager.Add(new ContractDto { ConId = 2, Symbol = "MSFT" });
 
-		_manager.Remove(1);
+		_manager.Remove(new ContractDto { ConId = 1, Symbol = "AAPL" });
 
 		Assert.Equal(["MSFT"], _manager.GetItems().Select(x => x.Symbol));
+	}
+
+	[Fact]
+	public void Same_con_id_on_another_exchange_is_a_separate_item()
+	{
+		_manager.Add(
+			new ContractDto
+			{
+				ConId = 479624278,
+				Symbol = "BTC",
+				SecurityType = "CRYPTO",
+				Exchange = "PAXOS",
+			}
+		);
+		_manager.Add(
+			new ContractDto
+			{
+				ConId = 479624278,
+				Symbol = "BTC",
+				SecurityType = "CRYPTO",
+				Exchange = "ZEROHASH",
+			}
+		);
+
+		_manager.Remove(new ContractDto { ConId = 479624278, Exchange = "PAXOS" });
+
+		Assert.Equal(["ZEROHASH"], _manager.GetItems().Select(x => x.Exchange));
 	}
 
 	[Fact]

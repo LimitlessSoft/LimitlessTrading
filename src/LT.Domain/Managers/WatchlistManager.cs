@@ -105,7 +105,11 @@ public class WatchlistManager(ISettingsRepository settingsRepository) : IWatchli
 
 		var settings = WatchlistHelpers.LoadSettings(settingsRepository);
 		var items = WatchlistHelpers.GetActive(settings).Items;
-		if (items.Any(x => x.ConId == contract.ConId))
+		if (
+			items.Any(x =>
+				ContractHelpers.IsSameListing(x.ToMapped<ContractEntity, ContractDto>(), contract)
+			)
+		)
 			throw new LSCoreBadRequestException(
 				WatchlistValidationCodes.WVC_001.GetValidationMessage(
 					ContractHelpers.GetDisplayName(contract)
@@ -122,10 +126,19 @@ public class WatchlistManager(ISettingsRepository settingsRepository) : IWatchli
 		settingsRepository.Save(settings);
 	}
 
-	public void Remove(int conId)
+	public void Remove(ContractDto contract)
 	{
 		var settings = WatchlistHelpers.LoadSettings(settingsRepository);
-		if (WatchlistHelpers.GetActive(settings).Items.RemoveAll(x => x.ConId == conId) > 0)
+		if (
+			WatchlistHelpers
+				.GetActive(settings)
+				.Items.RemoveAll(x =>
+					ContractHelpers.IsSameListing(
+						x.ToMapped<ContractEntity, ContractDto>(),
+						contract
+					)
+				) > 0
+		)
 			settingsRepository.Save(settings);
 	}
 }
