@@ -27,8 +27,8 @@ dotnet test
 dotnet run --project src/LT.App
 ```
 
-`IBKR.Net` is restored from the local feed in `packages/` (see `nuget.config`) until it is on
-nuget.org; no extra steps.
+Everything, including our IB client [IBKR.Net](https://github.com/LimitlessSoft/IBKR.Net), comes
+from nuget.org; no extra steps.
 
 ## Making a change
 

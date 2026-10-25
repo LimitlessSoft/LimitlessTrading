@@ -90,12 +90,23 @@ client simply has no methods for it. Trading will come as a deliberate, separate
 
 **You need**
 
-- [.NET SDK 10.0.4xx](https://dotnet.microsoft.com/download)
-- [IBC](https://github.com/IbcAlpha/IBC) (the app can download it for you)
-- The offline/stable **IB Gateway** installer from Interactive Brokers
 - An IBKR account — start with a **paper** account
+- The offline/stable **IB Gateway** installer from Interactive Brokers
+- [IBC](https://github.com/IbcAlpha/IBC) (the app can download it for you)
 
-**Run it**
+**Linux: run a release**
+
+1. Install the [.NET 10 runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
+   (`dotnet-runtime-10.0` in most package managers).
+2. Download `LimitlessTrading-<version>-linux-x64.tar.gz` from
+   [Releases](https://github.com/LimitlessSoft/LimitlessTrading/releases), then:
+
+```bash
+tar -xzf LimitlessTrading-*-linux-x64.tar.gz
+./LimitlessTrading/LimitlessTrading
+```
+
+Windows and macOS builds come later; until then, build from source (.NET SDK 10.0.4xx):
 
 ```bash
 git clone https://github.com/LimitlessSoft/LimitlessTrading.git
@@ -103,9 +114,9 @@ cd LimitlessTrading
 dotnet run --project src/LT.App
 ```
 
-The log-in dialog opens on start. Pick paper or live, enter your IBKR username and password, and
-approve the login in IB Key if asked. The app starts IB Gateway, then connects to it on
-`127.0.0.1:4002` (paper) or `4001` (live).
+The log-in dialog opens on start (or the app reuses a Gateway that is already running). Pick paper
+or live, enter your IBKR username and password, and approve the login in IB Key if asked. The app
+starts IB Gateway, then connects to it on `127.0.0.1:4002` (paper) or `4001` (live).
 
 > 🔐 Your username, trading mode and install folders are saved in `settings.json` in the app-data
 > folder. **The password is never saved**, and it never appears on a command line.
@@ -186,8 +197,9 @@ LimitlessTrading is **free to use, modify and share — but not to sell**. It is
 service (including hosting or paid support) whose value comes substantially from it. Because of
 that restriction it is *source-available* rather than open source in the OSI sense.
 
-Third-party components keep their own licenses — notably the Interactive Brokers API client bundled
-in `packages/`, and [IBC](https://github.com/IbcAlpha/IBC) (GPL-3.0), which you install separately.
+The app contains no Interactive Brokers code: it talks to IB Gateway through our own
+[IBKR.Net](https://github.com/LimitlessSoft/IBKR.Net) (MIT). Third-party components keep their own
+licenses — notably [IBC](https://github.com/IbcAlpha/IBC) (GPL-3.0), which you install separately.
 
 ---
 

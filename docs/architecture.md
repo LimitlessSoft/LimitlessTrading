@@ -92,12 +92,14 @@ LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
   resolves validators through it.
 - ViewModels have no interfaces, so they're registered explicitly as transient.
 
-> **Known issue — Windows publish.** The LSCore scan calls `Assembly.LoadFrom` on *every* `*.dll`
-> in the base directory before filtering by name. A RID-specific / self-contained Windows publish
-> puts native DLLs (`libSkiaSharp.dll`, `libHarfBuzzSharp.dll`, `av_libglesv2.dll`) there, and
-> `LoadFrom` throws `BadImageFormatException` on them. `dotnet run` is unaffected (natives sit in
-> `runtimes/`). Fix in LSCore (filter file names by the prefix before loading, or skip files that
-> fail to load) before shipping a Windows build.
+> **Known issue — self-contained and Windows publish.** The LSCore scan calls `Assembly.LoadFrom`
+> on *every* `*.dll` in the base directory before filtering by name. A self-contained publish puts
+> the runtime's own DLLs there (`LoadFrom` of `System.Private.CoreLib.dll` throws
+> `FileNotFoundException`), and a Windows publish adds native DLLs (`libSkiaSharp.dll` …:
+> `BadImageFormatException`). `dotnet run` and a framework-dependent Linux publish are unaffected,
+> so releases are framework-dependent Linux builds for now (`.github/workflows/release.yml`). Fix
+> in LSCore (filter file names by the prefix before loading, or skip files that fail to load) to
+> ship self-contained and Windows builds.
 
 ## Rules carried over from Termodom
 
