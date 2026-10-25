@@ -54,15 +54,19 @@
 										IsVisible="{Binding IsDelayed}"
 										ToolTip.Tip="Delayed data"
 									/>
+									<!-- Quote errors: the message is on hover, so the row keeps its height -->
+									<PathIcon
+										Width="12"
+										Height="12"
+										VerticalAlignment="Center"
+										Background="Transparent"
+										Foreground="{DynamicResource NegativeBrush}"
+										Data="{StaticResource ErrorIcon}"
+										IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+										ToolTip.Tip="{Binding Error}"
+									/>
 								</StackPanel>
 								<TextBlock Classes="secondary" FontSize="10" Text="{Binding Description}" />
-								<TextBlock
-									Classes="negative"
-									FontSize="10"
-									TextWrapping="Wrap"
-									Text="{Binding Error}"
-									IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-								/>
 							</StackPanel>
 						</DataTemplate>
 					</DataGridTemplateColumn.CellTemplate>

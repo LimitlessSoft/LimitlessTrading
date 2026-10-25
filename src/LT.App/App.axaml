@@ -13,6 +13,10 @@
 		<SolidColorBrush x:Key="WarningBrush" Color="#FFB74D" />
 		<SolidColorBrush x:Key="AtmBrush" Color="#2A3140" />
 
+		<!-- Error badge (e.g. a watchlist row whose quotes failed), on a 12×12 grid -->
+		<StreamGeometry x:Key="ErrorIcon">
+			F0 M6,0 A6,6 0 1 1 6,12 A6,6 0 1 1 6,0 Z M5.25,2.5 H6.75 V7.25 H5.25 Z M5.25,8.5 H6.75 V10 H5.25 Z
+		</StreamGeometry>
 		<!-- Widget frame header actions, drawn on a 12×12 grid -->
 		<StreamGeometry x:Key="FrameCloseIcon">
 			M2.2,1.1 L6,4.9 L9.8,1.1 L10.9,2.2 L7.1,6 L10.9,9.8 L9.8,10.9 L6,7.1 L2.2,10.9 L1.1,9.8 L4.9,6 L1.1,2.2 Z
