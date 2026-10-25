@@ -111,5 +111,5 @@ public partial class MainWindowViewModel : ViewModelBase
 
 	private void UpdateStatusBar() =>
 		MarketDataText =
-			$"Market data: {_settingsManager.GetAppSettings().MarketDataType} · lines {_marketDataManager.ActiveLines}/{MarketDataConstants.MaxLines} · read-only build";
+			$"Market data: {_settingsManager.GetAppSettings().MarketDataType} · lines {_marketDataManager.ActiveLines}/{MarketDataConstants.MaxLines}";
 }
