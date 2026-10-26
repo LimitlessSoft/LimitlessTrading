@@ -75,15 +75,17 @@ public static class FlexStatusHelpers
 	/// <summary>
 	/// The note next to Account performance's "Deposits &amp; transfers" check box, so it never
 	/// shows nothing silently: what to add to the Activity Flex query when a section is missing,
-	/// that none were found, or that the import hasn't run. Null when movements are shown and
-	/// both sections are there.
+	/// that none were found, that they are being imported, or that the import hasn't run. Null
+	/// when movements are shown and both sections are there.
 	/// </summary>
 	public static string? GetCashMovementsHint(FlexImportStatusDto status, bool hasMovements)
 	{
 		if (!status.IsConfigured)
 			return "Deposits and transfers come from IB Flex — set it up in Settings.";
 		if (status.HasCashTransactionsSection == null && status.HasTransfersSection == null)
-			return hasMovements ? null : "Waiting for the IB Flex import.";
+			return hasMovements ? null
+				: status.Activity != null ? "Importing deposits and transfers…"
+				: "Waiting for the IB Flex import.";
 		var missing = new List<string>();
 		if (status.HasCashTransactionsSection != true)
 			missing.Add("Cash Transactions (option Deposits & Withdrawals)");

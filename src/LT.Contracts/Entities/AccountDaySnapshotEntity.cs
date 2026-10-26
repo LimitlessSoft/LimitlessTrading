@@ -17,8 +17,8 @@ public class AccountDaySnapshotEntity
 	public double? UnrealizedPnl { get; set; }
 
 	/// <summary>
-	/// Net deposits (+) and withdrawals (-) of the day in the base currency, from Flex; already left
-	/// out of <see cref="DailyPnl"/>. Null when unknown (recorded days).
+	/// Net deposits / transfers in (+) and withdrawals / transfers out (-) of the day in the base
+	/// currency, from Flex; already left out of <see cref="DailyPnl"/>. Null when unknown (recorded days).
 	/// </summary>
 	public double? CashFlow { get; set; }
 

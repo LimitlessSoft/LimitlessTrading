@@ -12,7 +12,7 @@ public class AccountDaySnapshotDto
 	public double? RealizedPnl { get; set; }
 	public double? UnrealizedPnl { get; set; }
 
-	/// <summary>Net deposits / withdrawals of the day (Flex), not part of <see cref="DailyPnl"/>.</summary>
+	/// <summary>Net deposits / withdrawals and transfers of the day (Flex), not part of <see cref="DailyPnl"/>.</summary>
 	public double? CashFlow { get; set; }
 	public AccountDaySource Source { get; set; }
 	public DateTimeOffset FirstUpdate { get; set; }

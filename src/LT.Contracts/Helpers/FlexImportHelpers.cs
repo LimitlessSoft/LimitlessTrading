@@ -47,8 +47,9 @@ public static class FlexImportHelpers
 	}
 
 	/// <summary>
-	/// The daily Activity import is due when none succeeded today (New York date) and the last
-	/// attempt didn't fail within <see cref="FlexConstants.ActivityRetryInterval"/>.
+	/// The daily Activity import is due when none succeeded today (New York date) — or the state
+	/// predates the cash section flags (<see cref="PredatesCashSections"/>) — and the last attempt
+	/// didn't fail within <see cref="FlexConstants.ActivityRetryInterval"/>.
 	/// </summary>
 	public static bool IsActivityDue(
 		FlexImportStateEntity state,
@@ -56,10 +57,21 @@ public static class FlexImportHelpers
 		TimeZoneInfo zone
 	)
 	{
-		if (SucceededToday(state, now, zone))
+		if (SucceededToday(state, now, zone) && !PredatesCashSections(state))
 			return false;
 		return !FailedRecently(state.LastActivityAttempt, state.LastActivitySuccess, now);
 	}
+
+	/// <summary>
+	/// An Activity import succeeded before the Cash Transactions / Transfers sections were
+	/// tracked (both flags null): the next import runs right away rather than after the next New
+	/// York midnight, so <see cref="NoteCashSections"/> sees the sections and starts the history
+	/// over for their movements. Once, since every import sets the flags.
+	/// </summary>
+	public static bool PredatesCashSections(FlexImportStateEntity state) =>
+		state.LastActivitySuccess != null
+		&& state.HadCashTransactionsSection == null
+		&& state.HadTransfersSection == null;
 
 	/// <summary>An Activity import succeeded on today's New York date.</summary>
 	public static bool SucceededToday(

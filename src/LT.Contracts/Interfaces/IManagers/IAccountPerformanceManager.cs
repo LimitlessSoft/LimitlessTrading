@@ -30,12 +30,12 @@ public interface IAccountPerformanceManager
 	IReadOnlyList<CashMovementDto> GetCashMovements(string account);
 
 	/// <summary>
-	/// Merges end-of-day NAV and deposits / withdrawals from a Flex Activity statement into the
-	/// history and saves it. Flex wins for days before today; today stays live. A Flex day's daily
-	/// P&amp;L is its NAV change minus the day's cash flow (<paramref name="cashFlows"/> only;
-	/// <paramref name="transfers"/> are kept for display and don't change the P&amp;L). Every
-	/// deposit, withdrawal and transfer is kept as a cash movement. Returns the days and
-	/// movements added or changed.
+	/// Merges end-of-day NAV, deposits / withdrawals and transfers from a Flex Activity statement
+	/// into the history and saves it. Flex wins for days before today; today stays live. A Flex
+	/// day's daily P&amp;L is its NAV change minus the money moved in / out that day
+	/// (<paramref name="cashFlows"/> and <paramref name="transfers"/>, the same money in both
+	/// counted once). Every deposit, withdrawal and transfer is kept as a cash movement. Returns
+	/// the days and movements added or changed.
 	/// </summary>
 	int ImportFlexHistory(
 		IReadOnlyList<FlexNavDto> nav,

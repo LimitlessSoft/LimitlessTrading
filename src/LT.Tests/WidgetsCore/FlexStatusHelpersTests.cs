@@ -130,6 +130,18 @@ public class FlexStatusHelpersTests
 				hasMovements: false
 			)
 		);
+		// A state from before the sections were tracked, while that import runs
+		Assert.Equal(
+			"Importing deposits and transfers…",
+			FlexStatusHelpers.GetCashMovementsHint(
+				new FlexImportStatusDto
+				{
+					IsConfigured = true,
+					Activity = "Importing account history 2026-10-18 – 2026-10-25",
+				},
+				hasMovements: false
+			)
+		);
 		Assert.NotNull(
 			FlexStatusHelpers.GetCashMovementsHint(new FlexImportStatusDto(), hasMovements: false)
 		);

@@ -56,7 +56,8 @@ and then.
      - **Transfers** (optional) — level **Detail** [Account ID, Currency, FX Rate To Base, Asset
        Class, Symbol, Type, Direction, Account, Quantity, Position Amount, Position Amount in
        Base, Cash Transfer, Report Date, Date, Transaction ID, Level of Detail]: transfers between
-       accounts (internal, ACATS …), only marked in Account performance.
+       accounts (internal, ACATS …), left out of the P&L like deposits and marked in Account
+       performance.
      - **Trades** — options: **Execution** (Closed Lots / Order / summaries may stay on, they
        are skipped) [Account ID, Currency, Asset Class, Symbol, Underlying Symbol, Description,
        Conid, Multiplier, Trade ID, IB Execution ID, Orig Trade ID, Buy/Sell, Quantity, Trade
@@ -127,7 +128,7 @@ Version 3 Error Codes*, 2026-10-26) and a token-less probe of both endpoints (an
 |---|---|
 | `EquitySummaryByReportDateInBase` (`reportDate`, `total`, `currency`, `accountId`) | End-of-day NAV per account, base currency |
 | `CashTransaction` with a type containing *Deposit* / *Withdrawal* (detail rows only; `SUMMARY` / `BASE_SUMMARY` rows are skipped) — `amount × fxRateToBase`, `reportDate` (else `dateTime`, `settleDate`), `currency`, `description`, `transactionID` | Net cash flow per day, left out of P&L; each row also a cash movement (deposit / withdrawal, or transfer in / out when the description says *internal*, *ACATS* or *transfer to / from*) |
-| `Transfer` (detail rows) — `type`, `direction`, `account`, `assetCategory`, `symbol`, `quantity`, `cashTransfer` (cash rows) or `positionAmountInBase` (+ `cashTransfer`) for positions, `fxRateToBase`, `reportDate` (else `date`, `dateTime`, `settleDate`), `transactionID` | Transfer in / out cash movements, display only (not part of the P&L math) |
+| `Transfer` (detail rows) — `type`, `direction`, `account`, `assetCategory`, `symbol`, `quantity`, `cashTransfer` (cash rows) or `positionAmountInBase` (+ `cashTransfer`) for positions, `fxRateToBase`, `reportDate` (else `date`, `dateTime`, `settleDate`), `transactionID` | Transfer in / out cash movements; also left out of the day's P&L like deposits (a row with the same date and base amount as a deposit / withdrawal counts once) |
 | `CashTransactions`, `Transfers` present (even empty) | Whether the query has them: the Account performance hint, and a re-import when one is added |
 | `Trade` (`levelOfDetail` EXECUTION or none) and `TradeConfirm` — `tradeID`, `ibExecID` / `execID`, `conid`, `symbol`, `underlyingSymbol`, `assetCategory`, `multiplier`, `buySell`, `quantity`, `tradePrice` / `price`, `ibCommission` / `commission` (+ currency, stored positive), `exchange`, `dateTime`, `tradeDate`, `fifoPnlRealized` | Journal fills |
 | `buySell` "BUY (Ca.)" / "SELL (Ca.)" with `origTradeID` | Removes the busted original from the journal |
@@ -164,7 +165,10 @@ error) so a restart doesn't download again:
    Transactions or Transfers and the history imported so far didn't, the covered range is reset
    to that statement's and the back-fill runs again, so every year's deposits and transfers come
    in (and deposits leave the P&L of those days). This also runs once for every existing
-   history after the update that added cash movements (the state had no flags yet).
+   history after the update that added cash movements: a state with an earlier Activity import
+   but no flags yet (`FlexImportHelpers.PredatesCashSections`) makes the Activity import due
+   right away instead of after the next New York midnight (the failure retry wait still holds);
+   that import sets the flags, so it happens once.
 
 ## Merge rules
 
@@ -174,12 +178,14 @@ error) so a restart doesn't download again:
 - A Flex `reportDate` is IB's US trading day and is used as the day key directly — the same New
   York date the recorder buckets live snapshots by.
 - Flex is authoritative for days **before today**: net liquidation = NAV `total`, currency = base
-  currency, `CashFlow` = the day's net deposits − withdrawals, `Source = Flex`. Realized /
+  currency, `CashFlow` = the day's net deposits − withdrawals plus transfers in − out (cash and
+  positions; a Transfers row with the same date and base amount as a cash transaction counts
+  once), `Source = Flex`. Realized /
   unrealized P&L recorded live that day are kept. **Today stays live** (Flex rows for today are
   ignored).
 - A Flex day's **daily P&L = NAV − previous day's net liquidation − CashFlow** (null for the first
   day with no earlier one). A cash flow on a date without a NAV row moves to the next NAV date.
-  The return math then never sees a deposit as a gain: a day's return is P&L over (net
+  The return math then never sees a deposit or transfer as a gain: a day's return is P&L over (net
   liquidation − P&L) = previous close + the day's deposits.
 - Merges are idempotent; an older year filled in later gives the previous first day its P&L.
 - **Cash movements** (`AccountPerformanceHelpers.MergeCashMovements`, `AccountHistoryEntity.CashMovements`
@@ -209,9 +215,9 @@ error) so a restart doesn't download again:
   not verified against a real statement.
 - Today's trades come only from the Trade Confirmation query, typically a few minutes after the
   fill plus up to the 5-minute poll.
-- Position transfers (ACATS, internal transfers of positions) and the Transfers section's cash
-  transfers are not cash flows; such a day shows the transferred value as P&L (they are only
-  marked in Account performance). Only *Deposits & Withdrawals* cash transactions are left out.
+- Transfers (cash and positions) are left out of the P&L only when the Activity query has the
+  Transfers section; without it a transfer day shows the transferred value as P&L. A position
+  transfer counts at IB's `positionAmountInBase` (else `positionAmount × fxRateToBase`).
 - How IB lists an internal cash transfer (in Deposits & Withdrawals, in Transfers, or both) is not
   verified against a real statement; the dedupe above covers "both", the description check
   covers "Deposits & Withdrawals".

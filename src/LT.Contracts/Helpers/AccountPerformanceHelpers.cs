@@ -12,7 +12,7 @@ namespace LT.Contracts.Helpers;
 ///
 /// Returns are built from each day's P&amp;L, never from raw net liquidation deltas, so deposits
 /// and withdrawals don't count as gains: a recorded day uses IB's daily P&amp;L (which leaves cash
-/// flows out); a Flex day uses its NAV change minus the day's net deposits
+/// flows out); a Flex day uses its NAV change minus the day's net deposits and transfers
 /// (<see cref="MergeFlexDays"/>). A day's return is its P&amp;L over the equity it started with
 /// (net liquidation minus the day's P&amp;L, i.e. the previous close plus the day's deposits); a
 /// span's return chains those (time-weighted). Days without P&amp;L are left out, as are days
@@ -58,15 +58,18 @@ public static class AccountPerformanceHelpers
 	/// <summary>
 	/// Merges Flex end-of-day NAV into <paramref name="days"/> (sorted by date) for report dates
 	/// before <paramref name="today"/> (today stays live): net liquidation, base currency and the
-	/// day's net deposits / withdrawals (a cash flow on a date without NAV goes to the next NAV
-	/// date), marked <see cref="AccountDaySource.Flex"/>. Then every Flex day's DailyPnl is
-	/// recomputed as NAV − previous day's net liquidation − cash flow (null without a previous
+	/// day's net money moved in / out — deposits / withdrawals plus transfers (cash and
+	/// positions), a transfer matching a deposit / withdrawal of the same date and amount counted
+	/// once, as in <see cref="MergeCashMovements"/>; a movement on a date without NAV goes to the
+	/// next NAV date — marked <see cref="AccountDaySource.Flex"/>. Then every Flex day's DailyPnl
+	/// is recomputed as NAV − previous day's net liquidation − cash flow (null without a previous
 	/// day). Recorded realized / unrealized P&amp;L are kept. Returns the days added or changed.
 	/// </summary>
 	public static int MergeFlexDays(
 		List<AccountDaySnapshotEntity> days,
 		IEnumerable<FlexNavDto> nav,
 		IEnumerable<FlexCashFlowDto> cashFlows,
+		IEnumerable<FlexCashFlowDto> transfers,
 		DateOnly today,
 		DateTimeOffset now
 	)
@@ -75,8 +78,14 @@ public static class AccountPerformanceHelpers
 			.GroupBy(x => x.Date)
 			.ToDictionary(x => x.Key, x => x.Last());
 		var navDates = navByDate.Keys.Order().ToList();
+		var cash = cashFlows.ToList();
+		var flows = cash.Concat(
+			transfers.Where(t =>
+				!cash.Exists(x => x.Date == t.Date && SameAmount(x.Amount, t.Amount))
+			)
+		);
 		var flowByDate = new Dictionary<DateOnly, double>();
-		foreach (var flow in cashFlows)
+		foreach (var flow in flows)
 		{
 			var index = navDates.BinarySearch(flow.Date);
 			if (index < 0)
@@ -181,8 +190,6 @@ public static class AccountPerformanceHelpers
 		if (changed > 0)
 			movements.Sort((a, b) => a.Date.CompareTo(b.Date));
 		return changed;
-
-		static bool SameAmount(double a, double b) => Math.Abs(a - b) < 0.005;
 
 		static int Upsert(List<CashMovementEntity> target, FlexCashFlowDto flow, string key)
 		{
@@ -391,4 +398,7 @@ public static class AccountPerformanceHelpers
 			})
 			.ToList();
 	}
+
+	/// <summary>The same base-currency amount, give or take rounding to the cent.</summary>
+	private static bool SameAmount(double a, double b) => Math.Abs(a - b) < 0.005;
 }

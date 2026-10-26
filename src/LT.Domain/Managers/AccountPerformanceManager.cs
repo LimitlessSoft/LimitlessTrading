@@ -116,6 +116,7 @@ public class AccountPerformanceManager : IAccountPerformanceManager
 						history.Days,
 						nav.Where(x => x.Account == account),
 						cashFlows.Where(x => x.Account == account),
+						transfers.Where(x => x.Account == account),
 						today,
 						now
 					)

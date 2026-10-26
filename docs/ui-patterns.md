@@ -623,8 +623,9 @@ have `Source = Flex` and win over recorded ones), today is recorded live:
   after the movement, `AccountPerformanceHelpers.AssignCashMovements`) and the hover readout lists
   them; in the calendar they sit in the cell's corner on their own date, the tooltip with amount,
   original currency and IB's description. A hint under the box (`FlexStatusHelpers.GetCashMovementsHint`)
-  says what to add to the Flex query when Cash Transactions or Transfers are missing, or that
-  none were found. Display only: the P&L math is unchanged.
+  says what to add to the Flex query when Cash Transactions or Transfers are missing, that they
+  are being imported, or that none were found. Display only: the P&L math already leaves
+  deposits and transfers out (`AccountPerformanceHelpers.MergeFlexDays`).
 
 ## Connected widgets
 
