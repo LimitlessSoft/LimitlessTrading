@@ -27,7 +27,7 @@ public class SettingsManagerTests
 				MarketDataType = MarketDataType.Live,
 				AutoReconnect = false,
 				HeartbeatSeconds = 10,
-				StopGatewayOnExit = false,
+				StopGatewayOnExit = true,
 			}
 		);
 
@@ -35,7 +35,7 @@ public class SettingsManagerTests
 		Assert.Equal(MarketDataType.Live, _ibkr.MarketDataType);
 		var saved = manager.GetAppSettings();
 		Assert.Equal(
-			(MarketDataType.Live, false, 10, false),
+			(MarketDataType.Live, false, 10, true),
 			(
 				saved.MarketDataType,
 				saved.AutoReconnect,
@@ -46,8 +46,8 @@ public class SettingsManagerTests
 	}
 
 	[Fact]
-	public void Gateway_is_stopped_on_exit_by_default() =>
-		Assert.True(new SettingsManager(_settings, _ibkr).GetAppSettings().StopGatewayOnExit);
+	public void Gateway_keeps_running_on_exit_by_default() =>
+		Assert.False(new SettingsManager(_settings, _ibkr).GetAppSettings().StopGatewayOnExit);
 
 	[Fact]
 	public void Invalid_heartbeat_is_rejected() =>
