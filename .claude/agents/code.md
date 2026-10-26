@@ -47,6 +47,17 @@ Before reading deeply or editing, create one — see the `worktree` skill:
 - If the caller names an existing worktree or branch for the work, use it instead of creating one.
 - **Stacked work:** when the caller says this change builds on an earlier, unmerged branch, create
   it with `./tools/worktree.sh --from <prev-branch> <branch>`; its PR targets `<prev-branch>`.
+- **Always start from the latest `origin/master`.** The script fetches it for a new branch, but an
+  existing worktree or branch (local or from origin) is checked out as-is and may be stale. Before
+  any work, fetch and bring it up to date:
+  ```bash
+  git -C "$W" fetch origin master
+  git -C "$W" rebase origin/master   # branch never pushed
+  git -C "$W" merge origin/master    # branch already on origin (no history rewrite)
+  ```
+  Stash or commit nothing of anyone else's to do it: if the worktree is dirty or the
+  rebase/merge conflicts, stop and report. For stacked work, update from `origin/<prev-branch>`
+  the same way. Confirm with `git -C "$W" merge-base --is-ancestor origin/<base> HEAD`.
 
 ## Workflow
 
