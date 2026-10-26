@@ -15,4 +15,5 @@ public static class MessageLogConstants
 	public const string SourceIndicators = "Indicators";
 	public const string SourceSec = "SEC";
 	public const string SourceNotes = "Notes";
+	public const string SourceAlerts = "Alerts";
 }

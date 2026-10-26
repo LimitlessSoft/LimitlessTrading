@@ -43,6 +43,10 @@ namespace LT.App.Widgets.Chart;
 /// applied from the header, and can follow its template (changes saved to it and taken from it); see
 /// ChartViewModel.Templates.cs.
 /// </para>
+/// <para>
+/// The contract's price alerts are drawn on it and added, moved and removed from it; see
+/// ChartViewModel.Alerts.cs.
+/// </para>
 /// </summary>
 public partial class ChartViewModel
 	: ConnectedViewModelBase,
@@ -88,6 +92,7 @@ public partial class ChartViewModel
 		IPositionManager positionManager,
 		IIndicatorManager indicatorManager,
 		IChartTemplateManager chartTemplateManager,
+		IPriceAlertManager priceAlertManager,
 		AccountStore accountStore,
 		LinkGroupStore linkGroupStore,
 		DisplayTimeStore displayTime,
@@ -105,6 +110,7 @@ public partial class ChartViewModel
 		_positionManager = positionManager;
 		_indicatorManager = indicatorManager;
 		_chartTemplateManager = chartTemplateManager;
+		_priceAlertManager = priceAlertManager;
 		_settingsManager = settingsManager;
 		_timeProvider = timeProvider;
 		_accountStore = accountStore;
@@ -118,6 +124,7 @@ public partial class ChartViewModel
 		chartTemplateManager.TemplateSaved += OnTemplateSaved;
 		indicatorManager.DefinitionsChanged += OnIndicatorDefinitionsChanged;
 		tradeJournalManager.FillsChanged += OnFillsChanged;
+		priceAlertManager.AlertsChanged += OnAlertsChanged;
 		accountStore.PropertyChanged += OnAccountChanged;
 		settingsManager.AppSettingsChanged += OnAppSettingsChanged;
 		Link = new ContractLink(linkGroupStore, () => _contract);
@@ -254,6 +261,7 @@ public partial class ChartViewModel
 		_chartTemplateManager.TemplateSaved -= OnTemplateSaved;
 		_indicatorManager.DefinitionsChanged -= OnIndicatorDefinitionsChanged;
 		_tradeJournalManager.FillsChanged -= OnFillsChanged;
+		_priceAlertManager.AlertsChanged -= OnAlertsChanged;
 		_accountStore.PropertyChanged -= OnAccountChanged;
 		_settingsManager.AppSettingsChanged -= OnAppSettingsChanged;
 		DisplayTime.ZoneChanged -= _status.Rebuild;
@@ -403,6 +411,7 @@ public partial class ChartViewModel
 	public void Reload()
 	{
 		LoadTrades();
+		LoadAlerts();
 		UpdateBreakEven();
 		_load?.Cancel();
 		_load?.Dispose();

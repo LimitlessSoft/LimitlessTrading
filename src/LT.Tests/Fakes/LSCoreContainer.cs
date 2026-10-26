@@ -7,6 +7,7 @@ using LT.Contracts.DtoMappings.Contracts;
 using LT.Contracts.DtoMappings.Executions;
 using LT.Contracts.DtoMappings.Flex;
 using LT.Contracts.DtoMappings.Performance;
+using LT.Contracts.DtoMappings.PriceAlerts;
 using LT.Contracts.DtoMappings.Settings;
 using LT.Contracts.DtoMappings.Watchlists;
 using LT.Contracts.Dtos.AccountPerformance;
@@ -15,6 +16,7 @@ using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Executions;
 using LT.Contracts.Dtos.Flex;
 using LT.Contracts.Dtos.Performance;
+using LT.Contracts.Dtos.PriceAlerts;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Dtos.Watchlists;
 using LT.Contracts.Entities;
@@ -28,6 +30,7 @@ using LT.Contracts.Requests.MarketDepth;
 using LT.Contracts.Requests.News;
 using LT.Contracts.Requests.Options;
 using LT.Contracts.Requests.Orders;
+using LT.Contracts.Requests.PriceAlerts;
 using LT.Contracts.Requests.Settings;
 using LT.Contracts.Requests.Watchlists;
 using LT.Domain.Validators.ChartTemplates;
@@ -40,6 +43,7 @@ using LT.Domain.Validators.MarketDepth;
 using LT.Domain.Validators.News;
 using LT.Domain.Validators.Options;
 using LT.Domain.Validators.Orders;
+using LT.Domain.Validators.PriceAlerts;
 using LT.Domain.Validators.Settings;
 using LT.Domain.Validators.Watchlists;
 using LT.Ibkr.DtoMappings.Contracts;
@@ -152,6 +156,15 @@ public static class LSCoreContainer
 				.AddSingleton<
 					LSCoreValidatorBase<UpdateChartTemplateSettingsRequest>,
 					UpdateChartTemplateSettingsRequestValidator
+				>()
+				.AddSingleton<ILSCoreMapper<PriceAlertEntity, PriceAlertDto>, PriceAlertDtoMapper>()
+				.AddSingleton<
+					LSCoreValidatorBase<CreatePriceAlertRequest>,
+					CreatePriceAlertRequestValidator
+				>()
+				.AddSingleton<
+					LSCoreValidatorBase<MovePriceAlertRequest>,
+					MovePriceAlertRequestValidator
 				>()
 				.BuildServiceProvider();
 		}

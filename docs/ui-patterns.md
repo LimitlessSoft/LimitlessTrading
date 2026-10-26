@@ -766,6 +766,7 @@ subscription and frees the market-data line.
 | Ctrl+Alt+W / P / O / E / A / M / C / B / N / R / J / K / S | Show and focus an open Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News, Account performance, Day trade performance, Depth, Notes, opening one if none is (works from floating windows too) |
 | Esc (side or bottom widget) | Back to the last focused center widget; an unpinned widget collapses |
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous center view |
+| Alt+A (chart) | Add a price alert at the price under the pointer, or at the last price |
 | Ctrl+Shift+F | Fullscreen the current widget (the one last clicked or typed in, framed in light blue), or restore it |
 | Ctrl+Shift+N | New empty workspace window |
 
@@ -784,7 +785,8 @@ while a text box has focus. On macOS, Cmd works in place of Ctrl.
 `Widgets/Chart/CandlestickChart` is a custom `Control` drawn with `DrawingContext` (no chart
 library): candles, volume, price grid, last-price line, crosshair + OHLCV readout. Wheel zooms,
 drag pans, double-click resets (zoom and pan, not the right margin); the right button doesn't
-pan — releasing it opens the chart's context menu (Manage indicators…, Apply template, Templates…). The account performance widget's `EquityCurveChart` and
+pan — releasing it opens the chart's context menu (Add alert at …, Remove alert, Remove triggered
+alerts, Manage indicators…, Apply template, Templates…). The account performance widget's `EquityCurveChart` and
 `DailyPnlBarChart` are drawn the same way (same palette, `ChartDrawing`).
 
 **Indicators and panes.** Right-click → Manage indicators… adds and removes indicators; they draw on the
@@ -816,6 +818,34 @@ line sits at IB's average cost per unit (divided by the multiplier for options a
 commissions included) with its price on the axis; it is hidden while disconnected (no stale
 positions) and when off the visible price range. Each chart follows positions on its own
 `reqPositions` stream; new fills appear when the journal records them (every 30 s).
+
+**Price alerts.** Right-click → *Add alert at <price>* (the price under the pointer, rounded as
+the axis shows it; the last price when opened off the price chart) or Alt+A while the chart has
+the keyboard (a click gives it) adds an alert with no dialog. Its direction is told from the
+chart's last close: a level above it fires once the price is at or above it, one at or below it
+once the price is at or below it (`PriceAlertHelpers.GetCondition` / `IsCrossed`; a level, not a
+pair of prices, so a gap or a move while disconnected fires on the first price seen). Each alert
+is a violet line with a tag at the plot's right end (▲ / ▼, its note) and its level on the axis;
+dragging the line or tag moves it (the direction is told again, a triggered one is armed again),
+✕ on the tag or right-click on the line → *Remove alert* deletes it. An alert fires once: it turns
+into a grey dotted "fired" line until removed (one by one, or *Remove triggered alerts*), the
+message log gets an entry (source "Alerts") and the main window shows a toast for
+`PriceAlertConstants.NotificationDuration` (Avalonia's `WindowNotificationManager`, bottom
+right). Alerts off the visible price range are not drawn.
+
+- `IPriceAlertManager` (`PriceAlertManager`, a singleton) holds every alert, saved in
+  `price-alerts.json`; `ChartViewModel.Alerts.cs` shows the charted contract's and refreshes on
+  `AlertsChanged` (posted to the UI thread). Validation: `CreatePriceAlertRequest` /
+  `MovePriceAlertRequest`, messages `PriceAlertValidationCodes`, limits `PriceAlertConstants`
+  (200 active alerts, 20 contracts).
+- Alerts fire whether or not a chart shows them: `PriceAlertService` (hosted) runs
+  `IPriceAlertManager.WatchAsync` while connected, one quote line per contract with an active
+  alert through `IMarketDataManager` (so it counts against the line limit, on top of a chart's own
+  line in the quote modes). Last trade price, the bid / ask midpoint for forex; delayed quotes
+  count. A stream that fails is logged and opened again after `PriceAlertConstants.RetryDelay`
+  (1 min); a contract whose alerts have all fired is no longer watched.
+- Not built yet: editing an alert's note (the field is stored and shown), an alerts list, sounds,
+  conditions other than crossing a price.
 
 **Live updates.** After its history loads, a connected chart follows IB's 5-second real-time
 bars (`IChartManager.SubscribeRealtimeBarsAsync`, merged with `BarHelpers.Merge`). Settings →

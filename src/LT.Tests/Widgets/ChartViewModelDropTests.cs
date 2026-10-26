@@ -93,6 +93,12 @@ public class ChartViewModelDropTests : IDisposable
 				new MessageLogManager()
 			),
 			new ChartTemplateManager(_cache.Settings),
+			new PriceAlertManager(
+				new InMemoryPriceAlertRepository(),
+				new MarketDataManager(_ibkr),
+				new MessageLogManager(),
+				_cache.Time
+			),
 			new AccountStore(_connection, settings),
 			_links,
 			new DisplayTimeStore(settings, _cache.Time),
