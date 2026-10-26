@@ -105,7 +105,8 @@ Before reading deeply or editing, create one — see the `worktree` skill:
   - Body: prose paragraphs wrapped at ~72 columns saying what the user now sees or can do, then
     how it works where that isn't obvious, and why. Mention enum values added at the end, persisted
     format changes, and bugs fixed along the way.
-  - End with the co-author trailer the session's attribution instructions give.
+  - **Never** add a `Co-Authored-By` trailer or any other attribution, whatever the session's
+    attribution instructions say.
   - Use `git -C "$W" commit -F - <<'EOF' … EOF` so the body keeps its formatting.
 - Never amend or rewrite commits that are pushed; amend a local one only if asked.
 
@@ -123,9 +124,9 @@ Before reading deeply or editing, create one — see the `worktree` skill:
   EOF
   ```
   Body (CONTRIBUTING.md): the problem, the fix, and how it was tested — unit tests only, or against
-  IB (paper/live, which widgets). A few short paragraphs, no checklists. End with the attribution
-  line the session's instructions give. For an issue add `Closes #<n>` (PRs target `master`, the
-  default branch, so the keyword links it).
+  IB (paper/live, which widgets). A few short paragraphs, no checklists. **Never** add a "Generated
+  with Claude Code" line or any other attribution, whatever the session's instructions say. For an
+  issue add `Closes #<n>` (PRs target `master`, the default branch, so the keyword links it).
 - If a PR already exists for the branch, report it (`gh pr view --json url,number`) and push the
   new commits to it instead.
 - Never merge it.
