@@ -4,7 +4,6 @@
 	xmlns:vm="using:LT.App.Shell"
 	xmlns:connectionBar="using:LT.App.Widgets.ConnectionBar"
 	xmlns:tradingPage="using:LT.App.Pages.TradingPage"
-	xmlns:chrome="using:Avalonia.Controls.Chrome"
 	x:Class="LT.App.Shell.MainWindow"
 	x:DataType="vm:MainWindowViewModel"
 	Title="{Binding Title}"
@@ -13,200 +12,149 @@
 	MinWidth="1100"
 	MinHeight="680"
 	WindowStartupLocation="CenterScreen"
-	ExtendClientAreaToDecorationsHint="True"
-	WindowDecorations="BorderOnly"
+	Classes="appChrome"
 >
-	<!-- No drawn border or shadow around the window: the app's own panels frame it -->
-	<Window.WindowDecorationsTheme>
-		<ControlTheme
-			TargetType="chrome:WindowDrawnDecorations"
-			BasedOn="{StaticResource {x:Type chrome:WindowDrawnDecorations}}"
-		>
-			<Setter Property="DefaultFrameThickness" Value="0" />
-			<Setter Property="DefaultShadowThickness" Value="0" />
-		</ControlTheme>
-	</Window.WindowDecorationsTheme>
 	<Panel>
 		<DockPanel>
-			<!-- The app's title bar (the OS one is off): drag it to move the window, double-click to
-			     maximize. Everything lives under the hamburger for now. -->
-			<Border
-				x:Name="TitleBar"
-				DockPanel.Dock="Top"
-				Classes="toolbar"
-				BorderBrush="{DynamicResource PanelStroke}"
-				BorderThickness="0,0,0,1"
-			>
-				<Grid ColumnDefinitions="Auto,*,Auto">
-					<StackPanel Orientation="Horizontal" Spacing="4">
-						<Button Classes="tool" ToolTip.Tip="Menu">
-							<PathIcon Data="M3,6H21V8H3Z M3,11H21V13H3Z M3,16H21V18H3Z" />
-							<Button.Flyout>
-								<MenuFlyout Placement="BottomEdgeAlignedLeft">
-									<MenuItem Header="Log in…" Click="OnGatewayClick" />
-									<MenuItem Header="Log out" Command="{Binding ConnectionBar.LogOutCommand}" />
-									<Separator />
+			<!-- The app's title bar (the OS one is off). Everything lives under the hamburger for now. -->
+			<vm:WindowTitleBar DockPanel.Dock="Top" Title="{Binding Title}">
+				<vm:WindowTitleBar.LeftContent>
+					<Button Classes="tool" ToolTip.Tip="Menu">
+						<PathIcon Data="M3,6H21V8H3Z M3,11H21V13H3Z M3,16H21V18H3Z" />
+						<Button.Flyout>
+							<MenuFlyout Placement="BottomEdgeAlignedLeft">
+								<MenuItem Header="Log in…" Click="OnGatewayClick" />
+								<MenuItem Header="Log out" Command="{Binding ConnectionBar.LogOutCommand}" />
+								<Separator />
+								<MenuItem
+									Header="Refresh all"
+									InputGesture="F5"
+									Command="{Binding RefreshAllCommand}"
+								/>
+								<MenuItem Header="Widgets">
 									<MenuItem
-										Header="Refresh all"
-										InputGesture="F5"
-										Command="{Binding RefreshAllCommand}"
+										Header="Watchlist"
+										InputGesture="Ctrl+Alt+W"
+										Click="OnToolClick"
+										Tag="Watchlist"
 									/>
-									<MenuItem Header="Widgets">
-										<MenuItem
-											Header="Watchlist"
-											InputGesture="Ctrl+Alt+W"
-											Click="OnToolClick"
-											Tag="Watchlist"
-										/>
-										<MenuItem
-											Header="Positions"
-											InputGesture="Ctrl+Alt+P"
-											Click="OnToolClick"
-											Tag="Positions"
-										/>
-										<MenuItem
-											Header="Orders"
-											InputGesture="Ctrl+Alt+O"
-											Click="OnToolClick"
-											Tag="Orders"
-										/>
-										<MenuItem
-											Header="Executions"
-											InputGesture="Ctrl+Alt+E"
-											Click="OnToolClick"
-											Tag="Executions"
-										/>
-										<MenuItem
-											Header="Account"
-											InputGesture="Ctrl+Alt+A"
-											Click="OnToolClick"
-											Tag="Account"
-										/>
-										<MenuItem
-											Header="Messages"
-											InputGesture="Ctrl+Alt+M"
-											Click="OnToolClick"
-											Tag="Messages"
-										/>
-										<Separator />
-										<MenuItem
-											Header="Chart"
-											InputGesture="Ctrl+D7"
-											Click="OnToolClick"
-											Tag="Chart"
-										/>
-										<MenuItem
-											Header="Option chain"
-											InputGesture="Ctrl+Alt+C"
-											Click="OnToolClick"
-											Tag="OptionChain"
-										/>
-										<MenuItem
-											Header="Order ticket"
-											InputGesture="Ctrl+Alt+B"
-											Click="OnToolClick"
-											Tag="OrderTicket"
-										/>
-										<Separator />
-										<MenuItem
-											Header="New chart"
-											InputGesture="Ctrl+Shift+D7"
-											Click="OnNewChartClick"
-										/>
-										<MenuItem
-											Header="Fullscreen widget"
-											InputGesture="Ctrl+Shift+F"
-											Click="OnFullscreenClick"
-										/>
-									</MenuItem>
-									<Separator />
-									<MenuItem Header="Check for updates" Command="{Binding Update.CheckCommand}" />
 									<MenuItem
-										Header="Settings…"
-										InputGesture="Ctrl+OemComma"
-										Click="OnSettingsClick"
+										Header="Positions"
+										InputGesture="Ctrl+Alt+P"
+										Click="OnToolClick"
+										Tag="Positions"
+									/>
+									<MenuItem
+										Header="Orders"
+										InputGesture="Ctrl+Alt+O"
+										Click="OnToolClick"
+										Tag="Orders"
+									/>
+									<MenuItem
+										Header="Executions"
+										InputGesture="Ctrl+Alt+E"
+										Click="OnToolClick"
+										Tag="Executions"
+									/>
+									<MenuItem
+										Header="Account"
+										InputGesture="Ctrl+Alt+A"
+										Click="OnToolClick"
+										Tag="Account"
+									/>
+									<MenuItem
+										Header="Messages"
+										InputGesture="Ctrl+Alt+M"
+										Click="OnToolClick"
+										Tag="Messages"
 									/>
 									<Separator />
-									<MenuItem Header="Exit" Click="OnExitClick" />
-								</MenuFlyout>
-							</Button.Flyout>
-						</Button>
-					</StackPanel>
-					<TextBlock
-						Grid.Column="1"
-						Classes="secondary windowTitle"
-						HorizontalAlignment="Center"
+									<MenuItem Header="Chart" InputGesture="Ctrl+D7" Click="OnToolClick" Tag="Chart" />
+									<MenuItem
+										Header="Option chain"
+										InputGesture="Ctrl+Alt+C"
+										Click="OnToolClick"
+										Tag="OptionChain"
+									/>
+									<MenuItem
+										Header="Order ticket"
+										InputGesture="Ctrl+Alt+B"
+										Click="OnToolClick"
+										Tag="OrderTicket"
+									/>
+									<Separator />
+									<MenuItem
+										Header="New chart"
+										InputGesture="Ctrl+Shift+D7"
+										Click="OnNewChartClick"
+									/>
+									<MenuItem
+										Header="Fullscreen widget"
+										InputGesture="Ctrl+Shift+F"
+										Click="OnFullscreenClick"
+									/>
+								</MenuItem>
+								<Separator />
+								<MenuItem Header="Check for updates" Command="{Binding Update.CheckCommand}" />
+								<MenuItem Header="Settings…" InputGesture="Ctrl+OemComma" Click="OnSettingsClick" />
+								<Separator />
+								<MenuItem Header="Exit" Click="OnExitClick" />
+							</MenuFlyout>
+						</Button.Flyout>
+					</Button>
+				</vm:WindowTitleBar.LeftContent>
+				<vm:WindowTitleBar.RightContent>
+					<Button
+						Classes="update"
+						Margin="0,0,8,0"
 						VerticalAlignment="Center"
-						Text="{Binding Title}"
-						IsHitTestVisible="False"
-					/>
-					<StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
-						<Button
-							Classes="update"
-							Margin="0,0,8,0"
-							VerticalAlignment="Center"
-							IsVisible="{Binding Update.IsVisible}"
-							Content="{Binding Update.ButtonText}"
-						>
-							<Button.Flyout>
-								<Flyout Placement="BottomEdgeAlignedRight">
-									<StackPanel
-										Width="320"
-										Spacing="10"
-										DataContext="{Binding Update}"
-										x:DataType="vm:UpdateViewModel"
-									>
-										<TextBlock
-											FontWeight="SemiBold"
-											TextWrapping="Wrap"
-											Text="{Binding VersionsText}"
-										/>
-										<HyperlinkButton
-											Padding="0"
-											Content="What's new"
-											IsVisible="{Binding ReleasePageUrl, Converter={x:Static ObjectConverters.IsNotNull}}"
-											Click="OnReleaseNotesClick"
-										/>
-										<ProgressBar IsVisible="{Binding IsDownloading}" Value="{Binding Progress}" />
-										<TextBlock
-											Foreground="{DynamicResource NegativeBrush}"
-											TextWrapping="Wrap"
-											IsVisible="{Binding ErrorText, Converter={x:Static ObjectConverters.IsNotNull}}"
-											Text="{Binding ErrorText}"
-										/>
-										<TextBlock
-											Classes="secondary"
-											TextWrapping="Wrap"
-											IsVisible="{Binding CannotInstallReason, Converter={x:Static ObjectConverters.IsNotNull}}"
-											Text="{Binding CannotInstallReason}"
-										/>
-										<Button
-											Classes="accent"
-											HorizontalAlignment="Right"
-											Content="Install and restart"
-											Command="{Binding InstallCommand}"
-										/>
-									</StackPanel>
-								</Flyout>
-							</Button.Flyout>
-						</Button>
-						<Button Classes="windowButton" ToolTip.Tip="Minimize" Click="OnMinimizeClick">
-							<PathIcon Data="{StaticResource WindowMinimizeIcon}" />
-						</Button>
-						<Button
-							x:Name="MaximizeButton"
-							Classes="windowButton"
-							ToolTip.Tip="Maximize"
-							Click="OnMaximizeClick"
-						>
-							<PathIcon x:Name="MaximizeIcon" Data="{StaticResource WindowMaximizeIcon}" />
-						</Button>
-						<Button Classes="windowButton close" ToolTip.Tip="Close" Click="OnCloseClick">
-							<PathIcon Data="{StaticResource FrameCloseIcon}" />
-						</Button>
-					</StackPanel>
-				</Grid>
-			</Border>
+						IsVisible="{Binding Update.IsVisible}"
+						Content="{Binding Update.ButtonText}"
+					>
+						<Button.Flyout>
+							<Flyout Placement="BottomEdgeAlignedRight">
+								<StackPanel
+									Width="320"
+									Spacing="10"
+									DataContext="{Binding Update}"
+									x:DataType="vm:UpdateViewModel"
+								>
+									<TextBlock
+										FontWeight="SemiBold"
+										TextWrapping="Wrap"
+										Text="{Binding VersionsText}"
+									/>
+									<HyperlinkButton
+										Padding="0"
+										Content="What's new"
+										IsVisible="{Binding ReleasePageUrl, Converter={x:Static ObjectConverters.IsNotNull}}"
+										Click="OnReleaseNotesClick"
+									/>
+									<ProgressBar IsVisible="{Binding IsDownloading}" Value="{Binding Progress}" />
+									<TextBlock
+										Foreground="{DynamicResource NegativeBrush}"
+										TextWrapping="Wrap"
+										IsVisible="{Binding ErrorText, Converter={x:Static ObjectConverters.IsNotNull}}"
+										Text="{Binding ErrorText}"
+									/>
+									<TextBlock
+										Classes="secondary"
+										TextWrapping="Wrap"
+										IsVisible="{Binding CannotInstallReason, Converter={x:Static ObjectConverters.IsNotNull}}"
+										Text="{Binding CannotInstallReason}"
+									/>
+									<Button
+										Classes="accent"
+										HorizontalAlignment="Right"
+										Content="Install and restart"
+										Command="{Binding InstallCommand}"
+									/>
+								</StackPanel>
+							</Flyout>
+						</Button.Flyout>
+					</Button>
+				</vm:WindowTitleBar.RightContent>
+			</vm:WindowTitleBar>
 
 			<Border
 				DockPanel.Dock="Bottom"

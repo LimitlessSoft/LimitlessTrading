@@ -21,16 +21,29 @@ Mirrors the Termodom FE split (`pages/` + `widgets/`):
 
 ## Title bar
 
-The main window has no OS title bar: its top line is the title bar
-(`ExtendClientAreaToDecorationsHint` + `WindowDecorations="BorderOnly"`, Avalonia 12's
-client-side decorations). `MainWindow` moves the window itself: a press on an empty part of the
-bar calls `BeginMoveDrag`, a second press within the system double-click time maximizes /
+The main window and the settings window have no OS title bar: their top line is the app's own
+`Shell/WindowTitleBar` (title, `LeftContent` / `RightContent` for the window's own buttons,
+minimize / maximize / close; `CanMinimize` / `CanMaximize` hide those). A window opts in with
+`Classes="appChrome"` (App.axaml: `ExtendClientAreaToDecorationsHint` +
+`WindowDecorations="BorderOnly"`, Avalonia 12's client-side decorations, and the
+`AppWindowDecorations` theme with frame and shadow thickness 0, so the window ends at the app's
+own edges) and docks a `WindowTitleBar` on top. The bar moves the window itself: a press on an
+empty part calls `BeginMoveDrag`, a second press within the system double-click time maximizes /
 restores. The decoration roles (`ElementRole="TitleBar"`, the button roles) are not used: on Linux
 the drag role grabs the mouse (no double-click, clicks on buttons start a drag) and the button
-roles do nothing. Minimize / maximize / close are plain buttons with click handlers; a press on
-any button stays with the button. The drawn border and shadow are switched off
-(`Window.WindowDecorationsTheme`, frame and shadow thickness 0); the window ends at the app's own
-edges. Dialogs and floating widget windows keep the OS title bar.
+roles do nothing; a press on any button stays with the button. Other dialogs and floating widget
+windows keep the OS title bar.
+
+## Settings window
+
+`Widgets/Settings`: a searchable tree of pages on the left, the selected page on the right. A page
+(`SettingsPageViewModel`) has tabs (`SettingsTabViewModel`; the tab strip shows only with more than
+one); a group (no tabs) holds child pages and opens its first one. Each setting is a
+`SettingItemViewModel` (`BoolSettingViewModel`, `ChoiceSettingViewModel`,
+`NumberSettingViewModel`, one DataTemplate each) with a title, help text and search keywords.
+Search (`SettingsSearchHelpers.Matches`: every word, any order) keeps the pages, tabs and settings
+that match; a page, group or tab whose own title matches shows all of its settings. Changes apply
+on Save. Adding a setting: a field in `SettingsViewModel`, put it on a tab, read and save it there.
 
 ## Workspace (`LT.App/Workspace`)
 

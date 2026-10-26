@@ -1,8 +1,6 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Media;
 using LT.App.Widgets.Gateway;
 using LT.App.Widgets.Settings;
 using LT.App.Workspace;
@@ -13,31 +11,15 @@ namespace LT.App.Shell;
 
 public partial class MainWindow : Window, IFullscreenHost
 {
-	private DateTime _lastTitleBarPress = DateTime.MinValue;
-	private Point _lastTitleBarPosition;
-
 	public MainWindow()
 	{
 		InitializeComponent();
 		AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
-		TitleBar.PointerPressed += OnTitleBarPressed;
 		Closing += OnClosing;
 		Opened += OnOpened;
 	}
 
 	private MainWindowViewModel? ViewModel => DataContext as MainWindowViewModel;
-
-	// The title bar's maximize button shows restore while maximized
-	protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
-	{
-		base.OnPropertyChanged(change);
-		if (change.Property != WindowStateProperty || MaximizeIcon is null)
-			return;
-		var maximized = WindowState == WindowState.Maximized;
-		MaximizeIcon.Data = (Geometry)
-			this.FindResource(maximized ? "WindowRestoreIcon" : "WindowMaximizeIcon")!;
-		ToolTip.SetTip(MaximizeButton, maximized ? "Restore" : "Maximize");
-	}
 
 	public void ShowFullscreen(Control? frame)
 	{
@@ -159,42 +141,4 @@ public partial class MainWindow : Window, IFullscreenHost
 	}
 
 	private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
-
-	// Title bar buttons act themselves: the decoration button roles do nothing on Linux
-	private void OnMinimizeClick(object? sender, RoutedEventArgs e) =>
-		WindowState = WindowState.Minimized;
-
-	private void OnMaximizeClick(object? sender, RoutedEventArgs e) => ToggleMaximized();
-
-	// The bar moves the window itself (a decoration drag role grabs the mouse and swallows double-
-	// clicks): a press drags, a second press within the double-click time maximizes / restores.
-	// Presses on its buttons are handled by them and never get here.
-	private void OnTitleBarPressed(object? sender, PointerPressedEventArgs e)
-	{
-		if (!e.GetCurrentPoint(TitleBar).Properties.IsLeftButtonPressed)
-			return;
-		var now = DateTime.UtcNow;
-		var position = e.GetPosition(this);
-		var settings = Application.Current?.PlatformSettings;
-		var doubleClickTime =
-			settings?.GetDoubleTapTime(e.Pointer.Type) ?? TimeSpan.FromMilliseconds(500);
-		var doubleClickSize = settings?.GetDoubleTapSize(e.Pointer.Type) ?? new Size(4, 4);
-		var isDoubleClick =
-			now - _lastTitleBarPress <= doubleClickTime
-			&& Math.Abs(position.X - _lastTitleBarPosition.X) <= doubleClickSize.Width
-			&& Math.Abs(position.Y - _lastTitleBarPosition.Y) <= doubleClickSize.Height;
-		_lastTitleBarPress = isDoubleClick ? DateTime.MinValue : now;
-		_lastTitleBarPosition = position;
-		e.Handled = true;
-		if (isDoubleClick)
-			ToggleMaximized();
-		else
-			BeginMoveDrag(e);
-	}
-
-	private void ToggleMaximized() =>
-		WindowState =
-			WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-
-	private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
 }

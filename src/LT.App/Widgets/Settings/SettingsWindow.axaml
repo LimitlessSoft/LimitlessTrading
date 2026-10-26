@@ -2,78 +2,185 @@
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:LT.App.Widgets.Settings"
+	xmlns:shell="using:LT.App.Shell"
 	x:Class="LT.App.Widgets.Settings.SettingsWindow"
 	x:DataType="vm:SettingsViewModel"
+	Classes="appChrome"
 	Title="Settings"
-	Width="460"
-	SizeToContent="Height"
-	CanResize="False"
+	Width="880"
+	Height="580"
+	MinWidth="680"
+	MinHeight="420"
 	WindowStartupLocation="CenterOwner"
 >
-	<StackPanel Margin="20" Spacing="14">
-		<StackPanel Spacing="4">
-			<TextBlock Text="Market data type" FontWeight="SemiBold" />
-			<ComboBox
-				HorizontalAlignment="Stretch"
-				ItemsSource="{Binding MarketDataTypes}"
-				SelectedItem="{Binding MarketDataType}"
-			/>
-			<TextBlock
-				Classes="secondary"
-				TextWrapping="Wrap"
-				Text="Delayed still shows live data for instruments you have a subscription for. Applies to new subscriptions."
-			/>
-		</StackPanel>
+	<Window.Styles>
+		<Style Selector="StackPanel.setting">
+			<Setter Property="Spacing" Value="4" />
+		</Style>
+		<Style Selector="TextBlock.settingHelp">
+			<Setter Property="TextWrapping" Value="Wrap" />
+			<Setter Property="MaxWidth" Value="560" />
+			<Setter Property="HorizontalAlignment" Value="Left" />
+		</Style>
+	</Window.Styles>
 
-		<CheckBox
-			Content="Reconnect automatically when the connection drops"
-			IsChecked="{Binding AutoReconnect}"
-		/>
+	<Window.DataTemplates>
+		<!-- One template per kind of setting -->
+		<DataTemplate DataType="vm:BoolSettingViewModel">
+			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}">
+				<CheckBox Content="{Binding Title}" IsChecked="{Binding Value}" />
+				<TextBlock
+					Classes="secondary settingHelp"
+					Text="{Binding Description}"
+					IsVisible="{Binding HasDescription}"
+				/>
+			</StackPanel>
+		</DataTemplate>
+		<DataTemplate DataType="vm:ChoiceSettingViewModel">
+			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}">
+				<TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+				<ComboBox MinWidth="240" ItemsSource="{Binding Options}" SelectedItem="{Binding Value}" />
+				<TextBlock
+					Classes="secondary settingHelp"
+					Text="{Binding Description}"
+					IsVisible="{Binding HasDescription}"
+				/>
+			</StackPanel>
+		</DataTemplate>
+		<DataTemplate DataType="vm:NumberSettingViewModel">
+			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}">
+				<TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+				<NumericUpDown
+					Width="140"
+					HorizontalAlignment="Left"
+					FormatString="0"
+					Increment="1"
+					Minimum="{Binding Minimum}"
+					Maximum="{Binding Maximum}"
+					Value="{Binding Value}"
+				/>
+				<TextBlock
+					Classes="secondary settingHelp"
+					Text="{Binding Description}"
+					IsVisible="{Binding HasDescription}"
+				/>
+			</StackPanel>
+		</DataTemplate>
+	</Window.DataTemplates>
 
-		<StackPanel Spacing="4">
-			<CheckBox
-				Content="Stop IB Gateway when the app closes"
-				IsChecked="{Binding StopGatewayOnExit}"
-			/>
-			<TextBlock
-				Classes="secondary"
-				TextWrapping="Wrap"
-				Text="Turn off to keep the Gateway logged in between runs; the next Log in reuses it without 2FA."
-			/>
-		</StackPanel>
+	<DockPanel>
+		<shell:WindowTitleBar DockPanel.Dock="Top" Title="Settings" CanMinimize="False" />
 
-		<StackPanel Spacing="4">
-			<CheckBox Content="Check for updates" IsChecked="{Binding CheckForUpdates}" />
-			<TextBlock
-				Classes="secondary"
-				TextWrapping="Wrap"
-				Text="On start and every 6 hours; a newer version shows in the title bar. Installing always waits for you."
-			/>
-		</StackPanel>
+		<!-- Error and the dialog buttons -->
+		<Border
+			DockPanel.Dock="Bottom"
+			Padding="16,10"
+			BorderBrush="{DynamicResource PanelStroke}"
+			BorderThickness="0,1,0,0"
+		>
+			<DockPanel>
+				<StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+					<Button Content="Cancel" IsCancel="True" Click="OnCancelClick" />
+					<Button Classes="accent" Content="Save" Click="OnSaveClick" />
+				</StackPanel>
+				<TextBlock
+					VerticalAlignment="Center"
+					Classes="negative"
+					TextWrapping="Wrap"
+					Text="{Binding ErrorMessage}"
+					IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+				/>
+			</DockPanel>
+		</Border>
 
-		<StackPanel Spacing="4">
-			<TextBlock Text="Heartbeat interval (seconds)" FontWeight="SemiBold" />
-			<NumericUpDown
-				Width="140"
-				HorizontalAlignment="Left"
-				FormatString="0"
-				Increment="1"
-				Minimum="{Binding HeartbeatSecondsMin}"
-				Maximum="{Binding HeartbeatSecondsMax}"
-				Value="{Binding HeartbeatSeconds}"
-			/>
-		</StackPanel>
+		<Grid ColumnDefinitions="240,*">
+			<!-- Left: search, then the tree of pages -->
+			<Border
+				Background="{DynamicResource PanelBackground}"
+				BorderBrush="{DynamicResource PanelStroke}"
+				BorderThickness="0,0,1,0"
+			>
+				<DockPanel>
+					<TextBox
+						x:Name="SearchBox"
+						DockPanel.Dock="Top"
+						Margin="10"
+						Classes="clearButton"
+						Watermark="Search settings"
+						Text="{Binding SearchText}"
+					/>
+					<Panel>
+						<TreeView
+							Classes="settingsTree"
+							ItemsSource="{Binding VisiblePages}"
+							SelectedItem="{Binding SelectedNode}"
+						>
+							<TreeView.Styles>
+								<Style Selector="TreeViewItem" x:DataType="vm:SettingsPageViewModel">
+									<Setter Property="IsExpanded" Value="{Binding IsExpanded}" />
+								</Style>
+							</TreeView.Styles>
+							<TreeView.ItemTemplate>
+								<TreeDataTemplate
+									x:DataType="vm:SettingsPageViewModel"
+									ItemsSource="{Binding VisibleChildren}"
+								>
+									<TextBlock Text="{Binding Title}" />
+								</TreeDataTemplate>
+							</TreeView.ItemTemplate>
+						</TreeView>
+						<TextBlock
+							Margin="12,4"
+							Classes="secondary"
+							TextWrapping="Wrap"
+							Text="No settings match."
+							IsVisible="{Binding HasNoResults}"
+						/>
+					</Panel>
+				</DockPanel>
+			</Border>
 
-		<TextBlock
-			Classes="negative"
-			TextWrapping="Wrap"
-			Text="{Binding ErrorMessage}"
-			IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-		/>
-
-		<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-			<Button Content="Cancel" IsCancel="True" Click="OnCancelClick" />
-			<Button Classes="accent" Content="Save" IsDefault="True" Click="OnSaveClick" />
-		</StackPanel>
-	</StackPanel>
+			<!-- Right: the page, its tabs (when it has several) and their settings -->
+			<Panel Grid.Column="1" IsVisible="{Binding HasPage}">
+				<DockPanel
+					Margin="20,14,20,0"
+					DataContext="{Binding SelectedPage}"
+					x:DataType="vm:SettingsPageViewModel"
+				>
+					<TextBlock
+						DockPanel.Dock="Top"
+						Margin="0,0,0,8"
+						FontSize="18"
+						FontWeight="SemiBold"
+						Text="{Binding Path}"
+					/>
+					<TabStrip
+						DockPanel.Dock="Top"
+						Margin="0,0,0,12"
+						ItemsSource="{Binding VisibleTabs}"
+						SelectedItem="{Binding SelectedTab}"
+						IsVisible="{Binding HasTabStrip}"
+					>
+						<TabStrip.ItemTemplate>
+							<DataTemplate x:DataType="vm:SettingsTabViewModel">
+								<TextBlock Text="{Binding Title}" />
+							</DataTemplate>
+						</TabStrip.ItemTemplate>
+					</TabStrip>
+					<ScrollViewer>
+						<ItemsControl
+							Margin="0,0,0,16"
+							ItemsSource="{Binding SelectedTab.Items, FallbackValue={x:Null}}"
+						>
+							<ItemsControl.ItemsPanel>
+								<ItemsPanelTemplate>
+									<StackPanel Spacing="18" />
+								</ItemsPanelTemplate>
+							</ItemsControl.ItemsPanel>
+						</ItemsControl>
+					</ScrollViewer>
+				</DockPanel>
+			</Panel>
+		</Grid>
+	</DockPanel>
 </Window>

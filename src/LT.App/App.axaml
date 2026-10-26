@@ -1,6 +1,7 @@
 <Application
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:chrome="using:Avalonia.Controls.Chrome"
 	x:Class="LT.App.App"
 	RequestedThemeVariant="Dark"
 >
@@ -54,11 +55,28 @@
 		<SolidColorBrush x:Key="FrameActionHoverBrush" Color="#2C323C" />
 		<SolidColorBrush x:Key="CurrentFrameBrush" Color="#7FA7E8" Opacity="0.55" />
 		<SolidColorBrush x:Key="FrameCloseHoverBrush" Color="#3A2326" />
+
+		<!-- appChrome windows: no drawn border or shadow, the app's own panels frame them -->
+		<ControlTheme
+			x:Key="AppWindowDecorations"
+			TargetType="chrome:WindowDrawnDecorations"
+			BasedOn="{StaticResource {x:Type chrome:WindowDrawnDecorations}}"
+		>
+			<Setter Property="DefaultFrameThickness" Value="0" />
+			<Setter Property="DefaultShadowThickness" Value="0" />
+		</ControlTheme>
 	</Application.Resources>
 
 	<Application.Styles>
 		<FluentTheme />
 		<StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+
+		<!-- The app's own window chrome (the OS title bar is off); put a WindowTitleBar on top -->
+		<Style Selector=":is(Window).appChrome">
+			<Setter Property="ExtendClientAreaToDecorationsHint" Value="True" />
+			<Setter Property="WindowDecorations" Value="BorderOnly" />
+			<Setter Property="WindowDecorationsTheme" Value="{StaticResource AppWindowDecorations}" />
+		</Style>
 
 		<Style Selector="Border.panel">
 			<Setter Property="Background" Value="{DynamicResource PanelBackground}" />

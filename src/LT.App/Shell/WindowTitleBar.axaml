@@ -1,0 +1,48 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	x:Class="LT.App.Shell.WindowTitleBar"
+>
+	<!-- The app's title bar for appChrome windows: drag it to move the window, double-click to
+	     maximize. LeftContent / RightContent hold the window's own buttons (menu, update). -->
+	<Border
+		x:Name="Bar"
+		Classes="toolbar"
+		BorderBrush="{DynamicResource PanelStroke}"
+		BorderThickness="0,0,0,1"
+	>
+		<Grid ColumnDefinitions="Auto,*,Auto">
+			<ContentPresenter x:Name="LeftHost" VerticalAlignment="Center" />
+			<TextBlock
+				x:Name="TitleText"
+				Grid.Column="1"
+				Classes="secondary windowTitle"
+				HorizontalAlignment="Center"
+				VerticalAlignment="Center"
+				IsHitTestVisible="False"
+			/>
+			<StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
+				<ContentPresenter x:Name="RightHost" VerticalAlignment="Center" />
+				<Button
+					x:Name="MinimizeButton"
+					Classes="windowButton"
+					ToolTip.Tip="Minimize"
+					Click="OnMinimizeClick"
+				>
+					<PathIcon Data="{StaticResource WindowMinimizeIcon}" />
+				</Button>
+				<Button
+					x:Name="MaximizeButton"
+					Classes="windowButton"
+					ToolTip.Tip="Maximize"
+					Click="OnMaximizeClick"
+				>
+					<PathIcon x:Name="MaximizeIcon" Data="{StaticResource WindowMaximizeIcon}" />
+				</Button>
+				<Button Classes="windowButton close" ToolTip.Tip="Close" Click="OnCloseClick">
+					<PathIcon Data="{StaticResource FrameCloseIcon}" />
+				</Button>
+			</StackPanel>
+		</Grid>
+	</Border>
+</UserControl>
