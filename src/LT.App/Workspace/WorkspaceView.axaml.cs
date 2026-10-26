@@ -259,7 +259,8 @@ public partial class WorkspaceView : UserControl
 	private void OnFloatingChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
 		SyncFloating();
 
-	// Discarded instances (a closed second chart) drop their frame
+	// Discarded instances (a closed second chart) and widgets moved to another window drop their
+	// frame; the other window builds one of its own
 	private void OnWidgetsChanged(object? sender, NotifyCollectionChangedEventArgs e)
 	{
 		foreach (var widget in e.NewItems?.OfType<WidgetItem>() ?? [])
@@ -268,7 +269,10 @@ public partial class WorkspaceView : UserControl
 		{
 			widget.FocusRequested -= OnFocusRequested;
 			if (_frames.Remove(widget.Id, out var frame))
+			{
 				Detach(frame);
+				frame.Release();
+			}
 		}
 	}
 
@@ -676,7 +680,12 @@ public partial class WorkspaceView : UserControl
 				() =>
 				{
 					_opening.Remove(widget.Id);
-					if (widget.IsFloating && !_windows.ContainsKey(widget.Id))
+					// Still ours: it may have moved to another window in the meantime
+					if (
+						widget.IsFloating
+						&& _viewModel?.Find(widget.Id) == widget
+						&& !_windows.ContainsKey(widget.Id)
+					)
 						OpenWindow(widget, owner, index);
 				},
 				DispatcherPriority.Background

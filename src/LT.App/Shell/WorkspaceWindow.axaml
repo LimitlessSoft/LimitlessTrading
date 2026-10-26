@@ -1,0 +1,53 @@
+<Window
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Shell"
+	xmlns:workspace="using:LT.App.Workspace"
+	x:Class="LT.App.Shell.WorkspaceWindow"
+	x:DataType="vm:WorkspaceWindowViewModel"
+	Title="{Binding Title}"
+	Classes="appChrome"
+	Classes.flush="{Binding Appearance.IsFlush}"
+>
+	<Panel>
+		<DockPanel>
+			<!-- Its own menu: widgets picked here open in this window -->
+			<vm:WindowTitleBar DockPanel.Dock="Top" Title="{Binding Title}">
+				<vm:WindowTitleBar.LeftContent>
+					<Button Classes="tool" ToolTip.Tip="Menu">
+						<PathIcon Data="M3,6H21V8H3Z M3,11H21V13H3Z M3,16H21V18H3Z" />
+						<Button.Flyout>
+							<MenuFlyout Placement="BottomEdgeAlignedLeft">
+								<MenuItem
+									Header="Refresh all"
+									InputGesture="F5"
+									Command="{Binding RefreshAllCommand}"
+								/>
+								<MenuItem
+									Header="New window"
+									InputGesture="Ctrl+Shift+N"
+									Command="{Binding NewWindowCommand}"
+								/>
+								<workspace:WidgetsMenuItem
+									ToolClicked="OnToolClicked"
+									FullscreenClicked="OnFullscreenClicked"
+								/>
+								<Separator />
+								<MenuItem Header="Close window" Click="OnCloseClick" />
+							</MenuFlyout>
+						</Button.Flyout>
+					</Button>
+				</vm:WindowTitleBar.LeftContent>
+			</vm:WindowTitleBar>
+
+			<workspace:WorkspaceView x:Name="Workspace" DataContext="{Binding Workspace}" />
+		</DockPanel>
+		<!-- Fullscreen widget (Ctrl+Shift+F): its frame moves here and back on restore -->
+		<Border
+			x:Name="FullscreenLayer"
+			Padding="8"
+			Background="{DynamicResource SystemRegionBrush}"
+			IsVisible="False"
+		/>
+	</Panel>
+</Window>

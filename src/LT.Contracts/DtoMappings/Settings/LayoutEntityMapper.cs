@@ -7,23 +7,17 @@ namespace LT.Contracts.DtoMappings.Settings;
 public class LayoutEntityMapper : ILSCoreMapper<LayoutDto, LayoutEntity>
 {
 	public LayoutEntity ToMapped(LayoutDto source) =>
-		new()
-		{
-			LeftWidth = source.LeftWidth,
-			RightWidth = source.RightWidth,
-			BottomHeight = source.BottomHeight,
-			LeftWidgetId = source.LeftWidgetId,
-			RightWidgetId = source.RightWidgetId,
-			BottomWidgetId = source.BottomWidgetId,
-			Widgets = source.Widgets.Select(new WidgetPlacementEntityMapper().ToMapped).ToList(),
-			Views = source.Views.Select(new CenterViewEntityMapper().ToMapped).ToList(),
-			SelectedViewId = source.SelectedViewId,
-			Center = source.Center is { } center
-				? new CenterNodeEntityMapper().ToMapped(center)
-				: null,
-			ChartTimeframe = source.ChartTimeframe,
-			WindowWidth = source.WindowWidth,
-			WindowHeight = source.WindowHeight,
-			IsMaximized = source.IsMaximized,
-		};
+		WorkspaceLayoutMapping.Fill(
+			new LayoutEntity
+			{
+				ChartTimeframe = source.ChartTimeframe,
+				WindowWidth = source.WindowWidth,
+				WindowHeight = source.WindowHeight,
+				IsMaximized = source.IsMaximized,
+				Windows = source
+					.Windows.Select(new WorkspaceWindowEntityMapper().ToMapped)
+					.ToList(),
+			},
+			source
+		);
 }
