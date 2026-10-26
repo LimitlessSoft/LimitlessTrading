@@ -78,6 +78,7 @@ public static class Program
 		builder.Services.AddSingleton<ISettingsRepository, SettingsRepository>();
 		builder.Services.AddSingleton<ICacheRepository, FileCacheRepository>();
 		builder.Services.AddSingleton<IAccountHistoryRepository, AccountHistoryRepository>();
+		builder.Services.AddSingleton<ITradeJournalRepository, TradeJournalRepository>();
 		builder.Services.AddSingleton<IIbkrApiClient, IbkrApiClient>();
 		builder.Services.AddSingleton<IMessageLogManager, MessageLogManager>();
 		builder.Services.AddSingleton<IConnectionManager, ConnectionManager>();
@@ -88,6 +89,7 @@ public static class Program
 		builder.Services.AddSingleton<IAppUpdater, AppUpdater>();
 		builder.Services.AddSingleton<IUpdateManager, UpdateManager>();
 		builder.Services.AddSingleton<IAccountPerformanceManager, AccountPerformanceManager>();
+		builder.Services.AddSingleton<ITradeJournalManager, TradeJournalManager>();
 
 		// News: every INewsSource is aggregated by the news manager (more sources go here)
 		builder.Services.AddSingleton<INewsSource, IbkrNewsSource>();
@@ -105,6 +107,7 @@ public static class Program
 		builder.Services.AddHostedService<UpdateScheduler>();
 		builder.Services.AddHostedService<CacheMaintenance>();
 		builder.Services.AddHostedService<AccountPerformanceRecorder>();
+		builder.Services.AddHostedService<TradeJournalRecorder>();
 
 		// ViewModels have no interfaces, so the convention scan skips them
 		builder.Services.AddTransient<MainWindowViewModel>();

@@ -8,7 +8,7 @@ namespace LT.Tests.Contracts.Helpers;
 public class WorkspaceHelpersTests
 {
 	[Fact]
-	public void Default_placements_open_everything_but_the_option_chain_order_ticket_news_and_performance()
+	public void Default_placements_open_everything_but_the_option_chain_order_ticket_news_and_performance_widgets()
 	{
 		var placements = WorkspaceHelpers.GetDefaultPlacements();
 
@@ -16,7 +16,8 @@ public class WorkspaceHelpersTests
 		Assert.DoesNotContain(placements, x => x.Tool == WorkspaceTool.OrderTicket);
 		Assert.DoesNotContain(placements, x => x.Tool == WorkspaceTool.News);
 		Assert.DoesNotContain(placements, x => x.Tool == WorkspaceTool.AccountPerformance);
-		Assert.Equal(Enum.GetValues<WorkspaceTool>().Length - 4, placements.Count);
+		Assert.DoesNotContain(placements, x => x.Tool == WorkspaceTool.DayTradePerformance);
+		Assert.Equal(Enum.GetValues<WorkspaceTool>().Length - 5, placements.Count);
 		Assert.All(placements, x => Assert.Equal(WorkspaceHelpers.GetDefaultDock(x.Tool), x.Dock));
 		Assert.All(placements, x => Assert.Equal(WorkspaceHelpers.GetDefaultId(x.Tool), x.Id));
 	}

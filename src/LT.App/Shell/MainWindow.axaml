@@ -95,6 +95,12 @@
 										Click="OnToolClick"
 										Tag="News"
 									/>
+									<MenuItem
+										Header="Day trade performance"
+										InputGesture="Ctrl+Alt+J"
+										Click="OnToolClick"
+										Tag="DayTradePerformance"
+									/>
 									<Separator />
 									<MenuItem
 										Header="New chart"

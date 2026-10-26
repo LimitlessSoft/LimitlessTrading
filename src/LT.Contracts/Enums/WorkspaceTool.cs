@@ -14,4 +14,5 @@ public enum WorkspaceTool
 	OrderTicket = 8,
 	News = 9,
 	AccountPerformance = 10,
+	DayTradePerformance = 11,
 }

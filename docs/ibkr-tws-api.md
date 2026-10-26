@@ -9,6 +9,17 @@ file covers how the app uses it, IB's limits and the quirks we have hit. Read it
 
 `IBKR.Net` comes from nuget.org (0.4.0).
 
+### Extending IBKR.Net
+
+IBKR.Net is ours and is changed whenever LimitlessTrading needs an IB call it doesn't have yet —
+don't work around a missing call in LT (no second IB client, no Flex / Client Portal side
+channel). The order is: record the request and its answers against a real Gateway with
+`tools/IbkrWireRecorder` (in the IBKR.Net repo), implement it there from the recording only
+(clean-room: never from IB's own API source), publish a new IBKR.Net version to nuget.org, then
+bump the package here and map the new types in `LT.Ibkr/DtoMappings/`. Until then LT is built
+against its own DTO so the feature lights up with only the `LT.Ibkr` change (executions:
+`ExecutionDto`, used by the Executions widget and the trade journal).
+
 ## Connecting
 
 ```csharp
@@ -122,8 +133,10 @@ Limits / caveats:
 ### Not covered yet
 
 - **Executions** (`reqExecutions`, commission reports): their frames have not been recorded yet
-  (no fill when we recorded). Until then the Executions widget shows "not supported yet"
-  (`ConnectionValidationCodes.CVC_007`).
+  (no fill when we recorded). Until then the Executions widget and the trade stats of Day trade
+  performance show "not supported yet" (`ConnectionValidationCodes.CVC_007`). The mapping must
+  fill `ExecutionDto.ConId`, `LocalSymbol` and `Multiplier` too (trade matching keys on the
+  conId, P&L uses the multiplier), and the commission report's commission by ExecId.
 - Market depth / Level 2 (`reqMktDepth`), tick-by-tick (`reqTickByTickData`), option greeks
   (`tickOptionComputation`).
 - Scanners (`reqScannerSubscription`); news bulletins (`reqNewsBulletins`).
@@ -184,6 +197,28 @@ merges every source for the News widget (see [ui-patterns.md](ui-patterns.md#wor
   for bars; we have not seen IB pace `reqHistoricalNews`), and the widget pages only on "Load
   older". Not verified against IB's limits under heavy paging.
 
+## Trade journal
+
+IB returns only the current day's executions, so the app keeps its own history
+(`ITradeJournalManager`, `TradeJournalRecorder` hosted service, `TradeJournalRepository`):
+
+- While connected it asks for executions on connect and every 30 s
+  (`AccountConstants.ExecutionsRefreshInterval`, one paced request; there is no app-wide order
+  status event to trigger on) and merges them into `trade-journal/fills/<day>.json`, deduplicated
+  by ExecId; a commission that arrives later is merged into the saved fill.
+- It follows each managed account's `reqPnL` (up to `TradeJournalConstants.MaxPnlAccounts`) on
+  the shared subscription and keeps DailyPnl as a curve: at most one point per account every
+  10 s (a newer value replaces the point inside that window, so short spikes can be missed),
+  written to `trade-journal/pnl/<day>.json` every minute and on disconnect / exit. A restart the
+  same day continues the curve.
+- Days are New York dates (`TradeJournalConstants.TradeDayTimeZoneId`), so a US session and its
+  after-hours stay on one day for a user in Europe. IB resets DailyPnl on its own schedule, which
+  may not be New York midnight.
+- Trades are flat-to-flat round trips per account and contract (FIFO lots,
+  `TradeMatchingHelpers`), over every recorded day, so a position carried overnight closes against
+  its recorded entry; fills from before recording started are unknown (a sell then looks like a
+  short). Amounts are summed as reported, regardless of currency.
+
 ## Quirks we have hit
 
 - **Notices vs errors.** IBKR.Net treats codes 2100–2199 (farm status, 2150 on position P&L) and
@@ -210,8 +245,8 @@ merges every source for the News widget (see [ui-patterns.md](ui-patterns.md#wor
   each subscriber gets the cached values, then every change (IB pushes changes about every 3
   minutes). Don't cancel and resubscribe it, e.g. on account change; filter by account instead.
 - **Account P&L (`reqPnL`) is one subscription per account**, shared by every caller
-  (`AccountPnlFeed` in `LT.Ibkr`): the Account widget and the account performance recorder
-  follow the same one. It opens with the first subscriber, is cancelled when the last leaves, and
+  (`AccountPnlFeed` in `LT.Ibkr`): the Account widget, the account performance recorder and the
+  trade journal follow the same one. It opens with the first subscriber, is cancelled when the last leaves, and
   a late subscriber gets the latest value first.
 - **No account history.** The socket API has no historical NAV or P&L (that needs Flex queries
   or the Client Portal API, which the app doesn't use). The Account performance widget therefore

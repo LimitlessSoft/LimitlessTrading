@@ -4,11 +4,15 @@ using LSCore.Validation.Domain;
 using LT.Contracts.DtoMappings.AccountPerformance;
 using LT.Contracts.DtoMappings.Charts;
 using LT.Contracts.DtoMappings.Contracts;
+using LT.Contracts.DtoMappings.Executions;
+using LT.Contracts.DtoMappings.Performance;
 using LT.Contracts.DtoMappings.Settings;
 using LT.Contracts.DtoMappings.Watchlists;
 using LT.Contracts.Dtos.AccountPerformance;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
+using LT.Contracts.Dtos.Executions;
+using LT.Contracts.Dtos.Performance;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Dtos.Watchlists;
 using LT.Contracts.Entities;
@@ -95,6 +99,9 @@ public static class LSCoreContainer
 					ILSCoreMapper<AccountDaySnapshotEntity, AccountDaySnapshotDto>,
 					AccountDaySnapshotDtoMapper
 				>()
+				.AddSingleton<ILSCoreMapper<ExecutionDto, FillEntity>, FillEntityMapper>()
+				.AddSingleton<ILSCoreMapper<FillEntity, ExecutionDto>, ExecutionDtoMapper>()
+				.AddSingleton<ILSCoreMapper<PnlSampleEntity, PnlSampleDto>, PnlSampleDtoMapper>()
 				.BuildServiceProvider();
 		}
 	}

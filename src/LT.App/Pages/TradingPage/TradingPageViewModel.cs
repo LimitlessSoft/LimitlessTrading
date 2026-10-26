@@ -3,6 +3,7 @@ using LT.App.ViewModels;
 using LT.App.Widgets.Account;
 using LT.App.Widgets.AccountPerformance;
 using LT.App.Widgets.Chart;
+using LT.App.Widgets.DayTradePerformance;
 using LT.App.Widgets.Executions;
 using LT.App.Widgets.Orders;
 using LT.App.Widgets.Positions;
@@ -67,6 +68,9 @@ public class TradingPageViewModel(
 					break;
 				case ExecutionsViewModel executions:
 					executions.Refresh();
+					break;
+				case DayTradePerformanceViewModel performance:
+					_ = performance.RefreshAsync();
 					break;
 			}
 		}

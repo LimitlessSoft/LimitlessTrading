@@ -25,8 +25,10 @@ tasks go to the `code` agent (`.claude/agents/code.md`), which has the commit, p
    the user's explicit yes for that order. Order modification and what-if are not built. See
    [docs/ibkr-tws-api.md](docs/ibkr-tws-api.md#orders).
 1. **`IBKR.Net` types live only in `LT.Ibkr`.** Everything crossing `IIbkrApiClient` is an
-   `LT.Contracts` DTO; map IB types in `LT.Ibkr/DtoMappings/`. See
-   [docs/ibkr-tws-api.md](docs/ibkr-tws-api.md).
+   `LT.Contracts` DTO; map IB types in `LT.Ibkr/DtoMappings/`. IBKR.Net is our own client: when
+   LT needs an IB call it lacks, add it there (record the frames with `tools/IbkrWireRecorder`,
+   clean-room, publish a new version, bump LT) instead of working around it in LT. See
+   [docs/ibkr-tws-api.md](docs/ibkr-tws-api.md#extending-ibkrnet).
 2. **Always update interfaces when modifying implementations** — the interface in
    `LT.Contracts/Interfaces/` first, then the implementation.
 3. **No private helpers in Managers** — reusable logic goes to `LT.Contracts/Helpers/` as a
