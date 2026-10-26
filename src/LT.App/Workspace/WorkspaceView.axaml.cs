@@ -748,20 +748,25 @@ public partial class WorkspaceView : UserControl
 		{
 			Padding = FloatingPadding,
 			Title = widget.Title,
-			Width = widget.FloatWidth ?? WorkspaceConstants.FloatingDefaultWidth,
-			Height = widget.FloatHeight ?? WorkspaceConstants.FloatingDefaultHeight,
 			MinWidth = WorkspaceConstants.FloatingMinWidth,
 			MinHeight = WorkspaceConstants.FloatingMinHeight,
 			WindowStartupLocation = WindowStartupLocation.Manual,
 			Content = frame,
 		};
-		if (widget is { FloatX: { } x, FloatY: { } y })
-			window.Position = new PixelPoint((int)x, (int)y);
-		else
-		{
-			var offset = (int)(WorkspaceConstants.FloatingCascadeOffset * (cascade + 1));
-			window.Position = owner.Position + new PixelPoint(offset * 2, offset * 2);
-		}
+		// Back where it was (on its screen, maximized or not); a new one cascades from the owner
+		var offset = (int)(WorkspaceConstants.FloatingCascadeOffset * (cascade + 1));
+		window.Placement.Restore(
+			new WindowPlacementDto
+			{
+				X = widget.FloatX,
+				Y = widget.FloatY,
+				Width = widget.FloatWidth ?? WorkspaceConstants.FloatingDefaultWidth,
+				Height = widget.FloatHeight ?? WorkspaceConstants.FloatingDefaultHeight,
+				State = widget.FloatState ?? WindowPlacementState.Normal,
+				Screen = widget.FloatScreen,
+			},
+			owner.Position + new PixelPoint(offset * 2, offset * 2)
+		);
 
 		window.Closing += (_, e) =>
 		{
@@ -794,11 +799,15 @@ public partial class WorkspaceView : UserControl
 		window.Show(owner);
 	}
 
-	private static void StoreBounds(WidgetItem widget, Window window)
+	// Normal bounds (position in device pixels, size in DIPs), state and screen
+	private static void StoreBounds(WidgetItem widget, FloatingWidgetWindow window)
 	{
-		widget.FloatX = window.Position.X;
-		widget.FloatY = window.Position.Y;
-		widget.FloatWidth = window.Width;
-		widget.FloatHeight = window.Height;
+		var placement = window.Placement.Capture();
+		widget.FloatX = placement.X;
+		widget.FloatY = placement.Y;
+		widget.FloatWidth = placement.Width;
+		widget.FloatHeight = placement.Height;
+		widget.FloatState = placement.State;
+		widget.FloatScreen = placement.Screen;
 	}
 }

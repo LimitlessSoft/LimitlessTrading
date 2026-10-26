@@ -281,7 +281,7 @@ public class WorkspaceViewMoveTests
 
 		Assert.Equal(["A"], Names(main));
 		var window = Assert.Single(windows.Windows);
-		Assert.Equal((300d, 200d), (window.X!.Value, window.Y!.Value));
+		Assert.Equal((300d, 200d), (window.Placement.X!.Value, window.Placement.Y!.Value));
 		var view = Assert.Single(window.Workspace.Views);
 		Assert.Equal("B", view.Name);
 		Assert.Same(view, window.Workspace.SelectedView);

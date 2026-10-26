@@ -147,6 +147,23 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   (`WorkspaceWindow.HandOver` releases its frames first) and the old main workspace is discarded
   with its widgets. `WorkspaceView` empties its hosts whenever its workspace is swapped
   (`ClearHosts`), so the new one gets fresh frames.
+- **Window placement.** The main window, every extra workspace window and every floating
+  widget window come back on the screen they were on, at their normal-state bounds and in their
+  state (normal, maximized, full screen; minimized comes back as the state before it).
+  `WindowPlacementTracker` (`LT.App/Shell`, one per window) follows the window while it is open:
+  normal bounds are taken only once the platform has settled and the window is still normal, so
+  maximized bounds never count and un-maximizing after a restart goes back to the right size.
+  `Capture` gives what is saved (on close and when the app exits, with the layout);
+  `Restore` sets the normal bounds first and the state once the window is shown, so a maximized
+  window maximizes on its own screen. The screen math is `WindowPlacementHelpers`
+  (`LT.Contracts`): the saved screen (name and pixel bounds) is found again by name and bounds,
+  else by a unique name (resolution or arrangement changed), else by unique bounds (renamed); the
+  window keeps its spot relative to that screen's corner; a screen that is gone puts it on the
+  primary screen at the same relative spot. Without a saved screen (older layouts) it goes on the
+  screen it overlaps most, or centered on the primary one; either way it is clamped into the
+  working area and shrunk to fit. Positions are device pixels, sizes DIPs (converted with the
+  target screen's scaling). Older layouts without a position or state open as before (main
+  window centered, `IsMaximized` decides).
   `WorkspaceWindows` (singleton) holds the main workspace and the extra ones
   (`WorkspaceWindowViewModel`, shown by `Shell/WorkspaceWindow`, which the main window opens).
 
@@ -319,7 +336,9 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   drag.
 - Saved in `LayoutEntity` (its workspace part is `WorkspaceLayoutEntity`, shared with every
   extra window's `WorkspaceWindowEntity` in `LayoutEntity.Windows`, which adds its id, name and
-  bounds; layouts saved before windows have none): `Widgets` (id, kind, dock, floating bounds, chart settings of each open
+  bounds; layouts saved before windows have none; the main window's position, state and screen
+  are `WindowX` / `WindowY` / `WindowState` / `WindowScreen`, an extra window's `State` /
+  `Screen`, a floating widget's `FloatState` / `FloatScreen`, all null in older layouts): `Widgets` (id, kind, dock, floating bounds, chart settings of each open
   instance), `Views` (id, name and split tree with sizes of each view) with `SelectedViewId`, the
   expanded widget per side and side widths. Layouts from before views have only `Center` (one
   split tree): it becomes the first view, "Main", on load and is saved as null afterwards

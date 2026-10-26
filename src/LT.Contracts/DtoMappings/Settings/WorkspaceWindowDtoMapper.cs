@@ -17,6 +17,10 @@ public class WorkspaceWindowDtoMapper : ILSCoreMapper<WorkspaceWindowEntity, Wor
 				Width = source.Width,
 				Height = source.Height,
 				IsMaximized = source.IsMaximized,
+				State = source.State,
+				Screen = source.Screen is { } screen
+					? new WindowScreenDtoMapper().ToMapped(screen)
+					: null,
 			},
 			source
 		);

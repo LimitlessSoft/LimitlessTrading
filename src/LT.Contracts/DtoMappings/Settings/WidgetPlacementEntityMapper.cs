@@ -18,6 +18,10 @@ public class WidgetPlacementEntityMapper : ILSCoreMapper<WidgetPlacementDto, Wid
 			FloatY = source.FloatY,
 			FloatWidth = source.FloatWidth,
 			FloatHeight = source.FloatHeight,
+			FloatState = source.FloatState,
+			FloatScreen = source.FloatScreen is { } screen
+				? new WindowScreenEntityMapper().ToMapped(screen)
+				: null,
 			LinkGroup = source.LinkGroup,
 			IsPinned = source.IsPinned,
 			SideWidth = source.SideWidth,

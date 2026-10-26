@@ -10,6 +10,7 @@ using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Connection;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
+using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IManagers;
 
 namespace LT.App.Shell;
@@ -84,15 +85,11 @@ public partial class MainWindowViewModel : ViewModelBase
 
 	public LayoutDto GetLayout() => _settingsManager.GetLayout();
 
-	public void SaveLayout(double? width, double? height, bool isMaximized)
+	/// <summary>Saves every window's layout, with the main window's bounds, state and screen.</summary>
+	public void SaveLayout(WindowPlacementDto placement)
 	{
 		var layout = _settingsManager.GetLayout();
-		if (width is { } w && height is { } h)
-		{
-			layout.WindowWidth = w;
-			layout.WindowHeight = h;
-		}
-		layout.IsMaximized = isMaximized;
+		WindowPlacementHelpers.SetMain(layout, placement);
 		CurrentPage.FillLayout(layout);
 		_settingsManager.SaveLayout(layout);
 	}

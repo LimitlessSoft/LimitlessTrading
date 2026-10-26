@@ -1,3 +1,5 @@
+using LT.Contracts.Enums;
+
 namespace LT.Contracts.Dtos.Settings;
 
 /// <summary>An extra workspace window: its own workspace, name and bounds.</summary>
@@ -12,4 +14,8 @@ public class WorkspaceWindowDto : WorkspaceLayoutDto
 	public double Width { get; set; }
 	public double Height { get; set; }
 	public bool IsMaximized { get; set; }
+
+	/// <summary>Null = older layouts: <see cref="IsMaximized"/> decides.</summary>
+	public WindowPlacementState? State { get; set; }
+	public WindowScreenDto? Screen { get; set; }
 }

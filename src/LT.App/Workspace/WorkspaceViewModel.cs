@@ -685,6 +685,8 @@ public partial class WorkspaceViewModel : ViewModelBase
 			FloatY = widget.FloatY,
 			FloatWidth = widget.FloatWidth,
 			FloatHeight = widget.FloatHeight,
+			FloatState = widget.FloatState,
+			FloatScreen = widget.FloatScreen,
 			IsPinned = widget.IsPinned,
 			SideWidth = widget.SideWidth,
 			BottomHeight = widget.BottomHeight,
@@ -702,6 +704,8 @@ public partial class WorkspaceViewModel : ViewModelBase
 		widget.FloatY = placement.FloatY;
 		widget.FloatWidth = placement.FloatWidth;
 		widget.FloatHeight = placement.FloatHeight;
+		widget.FloatState = placement.FloatState;
+		widget.FloatScreen = placement.FloatScreen;
 		widget.IsPinned = placement.IsPinned;
 		widget.SideWidth = placement.SideWidth;
 		widget.BottomHeight = placement.BottomHeight;

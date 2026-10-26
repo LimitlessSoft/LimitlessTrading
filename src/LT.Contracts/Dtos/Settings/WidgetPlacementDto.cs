@@ -14,6 +14,10 @@ public class WidgetPlacementDto
 	public double? FloatWidth { get; set; }
 	public double? FloatHeight { get; set; }
 
+	/// <summary>Floating window state (null: normal) and screen (null: older layouts).</summary>
+	public WindowPlacementState? FloatState { get; set; }
+	public WindowScreenDto? FloatScreen { get; set; }
+
 	// Linkable widgets (chart, option chain, watchlist, positions, orders, executions, news,
 	// order ticket)
 	public LinkGroup LinkGroup { get; set; } = LinkGroup.Red;

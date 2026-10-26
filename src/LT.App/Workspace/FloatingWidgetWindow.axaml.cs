@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using LT.App.Controls;
+using LT.App.Shell;
 
 namespace LT.App.Workspace;
 
@@ -12,7 +13,11 @@ public partial class FloatingWidgetWindow : AppWindow
 	{
 		InitializeComponent();
 		AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
+		Placement = new WindowPlacementTracker(this);
 	}
+
+	/// <summary>Its normal bounds, state and screen, saved with the widget's placement.</summary>
+	public WindowPlacementTracker Placement { get; }
 
 	// Keys here never reach the main window: Ctrl+Alt+key focuses a widget, Ctrl+Shift+F acts on
 	// this window's widget

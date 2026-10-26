@@ -14,6 +14,12 @@ public class LayoutEntityMapper : ILSCoreMapper<LayoutDto, LayoutEntity>
 				WindowWidth = source.WindowWidth,
 				WindowHeight = source.WindowHeight,
 				IsMaximized = source.IsMaximized,
+				WindowX = source.WindowX,
+				WindowY = source.WindowY,
+				WindowState = source.WindowState,
+				WindowScreen = source.WindowScreen is { } screen
+					? new WindowScreenEntityMapper().ToMapped(screen)
+					: null,
 				Windows = source
 					.Windows.Select(new WorkspaceWindowEntityMapper().ToMapped)
 					.ToList(),

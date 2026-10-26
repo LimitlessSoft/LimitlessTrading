@@ -14,6 +14,16 @@ public class LayoutEntity : WorkspaceLayoutEntity
 	public double WindowHeight { get; set; } = 900;
 	public bool IsMaximized { get; set; } = true;
 
+	/// <summary>Normal-state position in device pixels; null = centered (older layouts).</summary>
+	public double? WindowX { get; set; }
+	public double? WindowY { get; set; }
+
+	/// <summary>Null = older layouts: <see cref="IsMaximized"/> decides.</summary>
+	public WindowPlacementState? WindowState { get; set; }
+
+	/// <summary>The screen the main window was on; null in older layouts.</summary>
+	public WindowScreenEntity? WindowScreen { get; set; }
+
 	/// <summary>Extra workspace windows open at exit, reopened on start; none in older layouts.</summary>
 	public List<WorkspaceWindowEntity> Windows { get; set; } = [];
 }
