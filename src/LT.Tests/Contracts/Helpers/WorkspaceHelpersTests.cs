@@ -1,5 +1,6 @@
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Settings;
+using LT.Contracts.Entities;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 
@@ -8,18 +9,80 @@ namespace LT.Tests.Contracts.Helpers;
 public class WorkspaceHelpersTests
 {
 	[Fact]
-	public void Default_placements_open_everything_but_the_option_chain_order_ticket_news_and_performance_widgets()
+	public void Default_placements_put_the_chart_in_the_center_and_the_watchlist_left_and_four_widgets_right()
 	{
 		var placements = WorkspaceHelpers.GetDefaultPlacements();
 
-		Assert.DoesNotContain(placements, x => x.Tool == WorkspaceTool.OptionChain);
-		Assert.DoesNotContain(placements, x => x.Tool == WorkspaceTool.OrderTicket);
-		Assert.DoesNotContain(placements, x => x.Tool == WorkspaceTool.News);
-		Assert.DoesNotContain(placements, x => x.Tool == WorkspaceTool.AccountPerformance);
-		Assert.DoesNotContain(placements, x => x.Tool == WorkspaceTool.DayTradePerformance);
-		Assert.Equal(Enum.GetValues<WorkspaceTool>().Length - 5, placements.Count);
-		Assert.All(placements, x => Assert.Equal(WorkspaceHelpers.GetDefaultDock(x.Tool), x.Dock));
+		Assert.Equal(
+			[
+				(WorkspaceTool.Chart, WidgetDock.Center, true, (double?)null),
+				(WorkspaceTool.Watchlist, WidgetDock.Left, false, 441),
+				(WorkspaceTool.Account, WidgetDock.Right, true, 407),
+				(WorkspaceTool.Messages, WidgetDock.Right, true, 407),
+				(WorkspaceTool.OptionChain, WidgetDock.Right, false, 1100),
+				(WorkspaceTool.OrderTicket, WidgetDock.Right, false, 407),
+			],
+			placements.Select(x => (x.Tool, x.Dock, x.IsPinned, x.SideWidth))
+		);
 		Assert.All(placements, x => Assert.Equal(WorkspaceHelpers.GetDefaultId(x.Tool), x.Id));
+		Assert.All(placements, x => Assert.Equal(LinkGroup.Red, x.LinkGroup));
+	}
+
+	[Fact]
+	public void Default_chart_shows_SPY_at_five_minutes_and_is_linked()
+	{
+		var chart = WorkspaceHelpers
+			.GetDefaultPlacements()
+			.Single(x => x.Tool == WorkspaceTool.Chart);
+
+		Assert.Equal(
+			(ChartTimeframe.FiveMinutes, true, 756733, "SPY", "SMART", "ARCA", "USD"),
+			(
+				chart.ChartTimeframe,
+				chart.ChartLinked,
+				chart.ChartContract!.ConId,
+				chart.ChartContract.Symbol,
+				chart.ChartContract.Exchange,
+				chart.ChartContract.PrimaryExchange,
+				chart.ChartContract.Currency
+			)
+		);
+	}
+
+	[Fact]
+	public void Default_placements_are_new_instances_on_every_call() =>
+		Assert.NotSame(
+			WorkspaceHelpers.GetDefaultPlacements()[0].ChartContract,
+			WorkspaceHelpers.GetDefaultPlacements()[0].ChartContract
+		);
+
+	[Fact]
+	public void Default_layout_is_maximized_with_collapsed_sides_and_the_chart_in_the_main_view()
+	{
+		var layout = new LayoutEntity();
+
+		Assert.Equal(
+			(441d, 635d, 240d, (string?)null, (string?)null, (string?)null, true),
+			(
+				layout.LeftWidth,
+				layout.RightWidth,
+				layout.BottomHeight,
+				layout.LeftWidgetId,
+				layout.RightWidgetId,
+				layout.BottomWidgetId,
+				layout.IsMaximized
+			)
+		);
+		Assert.Equal(ChartTimeframe.FiveMinutes, layout.ChartTimeframe);
+		var view = Assert.Single(
+			CenterViewHelpers.Normalize(
+				[],
+				null,
+				null,
+				layout.Widgets.Where(x => x.Dock == WidgetDock.Center).Select(x => x.Id).ToList()
+			)
+		);
+		Assert.Equal(WorkspaceHelpers.GetDefaultId(WorkspaceTool.Chart), view.Root!.WidgetId);
 	}
 
 	[Fact]

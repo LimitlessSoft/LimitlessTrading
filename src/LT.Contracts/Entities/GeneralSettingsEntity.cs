@@ -5,7 +5,7 @@ namespace LT.Contracts.Entities;
 
 public class GeneralSettingsEntity
 {
-	public MarketDataType MarketDataType { get; set; } = MarketDataType.Delayed;
+	public MarketDataType MarketDataType { get; set; } = MarketDataType.Live;
 	public bool AutoReconnect { get; set; } = true;
 	public int HeartbeatSeconds { get; set; } = ConnectionConstants.DefaultHeartbeatSeconds;
 	public bool StopGatewayOnExit { get; set; }

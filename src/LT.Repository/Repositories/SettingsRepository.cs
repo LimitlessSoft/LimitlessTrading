@@ -19,7 +19,7 @@ public class SettingsRepository : ISettingsRepository
 		lock (_lock)
 		{
 			if (!File.Exists(_filePath))
-				return new SettingsEntity();
+				return WatchlistHelpers.CreateFirstRunSettings();
 
 			try
 			{

@@ -54,6 +54,7 @@ public class GatewayManagerTests
 		Assert.False(_manager.Status.IsExternal);
 		Assert.Equal(ConnectionState.Connected, _connection.Status.State);
 		Assert.Equal(4002, _connection.GetLastConnectRequest().Port);
+		Assert.Equal(TradingMode.Paper, _settings.Settings.Gateway.TradingMode);
 	}
 
 	[Fact]
@@ -71,6 +72,7 @@ public class GatewayManagerTests
 	public async Task Logging_in_to_live_connects_to_the_live_port_and_remembers_the_mode()
 	{
 		_process.PortAfterLogin = 4001;
+		_settings.Settings.Gateway.TradingMode = TradingMode.Paper;
 
 		await _manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken);
 
@@ -230,11 +232,11 @@ public class GatewayManagerTests
 	public async Task Attach_prefers_the_last_used_mode()
 	{
 		_process.PortsOpenBeforeStart.UnionWith([4001, 4002]);
-		_settings.Settings.Gateway.TradingMode = TradingMode.Live;
+		_settings.Settings.Gateway.TradingMode = TradingMode.Paper;
 
 		await _manager.AttachRunningAsync(TestContext.Current.CancellationToken);
 
-		Assert.Equal(4001, _manager.Status.ApiPort);
+		Assert.Equal(4002, _manager.Status.ApiPort);
 	}
 
 	[Fact]

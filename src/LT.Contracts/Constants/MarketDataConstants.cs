@@ -21,6 +21,9 @@ public static class MarketDataConstants
 	/// <summary>Name of the first watchlist (and of one migrated from older settings).</summary>
 	public const string DefaultWatchlistName = "Main";
 
+	/// <summary>Name of the watchlist a fresh install starts with (US stocks).</summary>
+	public const string StarterWatchlistName = "US";
+
 	/// <summary>New watchlists are "Watchlist 2", "Watchlist 3" …</summary>
 	public const string NewWatchlistNamePrefix = "Watchlist";
 	public const int RecentContractsMax = 10;

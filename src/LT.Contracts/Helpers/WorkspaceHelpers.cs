@@ -7,16 +7,6 @@ namespace LT.Contracts.Helpers;
 
 public static class WorkspaceHelpers
 {
-	// Not part of the first-run workspace
-	private static readonly WorkspaceTool[] OpenedOnPurpose =
-	[
-		WorkspaceTool.OptionChain,
-		WorkspaceTool.OrderTicket,
-		WorkspaceTool.News,
-		WorkspaceTool.AccountPerformance,
-		WorkspaceTool.DayTradePerformance,
-	];
-
 	/// <summary>Where a widget opens when it is spawned and has no saved placement.</summary>
 	public static WidgetDock GetDefaultDock(WorkspaceTool tool) =>
 		tool switch
@@ -60,19 +50,51 @@ public static class WorkspaceHelpers
 	public static string GetDefaultId(WorkspaceTool tool) => tool.ToString();
 
 	/// <summary>
-	/// First-run workspace: every widget except the option chain, the order ticket, news, account
-	/// performance and day trade performance (opened on purpose, from the menu), in its default dock.
+	/// First-run workspace: the chart (SPY, 5m) in the center; the watchlist on the left; account,
+	/// messages, the option chain and the order ticket on the right, the first two pinned. The
+	/// others (positions, orders, executions, news, performance) are opened from the menu.
 	/// </summary>
 	public static List<WidgetPlacementEntity> GetDefaultPlacements() =>
-		Enum.GetValues<WorkspaceTool>()
-			.Where(x => !OpenedOnPurpose.Contains(x))
-			.Select(x => new WidgetPlacementEntity
+		[
+			new()
 			{
-				Id = GetDefaultId(x),
-				Tool = x,
-				Dock = GetDefaultDock(x),
-			})
-			.ToList();
+				Id = GetDefaultId(WorkspaceTool.Chart),
+				Tool = WorkspaceTool.Chart,
+				Dock = WidgetDock.Center,
+				ChartTimeframe = ChartTimeframe.FiveMinutes,
+				ChartContract = ContractHelpers.GetStarterChartContract(),
+			},
+			new()
+			{
+				Id = GetDefaultId(WorkspaceTool.Watchlist),
+				Tool = WorkspaceTool.Watchlist,
+				Dock = WidgetDock.Left,
+				IsPinned = false,
+				SideWidth = WorkspaceConstants.DefaultWatchlistWidth,
+			},
+			CreateRightPlacement(WorkspaceTool.Account, true),
+			CreateRightPlacement(WorkspaceTool.Messages, true),
+			CreateRightPlacement(
+				WorkspaceTool.OptionChain,
+				false,
+				WorkspaceConstants.DefaultOptionChainWidth
+			),
+			CreateRightPlacement(WorkspaceTool.OrderTicket, false),
+		];
+
+	private static WidgetPlacementEntity CreateRightPlacement(
+		WorkspaceTool tool,
+		bool isPinned,
+		double sideWidth = WorkspaceConstants.DefaultRightWidgetWidth
+	) =>
+		new()
+		{
+			Id = GetDefaultId(tool),
+			Tool = tool,
+			Dock = WidgetDock.Right,
+			IsPinned = isPinned,
+			SideWidth = sideWidth,
+		};
 
 	/// <summary>
 	/// Cleans a saved layout: drops unknown widgets/docks, gives id-less entries (older layouts)

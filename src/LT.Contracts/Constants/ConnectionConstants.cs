@@ -14,7 +14,7 @@ public static class ConnectionConstants
 	public const int GatewayLivePort = 4001;
 	public const int GatewayPaperPort = 4002;
 
-	public const int DefaultPort = GatewayPaperPort;
+	public const int DefaultPort = GatewayLivePort;
 	public static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(15);
 
 	public const int DefaultHeartbeatSeconds = 5;

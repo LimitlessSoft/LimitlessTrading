@@ -150,11 +150,12 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
 - No hover cursor or tooltip on headers; the cursor turns into a move cursor only while dragging.
 - Docked on a side, a frame sits flush against the strip and the window edges (no margins,
   no rounded border — `Border.panel.docked`); center tiles and floating widgets keep the card look.
-- A widget opens where it last was; a new chart opens where the last chart was. On first run:
-  Watchlist, Positions, Orders and Executions on the left; Account and Messages on the right;
-  Chart in the center; Option chain, Order ticket, News, Account performance and Day trade
-  performance closed
-  (`WorkspaceHelpers.GetDefaultPlacements`).
+- A widget opens where it last was; a new chart opens where the last chart was. On first run
+  (`WorkspaceHelpers.GetDefaultPlacements`, sizes in `WorkspaceConstants`) the window is maximized
+  with every side collapsed: Chart in the center on SPY at 5m (link group red); Watchlist on the
+  left (unpinned); Account and Messages (pinned), Option chain and Order ticket (unpinned) on the
+  right. Positions, Orders, Executions, News, Account performance and Day trade performance are
+  closed.
 - **Order ticket** (`LT.Widgets.OrderTicket`, right side): takes its contract from the link group.
   Account, side, market / limit, quantity or amount in $ (market only), limit price, time in force
   (crypto: GTC / IOC). "Review order" validates (`IOrderManager.ValidateOrder`) and spells the
@@ -238,7 +239,8 @@ last row, "+ New watchlist", adds "Watchlist N" and opens its name for editing. 
 row buttons bind to `Owner` (the widget's view model) commands. Adding and removing symbols works
 on the shown watchlist. `IWatchlistManager` keeps them in `SettingsEntity.Watchlists` with
 `ActiveWatchlistId`; the single list of older settings becomes "Main" on first load
-(`WatchlistHelpers.EnsureWatchlists`).
+(`WatchlistHelpers.EnsureWatchlists`). A fresh install (no settings file) starts with a "US" list
+of SPY, MSFT, NVDA and TSLA (`WatchlistHelpers.CreateFirstRunSettings`).
 
 ### Pinned side widgets
 

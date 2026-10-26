@@ -12,7 +12,7 @@ namespace LT.Contracts.Entities;
 public class GatewaySettingsEntity
 {
 	/// <summary>Mode of the last Gateway connected to; its port is tried first when attaching.</summary>
-	public TradingMode TradingMode { get; set; } = TradingMode.Paper;
+	public TradingMode TradingMode { get; set; } = TradingMode.Live;
 	public string GatewayPath { get; set; } = GatewayHelpers.GetDefaultGatewayPath();
 	public string GatewayVersion { get; set; } = GatewayConstants.DefaultGatewayVersion;
 }

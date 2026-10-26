@@ -1,11 +1,46 @@
 using System.Globalization;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Contracts;
+using LT.Contracts.Entities;
 
 namespace LT.Contracts.Helpers;
 
 public static class ContractHelpers
 {
+	/// <summary>
+	/// US stocks a fresh install starts with (SPY, MSFT, NVDA, TSLA): the first watchlist, and SPY
+	/// on the first chart. New instances on every call.
+	/// </summary>
+	public static List<ContractEntity> GetStarterContracts() =>
+		[
+			CreateSmartStock(756733, "SPY", "ARCA", "SPY"),
+			CreateSmartStock(272093, "MSFT", "NASDAQ", "NMS"),
+			CreateSmartStock(4815747, "NVDA", "NASDAQ", "NMS"),
+			CreateSmartStock(76792991, "TSLA", "NASDAQ", "NMS"),
+		];
+
+	/// <summary>The starter chart's contract: SPY (ARCA, USD) routed via SMART.</summary>
+	public static ContractEntity GetStarterChartContract() => GetStarterContracts()[0];
+
+	/// <summary>A USD stock routed via SMART, as IB returns it from a contract search.</summary>
+	public static ContractEntity CreateSmartStock(
+		int conId,
+		string symbol,
+		string primaryExchange,
+		string tradingClass
+	) =>
+		new()
+		{
+			ConId = conId,
+			Symbol = symbol,
+			LocalSymbol = symbol,
+			SecurityType = MarketDataConstants.StockType,
+			Exchange = MarketDataConstants.DefaultExchange,
+			PrimaryExchange = primaryExchange,
+			Currency = MarketDataConstants.PreferredCurrency,
+			TradingClass = tradingClass,
+		};
+
 	/// <summary>Cache key of one contract search (an already normalised query).</summary>
 	public static string GetSearchCacheKey(ContractDto query) =>
 		$"search|{query.Symbol}|{query.SecurityType}|{query.Exchange}|{query.Currency}";

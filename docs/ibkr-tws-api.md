@@ -69,7 +69,7 @@ Flow (`GatewayManager` → `IGatewayProcess`, implemented by `LT.Ibkr/Gateway/Ga
    If the live or paper API port is already open, a Gateway is running that this app run didn't
    start (left over after the app was closed or killed): mark it Running with `IsExternal`,
    connect to it and stop here. Stop then only disconnects; the process is left alone. The port
-   of the mode last connected to is tried first.
+   of the mode last connected to is tried first (live on a fresh install).
 2. Start the launcher in its own folder (`Starting` → `AwaitingLogin`). Its stdout / stderr are
    read and dropped.
 3. Poll both API ports every second for up to 10 minutes (typing + 2FA). The first to open wins:
@@ -224,8 +224,8 @@ deduplicated by IB's execution id, so the same fill from either stays one:
 - **Notices vs errors.** IBKR.Net treats codes 2100–2199 (farm status, 2150 on position P&L) and
   `10167` (delayed data shown) as notices; any other code with a request id fails that request.
   `10089/10090` (subscription needed) therefore end a quote stream on a `Live` market data type
-  without a subscription. We default to `Delayed` (3), which returns live data where you are
-  subscribed and delayed otherwise.
+  without a subscription. We default to `Live` (1); `Delayed` (3), picked in Settings, returns
+  live data where you are subscribed and delayed otherwise.
 - **Unset numbers are `double.MaxValue`, not 0.** A contract sent with `Strike = 0` asks for
   strike 0 and fails with `200 No security definition` (seen 2026-10-24 loading an option
   expiration). `IbkrContractMapper` sends no strike (an empty field) when the DTO has none.
