@@ -407,7 +407,9 @@ icon, splitter and dropdowns don't count. `WidgetItem.IsPinned`, saved in the la
 **Esc** in an expanded side or bottom widget hands keyboard focus back to the center widget
 focused last (or the first center widget, if none was), which becomes current; an unpinned
 widget also collapses, a pinned one stays open. Only an Esc nothing inside the widget handled
-counts — an open dropdown, a ticker box or a rename box keeps its own Esc
+counts — an open dropdown, a ticker box or a rename box keeps its own Esc. An always-shown
+ticker box (the watchlist's, `ContractSearchBox.PassesIdleEscape`) keeps it only while it has
+text or an open dropdown: the first Esc clears it, the next one reaches the workspace
 (`WorkspaceView.OnDockedKeyDown`, bubbling, → `WorkspaceViewModel.LeaveDocked`; the target is
 `WorkspaceHelpers.GetFocusReturnId`).
 
