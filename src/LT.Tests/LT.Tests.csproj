@@ -13,6 +13,7 @@
 		<ProjectReference Include="..\Widgets\LT.Widgets.Core\LT.Widgets.Core.csproj" />
 		<!-- Chart view model only (dropping a ticker); its view is never created -->
 		<ProjectReference Include="..\Widgets\LT.Widgets.Chart\LT.Widgets.Chart.csproj" />
+		<ProjectReference Include="..\Widgets\LT.Widgets.Depth\LT.Widgets.Depth.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

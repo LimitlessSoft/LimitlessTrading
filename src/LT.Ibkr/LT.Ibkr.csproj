@@ -9,6 +9,6 @@
 
 	<!-- The only project allowed to reference IBKR.Net types (see docs/ibkr-tws-api.md) -->
 	<ItemGroup>
-		<PackageReference Include="IBKR.Net" Version="0.5.0" />
+		<PackageReference Include="IBKR.Net" Version="0.6.0" />
 	</ItemGroup>
 </Project>

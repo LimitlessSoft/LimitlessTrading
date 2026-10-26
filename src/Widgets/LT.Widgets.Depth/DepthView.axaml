@@ -1,0 +1,122 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.Depth"
+	x:Class="LT.App.Widgets.Depth.DepthView"
+	x:DataType="vm:DepthViewModel"
+>
+	<UserControl.Resources>
+		<SolidColorBrush x:Key="DepthBidBarBrush" Color="#3326A69A" />
+		<SolidColorBrush x:Key="DepthAskBarBrush" Color="#33EF5350" />
+
+		<!-- One ladder row: size bar behind price · size · total · exchange -->
+		<DataTemplate x:Key="DepthRowTemplate" x:DataType="vm:DepthLevelViewModel">
+			<Panel Height="20">
+				<vm:SizeBar Classes.bid="{Binding IsBid}" Fraction="{Binding SizeFraction}" />
+				<Grid ColumnDefinitions="1.3*,*,*,*" Margin="6,0">
+					<TextBlock
+						Classes="cell"
+						Classes.positive="{Binding IsBid}"
+						Classes.negative="{Binding !IsBid}"
+						Classes.best="{Binding IsBest}"
+						TextAlignment="Left"
+						Text="{Binding PriceText}"
+					/>
+					<TextBlock Grid.Column="1" Classes="cell" Text="{Binding SizeText}" />
+					<TextBlock Grid.Column="2" Classes="cell dim" Text="{Binding TotalText}" />
+					<TextBlock Grid.Column="3" Classes="cell dim" Text="{Binding ExchangeText}" />
+				</Grid>
+			</Panel>
+		</DataTemplate>
+	</UserControl.Resources>
+
+	<UserControl.Styles>
+		<Style Selector="TextBlock.cell">
+			<Setter Property="FontSize" Value="12" />
+			<Setter Property="VerticalAlignment" Value="Center" />
+			<Setter Property="TextAlignment" Value="Right" />
+			<Setter Property="TextTrimming" Value="CharacterEllipsis" />
+			<Setter Property="FontFeatures" Value="+tnum" />
+		</Style>
+		<Style Selector="TextBlock.cell.best">
+			<Setter Property="FontWeight" Value="SemiBold" />
+		</Style>
+		<Style Selector="TextBlock.cell.dim, TextBlock.header">
+			<Setter Property="Foreground" Value="{DynamicResource SecondaryText}" />
+		</Style>
+		<Style Selector="TextBlock.header">
+			<Setter Property="FontSize" Value="11" />
+			<Setter Property="TextAlignment" Value="Right" />
+		</Style>
+		<Style Selector="vm|SizeBar">
+			<Setter Property="Fill" Value="{StaticResource DepthAskBarBrush}" />
+		</Style>
+		<Style Selector="vm|SizeBar.bid">
+			<Setter Property="Fill" Value="{StaticResource DepthBidBarBrush}" />
+		</Style>
+	</UserControl.Styles>
+
+	<!-- The contract comes from the link group and is shown in the frame header -->
+	<DockPanel>
+		<DockPanel DockPanel.Dock="Top" Margin="2,0,0,4">
+			<ToggleButton
+				DockPanel.Dock="Right"
+				Padding="8,2"
+				FontSize="12"
+				Content="SMART"
+				IsChecked="{Binding IsSmartDepth}"
+				IsEnabled="{Binding CanUseSmartDepth}"
+				ToolTip.Tip="On: SMART depth, every exchange you have depth for. Off: the listing exchange's own book."
+			/>
+			<TextBlock
+				Classes="secondary"
+				VerticalAlignment="Center"
+				TextTrimming="CharacterEllipsis"
+				Text="{Binding SourceText}"
+			/>
+		</DockPanel>
+		<StackPanel DockPanel.Dock="Top" Margin="2,0,0,4" Spacing="2">
+			<TextBlock Classes="secondary" Text="Waiting for the book…" IsVisible="{Binding IsWaiting}" />
+			<TextBlock
+				Classes="secondary"
+				TextWrapping="Wrap"
+				Text="{Binding InfoText}"
+				IsVisible="{Binding InfoText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+			/>
+			<TextBlock
+				Classes="negative"
+				TextWrapping="Wrap"
+				Text="{Binding ErrorMessage}"
+				IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+			/>
+		</StackPanel>
+		<Grid DockPanel.Dock="Top" ColumnDefinitions="1.3*,*,*,*" Margin="6,0,6,2">
+			<TextBlock Classes="header" TextAlignment="Left" Text="Price" />
+			<TextBlock Grid.Column="1" Classes="header" Text="Size" />
+			<TextBlock Grid.Column="2" Classes="header" Text="Total" />
+			<TextBlock Grid.Column="3" Classes="header" Text="Exch" />
+		</Grid>
+		<!-- Asks (worst first) · spread · bids (best first); the row count never changes, so
+		     centring the spread once per book keeps the inside of the book in sight -->
+		<ScrollViewer x:Name="LadderScroll" VerticalScrollBarVisibility="Auto">
+			<StackPanel>
+				<ItemsControl
+					ItemsSource="{Binding Asks}"
+					ItemTemplate="{StaticResource DepthRowTemplate}"
+				/>
+				<Border
+					x:Name="SpreadLine"
+					Padding="6,3"
+					BorderBrush="{DynamicResource PanelStroke}"
+					BorderThickness="0,1"
+				>
+					<TextBlock Classes="secondary" HorizontalAlignment="Center" Text="{Binding SpreadText}" />
+				</Border>
+				<ItemsControl
+					ItemsSource="{Binding Bids}"
+					ItemTemplate="{StaticResource DepthRowTemplate}"
+				/>
+			</StackPanel>
+		</ScrollViewer>
+	</DockPanel>
+</UserControl>

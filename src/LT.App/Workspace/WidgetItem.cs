@@ -63,6 +63,13 @@ public partial class WidgetItem : ObservableObject
 	)]
 	public partial WidgetDock? Dock { get; set; }
 
+	// Closing goes through WorkspaceViewModel.Close; a move clears Dock only for a moment
+	partial void OnDockChanged(WidgetDock? value)
+	{
+		if (value != null)
+			(Content as IWidgetOpenState)?.SetOpen(true);
+	}
+
 	/// <summary>Where the widget was last open, so reopening puts it back there.</summary>
 	public WidgetDock? LastDock { get; set; }
 

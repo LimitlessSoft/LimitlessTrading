@@ -84,6 +84,12 @@
 										Tag="OptionChain"
 									/>
 									<MenuItem
+										Header="Depth"
+										InputGesture="Ctrl+Alt+K"
+										Click="OnToolClick"
+										Tag="Depth"
+									/>
+									<MenuItem
 										Header="Order ticket"
 										InputGesture="Ctrl+Alt+B"
 										Click="OnToolClick"
