@@ -16,6 +16,12 @@
 			<TextBlock VerticalAlignment="Center" Classes="secondary" Text="{Binding UpdatedText}" />
 			<TextBlock
 				VerticalAlignment="Center"
+				Classes="warning"
+				Text="{Binding StaleText}"
+				IsVisible="{Binding IsStale}"
+			/>
+			<TextBlock
+				VerticalAlignment="Center"
 				Classes="negative"
 				Text="{Binding ErrorMessage}"
 				IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"

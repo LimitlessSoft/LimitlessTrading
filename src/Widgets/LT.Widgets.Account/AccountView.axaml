@@ -23,7 +23,13 @@
 				Classes="secondary"
 				Text="Connect to TWS / IB Gateway to see account values."
 				TextWrapping="Wrap"
-				IsVisible="{Binding !IsConnected}"
+				IsVisible="{Binding ShowConnectHint}"
+			/>
+			<TextBlock
+				Classes="warning"
+				TextWrapping="Wrap"
+				Text="{Binding StaleText}"
+				IsVisible="{Binding IsStale}"
 			/>
 
 			<StackPanel Spacing="2">

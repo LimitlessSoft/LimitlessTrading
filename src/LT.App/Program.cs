@@ -73,7 +73,7 @@ public static class Program
 
 		// Stateful services: registered after the scan so the singleton registration wins
 		builder.Services.AddSingleton<ISettingsRepository, SettingsRepository>();
-		builder.Services.AddSingleton<IBarCacheRepository, BarCacheRepository>();
+		builder.Services.AddSingleton<ICacheRepository, FileCacheRepository>();
 		builder.Services.AddSingleton<IIbkrApiClient, IbkrApiClient>();
 		builder.Services.AddSingleton<IMessageLogManager, MessageLogManager>();
 		builder.Services.AddSingleton<IConnectionManager, ConnectionManager>();
@@ -94,6 +94,7 @@ public static class Program
 
 		builder.Services.AddHostedService<ConnectionWatchdog>();
 		builder.Services.AddHostedService<UpdateScheduler>();
+		builder.Services.AddHostedService<CacheMaintenance>();
 
 		// ViewModels have no interfaces, so the convention scan skips them
 		builder.Services.AddTransient<MainWindowViewModel>();

@@ -148,8 +148,41 @@ Zustand stores play in Termodom FEs:
 ## Persistence
 
 `LT.Repository` stores settings (connection, general settings, layout, watchlist, selected
-account) in `settings.json` and historical bars in `bar-cache/<conId>_<timeframe>_<rth>.json`,
+account) in `settings.json` and the data cache in `cache/<CacheType>/<sha256 of key>.json`,
 both under the OS app-data folder
 (`Environment.SpecialFolder.ApplicationData`: `%APPDATA%\LimitlessTrading` on Windows,
-`~/.config/LimitlessTrading` on Linux and macOS). When we need queryable local data (bar cache, layouts, journal) the
-plan is SQLite + EF Core behind the same repository interfaces.
+`~/.config/LimitlessTrading` on Linux and macOS). When we need queryable local data (layouts,
+journal) the plan is SQLite + EF Core behind the same repository interfaces.
+
+### Data cache
+
+One cache for everything fetched from IB that is worth keeping, with a section in Settings
+(Cache): a master switch, one switch per `CacheType`, a maximum size (MB,
+`CacheConstants.MaxSizeMbMin`–`MaxSizeMbMax`, default 500) and Clear cache.
+
+- `ICacheRepository` (`FileCacheRepository`, singleton) keeps one JSON entry per type and key,
+  `{ Key, FetchedAt, Value }`. A file's write time is its `FetchedAt`; `Trim` deletes the least
+  recently written files until the total fits. Unreadable files are misses; write failures are
+  ignored (it is a cache).
+- `ICacheManager` is what managers use. It applies the switches (a type that is off is neither
+  read nor written, checked on every call, so switching off mid-request is harmless), trims
+  after every write, and `GetOrFetchAsync` serves fresh entries, fetches expired ones and falls
+  back to the expired copy with `IsStale` set when IB fails (never on cancellation).
+  `CacheMaintenance` (hosted service) deletes the old `bar-cache` folder and trims on start.
+- What is cached (TTLs in `CacheConstants` / `ChartTimeframeHelpers.GetCacheTtl`):
+
+  | Type | What | TTL | When IB fails |
+  |---|---|---|---|
+  | `ChartBars` | historical bars | 1 min intraday, 30 min daily+ | stale copy, "Cached HH:mm" |
+  | `Contracts` | `SearchAsync`, `SearchSymbolAsync` (so `ResolveTickerAsync`); non-empty answers only | 3 days | expired copy |
+  | `OptionChains` | expirations, strike lists (contracts only, never prices or greeks) | 1 day | expired copy |
+  | `Executions` | fills per account | 10 s | stale copy, marked in the widget |
+  | `Snapshots` | last-known positions, open orders, account summary, per account | — | shown only while disconnected or failing |
+
+- **Snapshots are for looking at only.** The Positions, Orders and Account widgets show them while
+  disconnected (or when the live request fails before anything live arrived) with a warning
+  "Cached HH:mm · account · not live", and drop them as soon as live data arrives. They are keyed
+  per account (`CacheHelpers.GetAccountKey`), so another account's data never shows; before the
+  first login `AccountStore.SnapshotAccount` falls back to the account selected last run.
+  Snapshot orders are never cancellable, snapshot positions don't drive the link group, and no
+  order path (`ValidateOrder`, `PlaceOrderAsync`) reads the cache.

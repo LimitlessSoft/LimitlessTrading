@@ -4,6 +4,7 @@ using LSCore.Validation.Domain;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Options;
+using LT.Contracts.Enums;
 using LT.Contracts.Enums.ValidationCodes;
 using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IApiClients;
@@ -15,9 +16,14 @@ namespace LT.Domain.Managers;
 /// <summary>
 /// Expirations from reqSecDefOptParams; the chain of one expiration (or month) from
 /// reqContractDetails, so only strikes that exist that day are listed, plus the underlying's price.
+/// Expirations and strike lists are cached (CacheType.OptionChains) for a day; the underlying's
+/// price is always asked live.
 /// </summary>
-public class OptionChainManager(IIbkrApiClient ibkrApiClient, IMarketDataManager marketDataManager)
-	: IOptionChainManager
+public class OptionChainManager(
+	IIbkrApiClient ibkrApiClient,
+	IMarketDataManager marketDataManager,
+	ICacheManager cacheManager
+) : IOptionChainManager
 {
 	public async Task<IReadOnlyList<OptionExpirationDto>> GetExpirationsAsync(
 		ContractDto underlying,
@@ -33,11 +39,21 @@ public class OptionChainManager(IIbkrApiClient ibkrApiClient, IMarketDataManager
 				ContractValidationCodes.CTVC_004.GetValidationMessage()
 			);
 
-		var parameters = await ibkrApiClient.GetOptionChainParametersAsync(
-			underlying,
-			cancellationToken
+		var cached = await cacheManager.GetOrFetchAsync(
+			CacheType.OptionChains,
+			OptionChainHelpers.GetExpirationsCacheKey(underlying),
+			CacheConstants.OptionChainTtl,
+			async ct =>
+				OptionChainHelpers
+					.SelectExpirations(
+						underlying.Symbol,
+						await ibkrApiClient.GetOptionChainParametersAsync(underlying, ct)
+					)
+					.ToList(),
+			cancellationToken,
+			x => x.Count > 0
 		);
-		var expirations = OptionChainHelpers.SelectExpirations(underlying.Symbol, parameters);
+		var expirations = cached.Value;
 		if (expirations.Count == 0)
 			throw new LSCoreBadRequestException(
 				OptionChainValidationCodes.OCVC_004.GetValidationMessage(underlying.Symbol)
@@ -52,27 +68,41 @@ public class OptionChainManager(IIbkrApiClient ibkrApiClient, IMarketDataManager
 	{
 		request.Validate();
 
-		var details = await ibkrApiClient.SearchContractsAsync(
-			new ContractDto
-			{
-				Symbol = request.Underlying.Symbol,
-				SecurityType = MarketDataConstants.OptionType,
-				Exchange = MarketDataConstants.DefaultExchange,
-				Currency = request.Underlying.Currency,
-				LastTradeDateOrContractMonth = request.Expiry,
-				TradingClass = request.TradingClass,
-			},
-			cancellationToken
+		// Only the structure (which contracts exist) is cached, never a price
+		var cached = await cacheManager.GetOrFetchAsync(
+			CacheType.OptionChains,
+			OptionChainHelpers.GetStrikesCacheKey(request),
+			CacheConstants.OptionChainTtl,
+			async ct =>
+				OptionChainHelpers
+					.BuildStrikes(
+						(
+							await ibkrApiClient.SearchContractsAsync(
+								new ContractDto
+								{
+									Symbol = request.Underlying.Symbol,
+									SecurityType = MarketDataConstants.OptionType,
+									Exchange = MarketDataConstants.DefaultExchange,
+									Currency = request.Underlying.Currency,
+									LastTradeDateOrContractMonth = request.Expiry,
+									TradingClass = request.TradingClass,
+								},
+								ct
+							)
+						).Select(x => x.Contract)
+					)
+					.ToList(),
+			cancellationToken,
+			x => x.Count > 0
 		);
-		if (details.Count == 0)
+		var strikes = cached.Value;
+		if (strikes.Count == 0)
 			throw new LSCoreBadRequestException(
 				OptionChainValidationCodes.OCVC_003.GetValidationMessage(
 					request.Underlying.Symbol,
 					request.Expiry
 				)
 			);
-
-		var strikes = OptionChainHelpers.BuildStrikes(details.Select(x => x.Contract));
 
 		double? underlyingPrice = null;
 		using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

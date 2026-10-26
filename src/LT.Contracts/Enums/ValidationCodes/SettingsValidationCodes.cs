@@ -12,4 +12,7 @@ public enum SettingsValidationCodes
 
 	[LSCoreValidationMessage("Unknown layout style.")]
 	SVC_003,
+
+	[LSCoreValidationMessage("Maximum cache size must be between {0} and {1} MB.")]
+	SVC_004,
 }

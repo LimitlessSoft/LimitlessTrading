@@ -7,13 +7,14 @@ namespace LT.Tests.Domain.Managers;
 public class PositionManagerTests
 {
 	private readonly FakeIbkrApiClient _ibkr = new();
+	private readonly TestCache _cache = new();
 
 	[Fact]
 	public async Task Returns_nothing_when_disconnected()
 	{
 		_ibkr.Positions = [new PositionDto { Symbol = "AAPL", Quantity = 1 }];
 
-		var positions = await new PositionManager(_ibkr).GetPositionsAsync(
+		var positions = await new PositionManager(_ibkr, _cache.Manager).GetPositionsAsync(
 			TestContext.Current.CancellationToken
 		);
 
@@ -52,7 +53,7 @@ public class PositionManagerTests
 			},
 		];
 
-		var positions = await new PositionManager(_ibkr).GetPositionsAsync(
+		var positions = await new PositionManager(_ibkr, _cache.Manager).GetPositionsAsync(
 			TestContext.Current.CancellationToken
 		);
 

@@ -15,5 +15,12 @@ public class AppSettingsDtoMapper : ILSCoreMapper<GeneralSettingsEntity, AppSett
 			StopGatewayOnExit = source.StopGatewayOnExit,
 			CheckForUpdates = source.CheckForUpdates,
 			LayoutStyle = source.LayoutStyle,
+			CacheEnabled = source.CacheEnabled,
+			CacheChartBars = source.CacheChartBars,
+			CacheContracts = source.CacheContracts,
+			CacheOptionChains = source.CacheOptionChains,
+			CacheExecutions = source.CacheExecutions,
+			CacheSnapshots = source.CacheSnapshots,
+			CacheMaxSizeMb = source.CacheMaxSizeMb,
 		};
 }

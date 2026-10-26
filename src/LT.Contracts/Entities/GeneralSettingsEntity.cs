@@ -11,4 +11,11 @@ public class GeneralSettingsEntity
 	public bool StopGatewayOnExit { get; set; }
 	public bool CheckForUpdates { get; set; } = true;
 	public LayoutStyle LayoutStyle { get; set; } = LayoutStyle.Flush;
+	public bool CacheEnabled { get; set; } = true;
+	public bool CacheChartBars { get; set; } = true;
+	public bool CacheContracts { get; set; } = true;
+	public bool CacheOptionChains { get; set; } = true;
+	public bool CacheExecutions { get; set; } = true;
+	public bool CacheSnapshots { get; set; } = true;
+	public int CacheMaxSizeMb { get; set; } = CacheConstants.DefaultMaxSizeMb;
 }

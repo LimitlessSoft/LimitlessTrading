@@ -28,6 +28,12 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	public List<MarketDataTickDto> Ticks { get; set; } = [];
 	public List<ContractDetailsDto> SearchResults { get; set; } = [];
 	public ContractDto? LastSearch { get; private set; }
+	public int SearchCalls { get; private set; }
+	public Exception? SearchException { get; set; }
+	public int OptionParameterCalls { get; private set; }
+	public Exception? OptionParametersException { get; set; }
+	public int ExecutionCalls { get; private set; }
+	public Exception? ExecutionsException { get; set; }
 
 	/// <summary>Answers each search by its query (e.g. per security type); throw to fail one.</summary>
 	public Func<ContractDto, IReadOnlyList<ContractDetailsDto>>? SearchBy { get; set; }
@@ -75,6 +81,9 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	)
 	{
 		LastSearch = query;
+		SearchCalls++;
+		if (SearchException != null)
+			return Task.FromException<IReadOnlyList<ContractDetailsDto>>(SearchException);
 		return SearchBy != null
 			? Task.Run(() => SearchBy(query), cancellationToken)
 			: Task.FromResult<IReadOnlyList<ContractDetailsDto>>(SearchResults);
@@ -110,7 +119,13 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	public Task<IReadOnlyList<OptionChainParametersDto>> GetOptionChainParametersAsync(
 		ContractDto underlying,
 		CancellationToken cancellationToken = default
-	) => Task.FromResult<IReadOnlyList<OptionChainParametersDto>>(OptionChainParameters);
+	)
+	{
+		OptionParameterCalls++;
+		return OptionParametersException != null
+			? Task.FromException<IReadOnlyList<OptionChainParametersDto>>(OptionParametersException)
+			: Task.FromResult<IReadOnlyList<OptionChainParametersDto>>(OptionChainParameters);
+	}
 
 	public IAsyncEnumerable<BarDto> SubscribeRealtimeBarsAsync(
 		ContractDto contract,
@@ -148,7 +163,13 @@ public class FakeIbkrApiClient : IIbkrApiClient
 
 	public Task<IReadOnlyList<ExecutionDto>> GetExecutionsAsync(
 		CancellationToken cancellationToken = default
-	) => Task.FromResult<IReadOnlyList<ExecutionDto>>(Executions);
+	)
+	{
+		ExecutionCalls++;
+		return ExecutionsException != null
+			? Task.FromException<IReadOnlyList<ExecutionDto>>(ExecutionsException)
+			: Task.FromResult<IReadOnlyList<ExecutionDto>>(Executions);
+	}
 
 	public Task<PlacedOrderDto> PlaceOrderAsync(
 		ContractDto contract,

@@ -11,12 +11,13 @@ namespace LT.Tests.Domain.Managers;
 public class OrderManagerTests
 {
 	private readonly FakeIbkrApiClient _ibkr = new() { IsConnected = true };
+	private readonly TestCache _cache = new();
 	private readonly OrderManager _manager;
 
 	public OrderManagerTests()
 	{
 		LSCoreContainer.EnsureInitialized();
-		_manager = new OrderManager(_ibkr);
+		_manager = new OrderManager(_ibkr, _cache.Manager);
 	}
 
 	private static PlaceOrderRequest TenDollarsOfBtc() =>

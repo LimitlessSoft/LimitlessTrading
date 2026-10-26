@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Options;
+using LT.Contracts.Requests.Options;
 
 namespace LT.Contracts.Helpers;
 
@@ -9,6 +10,12 @@ public static partial class OptionChainHelpers
 {
 	[GeneratedRegex(@"^\d{6}(\d{2})?$")]
 	public static partial Regex ExpiryRegex();
+
+	public static string GetExpirationsCacheKey(ContractDto underlying) =>
+		$"expirations|{underlying.ConId}";
+
+	public static string GetStrikesCacheKey(GetOptionChainRequest request) =>
+		$"strikes|{request.Underlying.Symbol}|{request.Underlying.Currency}|{request.Expiry}|{request.TradingClass}";
 
 	/// <summary>
 	/// The option chain's tabs from reqSecDefOptParams: SMART entries of the symbol's own trading

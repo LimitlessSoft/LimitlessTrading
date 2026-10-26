@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using LT.Contracts.Helpers;
 
 namespace LT.App.Widgets.Settings;
@@ -61,4 +62,23 @@ public partial class NumberSettingViewModel(
 
 	[ObservableProperty]
 	public partial decimal? Value { get; set; }
+}
+
+/// <summary>A read-out with a button that acts right away (not on Save), like Clear cache.</summary>
+public partial class ActionSettingViewModel(
+	string title,
+	string buttonText,
+	Action action,
+	string? description = null,
+	string? keywords = null
+) : SettingItemViewModel(title, description, keywords)
+{
+	public string ButtonText { get; } = buttonText;
+
+	/// <summary>The value shown next to the title, e.g. the cache's size.</summary>
+	[ObservableProperty]
+	public partial string? Status { get; set; }
+
+	[RelayCommand]
+	private void Run() => action();
 }

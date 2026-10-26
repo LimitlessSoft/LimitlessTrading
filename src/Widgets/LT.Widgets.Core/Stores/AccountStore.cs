@@ -24,6 +24,13 @@ public partial class AccountStore : ObservableObject
 	[ObservableProperty]
 	public partial string? SelectedAccount { get; set; }
 
+	/// <summary>
+	/// Whose last-known data a widget may show while disconnected: the selected account, or before
+	/// the first login the one selected last run. Snapshots are per account, so it is never
+	/// another account's data.
+	/// </summary>
+	public string? SnapshotAccount => SelectedAccount ?? _settingsManager.GetSelectedAccount();
+
 	partial void OnSelectedAccountChanged(string? value)
 	{
 		if (value != null)

@@ -14,8 +14,12 @@ public static class AppPathHelpers
 	public static string GetSettingsFilePath() =>
 		Path.Combine(GetAppDataDirectory(), AppConstants.SettingsFileName);
 
-	public static string GetBarCacheDirectory() =>
-		Path.Combine(GetAppDataDirectory(), AppConstants.BarCacheDirectoryName);
+	/// <summary>The cache: one folder per CacheType, one JSON file per entry.</summary>
+	public static string GetCacheDirectory() =>
+		Path.Combine(GetAppDataDirectory(), CacheConstants.CacheDirectoryName);
+
+	public static string GetLegacyBarCacheDirectory() =>
+		Path.Combine(GetAppDataDirectory(), CacheConstants.LegacyBarCacheDirectoryName);
 
 	/// <summary>Where "Install IBC" puts IBC: ~/.config/LimitlessTrading/ibc and the like.</summary>
 	public static string GetIbcInstallDirectory() =>

@@ -30,5 +30,14 @@ public class SaveAppSettingsRequestValidator : LSCoreValidatorBase<SaveAppSettin
 		RuleFor(x => x.LayoutStyle)
 			.IsInEnum()
 			.WithMessage(SettingsValidationCodes.SVC_003.GetValidationMessage());
+
+		RuleFor(x => x.CacheMaxSizeMb)
+			.InclusiveBetween(CacheConstants.MaxSizeMbMin, CacheConstants.MaxSizeMbMax)
+			.WithMessage(
+				SettingsValidationCodes.SVC_004.GetValidationMessage(
+					CacheConstants.MaxSizeMbMin,
+					CacheConstants.MaxSizeMbMax
+				)
+			);
 	}
 }

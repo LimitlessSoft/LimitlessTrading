@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using LT.App.Helpers;
 using LT.App.ViewModels;
 using LT.Contracts.Constants;
 using LT.Contracts.Enums;
+using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IManagers;
 using LT.Contracts.Requests.Settings;
 
@@ -16,6 +18,7 @@ namespace LT.App.Widgets.Settings;
 public partial class SettingsViewModel : ViewModelBase
 {
 	private readonly ISettingsManager _settingsManager;
+	private readonly ICacheManager _cacheManager;
 
 	private readonly ChoiceSettingViewModel _marketDataType = new(
 		"Market data type",
@@ -56,9 +59,63 @@ public partial class SettingsViewModel : ViewModelBase
 		"version release upgrade"
 	);
 
-	public SettingsViewModel(ISettingsManager settingsManager)
+	private readonly BoolSettingViewModel _cacheEnabled = new(
+		"Cache data on disk",
+		"Keeps data fetched from IB to open things faster and to show the last known values, marked as cached, while IB can't be reached. Off: nothing is read from or written to the cache.",
+		"cache offline disk storage"
+	);
+
+	private readonly BoolSettingViewModel _cacheChartBars = new(
+		"Chart bars",
+		"Historical bars: about a minute for intraday charts, 30 minutes for daily and weekly.",
+		"cache history candles historical"
+	);
+
+	private readonly BoolSettingViewModel _cacheContracts = new(
+		"Contract lookups",
+		"Ticker and symbol searches, for 3 days.",
+		"cache symbol ticker search instrument"
+	);
+
+	private readonly BoolSettingViewModel _cacheOptionChains = new(
+		"Option chain structure",
+		"Expirations and strikes, for a day. Prices and greeks are always live.",
+		"cache options strikes expirations"
+	);
+
+	private readonly BoolSettingViewModel _cacheExecutions = new(
+		"Executions",
+		"Fills, for 10 seconds; shown as cached while IB can't be reached.",
+		"cache trades fills"
+	);
+
+	private readonly BoolSettingViewModel _cacheSnapshots = new(
+		"Last-known positions, orders and account",
+		"Shown only while disconnected, marked as cached, per account. Never used for orders.",
+		"cache snapshot offline positions orders account summary"
+	);
+
+	private readonly NumberSettingViewModel _cacheMaxSizeMb = new(
+		"Maximum cache size (MB)",
+		CacheConstants.MaxSizeMbMin,
+		CacheConstants.MaxSizeMbMax,
+		"Over this, the least recently written entries are deleted.",
+		"cache disk space limit megabytes"
+	);
+
+	private readonly ActionSettingViewModel _clearCache;
+
+	public SettingsViewModel(ISettingsManager settingsManager, ICacheManager cacheManager)
 	{
 		_settingsManager = settingsManager;
+		_cacheManager = cacheManager;
+		_clearCache = new ActionSettingViewModel(
+			"Cache on disk",
+			"Clear cache",
+			ClearCache,
+			"Clearing deletes every cached entry right away; it doesn't wait for Save.",
+			"cache clear delete size used disk space"
+		);
 		var settings = settingsManager.GetAppSettings();
 		_marketDataType.Value = settings.MarketDataType;
 		_autoReconnect.Value = settings.AutoReconnect;
@@ -66,6 +123,14 @@ public partial class SettingsViewModel : ViewModelBase
 		_stopGatewayOnExit.Value = settings.StopGatewayOnExit;
 		_checkForUpdates.Value = settings.CheckForUpdates;
 		_layoutStyle.Value = settings.LayoutStyle;
+		_cacheEnabled.Value = settings.CacheEnabled;
+		_cacheChartBars.Value = settings.CacheChartBars;
+		_cacheContracts.Value = settings.CacheContracts;
+		_cacheOptionChains.Value = settings.CacheOptionChains;
+		_cacheExecutions.Value = settings.CacheExecutions;
+		_cacheSnapshots.Value = settings.CacheSnapshots;
+		_cacheMaxSizeMb.Value = settings.CacheMaxSizeMb;
+		RefreshCacheSize();
 
 		Pages =
 		[
@@ -82,6 +147,21 @@ public partial class SettingsViewModel : ViewModelBase
 				]
 			),
 			new SettingsPageViewModel("Market data", [new("Quotes", _marketDataType)]),
+			new SettingsPageViewModel(
+				"Cache",
+				[
+					new(
+						"Cache",
+						_cacheEnabled,
+						_cacheChartBars,
+						_cacheContracts,
+						_cacheOptionChains,
+						_cacheExecutions,
+						_cacheSnapshots
+					),
+					new("Disk", _cacheMaxSizeMb, _clearCache),
+				]
+			),
 		];
 		ApplySearch();
 	}
@@ -134,8 +214,17 @@ public partial class SettingsViewModel : ViewModelBase
 					StopGatewayOnExit = _stopGatewayOnExit.Value,
 					CheckForUpdates = _checkForUpdates.Value,
 					LayoutStyle = (LayoutStyle)_layoutStyle.Value!,
+					CacheEnabled = _cacheEnabled.Value,
+					CacheChartBars = _cacheChartBars.Value,
+					CacheContracts = _cacheContracts.Value,
+					CacheOptionChains = _cacheOptionChains.Value,
+					CacheExecutions = _cacheExecutions.Value,
+					CacheSnapshots = _cacheSnapshots.Value,
+					CacheMaxSizeMb = (int)(_cacheMaxSizeMb.Value ?? 0),
 				}
 			);
+			// a lowered limit applies now, not at the next cache write
+			Task.Run(_cacheManager.EnforceSizeLimit);
 			return true;
 		}
 		catch (Exception ex)
@@ -144,6 +233,23 @@ public partial class SettingsViewModel : ViewModelBase
 			return false;
 		}
 	}
+
+	private void ClearCache()
+	{
+		_clearCache.Status = "Clearing…";
+		Task.Run(_cacheManager.Clear).ContinueWith(_ => RefreshCacheSize());
+	}
+
+	// Walks the cache folder off the UI thread
+	private void RefreshCacheSize() =>
+		Task.Run(_cacheManager.GetSizeBytes)
+			.ContinueWith(t =>
+				Dispatcher.UIThread.Post(() =>
+					_clearCache.Status = t.IsCompletedSuccessfully
+						? $"{CacheHelpers.FormatSize(t.Result)} used"
+						: "Size unknown"
+				)
+			);
 
 	// Filters the tree; the shown page stays if it still matches, else the first match opens
 	private void ApplySearch()
