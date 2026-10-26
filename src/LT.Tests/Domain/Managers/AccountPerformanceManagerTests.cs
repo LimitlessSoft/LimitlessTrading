@@ -246,7 +246,7 @@ public class AccountPerformanceManagerTests
 	}
 
 	[Fact]
-	public void Flex_deposits_and_transfers_are_kept_as_movements_without_changing_pnl()
+	public void Flex_deposits_and_transfers_are_kept_as_movements_and_left_out_of_pnl()
 	{
 		var nav = new List<FlexNavDto>
 		{
@@ -294,7 +294,7 @@ public class AccountPerformanceManagerTests
 			movements.Select(x => x.Kind)
 		);
 		Assert.Equal(2, _repository.Entries["U0000001"].CashMovements.Count);
-		// Only the deposit is left out of the P&L; the transfer is display only
-		Assert.Equal(300.0, _manager.GetHistory("U0000001")[1].DailyPnl);
+		// Both are money moved in, not profit: 1800 − 1000 − 500 − 200
+		Assert.Equal(100.0, _manager.GetHistory("U0000001")[1].DailyPnl);
 	}
 }

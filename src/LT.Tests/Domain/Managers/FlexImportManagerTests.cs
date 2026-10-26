@@ -359,6 +359,66 @@ public class FlexImportManagerTests
 	}
 
 	[Fact]
+	public async Task A_history_from_before_cash_sections_were_tracked_is_imported_again_right_away()
+	{
+		Configure();
+		_flex.Handler = Activity;
+		await CreateManager().ImportNowAsync(Ct);
+		// flex-import.json as the build before cash movements left it: today's import, no flags
+		var old = _state.Saved!;
+		old.HadCashTransactionsSection = null;
+		old.HadTransfersSection = null;
+		old.LastActivityAttempt = null;
+		_state.Save(old);
+		_flex.Requests.Clear();
+		_flex.Handler = request =>
+		{
+			var statement = Activity(request);
+			statement.HasCashTransactionsSection = true;
+			statement.HasTransfersSection = true;
+			if (request.To >= new DateOnly(2024, 10, 27))
+				statement.Transfers =
+				[
+					new FlexCashFlowDto
+					{
+						Account = "U0000001",
+						Date = request.To!.Value,
+						Amount = 10,
+						Kind = LT.Contracts.Enums.CashMovementKind.TransferIn,
+					},
+				];
+			return statement;
+		};
+		var manager = CreateManager();
+
+		// The scheduler, not F5: no waiting for the next New York day
+		using var stop = new CancellationTokenSource();
+		var run = manager.RunAsync(stop.Token);
+		await WaitUntilAsync(() => _state.Saved?.BackfillComplete == true);
+		await Task.Delay(50, Ct);
+		await stop.CancelAsync();
+		await run;
+
+		Assert.Equal(
+			[
+				Yesterday,
+				new DateOnly(2026, 10, 17),
+				new DateOnly(2025, 10, 17),
+				new DateOnly(2024, 10, 17),
+			],
+			_flex.Requests.Select(x => x.To!.Value)
+		);
+		Assert.Equal(
+			(true, true),
+			(_state.Saved!.HadCashTransactionsSection, _state.Saved.HadTransfersSection)
+		);
+		Assert.Equal(
+			[new DateOnly(2025, 10, 17), new DateOnly(2026, 10, 17), Yesterday],
+			_performance.GetCashMovements("U0000001").Select(x => x.Date)
+		);
+	}
+
+	[Fact]
 	public async Task Another_activity_query_starts_over()
 	{
 		Configure();

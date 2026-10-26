@@ -37,6 +37,7 @@ public class AccountPerformanceFlexMergeTests
 			days,
 			[Nav(21, 10000), Nav(22, 11100), Nav(23, 11050)],
 			[Flow(22, 1000)],
+			[],
 			Today,
 			Now
 		);
@@ -57,6 +58,7 @@ public class AccountPerformanceFlexMergeTests
 			days,
 			[Nav(21, 10000), Nav(22, 20000)],
 			[Flow(22, 10000)],
+			[],
 			Today,
 			Now
 		);
@@ -83,7 +85,14 @@ public class AccountPerformanceFlexMergeTests
 			},
 		};
 
-		AccountPerformanceHelpers.MergeFlexDays(days, [Nav(23, 12000), Nav(26, 1)], [], Today, Now);
+		AccountPerformanceHelpers.MergeFlexDays(
+			days,
+			[Nav(23, 12000), Nav(26, 1)],
+			[],
+			[],
+			Today,
+			Now
+		);
 
 		var today = days.Single(x => x.Date == Today);
 		Assert.Equal(AccountDaySource.Recorded, today.Source);
@@ -110,6 +119,7 @@ public class AccountPerformanceFlexMergeTests
 			days,
 			[Nav(22, 10000), Nav(23, 10040)],
 			[],
+			[],
 			Today,
 			Now
 		);
@@ -135,6 +145,7 @@ public class AccountPerformanceFlexMergeTests
 			days,
 			[Nav(23, 10000), Nav(26 - 1, 10500)],
 			[Flow(24, 500)],
+			[],
 			Today,
 			Now
 		);
@@ -146,22 +157,94 @@ public class AccountPerformanceFlexMergeTests
 	public void Merging_the_same_statement_again_changes_nothing()
 	{
 		var days = new List<AccountDaySnapshotEntity>();
-		AccountPerformanceHelpers.MergeFlexDays(days, [Nav(21, 1), Nav(22, 2)], [], Today, Now);
+		AccountPerformanceHelpers.MergeFlexDays(days, [Nav(21, 1), Nav(22, 2)], [], [], Today, Now);
 
 		Assert.Equal(
 			0,
-			AccountPerformanceHelpers.MergeFlexDays(days, [Nav(21, 1), Nav(22, 2)], [], Today, Now)
+			AccountPerformanceHelpers.MergeFlexDays(
+				days,
+				[Nav(21, 1), Nav(22, 2)],
+				[],
+				[],
+				Today,
+				Now
+			)
 		);
+	}
+
+	private static FlexCashFlowDto Transfer(int day, double amount) =>
+		new()
+		{
+			Account = "U0000001",
+			Date = new DateOnly(2026, 10, day),
+			Amount = amount,
+			Kind = amount > 0 ? CashMovementKind.TransferIn : CashMovementKind.TransferOut,
+		};
+
+	[Fact]
+	public void A_transfer_in_or_out_never_counts_as_pnl()
+	{
+		var days = new List<AccountDaySnapshotEntity>();
+
+		AccountPerformanceHelpers.MergeFlexDays(
+			days,
+			[Nav(21, 10000), Nav(22, 11600), Nav(23, 11050)],
+			[],
+			[Transfer(22, 1570.94), Transfer(23, -500)],
+			Today,
+			Now
+		);
+
+		Assert.Equal(1570.94, days[1].CashFlow);
+		Assert.Equal(29.06, days[1].DailyPnl!.Value, 6);
+		Assert.Equal(-500, days[2].CashFlow);
+		Assert.Equal(-50, days[2].DailyPnl!.Value, 6);
+	}
+
+	[Fact]
+	public void A_weekend_transfer_counts_on_the_next_trading_day()
+	{
+		var days = new List<AccountDaySnapshotEntity>();
+
+		AccountPerformanceHelpers.MergeFlexDays(
+			days,
+			[Nav(23, 10000), Nav(26 - 1, 10500)],
+			[],
+			[Transfer(24, 500)],
+			Today,
+			Now
+		);
+
+		Assert.Equal(500, days[1].CashFlow);
+		Assert.Equal(0, days[1].DailyPnl);
+	}
+
+	[Fact]
+	public void Money_listed_as_a_deposit_and_a_transfer_is_left_out_once()
+	{
+		var days = new List<AccountDaySnapshotEntity>();
+
+		AccountPerformanceHelpers.MergeFlexDays(
+			days,
+			[Nav(21, 10000), Nav(22, 11100)],
+			[Flow(22, 1000)],
+			[Transfer(22, 1000)],
+			Today,
+			Now
+		);
+
+		Assert.Equal(1000, days[1].CashFlow);
+		Assert.Equal(100, days[1].DailyPnl);
 	}
 
 	[Fact]
 	public void An_older_chunk_fills_in_the_first_days_pnl()
 	{
 		var days = new List<AccountDaySnapshotEntity>();
-		AccountPerformanceHelpers.MergeFlexDays(days, [Nav(22, 110)], [], Today, Now);
+		AccountPerformanceHelpers.MergeFlexDays(days, [Nav(22, 110)], [], [], Today, Now);
 		Assert.Null(days[0].DailyPnl);
 
-		AccountPerformanceHelpers.MergeFlexDays(days, [Nav(21, 100)], [], Today, Now);
+		AccountPerformanceHelpers.MergeFlexDays(days, [Nav(21, 100)], [], [], Today, Now);
 
 		Assert.Equal(10, days.Single(x => x.Date.Day == 22).DailyPnl);
 	}

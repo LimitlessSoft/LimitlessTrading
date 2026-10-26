@@ -1,6 +1,7 @@
 using LT.Contracts.Constants;
 using LT.Contracts.Entities;
 using LT.Contracts.Helpers;
+using Microsoft.Extensions.Time.Testing;
 
 namespace LT.Tests.Contracts.Helpers;
 
@@ -142,7 +143,11 @@ public class FlexImportHelpersTests
 	[Fact]
 	public void Activity_is_due_once_per_new_york_day()
 	{
-		var state = new FlexImportStateEntity();
+		var state = new FlexImportStateEntity
+		{
+			HadCashTransactionsSection = true,
+			HadTransfersSection = false,
+		};
 		Assert.True(FlexImportHelpers.IsActivityDue(state, Now, NewYork));
 
 		state.LastActivityAttempt = state.LastActivitySuccess = Now.AddHours(-1);
@@ -172,6 +177,54 @@ public class FlexImportHelpersTests
 	}
 
 	[Fact]
+	public void A_state_from_before_cash_sections_were_tracked_is_due_today_once()
+	{
+		// flex-import.json written by the build before cash movements: today's import, no flags
+		var state = new FlexImportStateEntity
+		{
+			CoveredFrom = new DateOnly(2025, 10, 26),
+			CoveredTo = new DateOnly(2026, 10, 25),
+			BackfillComplete = true,
+			LastActivitySuccess = Now.AddMinutes(-30),
+		};
+		var time = new FakeTimeProvider(Now);
+
+		Assert.True(FlexImportHelpers.PredatesCashSections(state));
+		Assert.True(FlexImportHelpers.IsActivityDue(state, time.GetUtcNow(), NewYork));
+		Assert.Equal(
+			TimeSpan.Zero,
+			FlexImportHelpers.GetDelayUntilDue(state, false, time.GetUtcNow(), NewYork)
+		);
+
+		// A failed attempt still waits the retry interval
+		state.LastActivityAttempt = time.GetUtcNow();
+		time.Advance(TimeSpan.FromMinutes(10));
+		Assert.False(FlexImportHelpers.IsActivityDue(state, time.GetUtcNow(), NewYork));
+		Assert.Equal(
+			FlexConstants.ActivityRetryInterval - TimeSpan.FromMinutes(10),
+			FlexImportHelpers.GetDelayUntilDue(state, false, time.GetUtcNow(), NewYork)
+		);
+
+		// The next import notes the sections (even both missing): back to once a day
+		FlexImportHelpers.NoteCashSections(
+			state,
+			false,
+			false,
+			new DateOnly(2026, 10, 18),
+			new DateOnly(2026, 10, 25)
+		);
+		state.LastActivitySuccess = time.GetUtcNow();
+		Assert.False(FlexImportHelpers.PredatesCashSections(state));
+		Assert.False(FlexImportHelpers.IsActivityDue(state, time.GetUtcNow(), NewYork));
+	}
+
+	[Fact]
+	public void A_fresh_state_is_not_taken_for_one_from_before_cash_sections()
+	{
+		Assert.False(FlexImportHelpers.PredatesCashSections(new FlexImportStateEntity()));
+	}
+
+	[Fact]
 	public void Trade_confirmations_are_due_every_interval()
 	{
 		var state = new FlexImportStateEntity { LastTradeConfirmAttempt = Now };
@@ -193,6 +246,8 @@ public class FlexImportHelpersTests
 			LastActivityAttempt = Now,
 			LastActivitySuccess = Now,
 			LastTradeConfirmAttempt = Now,
+			HadCashTransactionsSection = true,
+			HadTransfersSection = true,
 		};
 
 		Assert.Equal(
