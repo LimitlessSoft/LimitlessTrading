@@ -1,3 +1,5 @@
+using LT.Contracts.Dtos.Contracts;
+
 namespace LT.Contracts.Dtos.Executions;
 
 public class ExecutionDto
@@ -24,4 +26,10 @@ public class ExecutionDto
 	public double? Commission { get; set; }
 	public string CommissionCurrency { get; set; } = string.Empty;
 	public double? RealizedPnl { get; set; }
+
+	/// <summary>
+	/// The fill's contract, sent to the link group; no exchange, so it routes through SMART
+	/// rather than the fill's venue. Empty (ConId 0) for journal fills.
+	/// </summary>
+	public ContractDto Contract { get; set; } = new();
 }

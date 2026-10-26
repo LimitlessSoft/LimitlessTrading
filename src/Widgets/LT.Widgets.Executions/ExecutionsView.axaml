@@ -29,6 +29,7 @@
 		</StackPanel>
 		<DataGrid
 			ItemsSource="{Binding Executions}"
+			SelectedItem="{Binding SelectedExecution}"
 			IsReadOnly="True"
 			CanUserSortColumns="True"
 			GridLinesVisibility="Horizontal"

@@ -52,4 +52,44 @@ public class OpenOrderDtoMapperTests
 		Assert.Equal("DAY", dto.TimeInForce);
 		Assert.Equal("Submitted", dto.Status);
 	}
+
+	[Fact]
+	public void An_open_order_carries_its_contract_for_the_link_group()
+	{
+		var dto = new OpenOrderDtoMapper().ToMapped(
+			new OpenOrder(
+				201,
+				0,
+				900000002,
+				new Contract
+				{
+					ConId = 265598,
+					Symbol = "AAPL",
+					SecurityType = "STK",
+					Exchange = "SMART",
+					PrimaryExchange = "NASDAQ",
+					Currency = "USD",
+				},
+				new Order
+				{
+					Action = "SELL",
+					Quantity = 5,
+					OrderType = "LMT",
+					LimitPrice = 250,
+					TimeInForce = "GTC",
+					Account = "U0000001",
+				},
+				"PreSubmitted",
+				0,
+				5
+			)
+		);
+
+		Assert.Equal(265598, dto.Contract.ConId);
+		Assert.Equal("AAPL", dto.Contract.Symbol);
+		Assert.Equal("STK", dto.Contract.SecurityType);
+		Assert.Equal("SMART", dto.Contract.Exchange);
+		Assert.Equal("NASDAQ", dto.Contract.PrimaryExchange);
+		Assert.Equal("USD", dto.Contract.Currency);
+	}
 }

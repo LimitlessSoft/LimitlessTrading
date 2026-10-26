@@ -14,7 +14,8 @@ public class WidgetPlacementEntity
 	public double? FloatWidth { get; set; }
 	public double? FloatHeight { get; set; }
 
-	// Linkable widgets (chart, option chain, watchlist, positions)
+	// Linkable widgets (chart, option chain, watchlist, positions, orders, executions, news,
+	// order ticket)
 	public LinkGroup LinkGroup { get; set; } = LinkGroup.Red;
 
 	// Side widgets: pinned stays expanded; unpinned collapses when you click elsewhere

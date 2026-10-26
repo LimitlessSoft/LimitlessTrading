@@ -6,7 +6,9 @@ using CommunityToolkit.Mvvm.Input;
 using LT.App.Helpers;
 using LT.App.Stores;
 using LT.App.ViewModels;
+using LT.App.Workspace;
 using LT.Contracts.Constants;
+using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
@@ -15,23 +17,26 @@ using LT.Contracts.Interfaces.IManagers;
 namespace LT.App.Widgets.Orders;
 
 /// <summary>Working orders of every client and TWS; this app's own can be cancelled here.</summary>
-public partial class OrdersViewModel : ConnectedViewModelBase
+public partial class OrdersViewModel : ConnectedViewModelBase, ILinkable
 {
 	private readonly IOrderManager _orderManager;
 	private readonly IMessageLogManager _messageLogManager;
 	private readonly AccountStore _accountStore;
+	private bool _restoringSelection;
 
 	public OrdersViewModel(
 		IOrderManager orderManager,
 		IConnectionManager connectionManager,
 		IMessageLogManager messageLogManager,
-		AccountStore accountStore
+		AccountStore accountStore,
+		LinkGroupStore linkGroupStore
 	)
 		: base(connectionManager)
 	{
 		_orderManager = orderManager;
 		_messageLogManager = messageLogManager;
 		_accountStore = accountStore;
+		Link = new ContractLink(linkGroupStore, () => GetLinkContract(SelectedOrder));
 		accountStore.PropertyChanged += OnAccountChanged;
 		// After the base class has applied the connection state
 		Dispatcher.UIThread.Post(() =>
@@ -41,7 +46,13 @@ public partial class OrdersViewModel : ConnectedViewModelBase
 		});
 	}
 
+	/// <summary>Clicking an order sends its contract to the link group.</summary>
+	public ContractLink Link { get; }
+
 	public ObservableCollection<OpenOrderDto> Orders { get; } = [];
+
+	[ObservableProperty]
+	public partial OpenOrderDto? SelectedOrder { get; set; }
 
 	[ObservableProperty]
 	public partial string? UpdatedText { get; set; }
@@ -53,8 +64,21 @@ public partial class OrdersViewModel : ConnectedViewModelBase
 
 	public bool IsStale => StaleText != null;
 
+	partial void OnSelectedOrderChanged(OpenOrderDto? value)
+	{
+		// A reload putting the same order back selected must not pull the group back to it
+		if (!_restoringSelection && GetLinkContract(value) is { } contract)
+			Link.Publish(contract);
+	}
+
 	[RelayCommand]
 	public void Refresh() => RestartSession();
+
+	public override void Dispose()
+	{
+		Link.Dispose();
+		base.Dispose();
+	}
 
 	/// <summary>Asks IB to cancel; the reload right after shows PendingCancel, then it drops off.</summary>
 	[RelayCommand]
@@ -111,11 +135,31 @@ public partial class OrdersViewModel : ConnectedViewModelBase
 			throw;
 		}
 		StaleText = null;
+		var selected = SelectedOrder?.PermId;
 		Orders.Clear();
 		foreach (var order in orders)
 			Orders.Add(order);
 		UpdatedText = $"{orders.Count} open · updated {DateTime.Now:HH:mm:ss}";
+		RestoreSelection(selected);
 	}
+
+	// The list is rebuilt on every refresh; the same order (by permId) stays selected
+	private void RestoreSelection(long? permId)
+	{
+		_restoringSelection = true;
+		try
+		{
+			SelectedOrder = Orders.FirstOrDefault(x => x.PermId == permId);
+		}
+		finally
+		{
+			_restoringSelection = false;
+		}
+	}
+
+	// Remembered orders are for looking at only, like remembered positions; they drive no other widget
+	private ContractDto? GetLinkContract(OpenOrderDto? order) =>
+		order is { Contract.ConId: > 0 } && !IsStale ? order.Contract : null;
 
 	// Display only: snapshot orders are never cancellable and never feed an order decision
 	private void ShowSnapshot(string? error)
