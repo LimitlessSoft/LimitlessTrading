@@ -26,7 +26,7 @@ public partial class WorkspaceView
 	private const double DetachOffsetX = 80;
 	private const double DetachOffsetY = 16;
 
-	/// <summary>Every workspace on screen: a dragged tab can be dropped on any of them.</summary>
+	/// <summary>Every workspace on screen: a dragged tab or widget can be dropped on any of them.</summary>
 	private static readonly List<WorkspaceView> Attached = [];
 
 	/// <summary>

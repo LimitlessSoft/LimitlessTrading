@@ -122,6 +122,29 @@ public class WorkspaceWindows : IWorkspaceHost
 		CloseIfEmpty(from);
 	}
 
+	public void MoveWidget(
+		WidgetItem widget,
+		WorkspaceViewModel to,
+		WidgetDock dock,
+		int? index = null,
+		string? targetId = null,
+		DropEdge edge = DropEdge.Right,
+		string? viewId = null
+	)
+	{
+		if (widget.Workspace is not { } from)
+			return;
+		if (from == to)
+		{
+			from.Drop(widget, dock, index, targetId, edge, viewId);
+			return;
+		}
+		if (!Workspaces.Contains(to) || !from.ReleaseWidget(widget))
+			return;
+		to.AdoptWidget(widget, dock, index, targetId, edge, viewId);
+		CloseIfEmpty(from);
+	}
+
 	public void DetachView(CenterViewItem view, double? x = null, double? y = null)
 	{
 		var from = view.Workspace;
@@ -142,8 +165,8 @@ public class WorkspaceWindows : IWorkspaceHost
 	}
 
 	/// <summary>
-	/// An extra window whose last view was moved out and that shows nothing else is closed (the
-	/// main window stays).
+	/// An extra window whose last view or widget was moved out and that shows nothing else is
+	/// closed (the main window stays).
 	/// </summary>
 	private void CloseIfEmpty(WorkspaceViewModel workspace)
 	{

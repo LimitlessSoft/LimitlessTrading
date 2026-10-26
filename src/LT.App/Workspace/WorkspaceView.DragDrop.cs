@@ -13,8 +13,10 @@ namespace LT.App.Workspace;
 /// Drag and drop docking: a widget is dragged by its frame header (or, docked on a strip, by its
 /// strip icon) and dropped on a strip (left, right or bottom, at an icon position), on a center
 /// tile, on a view tab, or outside the main window to float. Held over a view tab for a moment,
-/// the drag shows that view so the widget can be dropped into it. Positions arrive in screen
-/// pixels because a drag can start in a floating window.
+/// the drag shows that view so the widget can be dropped into it. Dropped on another workspace
+/// window, the widget moves there, onto the same kinds of targets (anywhere else in that window:
+/// the right of its shown view), and that window builds a frame of its own for it. Positions
+/// arrive in screen pixels because a drag can start in a floating window.
 /// </summary>
 public partial class WorkspaceView
 {
@@ -52,6 +54,9 @@ public partial class WorkspaceView
 	// Strip icon pushed down to open a gap where the dropped icon will go
 	private Control? _gapContainer;
 
+	// The workspace showing where the dragged widget will land: this one or another window's
+	private WorkspaceView? _dropFeedback;
+
 	// Strip icons already given a drag (an icon can be attached to the visual tree again)
 	private readonly ConditionalWeakTable<Button, DragGesture> _iconDrags = [];
 
@@ -87,7 +92,15 @@ public partial class WorkspaceView
 	{
 		if (widget is null)
 			return;
-		var target = GetDropTarget(widget, screen);
+		var (host, target) = FindDropTarget(widget, screen);
+		if (_dropFeedback != host)
+			_dropFeedback?.HideDropTarget();
+		_dropFeedback = host;
+		host.ShowDropTarget(target);
+	}
+
+	private void ShowDropTarget(DropTarget target)
+	{
 		SetHoverView(target.View);
 		// Strip icon tooltips would pop up over the drop slot
 		ToolTip.SetServiceEnabled(this, false);
@@ -102,6 +115,13 @@ public partial class WorkspaceView
 	}
 
 	private void EndDragFeedback()
+	{
+		_dropFeedback?.HideDropTarget();
+		_dropFeedback = null;
+		HideDropTarget();
+	}
+
+	private void HideDropTarget()
 	{
 		SetHoverView(null);
 		ToolTip.SetServiceEnabled(this, true);
@@ -172,8 +192,14 @@ public partial class WorkspaceView
 			EndDragFeedback();
 			return;
 		}
-		var target = GetDropTarget(widget, screen);
+		var (host, target) = FindDropTarget(widget, screen);
 		EndDragFeedback();
+
+		if (host != this)
+		{
+			MoveToWindow(widget, host, target);
+			return;
+		}
 
 		if (target.Dock == WidgetDock.Floating)
 		{
@@ -227,6 +253,81 @@ public partial class WorkspaceView
 				target.Edge,
 				target.View?.Id
 			)
+		);
+	}
+
+	/// <summary>
+	/// Another workspace window: the widget leaves this one and lands on the target there. A
+	/// floating widget's window closes first (like docking it here), then the move runs.
+	/// </summary>
+	private void MoveToWindow(WidgetItem widget, WorkspaceView host, DropTarget target)
+	{
+		if (_viewModel is not { } workspace || host._viewModel is not { } to)
+			return;
+		void Move()
+		{
+			workspace.MoveWidgetTo(
+				widget,
+				to,
+				target.Dock,
+				target.Index,
+				target.TargetId,
+				target.Edge,
+				target.View?.Id
+			);
+			(TopLevel.GetTopLevel(host) as Window)?.Activate();
+		}
+
+		if (_windows.Remove(widget.Id, out var source))
+		{
+			StoreBounds(widget, source);
+			source.Closed += (_, _) =>
+				Dispatcher.UIThread.Post(Move, DispatcherPriority.Background);
+			source.Content = null;
+			source.Close();
+			return;
+		}
+		// The move drops the dragged frame; let the current pointer handling finish first
+		Dispatcher.UIThread.Post(Move);
+	}
+
+	/// <summary>
+	/// Over this workspace: its own target. Off it but over another workspace window: that
+	/// window's target there, or the right of its shown view when the pointer is outside its
+	/// workspace (its title bar, the main window's toolbar). Over no workspace: float.
+	/// </summary>
+	private (WorkspaceView Host, DropTarget Target) FindDropTarget(
+		WidgetItem widget,
+		PixelPoint screen
+	)
+	{
+		var own = GetDropTarget(widget, screen);
+		if (own.Dock != WidgetDock.Floating)
+			return (this, own);
+		foreach (var host in Attached)
+		{
+			if (host == this || host._viewModel is null || !host.IsOverWindow(screen))
+				continue;
+			var target = host.GetDropTarget(widget, screen);
+			return (
+				host,
+				target.Dock != WidgetDock.Floating ? target : host.GetWindowDropTarget(widget)
+			);
+		}
+		return (this, own);
+	}
+
+	// Anywhere else in this window: the right of the shown view, the whole center highlighted
+	private DropTarget GetWindowDropTarget(WidgetItem widget)
+	{
+		var center = CenterHost.TranslatePoint(default, this) is { } hostOrigin
+			? new Rect(hostOrigin, CenterHost.Bounds.Size)
+			: CenterHost.Bounds;
+		return new DropTarget(
+			WidgetDock.Center,
+			null,
+			center,
+			$"Move {widget.Title} to this window"
 		);
 	}
 

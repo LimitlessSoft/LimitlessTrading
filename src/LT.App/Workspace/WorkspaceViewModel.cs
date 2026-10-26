@@ -306,6 +306,74 @@ public partial class WorkspaceViewModel : ViewModelBase
 	}
 
 	/// <summary>
+	/// A widget dragged onto another workspace window: it goes there (<see cref="AdoptWidget"/>)
+	/// at the drop target, with its view model and settings. On this workspace it is a plain
+	/// <see cref="Drop"/>.
+	/// </summary>
+	public void MoveWidgetTo(
+		WidgetItem widget,
+		WorkspaceViewModel to,
+		WidgetDock dock,
+		int? index = null,
+		string? targetId = null,
+		DropEdge edge = DropEdge.Right,
+		string? viewId = null
+	)
+	{
+		if (to == this)
+		{
+			Drop(widget, dock, index, targetId, edge, viewId);
+			return;
+		}
+		_host?.MoveWidget(widget, to, dock, index, targetId, edge, viewId);
+	}
+
+	/// <summary>
+	/// Takes the widget out of this workspace without closing it (its view model and settings go
+	/// along), for another workspace to adopt (<see cref="AdoptWidget"/>). False when it isn't
+	/// here.
+	/// </summary>
+	public bool ReleaseWidget(WidgetItem widget)
+	{
+		if (!Widgets.Contains(widget))
+			return false;
+		if (FullscreenWidget == widget)
+			FullscreenWidget = null;
+		if (widget.Dock != null)
+			Remove(widget);
+		if (CurrentWidget == widget)
+			CurrentWidget = null;
+		if (_lastCenterId == widget.Id)
+			_lastCenterId = null;
+		Widgets.Remove(widget);
+		widget.Workspace = null;
+		return true;
+	}
+
+	/// <summary>
+	/// Takes in a widget released by another workspace and drops it here like a drag within this
+	/// window (<see cref="Drop"/>). It keeps its view model and settings; when its id is already
+	/// taken here it gets a new one.
+	/// </summary>
+	public void AdoptWidget(
+		WidgetItem widget,
+		WidgetDock dock,
+		int? index = null,
+		string? targetId = null,
+		DropEdge edge = DropEdge.Right,
+		string? viewId = null
+	)
+	{
+		widget.Id = WorkspaceHelpers.GetFreeId(widget.Id, Widgets.Select(x => x.Id).ToHashSet());
+		widget.Workspace = this;
+		Widgets.Add(widget);
+		Drop(widget, dock, index, targetId, edge, viewId);
+		// Never left without a place: it would be open in no host
+		if (widget.Dock is null)
+			Place(widget, WidgetDock.Center);
+	}
+
+	/// <summary>
 	/// Nothing left to show: no open widget anywhere and a single empty view. An extra window
 	/// left like this by moving its last view out is closed.
 	/// </summary>

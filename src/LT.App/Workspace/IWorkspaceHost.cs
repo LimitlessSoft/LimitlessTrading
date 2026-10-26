@@ -1,9 +1,10 @@
 using LT.Contracts.Dtos.Settings;
+using LT.Contracts.Enums;
 
 namespace LT.App.Workspace;
 
 /// <summary>
-/// What a workspace knows of the other windows: where one of its views can move to.
+/// What a workspace knows of the other windows: where one of its views or widgets can move to.
 /// Implemented by <see cref="WorkspaceWindows"/>.
 /// </summary>
 public interface IWorkspaceHost
@@ -22,6 +23,20 @@ public interface IWorkspaceHost
 	/// <paramref name="y"/>) in device pixels, or cascaded when they are null.
 	/// </summary>
 	void DetachView(CenterViewItem view, double? x = null, double? y = null);
+
+	/// <summary>
+	/// Moves the widget (dragged onto another window) into the workspace <paramref name="to"/>,
+	/// dropped there like a drag within that window (<see cref="WorkspaceViewModel.Drop"/>).
+	/// </summary>
+	void MoveWidget(
+		WidgetItem widget,
+		WorkspaceViewModel to,
+		WidgetDock dock,
+		int? index = null,
+		string? targetId = null,
+		DropEdge edge = DropEdge.Right,
+		string? viewId = null
+	);
 }
 
 /// <summary>A window a view can move to: its name and its workspace.</summary>
