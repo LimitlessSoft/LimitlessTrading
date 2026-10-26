@@ -149,6 +149,10 @@ public static class LSCoreContainer
 					LSCoreValidatorBase<ImportChartTemplatesRequest>,
 					ImportChartTemplatesRequestValidator
 				>()
+				.AddSingleton<
+					LSCoreValidatorBase<UpdateChartTemplateSettingsRequest>,
+					UpdateChartTemplateSettingsRequestValidator
+				>()
 				.BuildServiceProvider();
 		}
 	}

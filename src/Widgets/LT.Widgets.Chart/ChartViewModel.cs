@@ -39,7 +39,8 @@ namespace LT.App.Widgets.Chart;
 /// </para>
 /// <para>
 /// Its setup (timeframe, indicators, right margin) can be saved as a named template and applied
-/// from the header; see ChartViewModel.Templates.cs.
+/// from the header, and can follow its template (changes saved to it and taken from it); see
+/// ChartViewModel.Templates.cs.
 /// </para>
 /// </summary>
 public partial class ChartViewModel
@@ -57,6 +58,7 @@ public partial class ChartViewModel
 	private readonly IIndicatorManager _indicatorManager;
 	private readonly IChartTemplateManager _chartTemplateManager;
 	private readonly DispatcherTimer _computeTimer;
+	private readonly DispatcherTimer _templateSaveTimer;
 	private List<IndicatorInstanceDto> _indicators = [];
 	private bool _computing;
 	private bool _computePending;
@@ -97,6 +99,12 @@ public partial class ChartViewModel
 		_accountStore = accountStore;
 		_computeTimer = new DispatcherTimer { Interval = IndicatorConstants.ComputeDebounce };
 		_computeTimer.Tick += (_, _) => ComputeIndicators();
+		_templateSaveTimer = new DispatcherTimer
+		{
+			Interval = ChartTemplateConstants.FollowSaveDebounce,
+		};
+		_templateSaveTimer.Tick += (_, _) => SaveFollowedTemplate();
+		chartTemplateManager.TemplateSaved += OnTemplateSaved;
 		indicatorManager.DefinitionsChanged += OnIndicatorDefinitionsChanged;
 		tradeJournalManager.FillsChanged += OnFillsChanged;
 		accountStore.PropertyChanged += OnAccountChanged;
@@ -114,7 +122,10 @@ public partial class ChartViewModel
 		SelectedTimeframe = Timeframes.FirstOrDefault(x => x.Value == saved) ?? Timeframes[1];
 		// A new chart starts from the default template; a restored one then loads its own state
 		if (chartTemplateManager.GetDefault() is { } template)
+		{
 			ApplyTemplateSettings(template.Settings);
+			SetAppliedTemplate(template);
+		}
 
 		_contract = linkGroupStore.Get(Link.Group);
 		Reload();
@@ -183,6 +194,8 @@ public partial class ChartViewModel
 
 	public void LoadState(WidgetPlacementDto placement)
 	{
+		// Loading the chart's own setup is not an edit to save to a template
+		StopFollowingTemplate();
 		if (placement.ChartTimeframe is { } timeframe)
 			SelectedTimeframe =
 				Timeframes.FirstOrDefault(x => x.Value == timeframe) ?? SelectedTimeframe;
@@ -192,6 +205,7 @@ public partial class ChartViewModel
 		RightMargin = Math.Max(0, placement.ChartRightMargin ?? 0);
 		_indicators = [.. placement.ChartIndicators ?? []];
 		ScheduleIndicators();
+		LoadTemplateState(placement);
 		if (placement.ChartContract != null)
 			ShowContract(placement.ChartContract);
 	}
@@ -203,12 +217,18 @@ public partial class ChartViewModel
 		placement.ChartContract = _contract;
 		placement.ChartRightMargin = RightMargin > 0 ? RightMargin : null;
 		placement.ChartIndicators = _indicators.Count > 0 ? [.. _indicators] : null;
+		placement.ChartTemplateId = _templateId;
+		placement.ChartFollowTemplate = FollowTemplate;
 	}
 
 	public override void Dispose()
 	{
+		// An edit still waiting for its save is saved now
+		FlushTemplateSave();
 		_disposed = true;
 		_computeTimer.Stop();
+		_templateSaveTimer.Stop();
+		_chartTemplateManager.TemplateSaved -= OnTemplateSaved;
 		_indicatorManager.DefinitionsChanged -= OnIndicatorDefinitionsChanged;
 		_tradeJournalManager.FillsChanged -= OnFillsChanged;
 		_accountStore.PropertyChanged -= OnAccountChanged;
@@ -267,7 +287,13 @@ public partial class ChartViewModel
 				Timeframes.FirstOrDefault(x => x.Value == timeframe) ?? SelectedTimeframe;
 	}
 
-	partial void OnSelectedTimeframeChanged(TimeframeOption value) => Reload();
+	partial void OnSelectedTimeframeChanged(TimeframeOption value)
+	{
+		Reload();
+		OnTemplateSettingsEdited();
+	}
+
+	partial void OnRightMarginChanged(double value) => OnTemplateSettingsEdited();
 
 	partial void OnUseRegularTradingHoursChanged(bool value) => Reload();
 
@@ -568,6 +594,7 @@ public partial class ChartViewModel
 	{
 		OnPropertyChanged(nameof(CanAddIndicator));
 		ScheduleIndicators();
+		OnTemplateSettingsEdited();
 	}
 
 	// From the indicator manager's threads (a script compiled or was removed)

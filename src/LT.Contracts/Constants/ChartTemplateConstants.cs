@@ -18,6 +18,15 @@ public static class ChartTemplateConstants
 
 	public const int NameMaxLength = 64;
 
+	/// <summary>
+	/// A chart following its template saves its changes to it once they stop for this long (a
+	/// right-margin drag is one save).
+	/// </summary>
+	public static readonly TimeSpan FollowSaveDebounce = TimeSpan.FromMilliseconds(400);
+
+	/// <summary>Names the template in a settings error when only its id is known.</summary>
+	public const string UnnamedTemplateLabel = "Template";
+
 	/// <summary>One import file holds at most this many templates.</summary>
 	public const int MaxTemplatesPerFile = 200;
 

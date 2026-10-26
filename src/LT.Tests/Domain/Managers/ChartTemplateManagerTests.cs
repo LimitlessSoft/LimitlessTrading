@@ -99,6 +99,54 @@ public class ChartTemplateManagerTests
 		Assert.Empty(template.Settings.Indicators!);
 	}
 
+	[Fact]
+	public void Updating_settings_keeps_the_name_and_default_and_tells_listeners()
+	{
+		var saved = _manager.Save(
+			new SaveChartTemplateRequest { Name = "Swing", Settings = Scalping() }
+		);
+		_manager.SetDefault(saved.Id);
+		var heard = new List<ChartTemplateDto>();
+		_manager.TemplateSaved += heard.Add;
+
+		_manager.UpdateSettings(
+			new UpdateChartTemplateSettingsRequest
+			{
+				Id = saved.Id,
+				Settings = new ChartTemplateSettingsDto { Timeframe = ChartTimeframe.OneDay },
+			}
+		);
+
+		var template = Assert.Single(_manager.GetTemplates());
+		Assert.Equal("Swing", template.Name);
+		Assert.True(template.IsDefault);
+		Assert.Equal(ChartTimeframe.OneDay, template.Settings.Timeframe);
+		Assert.Equal(ChartTimeframe.OneDay, Assert.Single(heard).Settings.Timeframe);
+	}
+
+	[Fact]
+	public void Updating_a_deleted_template_is_refused() =>
+		Assert.Throws<LSCoreBadRequestException>(() =>
+			_manager.UpdateSettings(
+				new UpdateChartTemplateSettingsRequest
+				{
+					Id = "gone",
+					Settings = new ChartTemplateSettingsDto(),
+				}
+			)
+		);
+
+	[Fact]
+	public void Saving_tells_listeners()
+	{
+		var heard = new List<ChartTemplateDto>();
+		_manager.TemplateSaved += heard.Add;
+
+		_manager.Save(new SaveChartTemplateRequest { Name = "Swing", Settings = Scalping() });
+
+		Assert.Equal("Swing", Assert.Single(heard).Name);
+	}
+
 	[Theory]
 	[InlineData("")]
 	[InlineData("   ")]

@@ -11,7 +11,9 @@ namespace LT.Tests.Widgets;
 
 /// <summary>
 /// Chart templates from the chart's side: a setup saved on one chart is applied to another, a
-/// taken name asks before replacing, the default template sets up new charts but not restored ones.
+/// taken name asks before replacing, the default template sets up new charts but not restored ones;
+/// charts following a template save their edits to it and take each other's, and turning following
+/// on asks first when the chart differs from the template.
 /// </summary>
 public class ChartViewModelTemplateTests : IDisposable
 {
@@ -198,6 +200,189 @@ public class ChartViewModelTemplateTests : IDisposable
 			Assert.Empty(chart.Templates);
 		});
 
+	[Fact]
+	public void Following_charts_take_each_others_edits_and_others_are_left_alone() =>
+		TestUiThread.Invoke(() =>
+		{
+			var id = SaveHourly();
+			var (first, _) = TwoBuiltIns();
+			var editor = Following(id);
+			var follower = Following(id);
+			var bystander = CreateChart();
+			bystander.ApplyTemplate(id);
+
+			editor.SetTimeframe(ChartTimeframe.FiveMinutes);
+			editor.AddIndicator(first);
+			editor.RightMargin = 3;
+
+			// Debounced: nothing saved until the edits stop
+			Assert.Equal(ChartTimeframe.OneHour, _templates.GetTemplate(id)!.Settings.Timeframe);
+			editor.SaveFollowedTemplate();
+
+			var template = _templates.GetTemplate(id)!;
+			Assert.Equal("Hourly", template.Name);
+			Assert.Equal(ChartTimeframe.FiveMinutes, template.Settings.Timeframe);
+			Assert.Equal(3, template.Settings.RightMargin);
+			Assert.Equal(first, Assert.Single(template.Settings.Indicators!).DefinitionId);
+			var followed = State(follower);
+			Assert.Equal(ChartTimeframe.FiveMinutes, followed.ChartTimeframe);
+			Assert.Equal(3, followed.ChartRightMargin);
+			Assert.Equal(first, Assert.Single(followed.ChartIndicators!).DefinitionId);
+			var untouched = State(bystander);
+			Assert.Equal(ChartTimeframe.OneHour, untouched.ChartTimeframe);
+			Assert.Null(untouched.ChartIndicators);
+		});
+
+	[Fact]
+	public void Applying_a_followed_save_is_not_saved_back() =>
+		TestUiThread.Invoke(() =>
+		{
+			var id = SaveHourly();
+			var editor = Following(id);
+			var follower = Following(id);
+			var saves = 0;
+			_templates.TemplateSaved += _ => saves++;
+
+			editor.AddIndicator(TwoBuiltIns().First);
+			var instance = Assert.Single(State(editor).ChartIndicators!).Id;
+			editor.SaveFollowedTemplate();
+			follower.SaveFollowedTemplate();
+			editor.SaveFollowedTemplate();
+
+			Assert.Equal(1, saves);
+			// The editor ignored its own save: still its own instance, not a copy
+			Assert.Equal(instance, Assert.Single(State(editor).ChartIndicators!).Id);
+			Assert.Single(State(follower).ChartIndicators!);
+		});
+
+	[Fact]
+	public void A_chart_not_following_keeps_its_edits_to_itself() =>
+		TestUiThread.Invoke(() =>
+		{
+			var id = SaveHourly();
+			var chart = CreateChart();
+			chart.ApplyTemplate(id);
+
+			chart.SetTimeframe(ChartTimeframe.OneDay);
+			chart.SaveFollowedTemplate();
+
+			Assert.Equal(ChartTimeframe.OneHour, _templates.GetTemplate(id)!.Settings.Timeframe);
+		});
+
+	[Fact]
+	public void Following_an_outdated_template_asks_and_cancel_leaves_the_chart_as_is() =>
+		TestUiThread.Invoke(() =>
+		{
+			var id = SaveHourly();
+			var chart = CreateChart();
+			chart.ApplyTemplate(id);
+			chart.SetTimeframe(ChartTimeframe.OneDay);
+
+			chart.ToggleFollowTemplate();
+
+			Assert.True(chart.IsConfirmingFollow);
+			Assert.False(chart.FollowTemplate);
+			Assert.Contains("outdated version of template \"Hourly\"", chart.FollowPrompt);
+
+			chart.CancelFollow();
+
+			Assert.False(chart.IsConfirmingFollow);
+			Assert.False(chart.FollowTemplate);
+			Assert.Equal(ChartTimeframe.OneDay, State(chart).ChartTimeframe);
+		});
+
+	[Fact]
+	public void Following_an_outdated_template_when_confirmed_updates_the_chart_first() =>
+		TestUiThread.Invoke(() =>
+		{
+			var id = SaveHourly();
+			var chart = CreateChart();
+			chart.ApplyTemplate(id);
+			chart.SetTimeframe(ChartTimeframe.OneDay);
+			chart.ToggleFollowTemplate();
+
+			chart.ConfirmFollow();
+
+			Assert.False(chart.IsConfirmingFollow);
+			Assert.True(chart.FollowTemplate);
+			Assert.Equal(ChartTimeframe.OneHour, State(chart).ChartTimeframe);
+			// The template was not touched by the update
+			Assert.Equal(ChartTimeframe.OneHour, _templates.GetTemplate(id)!.Settings.Timeframe);
+		});
+
+	[Fact]
+	public void Following_a_template_the_chart_matches_needs_no_question() =>
+		TestUiThread.Invoke(() =>
+		{
+			var id = SaveHourly();
+			var chart = CreateChart();
+			chart.ApplyTemplate(id);
+
+			chart.ToggleFollowTemplate();
+
+			Assert.True(chart.FollowTemplate);
+			Assert.False(chart.IsConfirmingFollow);
+
+			chart.ToggleFollowTemplate();
+
+			Assert.False(chart.FollowTemplate);
+		});
+
+	[Fact]
+	public void Without_a_template_following_does_nothing() =>
+		TestUiThread.Invoke(() =>
+		{
+			SaveHourly();
+			var chart = CreateChart();
+
+			chart.ToggleFollowTemplate();
+
+			Assert.False(chart.HasAppliedTemplate);
+			Assert.False(chart.FollowTemplate);
+			Assert.False(chart.IsConfirmingFollow);
+		});
+
+	[Fact]
+	public void A_restored_follower_takes_the_templates_latest_version() =>
+		TestUiThread.Invoke(() =>
+		{
+			var id = SaveHourly();
+			var saved = State(Following(id));
+			Assert.Equal(id, saved.ChartTemplateId);
+			Assert.True(saved.ChartFollowTemplate);
+			_templates.UpdateSettings(
+				new()
+				{
+					Id = id,
+					Settings = new() { Timeframe = ChartTimeframe.OneWeek },
+				}
+			);
+
+			var restored = CreateChart();
+			saved.ChartTimeframe = ChartTimeframe.OneHour;
+			restored.LoadState(saved);
+
+			Assert.True(restored.FollowTemplate);
+			Assert.Equal("Hourly", restored.AppliedTemplateName);
+			Assert.Equal(ChartTimeframe.OneWeek, State(restored).ChartTimeframe);
+		});
+
+	[Fact]
+	public void Deleting_the_followed_template_stops_following() =>
+		TestUiThread.Invoke(() =>
+		{
+			var id = SaveHourly();
+			var chart = Following(id);
+			_templates.Delete(id);
+
+			chart.SetTimeframe(ChartTimeframe.OneDay);
+			chart.SaveFollowedTemplate();
+
+			Assert.False(chart.FollowTemplate);
+			Assert.False(chart.HasAppliedTemplate);
+			Assert.Empty(_templates.GetTemplates());
+		});
+
 	public void Dispose()
 	{
 		TestUiThread.Invoke(() =>
@@ -206,6 +391,32 @@ public class ChartViewModelTemplateTests : IDisposable
 				chart.Dispose();
 		});
 		GC.SuppressFinalize(this);
+	}
+
+	// A template "Hourly": 1 hour, no margin, no indicators
+	private string SaveHourly() =>
+		_templates
+			.Save(
+				new()
+				{
+					Name = "Hourly",
+					Settings = new()
+					{
+						Timeframe = ChartTimeframe.OneHour,
+						RightMargin = 0,
+						Indicators = [],
+					},
+				}
+			)
+			.Id;
+
+	private ChartViewModel Following(string templateId)
+	{
+		var chart = CreateChart();
+		chart.ApplyTemplate(templateId);
+		chart.ToggleFollowTemplate();
+		Assert.True(chart.FollowTemplate);
+		return chart;
 	}
 
 	private ChartTemplateDto Single() => Assert.Single(_templates.GetTemplates());

@@ -6,10 +6,17 @@ namespace LT.Contracts.Interfaces.IManagers;
 /// <summary>
 /// Chart templates: named chart setups (timeframe, indicators, …) saved in settings, applied from
 /// any chart's header, optionally one applied to every new chart, exported to and imported from
-/// JSON files.
+/// JSON files. Charts following a template save their changes to it and apply the changes others
+/// save (<see cref="TemplateSaved"/>).
 /// </summary>
 public interface IChartTemplateManager
 {
+	/// <summary>
+	/// A template's settings were saved (<see cref="Save"/>, <see cref="UpdateSettings"/>); raised
+	/// on the saving thread, with the template as stored.
+	/// </summary>
+	event Action<ChartTemplateDto>? TemplateSaved;
+
 	/// <summary>By name.</summary>
 	IReadOnlyList<ChartTemplateDto> GetTemplates();
 
@@ -26,6 +33,9 @@ public interface IChartTemplateManager
 	/// <see cref="SaveChartTemplateRequest.Overwrite"/>, which replaces that template's settings.
 	/// </summary>
 	ChartTemplateDto Save(SaveChartTemplateRequest request);
+
+	/// <summary>Replaces the settings of an existing template, keeping its name and default.</summary>
+	ChartTemplateDto UpdateSettings(UpdateChartTemplateSettingsRequest request);
 
 	ChartTemplateDto Rename(RenameChartTemplateRequest request);
 

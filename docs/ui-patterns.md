@@ -355,7 +355,27 @@ file is refused, naming the template, when anything in it is invalid); Export al
 template to one file. Results and errors show at the bottom of the menu, which reopens after a
 file dialog.
 
-- `IChartTemplateManager` (`ChartTemplateManager`, stateless) keeps them in
+**Follow and save on change.** A chart remembers the template it *uses*: the one last applied to
+it, saved from it, or the default it started with (`WidgetPlacementDto.ChartTemplateId`, saved
+with the layout). The switch under the list (`ChartFollowTemplate`, also saved) ties the chart to
+that template: its timeframe / indicator / margin edits are written to the template
+`ChartTemplateConstants.FollowSaveDebounce` (400 ms) after they stop — only the settings the
+template holds (`ChartTemplateHelpers.Merge`) — and every save of the template, from any chart,
+is applied to each chart following it. Charts that don't follow are never touched. Without a
+template the switch is disabled. Turning it on while the chart differs from the template
+(`ChartTemplateHelpers.Matches`: the held settings, indicators by type, inputs, visibility and
+colours, not instance ids) asks in place — "outdated version of template …; following it first
+updates the chart" — Cancel leaves everything as it was, *Update and follow* applies the latest
+version and then follows. A restored follower takes the template's latest version; deleting the
+template stops following.
+
+- No feedback loop: `IChartTemplateManager.TemplateSaved` (raised by `Save` and `UpdateSettings`)
+  reaches every chart; applying it runs under `_applyingTemplate`, so it is not an edit and is not
+  saved back, and a save the chart already matches (its own included) is ignored. A save arriving
+  while the chart's own edit is still debounced wins (the edit is dropped). Applying another
+  template, saving a new one, closing the chart or turning following off saves a pending edit
+  first.
+- `IChartTemplateManager` (`ChartTemplateManager`, a singleton for that event) keeps them in
   `SettingsEntity.ChartTemplates` with `DefaultChartTemplateId`; validation messages are
   `ChartTemplateValidationCodes`, limits `ChartTemplateConstants`, shared checks
   `ChartTemplateHelpers.GetNameError` / `GetSettingsError`. The view picks the files (Avalonia
