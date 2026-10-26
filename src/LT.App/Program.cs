@@ -107,6 +107,7 @@ public static class Program
 		builder.Services.AddSingleton<AccountStore>();
 		builder.Services.AddSingleton<LinkGroupStore>();
 		builder.Services.AddSingleton<AppearanceStore>();
+		builder.Services.AddSingleton<SettingsNavigator>();
 
 		// Creates widget view models per spawned instance (several charts)
 		builder.Services.AddSingleton<WidgetViewModelFactory>();

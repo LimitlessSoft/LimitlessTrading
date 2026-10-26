@@ -48,13 +48,17 @@ public partial class ChoiceSettingViewModel(
 	public partial object? Value { get; set; }
 }
 
-/// <summary>A line of text; a secret one (a token) is masked.</summary>
+/// <summary>
+/// A line of text; a secret one (a token) is masked. <c>normalize</c> cleans what is typed or
+/// pasted (e.g. pulls the query id out of a pasted URL) as soon as it changes.
+/// </summary>
 public partial class TextSettingViewModel(
 	string title,
 	bool isSecret = false,
 	string? placeholder = null,
 	string? description = null,
-	string? keywords = null
+	string? keywords = null,
+	Func<string, string>? normalize = null
 ) : SettingItemViewModel(title, description, keywords)
 {
 	public bool IsSecret { get; } = isSecret;
@@ -63,11 +67,40 @@ public partial class TextSettingViewModel(
 
 	[ObservableProperty]
 	public partial string Value { get; set; } = string.Empty;
+
+	partial void OnValueChanged(string value)
+	{
+		if (normalize?.Invoke(value) is { } clean && clean != value)
+			Value = clean;
+	}
 }
 
-/// <summary>A paragraph of guidance (no value), like setup steps.</summary>
-public class NoteSettingViewModel(string title, string text, string? keywords = null)
-	: SettingItemViewModel(title, text, keywords);
+/// <summary>A value of a setup step with a Copy button.</summary>
+public record GuideValueViewModel(string Label, string Value);
+
+/// <summary>One numbered step of a guide: what to do, values to copy, optionally a page to open.</summary>
+public record GuideStepViewModel(
+	int Number,
+	string Text,
+	IReadOnlyList<GuideValueViewModel> Values,
+	string? LinkText = null,
+	string? Url = null
+)
+{
+	public bool HasValues => Values.Count > 0;
+	public bool HasLink => Url != null;
+}
+
+/// <summary>A numbered checklist (IB Flex setup); the window copies values and opens links.</summary>
+public class GuideSettingViewModel(
+	string title,
+	IReadOnlyList<GuideStepViewModel> steps,
+	string? description = null,
+	string? keywords = null
+) : SettingItemViewModel(title, description, keywords)
+{
+	public IReadOnlyList<GuideStepViewModel> Steps { get; } = steps;
+}
 
 /// <summary>A whole number within limits (a spin box).</summary>
 public partial class NumberSettingViewModel(
@@ -100,6 +133,13 @@ public partial class ActionSettingViewModel(
 	[ObservableProperty]
 	public partial string? Status { get; set; }
 
-	[RelayCommand]
+	/// <summary>Work started by the button is running: a progress bar shows, the button waits.</summary>
+	[ObservableProperty]
+	[NotifyCanExecuteChangedFor(nameof(RunCommand))]
+	public partial bool IsBusy { get; set; }
+
+	[RelayCommand(CanExecute = nameof(CanRun))]
 	private void Run() => action();
+
+	private bool CanRun() => !IsBusy;
 }

@@ -1,0 +1,8 @@
+namespace LT.App.Helpers;
+
+/// <summary>Titles of Settings pages other parts of the app open directly.</summary>
+public static class SettingsPageNames
+{
+	/// <summary>Account history → IB Flex: the Flex token, query ids and setup steps.</summary>
+	public const string AccountHistory = "Account history";
+}

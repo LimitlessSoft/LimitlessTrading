@@ -54,17 +54,25 @@ leaves its gap in cards and none in flush.
 (`SettingsPageViewModel`) has tabs (`SettingsTabViewModel`; the tab strip shows only with more than
 one); a group (no tabs) holds child pages and opens its first one. Each setting is a
 `SettingItemViewModel` (`BoolSettingViewModel`, `ChoiceSettingViewModel`,
-`NumberSettingViewModel`, `TextSettingViewModel` — masked when `isSecret` —, `NoteSettingViewModel`
-for guidance text, `ActionSettingViewModel` for a status line with a button that acts right away;
+`NumberSettingViewModel`, `TextSettingViewModel` — masked when `isSecret`, optionally normalised as
+typed —, `GuideSettingViewModel` for a numbered checklist with values to copy and links to open,
+`ActionSettingViewModel` for a status line with a button that acts right away (and `IsBusy`);
 one DataTemplate each) with a title, help text and search keywords.
 Search (`SettingsSearchHelpers.Matches`: every word, any order) keeps the pages, tabs and settings
 that match; a page, group or tab whose own title matches shows all of its settings. Changes apply
 on Save. Adding a setting: a field in `SettingsViewModel`, put it on a tab, read and save it there.
 
-**Account history → IB Flex**: short setup steps (the full guide is
-[ibkr-flex.md → Setup](ibkr-flex.md#setup-once-by-the-user)), the Flex token (masked; stored in
-`settings.json`), the Activity and the optional Trade Confirmation query ids, and **Save & import
-now**, which saves just these three fields (validated by `SaveFlexSettingsRequestValidator`,
+Other parts of the app open Settings on a page through `SettingsNavigator` (a store in
+`LT.Widgets.Core`): `Open(SettingsPageNames.AccountHistory)` raises `OpenRequested`, the main
+window opens the dialog (once) and `SettingsViewModel.ShowPage` selects the page.
+
+**Account history → IB Flex**: the setup as a numbered checklist (`GuideSettingViewModel`,
+built by `FlexSetupGuide`; each value has a Copy button, Client Portal steps a button that opens
+IB's Flex Queries page in the browser through `Launcher` — see
+[ibkr-flex.md → Setup](ibkr-flex.md#setup-once-by-the-user)), the Flex token (masked, whitespace
+dropped on paste; stored in `settings.json`), the Activity and the optional Trade Confirmation
+query ids (a pasted URL or "Query ID: …" keeps just the number), and **Save & import now**
+(an indeterminate progress bar and the running step while it imports), which saves just these three fields (validated by `SaveFlexSettingsRequestValidator`,
 messages `FlexValidationCodes`) and runs `IFlexImportManager.ImportNowAsync`. Its status line
 (`FlexStatusHelpers.Describe`) follows `IFlexImportManager.StatusChanged`: what is running, the
 covered history, the last imports and the last error. Save also saves the three fields; the view
@@ -157,9 +165,11 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   gross and commissions, and the day's closed trades newest first. Recording runs whether the
   widget is open or not; recorded days show offline. Fills imported from IB Flex count like
   recorded ones, and ‹ / › reach every day with fills, so the stats work although IBKR.Net can't
-  read executions yet; a small note says where today's trades come from ("via IB Flex, up to ~5
-  min delayed", `FlexStatusHelpers.DescribeTodayTrades`) or, without Flex, shows CVC_007 with a
-  pointer to Settings → Account history. F5 also starts a Flex import.
+  read executions yet. The shared `FlexSetupBanner` (`LT.Widgets.Core/Controls`) sits on top while
+  Flex isn't set up or needs the user, with Set up… opening Settings on its page; a small note
+  says where today's trades come from ("via IB Flex, up to ~5 min delayed",
+  `FlexStatusHelpers.DescribeTodayTrades`) or, without Flex, why IB gives none (CVC_007). F5 also
+  starts a Flex import.
 - The frame (and the widget view inside it) is created once per instance and **moved** between
   hosts, so state and subscriptions survive docking, floating and collapsing. Widget view models
   are created on first open by `WidgetViewModelFactory`.
@@ -277,8 +287,9 @@ have `Source = Flex` and win over recorded ones), today is recorded live:
   and of the chained returns (%), over the picked range. Days the app didn't run are missing,
   not interpolated. All of it is in `AccountPerformanceHelpers` (`LT.Contracts`).
 - **Live** — today's row follows every P&L tick (`HistoryChanged`, coalesced to one reload per
-  dispatcher pass). The widget's footnote says where history comes from and since when, and what
-  the Flex import is doing or why it failed. F5 also starts a Flex import if one is due.
+  dispatcher pass). The same `FlexSetupBanner` as Day trade performance sits on top while Flex
+  isn't set up or has an error the user must fix; the footnote only says where history comes from
+  and since when, and what the import is doing. F5 also starts a Flex import if one is due.
 - The equity curve places days by date (gaps where there is no data) and plots net liquidation,
   so a deposit shows as a step there (not in returns or P&L); the P&L bars are spaced evenly, one
   per day with data; the calendar is six Monday-first weeks.

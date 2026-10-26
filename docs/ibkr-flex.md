@@ -15,7 +15,32 @@ state in `flex-import.json` (`FlexImportStateRepository`).
 
 ## Setup (once, by the user)
 
-Hand this to the user as is. Labels are Client Portal's as of 2026; IB moves menus now and then.
+IB offers no API to create Flex queries or tokens — it can only be done logged in to Client
+Portal — so the app guides instead of automating (no browser automation or scraping):
+
+- While Flex isn't configured, Account performance and Day trade performance show a banner at the
+  top, "History needs IB Flex — set it up once in Settings.", with a primary **Set up…** that
+  opens Settings directly on *Account history → IB Flex* (`SettingsNavigator`). The same banner,
+  in the warning style and with the error text, shows for an error only the user can fix:
+  expired / invalid token (1012 / 1015), IP restriction (1013), bad query (1014), service off
+  (1011), account (1016), unvalidated request (1020), legacy query (1010), or a query missing its
+  NAV / Trade Confirmations section (`FlexHelpers.NeedsUserAction`, `FlexStatusHelpers.GetBanner`).
+- The Settings page has the steps below as a numbered checklist (`FlexSetupGuide`), each value with
+  a **Copy** button, and **Open Flex Queries in Client Portal** on the Client Portal steps. That
+  opens `https://www.interactivebrokers.com/sso/resolver?action=RM_FLEX_QUERIES`
+  (`FlexConstants.ClientPortalFlexQueriesUrl`) in the default browser through Avalonia's
+  `Launcher`: IB's own login resolver, the link IB's Client Portal guide gives as "Log in to Flex
+  Queries" (ibkrguides.com, *Flex Queries* and *Enable Flex Web Service* pages, checked
+  2026-10-26; it answers a redirect to the regional IB site and the login). IB documents no link
+  to the Flex Web Service configuration itself; it is the gear on that same page, which step 3
+  says.
+- Pasting is forgiving: the token loses any whitespace (`FlexHelpers.NormalizeToken`), and a
+  query id field accepts the id, a Flex URL with `q=` / `queryId=`, or text such as "Query ID:
+  123456" and keeps the number (`FlexHelpers.ExtractQueryId`) — as soon as it is pasted and again
+  on save.
+
+Hand the steps below to the user as is. Labels are Client Portal's as of 2026; IB moves menus now
+and then.
 
 1. **Activity Flex Query** — Client Portal → **Performance & Reports → Flex Queries** → in
    *Activity Flex Query* click **+**.
@@ -165,4 +190,8 @@ error) so a restart doesn't download again:
   the transferred value as P&L. Only *Deposits & Withdrawals* cash transactions are left out.
 - Amounts are summed as reported per account; journal stats sum across currencies like before.
 - Corrections that change an execution id (socket `.01` → `.02` suffix) are not reconciled yet.
-- The token expires (at most about a year); the user has to generate a new one.
+- The token expires (at most about a year); the user has to generate a new one. The widgets'
+  banner says so.
+- IB keeps Flex data for the four previous calendar years and the current one ("Saved Flex Queries
+  are available for the four previous calendar years…", Client Portal guide); the back-fill stops
+  at the first empty or unavailable year, so older history is not imported.

@@ -93,4 +93,36 @@ public class FlexHelpersTests
 	[Fact]
 	public void Request_dates_are_yyyymmdd() =>
 		Assert.Equal("20260105", FlexHelpers.FormatRequestDate(new DateOnly(2026, 1, 5)));
+
+	[Theory]
+	[InlineData(" 1234567890 1234567890\n", "12345678901234567890")]
+	[InlineData("\t123456789012\r\n", "123456789012")]
+	public void A_pasted_token_loses_its_whitespace(string pasted, string expected) =>
+		Assert.Equal(expected, FlexHelpers.NormalizeToken(pasted));
+
+	[Theory]
+	[InlineData("123456", "123456")]
+	[InlineData("  123456 ", "123456")]
+	[InlineData("Query ID: 123456", "123456")]
+	[InlineData(
+		"https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest?t=11112222333344445555&q=987654&v=3",
+		"987654"
+	)]
+	[InlineData("https://example.com/flex?queryId=4321&x=99999999", "4321")]
+	[InlineData("LimitlessTrading activity (ID 765432)", "765432")]
+	[InlineData("abc", "abc")]
+	[InlineData("", "")]
+	public void The_query_id_is_pulled_out_of_what_was_pasted(string pasted, string expected) =>
+		Assert.Equal(expected, FlexHelpers.ExtractQueryId(pasted));
+
+	[Theory]
+	[InlineData(1012, true)]
+	[InlineData(1015, true)]
+	[InlineData(1013, true)]
+	[InlineData(1014, true)]
+	[InlineData(1019, false)]
+	[InlineData(1018, false)]
+	[InlineData(null, false)]
+	public void Token_query_and_ip_errors_need_the_user(int? code, bool expected) =>
+		Assert.Equal(expected, FlexHelpers.NeedsUserAction(code));
 }

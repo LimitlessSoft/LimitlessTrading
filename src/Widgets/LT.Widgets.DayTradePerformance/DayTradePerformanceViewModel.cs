@@ -24,6 +24,7 @@ public partial class DayTradePerformanceViewModel : ConnectedViewModelBase
 {
 	private readonly ITradeJournalManager _journal;
 	private readonly IFlexImportManager _flexImport;
+	private readonly SettingsNavigator _settingsNavigator;
 	private int _curveQueued;
 	private int _tradesQueued;
 
@@ -31,12 +32,14 @@ public partial class DayTradePerformanceViewModel : ConnectedViewModelBase
 		ITradeJournalManager journal,
 		IFlexImportManager flexImport,
 		IConnectionManager connectionManager,
-		AccountStore accountStore
+		AccountStore accountStore,
+		SettingsNavigator settingsNavigator
 	)
 		: base(connectionManager)
 	{
 		_journal = journal;
 		_flexImport = flexImport;
+		_settingsNavigator = settingsNavigator;
 		flexImport.StatusChanged += OnFlexStatusChanged;
 		Store = accountStore;
 		SelectedDay = journal.Today;
@@ -134,6 +137,17 @@ public partial class DayTradePerformanceViewModel : ConnectedViewModelBase
 	/// </summary>
 	[ObservableProperty]
 	public partial string? TradesNote { get; set; }
+
+	/// <summary>The Flex setup banner's text; null hides it (FlexStatusHelpers.GetBanner).</summary>
+	[ObservableProperty]
+	public partial string? FlexBanner { get; set; }
+
+	[ObservableProperty]
+	public partial bool FlexBannerIsWarning { get; set; }
+
+	/// <summary>The banner's Set up…: Settings on Account history → IB Flex.</summary>
+	[RelayCommand]
+	public void SetUpFlex() => _settingsNavigator.Open(SettingsPageNames.AccountHistory);
 
 	[RelayCommand(CanExecute = nameof(CanGoPrevious))]
 	public void PreviousDay()
@@ -294,12 +308,13 @@ public partial class DayTradePerformanceViewModel : ConnectedViewModelBase
 		LoadNote();
 	}
 
-	private void LoadNote() =>
-		TradesNote =
-			FlexStatusHelpers.DescribeTodayTrades(_flexImport.GetStatus())
-			?? (
-				_journal.ExecutionsError is { } error
-					? $"{error} Set up IB Flex in Settings → Account history to import trades."
-					: null
-			);
+	// Without Flex the banner asks for the setup; the note then only says why IB gives no trades
+	private void LoadNote()
+	{
+		var status = _flexImport.GetStatus();
+		var banner = FlexStatusHelpers.GetBanner(status);
+		FlexBanner = banner?.Text;
+		FlexBannerIsWarning = banner?.IsWarning ?? false;
+		TradesNote = FlexStatusHelpers.DescribeTodayTrades(status) ?? _journal.ExecutionsError;
+	}
 }

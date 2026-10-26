@@ -30,6 +30,44 @@ public static partial class FlexHelpers
 	)]
 	private static partial Regex DateTimePattern();
 
+	[GeneratedRegex(@"[?&](?:q|queryId|query_id|id)=(?<id>\d+)", RegexOptions.IgnoreCase)]
+	private static partial Regex QueryIdParameter();
+
+	[GeneratedRegex(@"\d+")]
+	private static partial Regex Digits();
+
+	/// <summary>A pasted token without spaces, tabs or line breaks.</summary>
+	public static string NormalizeToken(string? value) =>
+		string.Concat((value ?? string.Empty).Where(x => !char.IsWhiteSpace(x)));
+
+	/// <summary>
+	/// The numeric query id in what was pasted: the id itself, a URL with <c>q=</c> /
+	/// <c>queryId=</c>, or text such as "Query ID: 123456" (the longest run of digits). Text
+	/// without digits comes back trimmed, for the validator to refuse.
+	/// </summary>
+	public static string ExtractQueryId(string? value)
+	{
+		var text = (value ?? string.Empty).Trim();
+		if (text.Length == 0 || text.All(char.IsAsciiDigit))
+			return text;
+		var parameter = QueryIdParameter().Match(text);
+		if (parameter.Success)
+			return parameter.Groups["id"].Value;
+		var longest = Digits()
+			.Matches(text)
+			.Select(x => x.Value)
+			.OrderByDescending(x => x.Length)
+			.FirstOrDefault();
+		return longest ?? text;
+	}
+
+	/// <summary>
+	/// Codes only the user can fix (token expired / invalid, IP restriction, bad query, service
+	/// off, legacy query): the widgets show them in their setup banner instead of retrying quietly.
+	/// </summary>
+	public static bool NeedsUserAction(int? code) =>
+		code is 1010 or 1011 or 1012 or 1013 or 1014 or 1015 or 1016 or 1020;
+
 	/// <summary>Codes that mean "not ready yet / busy, ask again shortly".</summary>
 	public static bool IsRetryable(int code) =>
 		code is 1001 or 1004 or 1005 or 1006 or 1007 or 1008 or 1009 or 1018 or 1019 or 1021;

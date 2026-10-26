@@ -1,6 +1,7 @@
 <UserControl
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:controls="using:LT.App.Controls"
 	xmlns:vm="using:LT.App.Widgets.DayTradePerformance"
 	x:Class="LT.App.Widgets.DayTradePerformance.DayTradePerformanceView"
 	x:DataType="vm:DayTradePerformanceViewModel"
@@ -12,218 +13,227 @@
 			<Setter Property="Spacing" Value="1" />
 		</Style>
 	</UserControl.Styles>
-	<Grid RowDefinitions="Auto,2*,Auto,Auto,Auto,3*">
-		<!-- day navigation, account, refresh -->
-		<StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="6" Margin="0,0,0,6">
-			<Button Content="‹" Command="{Binding PreviousDayCommand}" />
-			<TextBlock
-				VerticalAlignment="Center"
-				MinWidth="150"
-				TextAlignment="Center"
-				FontWeight="SemiBold"
-				Text="{Binding DayText}"
-			/>
-			<Button Content="›" Command="{Binding NextDayCommand}" />
-			<Button Content="Today" Command="{Binding TodayCommand}" IsVisible="{Binding !IsToday}" />
-			<ComboBox
-				MinWidth="120"
-				PlaceholderText="Account"
-				ItemsSource="{Binding Store.Accounts}"
-				SelectedItem="{Binding Store.SelectedAccount}"
-			/>
-			<Button
-				Content="Refresh"
-				Command="{Binding RefreshCommand}"
-				IsEnabled="{Binding IsConnected}"
-			/>
-			<TextBlock
-				VerticalAlignment="Center"
-				Classes="secondary"
-				Text="Offline · recorded data"
-				IsVisible="{Binding !IsConnected}"
-			/>
-			<TextBlock
-				VerticalAlignment="Center"
-				Classes="negative"
-				Text="{Binding ErrorMessage}"
-				IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-			/>
-		</StackPanel>
-
-		<!-- intraday P&L curve -->
-		<vm:PnlCurveChart Grid.Row="1" MinHeight="120" Samples="{Binding Curve}" />
-		<WrapPanel Grid.Row="2" Classes="stats" Margin="0,6,0,0">
-			<StackPanel>
-				<TextBlock Classes="secondary" Text="Daily P&amp;L" />
+	<DockPanel>
+		<controls:FlexSetupBanner
+			DockPanel.Dock="Top"
+			Margin="0,0,0,6"
+			Text="{Binding FlexBanner}"
+			IsWarning="{Binding FlexBannerIsWarning}"
+			Command="{Binding SetUpFlexCommand}"
+		/>
+		<Grid RowDefinitions="Auto,2*,Auto,Auto,Auto,3*">
+			<!-- day navigation, account, refresh -->
+			<StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="6" Margin="0,0,0,6">
+				<Button Content="‹" Command="{Binding PreviousDayCommand}" />
 				<TextBlock
+					VerticalAlignment="Center"
+					MinWidth="150"
+					TextAlignment="Center"
 					FontWeight="SemiBold"
-					Classes.positive="{Binding CurveUp}"
-					Classes.negative="{Binding CurveDown}"
-					Text="{Binding CurvePnl}"
+					Text="{Binding DayText}"
+				/>
+				<Button Content="›" Command="{Binding NextDayCommand}" />
+				<Button Content="Today" Command="{Binding TodayCommand}" IsVisible="{Binding !IsToday}" />
+				<ComboBox
+					MinWidth="120"
+					PlaceholderText="Account"
+					ItemsSource="{Binding Store.Accounts}"
+					SelectedItem="{Binding Store.SelectedAccount}"
+				/>
+				<Button
+					Content="Refresh"
+					Command="{Binding RefreshCommand}"
+					IsEnabled="{Binding IsConnected}"
+				/>
+				<TextBlock
+					VerticalAlignment="Center"
+					Classes="secondary"
+					Text="Offline · recorded data"
+					IsVisible="{Binding !IsConnected}"
+				/>
+				<TextBlock
+					VerticalAlignment="Center"
+					Classes="negative"
+					Text="{Binding ErrorMessage}"
+					IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
 				/>
 			</StackPanel>
-			<StackPanel>
-				<TextBlock Classes="secondary" Text="Session high" />
-				<TextBlock Classes="value" Text="{Binding CurveHigh}" />
-			</StackPanel>
-			<StackPanel>
-				<TextBlock Classes="secondary" Text="Session low" />
-				<TextBlock Classes="value" Text="{Binding CurveLow}" />
-			</StackPanel>
-			<StackPanel>
-				<TextBlock Classes="secondary" Text="Max drawdown" />
-				<TextBlock Classes="value" Text="{Binding MaxDrawdown}" />
-			</StackPanel>
-		</WrapPanel>
 
-		<!-- trade statistics -->
-		<Border
-			Grid.Row="3"
-			BorderBrush="{DynamicResource PanelStroke}"
-			BorderThickness="0,1,0,0"
-			Padding="0,6,0,0"
-		>
-			<WrapPanel Classes="stats">
+			<!-- intraday P&L curve -->
+			<vm:PnlCurveChart Grid.Row="1" MinHeight="120" Samples="{Binding Curve}" />
+			<WrapPanel Grid.Row="2" Classes="stats" Margin="0,6,0,0">
 				<StackPanel>
-					<TextBlock Classes="secondary" Text="Net P&amp;L" />
+					<TextBlock Classes="secondary" Text="Daily P&amp;L" />
 					<TextBlock
 						FontWeight="SemiBold"
-						Classes.positive="{Binding NetUp}"
-						Classes.negative="{Binding NetDown}"
-						Text="{Binding NetPnl}"
+						Classes.positive="{Binding CurveUp}"
+						Classes.negative="{Binding CurveDown}"
+						Text="{Binding CurvePnl}"
 					/>
 				</StackPanel>
 				<StackPanel>
-					<TextBlock Classes="secondary" Text="Trades" />
-					<TextBlock Classes="value" Text="{Binding TradeCount}" />
+					<TextBlock Classes="secondary" Text="Session high" />
+					<TextBlock Classes="value" Text="{Binding CurveHigh}" />
 				</StackPanel>
 				<StackPanel>
-					<TextBlock Classes="secondary" Text="Win rate" />
-					<TextBlock Classes="value" Text="{Binding WinRate}" />
+					<TextBlock Classes="secondary" Text="Session low" />
+					<TextBlock Classes="value" Text="{Binding CurveLow}" />
 				</StackPanel>
 				<StackPanel>
-					<TextBlock Classes="secondary" Text="Avg win" />
-					<TextBlock Classes="value" Text="{Binding AverageWin}" />
-				</StackPanel>
-				<StackPanel>
-					<TextBlock Classes="secondary" Text="Avg loss" />
-					<TextBlock Classes="value" Text="{Binding AverageLoss}" />
-				</StackPanel>
-				<StackPanel>
-					<TextBlock Classes="secondary" Text="Profit factor" />
-					<TextBlock Classes="value" Text="{Binding ProfitFactor}" />
-				</StackPanel>
-				<StackPanel>
-					<TextBlock Classes="secondary" Text="Expectancy" />
-					<TextBlock Classes="value" Text="{Binding Expectancy}" />
-				</StackPanel>
-				<StackPanel>
-					<TextBlock Classes="secondary" Text="Largest win" />
-					<TextBlock Classes="value" Text="{Binding LargestWin}" />
-				</StackPanel>
-				<StackPanel>
-					<TextBlock Classes="secondary" Text="Largest loss" />
-					<TextBlock Classes="value" Text="{Binding LargestLoss}" />
-				</StackPanel>
-				<StackPanel>
-					<TextBlock Classes="secondary" Text="Gross" />
-					<TextBlock Classes="value" Text="{Binding GrossPnl}" />
-				</StackPanel>
-				<StackPanel>
-					<TextBlock Classes="secondary" Text="Commissions" />
-					<TextBlock Classes="value" Text="{Binding Commissions}" />
+					<TextBlock Classes="secondary" Text="Max drawdown" />
+					<TextBlock Classes="value" Text="{Binding MaxDrawdown}" />
 				</StackPanel>
 			</WrapPanel>
-		</Border>
-		<StackPanel Grid.Row="4" Spacing="2" Margin="0,0,0,6">
-			<TextBlock
-				Classes="secondary"
-				FontSize="11"
-				TextWrapping="Wrap"
-				Text="{Binding TradesNote}"
-				IsVisible="{Binding TradesNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-			/>
-			<TextBlock
-				Classes="secondary"
-				Text="{Binding TradesText}"
-				IsVisible="{Binding TradesText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-			/>
-		</StackPanel>
 
-		<!-- closed trades, newest first -->
-		<DataGrid
-			Grid.Row="5"
-			ItemsSource="{Binding Trades}"
-			IsReadOnly="True"
-			CanUserSortColumns="True"
-			GridLinesVisibility="Horizontal"
-			HeadersVisibility="Column"
-		>
-			<DataGrid.Columns>
-				<DataGridTextColumn
-					x:DataType="vm:TradeRowViewModel"
-					Header="Symbol"
-					Binding="{Binding Symbol}"
+			<!-- trade statistics -->
+			<Border
+				Grid.Row="3"
+				BorderBrush="{DynamicResource PanelStroke}"
+				BorderThickness="0,1,0,0"
+				Padding="0,6,0,0"
+			>
+				<WrapPanel Classes="stats">
+					<StackPanel>
+						<TextBlock Classes="secondary" Text="Net P&amp;L" />
+						<TextBlock
+							FontWeight="SemiBold"
+							Classes.positive="{Binding NetUp}"
+							Classes.negative="{Binding NetDown}"
+							Text="{Binding NetPnl}"
+						/>
+					</StackPanel>
+					<StackPanel>
+						<TextBlock Classes="secondary" Text="Trades" />
+						<TextBlock Classes="value" Text="{Binding TradeCount}" />
+					</StackPanel>
+					<StackPanel>
+						<TextBlock Classes="secondary" Text="Win rate" />
+						<TextBlock Classes="value" Text="{Binding WinRate}" />
+					</StackPanel>
+					<StackPanel>
+						<TextBlock Classes="secondary" Text="Avg win" />
+						<TextBlock Classes="value" Text="{Binding AverageWin}" />
+					</StackPanel>
+					<StackPanel>
+						<TextBlock Classes="secondary" Text="Avg loss" />
+						<TextBlock Classes="value" Text="{Binding AverageLoss}" />
+					</StackPanel>
+					<StackPanel>
+						<TextBlock Classes="secondary" Text="Profit factor" />
+						<TextBlock Classes="value" Text="{Binding ProfitFactor}" />
+					</StackPanel>
+					<StackPanel>
+						<TextBlock Classes="secondary" Text="Expectancy" />
+						<TextBlock Classes="value" Text="{Binding Expectancy}" />
+					</StackPanel>
+					<StackPanel>
+						<TextBlock Classes="secondary" Text="Largest win" />
+						<TextBlock Classes="value" Text="{Binding LargestWin}" />
+					</StackPanel>
+					<StackPanel>
+						<TextBlock Classes="secondary" Text="Largest loss" />
+						<TextBlock Classes="value" Text="{Binding LargestLoss}" />
+					</StackPanel>
+					<StackPanel>
+						<TextBlock Classes="secondary" Text="Gross" />
+						<TextBlock Classes="value" Text="{Binding GrossPnl}" />
+					</StackPanel>
+					<StackPanel>
+						<TextBlock Classes="secondary" Text="Commissions" />
+						<TextBlock Classes="value" Text="{Binding Commissions}" />
+					</StackPanel>
+				</WrapPanel>
+			</Border>
+			<StackPanel Grid.Row="4" Spacing="2" Margin="0,0,0,6">
+				<TextBlock
+					Classes="secondary"
+					FontSize="11"
+					TextWrapping="Wrap"
+					Text="{Binding TradesNote}"
+					IsVisible="{Binding TradesNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
 				/>
-				<DataGridTextColumn
-					x:DataType="vm:TradeRowViewModel"
-					Header="Side"
-					Binding="{Binding Side}"
+				<TextBlock
+					Classes="secondary"
+					Text="{Binding TradesText}"
+					IsVisible="{Binding TradesText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
 				/>
-				<DataGridTextColumn
-					x:DataType="vm:TradeRowViewModel"
-					Header="Qty"
-					Binding="{Binding Quantity}"
-				/>
-				<DataGridTextColumn
-					x:DataType="vm:TradeRowViewModel"
-					Header="Entry"
-					Binding="{Binding Entry}"
-				/>
-				<DataGridTextColumn
-					x:DataType="vm:TradeRowViewModel"
-					Header="Exit"
-					Binding="{Binding Exit}"
-				/>
-				<DataGridTextColumn
-					x:DataType="vm:TradeRowViewModel"
-					Header="Opened"
-					Binding="{Binding Opened}"
-				/>
-				<DataGridTextColumn
-					x:DataType="vm:TradeRowViewModel"
-					Header="Closed"
-					Binding="{Binding Closed}"
-				/>
-				<DataGridTextColumn
-					x:DataType="vm:TradeRowViewModel"
-					Header="Hold"
-					Binding="{Binding Hold}"
-				/>
-				<DataGridTextColumn
-					x:DataType="vm:TradeRowViewModel"
-					Header="Comm."
-					Binding="{Binding Commission}"
-				/>
-				<DataGridTemplateColumn x:DataType="vm:TradeRowViewModel" Header="Net P&amp;L">
-					<DataGridTemplateColumn.CellTemplate>
-						<DataTemplate x:DataType="vm:TradeRowViewModel">
-							<TextBlock
-								VerticalAlignment="Center"
-								Margin="12,0"
-								Classes.positive="{Binding IsWin}"
-								Classes.negative="{Binding IsLoss}"
-								Text="{Binding NetPnl}"
-							/>
-						</DataTemplate>
-					</DataGridTemplateColumn.CellTemplate>
-				</DataGridTemplateColumn>
-				<DataGridTextColumn
-					x:DataType="vm:TradeRowViewModel"
-					Header="Account"
-					Binding="{Binding Account}"
-				/>
-			</DataGrid.Columns>
-		</DataGrid>
-	</Grid>
+			</StackPanel>
+
+			<!-- closed trades, newest first -->
+			<DataGrid
+				Grid.Row="5"
+				ItemsSource="{Binding Trades}"
+				IsReadOnly="True"
+				CanUserSortColumns="True"
+				GridLinesVisibility="Horizontal"
+				HeadersVisibility="Column"
+			>
+				<DataGrid.Columns>
+					<DataGridTextColumn
+						x:DataType="vm:TradeRowViewModel"
+						Header="Symbol"
+						Binding="{Binding Symbol}"
+					/>
+					<DataGridTextColumn
+						x:DataType="vm:TradeRowViewModel"
+						Header="Side"
+						Binding="{Binding Side}"
+					/>
+					<DataGridTextColumn
+						x:DataType="vm:TradeRowViewModel"
+						Header="Qty"
+						Binding="{Binding Quantity}"
+					/>
+					<DataGridTextColumn
+						x:DataType="vm:TradeRowViewModel"
+						Header="Entry"
+						Binding="{Binding Entry}"
+					/>
+					<DataGridTextColumn
+						x:DataType="vm:TradeRowViewModel"
+						Header="Exit"
+						Binding="{Binding Exit}"
+					/>
+					<DataGridTextColumn
+						x:DataType="vm:TradeRowViewModel"
+						Header="Opened"
+						Binding="{Binding Opened}"
+					/>
+					<DataGridTextColumn
+						x:DataType="vm:TradeRowViewModel"
+						Header="Closed"
+						Binding="{Binding Closed}"
+					/>
+					<DataGridTextColumn
+						x:DataType="vm:TradeRowViewModel"
+						Header="Hold"
+						Binding="{Binding Hold}"
+					/>
+					<DataGridTextColumn
+						x:DataType="vm:TradeRowViewModel"
+						Header="Comm."
+						Binding="{Binding Commission}"
+					/>
+					<DataGridTemplateColumn x:DataType="vm:TradeRowViewModel" Header="Net P&amp;L">
+						<DataGridTemplateColumn.CellTemplate>
+							<DataTemplate x:DataType="vm:TradeRowViewModel">
+								<TextBlock
+									VerticalAlignment="Center"
+									Margin="12,0"
+									Classes.positive="{Binding IsWin}"
+									Classes.negative="{Binding IsLoss}"
+									Text="{Binding NetPnl}"
+								/>
+							</DataTemplate>
+						</DataGridTemplateColumn.CellTemplate>
+					</DataGridTemplateColumn>
+					<DataGridTextColumn
+						x:DataType="vm:TradeRowViewModel"
+						Header="Account"
+						Binding="{Binding Account}"
+					/>
+				</DataGrid.Columns>
+			</DataGrid>
+		</Grid>
+	</DockPanel>
 </UserControl>

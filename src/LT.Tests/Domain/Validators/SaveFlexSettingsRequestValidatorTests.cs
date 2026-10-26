@@ -41,13 +41,33 @@ public class SaveFlexSettingsRequestValidatorTests
 		Assert.True(saved.IsConfigured);
 	}
 
+	[Fact]
+	public void A_pasted_query_url_and_token_with_spaces_are_cleaned()
+	{
+		_manager.SaveFlexSettings(
+			new SaveFlexSettingsRequest
+			{
+				Token = "1234567890 1234567890\n",
+				ActivityQueryId =
+					"https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest?t=x&q=765432&v=3",
+				TradeConfirmQueryId = "Query ID: 234567",
+			}
+		);
+
+		var saved = _manager.GetFlexSettings();
+		Assert.Equal(
+			("12345678901234567890", "765432", "234567"),
+			(saved.Token, saved.ActivityQueryId, saved.TradeConfirmQueryId)
+		);
+	}
+
 	[Theory]
 	[InlineData("", "123", "")]
 	[InlineData("", "", "123")]
 	[InlineData(Token, "", "")]
 	[InlineData("short", "123", "")]
 	[InlineData("12345678901234567890-+", "123", "")]
-	[InlineData(Token, "12a", "")]
+	[InlineData(Token, "abc", "")]
 	[InlineData(Token, "123", "1234567890123")]
 	public void Incomplete_or_malformed_settings_are_refused(
 		string token,

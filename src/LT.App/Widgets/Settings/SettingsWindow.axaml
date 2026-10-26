@@ -83,10 +83,55 @@
 				/>
 			</StackPanel>
 		</DataTemplate>
-		<DataTemplate DataType="vm:NoteSettingViewModel">
+		<DataTemplate DataType="vm:GuideSettingViewModel">
 			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}">
 				<TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
-				<TextBlock Classes="secondary settingHelp" Text="{Binding Description}" />
+				<ItemsControl ItemsSource="{Binding Steps}">
+					<ItemsControl.ItemsPanel>
+						<ItemsPanelTemplate>
+							<StackPanel Spacing="10" />
+						</ItemsPanelTemplate>
+					</ItemsControl.ItemsPanel>
+					<ItemsControl.ItemTemplate>
+						<DataTemplate DataType="vm:GuideStepViewModel">
+							<Grid ColumnDefinitions="24,*" MaxWidth="600" HorizontalAlignment="Left">
+								<TextBlock FontWeight="SemiBold" Text="{Binding Number, StringFormat='{}{0}.'}" />
+								<StackPanel Grid.Column="1" Spacing="4">
+									<TextBlock TextWrapping="Wrap" Text="{Binding Text}" />
+									<ItemsControl ItemsSource="{Binding Values}" IsVisible="{Binding HasValues}">
+										<ItemsControl.ItemTemplate>
+											<DataTemplate DataType="vm:GuideValueViewModel">
+												<DockPanel Margin="0,1">
+													<Button
+														DockPanel.Dock="Right"
+														Padding="8,1"
+														Content="Copy"
+														Click="OnCopyClick"
+														ToolTip.Tip="{Binding Value}"
+													/>
+													<TextBlock VerticalAlignment="Center" TextWrapping="Wrap">
+														<Run
+															Foreground="{DynamicResource SecondaryText}"
+															Text="{Binding Label}"
+														/>
+														<Run Foreground="{DynamicResource SecondaryText}" Text=": " />
+														<Run FontWeight="SemiBold" Text="{Binding Value}" />
+													</TextBlock>
+												</DockPanel>
+											</DataTemplate>
+										</ItemsControl.ItemTemplate>
+									</ItemsControl>
+									<Button
+										HorizontalAlignment="Left"
+										Content="{Binding LinkText}"
+										Click="OnOpenLinkClick"
+										IsVisible="{Binding HasLink}"
+									/>
+								</StackPanel>
+							</Grid>
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
 			</StackPanel>
 		</DataTemplate>
 		<DataTemplate DataType="vm:ActionSettingViewModel">
@@ -105,6 +150,12 @@
 						Command="{Binding RunCommand}"
 					/>
 				</StackPanel>
+				<ProgressBar
+					Width="320"
+					HorizontalAlignment="Left"
+					IsIndeterminate="True"
+					IsVisible="{Binding IsBusy}"
+				/>
 				<TextBlock
 					Classes="secondary settingHelp"
 					Text="{Binding Description}"

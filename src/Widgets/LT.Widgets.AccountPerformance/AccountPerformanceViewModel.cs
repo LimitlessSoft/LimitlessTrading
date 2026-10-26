@@ -23,6 +23,7 @@ public partial class AccountPerformanceViewModel : ConnectedViewModelBase
 {
 	private readonly IAccountPerformanceManager _performanceManager;
 	private readonly IFlexImportManager _flexImport;
+	private readonly SettingsNavigator _settingsNavigator;
 	private IReadOnlyList<AccountDaySnapshotDto> _history = [];
 	private int _reloadPending;
 
@@ -30,12 +31,14 @@ public partial class AccountPerformanceViewModel : ConnectedViewModelBase
 		IAccountPerformanceManager performanceManager,
 		IFlexImportManager flexImport,
 		IConnectionManager connectionManager,
-		AccountStore accountStore
+		AccountStore accountStore,
+		SettingsNavigator settingsNavigator
 	)
 		: base(connectionManager)
 	{
 		_performanceManager = performanceManager;
 		_flexImport = flexImport;
+		_settingsNavigator = settingsNavigator;
 		flexImport.StatusChanged += OnFlexStatusChanged;
 		Store = accountStore;
 		CalendarMonth = AccountPerformanceHelpers.GetMonthStart(performanceManager.GetToday());
@@ -140,6 +143,17 @@ public partial class AccountPerformanceViewModel : ConnectedViewModelBase
 
 	[ObservableProperty]
 	public partial bool HasAccount { get; set; }
+
+	/// <summary>The Flex setup banner's text; null hides it (FlexStatusHelpers.GetBanner).</summary>
+	[ObservableProperty]
+	public partial string? FlexBanner { get; set; }
+
+	[ObservableProperty]
+	public partial bool FlexBannerIsWarning { get; set; }
+
+	/// <summary>The banner's Set up…: Settings on Account history → IB Flex.</summary>
+	[RelayCommand]
+	private void SetUpFlex() => _settingsNavigator.Open(SettingsPageNames.AccountHistory);
 
 	/// <summary>F5: reloads, and starts a Flex import if one is due (its days reload the view).</summary>
 	public void Refresh()
@@ -284,21 +298,26 @@ public partial class AccountPerformanceViewModel : ConnectedViewModelBase
 
 	private void UpdateHistoryNote()
 	{
-		var today = _performanceManager.GetToday();
 		var flex = _flexImport.GetStatus();
+		var banner = FlexStatusHelpers.GetBanner(flex);
+		FlexBanner = banner?.Text;
+		FlexBannerIsWarning = banner?.IsWarning ?? false;
+
+		// The banner says what needs the user; the note only says where the days come from
 		var firstFlex = _history.FirstOrDefault(x => x.Source == AccountDaySource.Flex);
 		var source =
 			firstFlex != null
 				? $"From IB Flex since {FormatDate(firstFlex.Date)}: end-of-day NAV, with deposits and withdrawals left out of P&L. Today is live."
+			: _history.Count > 0
+				? $"Recorded while the app was running, since {FormatDate(_history[0].Date)}."
 			: flex.IsConfigured ? "Waiting for the IB Flex import."
-			: _history.Count == 0
-				? $"No history yet: recorded while the app is running and connected, from {FormatDate(today)}. Set up IB Flex in Settings → Account history to import earlier history."
-			: $"Recorded while the app is running and connected, since {FormatDate(_history[0].Date)}; days it didn't run are missing. Set up IB Flex in Settings → Account history to import the rest.";
+			: "";
 		var state =
 			flex.Activity is { } activity ? $" {activity}…"
-			: flex.LastError is { } error ? $" Last IB Flex import failed: {error}"
+			: banner == null && flex.LastError is { } error
+				? $" Last IB Flex import failed: {error}"
 			: "";
-		HistoryNote = source + state;
+		HistoryNote = (source + state).Trim();
 	}
 
 	private static string FormatDate(DateOnly date) =>

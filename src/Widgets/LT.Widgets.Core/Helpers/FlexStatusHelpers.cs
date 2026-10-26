@@ -42,10 +42,25 @@ public static class FlexStatusHelpers
 	public static string? DescribeTodayTrades(FlexImportStatusDto status) =>
 		!status.IsConfigured ? null
 		: !status.HasTradeConfirmQuery
-			? "Trades come from IB Flex through yesterday; add a Trade Confirmation query in Settings → Account history for today's."
+			? "Trades come from IB Flex through yesterday; a Trade Confirmation query (Settings → Account history) adds today's."
 		: status.LastTradeConfirmImport is { } at
 			? $"Today's trades via IB Flex, up to ~{(int)FlexConstants.TradeConfirmInterval.TotalMinutes} min delayed (last import {Time(at)})."
 		: "Today's trades via IB Flex, not imported yet.";
+
+	/// <summary>
+	/// The setup banner of the performance widgets: shown while Flex isn't configured, and in the
+	/// warning style for an error only the user can fix (expired / invalid token, bad query id, IP
+	/// restriction, a query missing a section). Null when nothing needs the user.
+	/// </summary>
+	public static FlexBannerState? GetBanner(FlexImportStatusDto status) =>
+		!status.IsConfigured
+			? new FlexBannerState(
+				"History needs IB Flex — set it up once in Settings.",
+				IsWarning: false
+			)
+		: status.ErrorNeedsUser && status.LastError is { } error
+			? new FlexBannerState($"IB Flex import failed: {error}", IsWarning: true)
+		: null;
 
 	private static string Date(DateOnly date) =>
 		date.ToString("d MMM yyyy", CultureInfo.CurrentCulture);
@@ -58,3 +73,6 @@ public static class FlexStatusHelpers
 			: local.ToString("d MMM HH:mm", CultureInfo.CurrentCulture);
 	}
 }
+
+/// <summary>What the Flex setup banner says; <see cref="IsWarning"/> for an error rather than a missing setup.</summary>
+public sealed record FlexBannerState(string Text, bool IsWarning);

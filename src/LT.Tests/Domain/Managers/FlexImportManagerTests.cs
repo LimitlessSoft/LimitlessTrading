@@ -209,6 +209,7 @@ public class FlexImportManagerTests
 
 		var status = manager.GetStatus();
 		Assert.Equal("The Flex token has expired.", status.LastError);
+		Assert.True(status.ErrorNeedsUser);
 		Assert.Equal(Now, status.LastErrorAt);
 		Assert.Single(_log.GetAll(), x => x.Text.Contains("expired"));
 	}
@@ -235,6 +236,19 @@ public class FlexImportManagerTests
 	}
 
 	[Fact]
+	public async Task A_busy_server_is_not_an_error_for_the_user()
+	{
+		Configure();
+		_flex.Handler = _ => throw new FlexServiceException("busy", 1009);
+		var manager = CreateManager();
+
+		await manager.ImportNowAsync(Ct);
+
+		Assert.Equal("busy", manager.GetStatus().LastError);
+		Assert.False(manager.GetStatus().ErrorNeedsUser);
+	}
+
+	[Fact]
 	public async Task A_query_without_the_nav_section_is_reported()
 	{
 		Configure();
@@ -244,6 +258,7 @@ public class FlexImportManagerTests
 		await manager.ImportNowAsync(Ct);
 
 		Assert.Contains("Net Asset Value", manager.GetStatus().LastError);
+		Assert.True(manager.GetStatus().ErrorNeedsUser);
 	}
 
 	[Fact]

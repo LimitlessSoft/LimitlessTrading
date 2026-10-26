@@ -22,35 +22,31 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 	private readonly ICacheManager _cacheManager;
 	private readonly IFlexImportManager _flexImportManager;
 
-	private readonly NoteSettingViewModel _flexSetup = new(
-		"Set up once in Client Portal",
-		"1. Performance & Reports → Flex Queries → Activity Flex Query → +: format XML, period Last 365 Calendar Days, date format yyyyMMdd, time format HHmmss, separator ; (semi-colon), account alias instead of ID: No. Sections: Account Information, Net Asset Value (NAV) in Base, Cash Transactions (Deposits & Withdrawals), Trades (Executions) — all fields. Save and copy its Query ID.\n"
-			+ "2. Optional, for today's trades: Trade Confirmation Flex Query → +: XML, period Today, same date / time format, section Trade Confirmations (Executions), all fields. Copy its Query ID.\n"
-			+ "3. Flex Queries → Flex Web Service Configuration: turn it on, generate a token (longest expiry, no IP restriction) and copy it.\n"
-			+ "The full guide is in the docs (docs/ibkr-flex.md).",
-		"flex history import ib client portal activity statement trade confirmation token setup"
-	);
+	private readonly GuideSettingViewModel _flexSetup = FlexSetupGuide.Create();
 
 	private readonly TextSettingViewModel _flexToken = new(
 		"Flex Web Service token",
 		isSecret: true,
 		placeholder: "token from Flex Web Service Configuration",
 		description: "Stored in settings.json on this computer; it can only read reports, not trade. Leave all three empty to turn the import off.",
-		keywords: "flex token secret"
+		keywords: "flex token secret",
+		normalize: FlexHelpers.NormalizeToken
 	);
 
 	private readonly TextSettingViewModel _flexActivityQuery = new(
 		"Activity Flex query ID",
 		placeholder: "e.g. 123456",
 		description: "Daily NAV, deposits / withdrawals and trades. Imported back to the account's start once, then daily (it covers through the previous business day).",
-		keywords: "flex query activity nav history"
+		keywords: "flex query activity nav history",
+		normalize: FlexHelpers.ExtractQueryId
 	);
 
 	private readonly TextSettingViewModel _flexTradeConfirmQuery = new(
 		"Trade Confirmation Flex query ID (optional)",
 		placeholder: "e.g. 123457",
 		description: "Today's trades, a few minutes after each fill; imported every 5 minutes while the app runs and on F5.",
-		keywords: "flex query trade confirmation today fills executions"
+		keywords: "flex query trade confirmation today fills executions",
+		normalize: FlexHelpers.ExtractQueryId
 	);
 
 	private readonly ActionSettingViewModel _flexImport;
@@ -301,6 +297,32 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		}
 	}
 
+	/// <summary>Opens on the page titled <paramref name="title"/> (a widget's "Set up…"), search cleared.</summary>
+	public void ShowPage(string title)
+	{
+		SearchText = null;
+		var page = FindPage(Pages, title);
+		if (page == null)
+			return;
+		SelectedNode = page;
+		SelectedPage = page.FirstPage;
+	}
+
+	private static SettingsPageViewModel? FindPage(
+		IEnumerable<SettingsPageViewModel> pages,
+		string title
+	)
+	{
+		foreach (var page in pages)
+		{
+			if (page.Title == title)
+				return page;
+			if (FindPage(page.Children, title) is { } child)
+				return child;
+		}
+		return null;
+	}
+
 	public void Dispose() => _flexImportManager.StatusChanged -= OnFlexStatusChanged;
 
 	private SaveFlexSettingsRequest GetFlexRequest() =>
@@ -323,14 +345,21 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
 			return;
 		}
-		// Errors land in the status line
-		_ = Task.Run(() => _flexImportManager.ImportNowAsync());
+		// Progress and errors land in the status line
+		_flexImport.IsBusy = true;
+		_flexImport.Status = "Starting the import…";
+		_ = Task.Run(() => _flexImportManager.ImportNowAsync())
+			.ContinueWith(_ => Dispatcher.UIThread.Post(RefreshFlexStatus));
 	}
 
 	private void OnFlexStatusChanged() => Dispatcher.UIThread.Post(RefreshFlexStatus);
 
-	private void RefreshFlexStatus() =>
-		_flexImport.Status = FlexStatusHelpers.Describe(_flexImportManager.GetStatus());
+	private void RefreshFlexStatus()
+	{
+		var status = _flexImportManager.GetStatus();
+		_flexImport.Status = FlexStatusHelpers.Describe(status);
+		_flexImport.IsBusy = status.IsRunning;
+	}
 
 	private void ClearCache()
 	{

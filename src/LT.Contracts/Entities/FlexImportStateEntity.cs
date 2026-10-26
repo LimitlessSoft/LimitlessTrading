@@ -18,4 +18,7 @@ public class FlexImportStateEntity
 	public DateTimeOffset? LastTradeConfirmAttempt { get; set; }
 	public string? LastError { get; set; }
 	public DateTimeOffset? LastErrorAt { get; set; }
+
+	/// <summary>The last error is one only the user can fix (token, query id, IP restriction, query sections).</summary>
+	public bool LastErrorNeedsUser { get; set; }
 }

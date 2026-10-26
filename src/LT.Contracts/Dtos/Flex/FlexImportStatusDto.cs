@@ -16,4 +16,7 @@ public class FlexImportStatusDto
 	public bool BackfillComplete { get; set; }
 	public string? LastError { get; set; }
 	public DateTimeOffset? LastErrorAt { get; set; }
+
+	/// <summary>The last error needs the user (expired / invalid token, bad query id, IP restriction …).</summary>
+	public bool ErrorNeedsUser { get; set; }
 }

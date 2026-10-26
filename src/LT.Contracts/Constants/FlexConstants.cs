@@ -12,6 +12,15 @@ public static class FlexConstants
 	public const string SendRequestPath = "SendRequest";
 	public const string GetStatementPath = "GetStatement";
 
+	/// <summary>
+	/// Client Portal's Flex Queries page (Activity / Trade Confirmation queries and, behind its gear
+	/// icon, the Flex Web Service configuration) through IB's login resolver: IB's own guide links
+	/// it as "Log in to Flex Queries". IB has no deep link to the Web Service configuration itself
+	/// and no API to create queries or tokens.
+	/// </summary>
+	public const string ClientPortalFlexQueriesUrl =
+		"https://www.interactivebrokers.com/sso/resolver?action=RM_FLEX_QUERIES";
+
 	/// <summary>Without <c>v=3</c> IB answers in version 2.</summary>
 	public const int Version = 3;
 

@@ -89,6 +89,7 @@ public class FlexImportManager : IFlexImportManager
 				BackfillComplete = state.BackfillComplete,
 				LastError = state.LastError,
 				LastErrorAt = state.LastErrorAt,
+				ErrorNeedsUser = state.LastError != null && state.LastErrorNeedsUser,
 			};
 		}
 	}
@@ -179,7 +180,7 @@ public class FlexImportManager : IFlexImportManager
 		// Disk or merge failures must not end the scheduler; they show like Flex errors
 		catch (Exception ex) when (ex is not FlexServiceException)
 		{
-			Update(state => RecordError(state, ex.Message));
+			Update(state => RecordError(state, ex.Message, false));
 		}
 		finally
 		{
@@ -239,7 +240,7 @@ public class FlexImportManager : IFlexImportManager
 			}
 			catch (FlexServiceException ex)
 			{
-				Update(state => RecordError(state, ex.Message));
+				Update(state => RecordError(state, ex.Message, ex.NeedsUserAction));
 				return;
 			}
 		}
@@ -302,7 +303,7 @@ public class FlexImportManager : IFlexImportManager
 				Update(state =>
 				{
 					state.LastActivityAttempt = _timeProvider.GetUtcNow();
-					RecordError(state, ex.Message);
+					RecordError(state, ex.Message, ex.NeedsUserAction);
 				});
 				return;
 			}
@@ -328,7 +329,10 @@ public class FlexImportManager : IFlexImportManager
 				cancellationToken
 			);
 			if (!statement.HasTradesSection)
-				throw new FlexServiceException(FlexValidationCodes.FVC_019.GetValidationMessage());
+				throw new FlexServiceException(
+					FlexValidationCodes.FVC_019.GetValidationMessage(),
+					needsUserAction: true
+				);
 			_tradeJournalManager.ImportFlexTrades(statement.Trades, statement.CancelledTradeIds);
 			Update(state =>
 			{
@@ -339,7 +343,7 @@ public class FlexImportManager : IFlexImportManager
 		}
 		catch (FlexServiceException ex)
 		{
-			Update(state => RecordError(state, ex.Message));
+			Update(state => RecordError(state, ex.Message, ex.NeedsUserAction));
 		}
 	}
 
@@ -365,7 +369,10 @@ public class FlexImportManager : IFlexImportManager
 	{
 		// Without the NAV section only trades come in; say what to add to the query
 		if (!statement.HasNavSection)
-			throw new FlexServiceException(FlexValidationCodes.FVC_018.GetValidationMessage());
+			throw new FlexServiceException(
+				FlexValidationCodes.FVC_018.GetValidationMessage(),
+				needsUserAction: true
+			);
 		_accountPerformanceManager.ImportFlexHistory(statement.Nav, statement.CashFlows);
 		_tradeJournalManager.ImportFlexTrades(statement.Trades, statement.CancelledTradeIds);
 	}
@@ -389,8 +396,9 @@ public class FlexImportManager : IFlexImportManager
 		wake.TrySetResult();
 	}
 
-	private void RecordError(FlexImportStateEntity state, string message)
+	private void RecordError(FlexImportStateEntity state, string message, bool needsUser)
 	{
+		state.LastErrorNeedsUser = needsUser;
 		if (state.LastError != message)
 			_messageLogManager.Add(
 				MessageSeverity.Warning,

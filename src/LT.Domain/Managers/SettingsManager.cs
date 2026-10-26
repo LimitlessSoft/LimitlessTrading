@@ -3,6 +3,7 @@ using LSCore.Validation.Domain;
 using LT.Contracts.Dtos.Flex;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Entities;
+using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IApiClients;
 using LT.Contracts.Interfaces.IManagers;
 using LT.Contracts.Interfaces.IRepositories;
@@ -51,9 +52,10 @@ public class SettingsManager(ISettingsRepository settingsRepository, IIbkrApiCli
 
 	public void SaveFlexSettings(SaveFlexSettingsRequest request)
 	{
-		request.Token = request.Token.Trim();
-		request.ActivityQueryId = request.ActivityQueryId.Trim();
-		request.TradeConfirmQueryId = request.TradeConfirmQueryId.Trim();
+		// Pasted values: a token with stray spaces, a query URL or "Query ID: 123456"
+		request.Token = FlexHelpers.NormalizeToken(request.Token);
+		request.ActivityQueryId = FlexHelpers.ExtractQueryId(request.ActivityQueryId);
+		request.TradeConfirmQueryId = FlexHelpers.ExtractQueryId(request.TradeConfirmQueryId);
 		request.Validate();
 
 		var settings = settingsRepository.Get();
