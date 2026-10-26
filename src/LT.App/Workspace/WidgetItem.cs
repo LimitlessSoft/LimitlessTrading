@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using LT.App.Stores;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
+using LT.Contracts.Helpers;
 
 namespace LT.App.Workspace;
 
@@ -39,6 +40,11 @@ public partial class WidgetItem : ObservableObject
 	public Geometry Icon => field ??= Geometry.Parse(WidgetCatalog.GetIcon(Tool));
 	public string ToolTip =>
 		WidgetCatalog.GetShortcut(Tool) is { } shortcut ? $"{Title} ({shortcut})" : Title;
+
+	/// <summary>Where its content comes from: the frame's corner marker and its tooltip.</summary>
+	public WidgetCategory Category => WidgetCatalog.GetCategory(Tool);
+	public IBrush CategoryBrush => WidgetCategoryBrushes.Get(Category);
+	public string CategoryToolTip => WidgetMenuHelpers.GetCategoryTitle(Category);
 
 	/// <summary>The widget's view model; WidgetViewFactory creates the matching view.</summary>
 	public object Content { get; }

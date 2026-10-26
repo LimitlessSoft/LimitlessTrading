@@ -1,0 +1,18 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.Notes"
+	x:Class="LT.App.Widgets.Notes.NotesView"
+	x:DataType="vm:NotesViewModel"
+>
+	<TextBox
+		Text="{Binding Text}"
+		AcceptsReturn="True"
+		AcceptsTab="True"
+		TextWrapping="Wrap"
+		VerticalAlignment="Stretch"
+		VerticalContentAlignment="Top"
+		ScrollViewer.VerticalScrollBarVisibility="Auto"
+		PlaceholderText="Notes… saved as you type"
+	/>
+</UserControl>

@@ -10,6 +10,8 @@ public class NewsWidget : IWidgetDefinition
 {
 	public WorkspaceTool Tool => WorkspaceTool.News;
 
+	public WidgetCategory Category => WidgetCategory.Ibkr;
+
 	public string Title => "News";
 
 	// A folded newspaper: the page with a picture block and text lines cut out

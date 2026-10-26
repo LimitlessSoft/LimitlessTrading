@@ -72,4 +72,7 @@ public class WidgetPlacementEntity
 
 	/// <summary>Watchlist instances: the watchlist shown (null or deleted: the active one).</summary>
 	public string? WatchlistId { get; set; }
+
+	/// <summary>Notes instances: the note shown (null: a new, empty one).</summary>
+	public string? NoteId { get; set; }
 }

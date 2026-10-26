@@ -9,6 +9,8 @@ public class ChartWidget : IWidgetDefinition
 {
 	public WorkspaceTool Tool => WorkspaceTool.Chart;
 
+	public WidgetCategory Category => WidgetCategory.Ibkr;
+
 	public string Title => "Chart";
 
 	public string Icon =>

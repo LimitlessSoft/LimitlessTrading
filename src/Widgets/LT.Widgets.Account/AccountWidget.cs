@@ -9,6 +9,8 @@ public class AccountWidget : IWidgetDefinition
 {
 	public WorkspaceTool Tool => WorkspaceTool.Account;
 
+	public WidgetCategory Category => WidgetCategory.Ibkr;
+
 	public string Title => "Account";
 
 	public string Icon =>

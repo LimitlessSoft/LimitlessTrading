@@ -9,6 +9,8 @@ public class ExecutionsWidget : IWidgetDefinition
 {
 	public WorkspaceTool Tool => WorkspaceTool.Executions;
 
+	public WidgetCategory Category => WidgetCategory.Ibkr;
+
 	public string Title => "Executions";
 
 	public string Icon => "M13,2L4,14H11L10,22L20,9H13Z";

@@ -13,6 +13,9 @@ public interface IWidgetDefinition
 {
 	WorkspaceTool Tool { get; }
 
+	/// <summary>Where its content comes from; menu → Widgets groups widgets by it.</summary>
+	WidgetCategory Category { get; }
+
 	string Title { get; }
 
 	/// <summary>Path data on a 24×24 grid (even-odd fill, so inner shapes cut out).</summary>

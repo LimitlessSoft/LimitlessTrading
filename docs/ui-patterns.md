@@ -201,6 +201,19 @@ new instance) and lives in one of four wrappers:
   `AdoptView` (between workspaces), orchestrated by `WorkspaceWindows` through `IWorkspaceHost`
   (`MoveView`, `DetachView`); the drag is `WorkspaceView.ViewTabs.cs`. The saved layout follows
   (each window's `Views` and `Widgets`), so the order and placement come back on the next start.
+- **Widget categories.** Every widget definition has a `WidgetCategory` (`LT.Contracts/Enums`):
+  `Ibkr` for widgets backed by Interactive Brokers (all of them so far) and `Tools` for widgets
+  that work on their own, without a connection (Notes). Menu → Widgets has one section per
+  category, in the enum's order, each under a disabled header item ("Interactive Brokers",
+  "Tools", `WidgetMenuHelpers.GetCategoryTitle`) and keeping its own separators
+  (`WidgetMenuHelpers.Group` splits `WidgetsMenuItem.Order`). A `Tools` widget derives from
+  `ViewModelBase`, not `ConnectedViewModelBase`, and needs nothing from IB.
+  Every widget frame (center tile, side, bottom, floating, fullscreen — all one `WidgetFrame`)
+  has a 12 px wedge in its top-left corner in its category's color (`WidgetCategoryBrushes`, the
+  one mapping: Ibkr indigo `#5C6BC0`, Tools muted gold `#B8973A`, chosen away from buy / sell
+  green and red, the fullscreen amber and the link group dots); hovering it names the source.
+  The wedge (`Workspace/CornerMarker`) takes the frame's top-left corner radius, so it is rounded
+  in the card look and square when flush or docked.
 - **Spawning.** Menu → Widgets → any widget always opens a **new instance**
   (`WorkspaceViewModel.Spawn`) where the last one of its kind was docked (the widget's default
   dock at first; the shown view for the center) and makes it current with keyboard focus. Every
@@ -301,8 +314,8 @@ new instance) and lives in one of four wrappers:
   (`WorkspaceHelpers.GetDefaultPlacements`, sizes in `WorkspaceConstants`) the window is maximized
   with every side collapsed: Chart in the center on SPY at 5m (link group red); Watchlist on the
   left (unpinned); Account and Messages (pinned), Option chain and Order ticket (unpinned) on the
-  right. Positions, Orders, Executions, News, Account performance, Day trade performance and Depth are
-  closed.
+  right. Positions, Orders, Executions, News, Account performance, Day trade performance, Depth
+  and Notes are closed.
 - **Order ticket** (`LT.Widgets.OrderTicket`, right side): takes its contract from the link group.
   Account, side, market / limit, quantity or amount in $ (market only), limit price, time in force
   (crypto: GTC / IOC). "Review order" validates (`IOrderManager.ValidateOrder`) and spells the
@@ -370,6 +383,23 @@ new instance) and lives in one of four wrappers:
   owns the stream), so the slot is free. Several Depth widgets can be open (each on its own link
   group's contract); past IB's three subscriptions, the extra one shows IB's refusal. Data from `IMarketDepthManager`
   ([ibkr-tws-api.md → Market depth](ibkr-tws-api.md#market-depth)).
+- **Notes** (`LT.Widgets.Notes`, a Tools widget, right side, closed on first run, Ctrl+Alt+S): a
+  free-text pad, one wrapping multi-line text box, no Save button. Every Notes widget has a note
+  of its own, its id saved in the layout (`WidgetPlacementDto.NoteId`), so it shows its text
+  again after a restart. Notes are never deleted: a new Notes widget opens on the most recently
+  edited saved note that no open Notes widget, in any window, shows (`INotesManager.Open`,
+  `NotesHelpers.PickUnshown`; the manager counts the notes shown), and starts a new, empty note
+  only when every saved note is on screen — so ✕ and opening Notes again brings the text back.
+  A restored widget first opens on such a note and then switches to its own when its placement
+  loads, freeing the first one. A duplicated view's
+  copy keeps the id, so both show the same note and follow each other's edits
+  (`INotesManager.Changed`). `NotesManager` (singleton) keeps every note in memory and writes
+  them all to `notes.json` in the app-data folder (`NotesRepository`, through a temp file) once
+  typing has paused for `NotesConstants.SaveDebounce` (1 s, a `TimeProvider` timer), right away
+  when a widget closes or its window is discarded (`Flush`), and when the app exits (the host
+  disposes the manager). An emptied note is removed from the file; a closed widget's note stays
+  in it for the next Notes widget. A failed write goes to Messages and is retried with
+  the next change; an unreadable file is copied to `notes.json.corrupt` before it is replaced.
 - The frame (and the widget view inside it) is created once per instance and **moved** between
   hosts, so state and subscriptions survive docking, floating and collapsing. Widget view models
   are created on first open by `WidgetViewModelFactory`.
@@ -391,10 +421,10 @@ new instance) and lives in one of four wrappers:
 
 **Adding a widget** (in its own project, like `LT.Widgets.Watchlist`): a `WorkspaceTool` value
 (at the end); a `src/Widgets/LT.Widgets.<Widget>` project referencing `LT.Widgets.Core`, added to the
-solution's `Widgets` folder and referenced by `LT.App`; an `IWidgetDefinition` there (title, icon, focus key, view model type,
+solution's `Widgets` folder and referenced by `LT.App`; an `IWidgetDefinition` there (category, title, icon, focus key, view model type,
 view and optional header title) listed in `WidgetCatalog.Definitions` — that also registers its
 view model in DI; a default dock in `WorkspaceHelpers.GetDefaultDock`, and a menu entry in
-`WidgetsMenuItem.Order` (the Widgets menu of every window). Per-instance settings: implement `IWidgetState` on the view model.
+`WidgetsMenuItem.Order` (the Widgets menu of every window; it lands in its category's section). Per-instance settings: implement `IWidgetState` on the view model.
 
 `WidgetCatalog`, `WidgetViewFactory` and `WidgetViewModelFactory` only read the definitions; a
 widget's header title is its definition's `CreateTitle()` (`WidgetTitles.Bound` for plain text bound
@@ -733,7 +763,7 @@ subscription and frees the market-data line.
 | F5 | Refresh chart, account, positions, orders, executions, day trade performance |
 | Ctrl+, | Settings |
 | Ctrl+1 … Ctrl+9 | Show an open Watchlist, Positions, Orders, Executions, Account, Messages, Chart, Option chain, Order ticket, opening one if none is (collapses an expanded side widget); Ctrl+7 always opens a new chart in the current view |
-| Ctrl+Alt+W / P / O / E / A / M / C / B / N / R / J / K | Show and focus an open Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News, Account performance, Day trade performance, Depth, opening one if none is (works from floating windows too) |
+| Ctrl+Alt+W / P / O / E / A / M / C / B / N / R / J / K / S | Show and focus an open Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News, Account performance, Day trade performance, Depth, Notes, opening one if none is (works from floating windows too) |
 | Esc (side or bottom widget) | Back to the last focused center widget; an unpinned widget collapses |
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous center view |
 | Ctrl+Shift+F | Fullscreen the current widget (the one last clicked or typed in, framed in light blue), or restore it |

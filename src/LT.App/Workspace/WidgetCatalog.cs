@@ -7,6 +7,7 @@ using LT.App.Widgets.Depth;
 using LT.App.Widgets.Executions;
 using LT.App.Widgets.Messages;
 using LT.App.Widgets.News;
+using LT.App.Widgets.Notes;
 using LT.App.Widgets.OptionChain;
 using LT.App.Widgets.Orders;
 using LT.App.Widgets.OrderTicket;
@@ -35,6 +36,7 @@ public static class WidgetCatalog
 		new AccountPerformanceWidget(),
 		new DayTradePerformanceWidget(),
 		new DepthWidget(),
+		new NotesWidget(),
 	];
 
 	public static IWidgetDefinition Get(WorkspaceTool tool) =>
@@ -44,6 +46,8 @@ public static class WidgetCatalog
 	public static string GetTitle(WorkspaceTool tool) => Get(tool).Title;
 
 	public static string GetIcon(WorkspaceTool tool) => Get(tool).Icon;
+
+	public static WidgetCategory GetCategory(WorkspaceTool tool) => Get(tool).Category;
 
 	/// <summary>
 	/// Ctrl+Alt+key that shows and focuses an open instance of the widget, spawning one when none

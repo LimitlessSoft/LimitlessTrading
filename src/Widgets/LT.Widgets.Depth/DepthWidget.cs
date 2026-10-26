@@ -9,6 +9,8 @@ public class DepthWidget : IWidgetDefinition
 {
 	public WorkspaceTool Tool => WorkspaceTool.Depth;
 
+	public WidgetCategory Category => WidgetCategory.Ibkr;
+
 	public string Title => "Depth";
 
 	// A ladder: ask bars above, bid bars below, a gap for the spread

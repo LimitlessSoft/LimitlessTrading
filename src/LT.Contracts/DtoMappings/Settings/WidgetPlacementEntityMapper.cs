@@ -41,6 +41,7 @@ public class WidgetPlacementEntityMapper : ILSCoreMapper<WidgetPlacementDto, Wid
 			OptionQuickOrderQuantity = source.OptionQuickOrderQuantity,
 			PerformanceShowCashMovements = source.PerformanceShowCashMovements,
 			WatchlistId = source.WatchlistId,
+			NoteId = source.NoteId,
 			ChartContract = source.ChartContract is { } contract
 				? new ContractEntityMapper().ToMapped(contract)
 				: null,

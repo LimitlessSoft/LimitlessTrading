@@ -9,6 +9,8 @@ public class PositionsWidget : IWidgetDefinition
 {
 	public WorkspaceTool Tool => WorkspaceTool.Positions;
 
+	public WidgetCategory Category => WidgetCategory.Ibkr;
+
 	public string Title => "Positions";
 
 	public string Icon =>

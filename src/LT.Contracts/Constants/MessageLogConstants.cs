@@ -14,4 +14,5 @@ public static class MessageLogConstants
 	public const string SourceFlex = "Flex";
 	public const string SourceIndicators = "Indicators";
 	public const string SourceSec = "SEC";
+	public const string SourceNotes = "Notes";
 }
