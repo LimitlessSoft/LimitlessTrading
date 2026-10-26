@@ -19,5 +19,6 @@
 	<Project Path="src/LT.Domain/LT.Domain.csproj" />
 	<Project Path="src/LT.Ibkr/LT.Ibkr.csproj" />
 	<Project Path="src/LT.Repository/LT.Repository.csproj" />
+	<Project Path="src/LT.Sec/LT.Sec.csproj" />
 	<Project Path="src/LT.Tests/LT.Tests.csproj" />
 </Solution>

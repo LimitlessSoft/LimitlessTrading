@@ -9,10 +9,13 @@
 		<ProjectReference Include="..\LT.Domain\LT.Domain.csproj" />
 		<ProjectReference Include="..\LT.Ibkr\LT.Ibkr.csproj" />
 		<ProjectReference Include="..\LT.Repository\LT.Repository.csproj" />
+		<ProjectReference Include="..\LT.Sec\LT.Sec.csproj" />
 		<!-- UI-free helpers only (FlexStatusHelpers); no view is created in tests -->
 		<ProjectReference Include="..\Widgets\LT.Widgets.Core\LT.Widgets.Core.csproj" />
 		<!-- Chart view model only (dropping a ticker); its view is never created -->
 		<ProjectReference Include="..\Widgets\LT.Widgets.Chart\LT.Widgets.Chart.csproj" />
+		<!-- Watchlist row view model only (market cap); its view is never created -->
+		<ProjectReference Include="..\Widgets\LT.Widgets.Watchlist\LT.Widgets.Watchlist.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
