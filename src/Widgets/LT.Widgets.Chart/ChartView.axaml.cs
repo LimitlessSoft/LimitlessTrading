@@ -15,8 +15,10 @@ namespace LT.App.Widgets.Chart;
 /// <summary>
 /// The chart. Clicks in an indicator's legend row come here: the eye shows / hides it, ✕
 /// removes it, the gear or the name opens its settings dialog. Right-clicking the chart opens its
-/// menu: "Add indicator…" opens the indicator picker at the pointer (the built-ins and the
-/// scripts, searchable — Enter adds the first match — and a link to the scripts folder); "Apply
+/// menu: "Manage indicators…" opens the indicator manager at the pointer — the chart's indicators,
+/// each with ✕ to remove it (the manager stays open), then the picker for more (the built-ins and
+/// the scripts, searchable — Enter adds the first match — and a link to the scripts folder; a full
+/// chart shows the limit instead); "Apply
 /// template" lists the templates (the default one starred); "Templates…" opens the template
 /// manager at the pointer: apply one (click its name), make it the default for new charts (star),
 /// rename (pencil; Enter or clicking away saves, Esc cancels), export it to a file, delete it (✕,
@@ -30,7 +32,7 @@ public partial class ChartView : UserControl
 		InitializeComponent();
 		Chart.IndicatorAction += OnIndicatorAction;
 		ChartMenu.Opening += (_, _) => FillApplyTemplateMenu();
-		AddIndicatorMenuItem.Click += (_, _) => ShowAtPointer(IndicatorsFlyout);
+		ManageIndicatorsMenuItem.Click += (_, _) => ShowAtPointer(IndicatorsFlyout);
 		ManageTemplatesMenuItem.Click += (_, _) => ShowAtPointer(TemplatesFlyout);
 		IndicatorsFlyout.Opening += (_, _) => OnIndicatorsOpening();
 		IndicatorSearchBox.KeyDown += OnIndicatorSearchKeyDown;
@@ -301,6 +303,7 @@ public partial class ChartView : UserControl
 
 	private void OnIndicatorsOpening()
 	{
+		ViewModel?.RefreshChartIndicators();
 		ViewModel?.RefreshIndicatorChoices();
 		Dispatcher.UIThread.Post(
 			() =>
@@ -316,6 +319,12 @@ public partial class ChartView : UserControl
 	{
 		if ((sender as Control)?.DataContext is IndicatorChoiceItem item)
 			AddIndicator(item);
+	}
+
+	private void OnIndicatorRemoveClick(object? sender, RoutedEventArgs e)
+	{
+		if ((sender as Control)?.DataContext is ChartIndicatorItem item)
+			ViewModel?.RemoveIndicator(item.InstanceId);
 	}
 
 	private void OnIndicatorSearchKeyDown(object? sender, KeyEventArgs e)

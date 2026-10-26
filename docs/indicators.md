@@ -6,10 +6,13 @@ moment they are saved. Both are written against the same SDK, `LT.Indicators.Sdk
 
 ## Using them on a chart
 
-- **Add:** right-click the chart → **Add indicator…** (`ChartView`) opens the picker at the
-  pointer: built-ins first, then scripts, searchable by name or file name (Enter adds the first match). A script
-  that doesn't compile is listed with its error. "Open the scripts folder…" opens the folder in
-  the file manager. At most `IndicatorConstants.MaxIndicatorsPerChart` (16) per chart.
+- **Manage:** right-click the chart → **Manage indicators…** (`ChartView`) opens the indicator
+  manager at the pointer. At the top, the chart's indicators by their legend label, each with ✕
+  to remove it at once (the manager stays open). Below, the picker: built-ins first, then
+  scripts, searchable by name or file name (Enter adds the first match). A script that doesn't
+  compile is listed with its error. "Open the scripts folder…" opens the folder in the file
+  manager. At most `IndicatorConstants.MaxIndicatorsPerChart` (16) per chart; a full chart shows
+  the limit in place of the search and list, removal still works.
 - **Legend:** every pane has one at its top left — overlays under the OHLC readout, volume
   indicators on the volume bars, each separate indicator in its own pane. A row shows the short
   name and inputs ("BB 20 2"), the value of each line / histogram / band at the hovered bar in
