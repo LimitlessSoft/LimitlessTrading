@@ -95,7 +95,8 @@ public partial class MainWindowViewModel : ViewModelBase
 
 	public void ToggleTool(WorkspaceTool tool) => CurrentPage.ToggleTool(tool);
 
-	public void SpawnTool(WorkspaceTool tool) => CurrentPage.SpawnTool(tool);
+	/// <summary>Ctrl+Tab / Ctrl+Shift+Tab: the next or previous center view.</summary>
+	public void CycleView(int step) => CurrentPage.CycleView(step);
 
 	/// <summary>Ctrl+Shift+F: the current widget over the whole window, or back.</summary>
 	public void ToggleFullscreen() => CurrentPage.ToggleFullscreen();

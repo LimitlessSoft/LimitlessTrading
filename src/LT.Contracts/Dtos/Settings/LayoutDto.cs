@@ -11,6 +11,10 @@ public class LayoutDto
 	public string? RightWidgetId { get; set; }
 	public string? BottomWidgetId { get; set; }
 	public List<WidgetPlacementDto> Widgets { get; set; } = [];
+	public List<CenterViewDto> Views { get; set; } = [];
+	public string? SelectedViewId { get; set; }
+
+	/// <summary>Single center tree of layouts saved before views; moved into the first view on load.</summary>
 	public CenterNodeDto? Center { get; set; }
 	public ChartTimeframe ChartTimeframe { get; set; }
 	public double WindowWidth { get; set; }

@@ -103,11 +103,6 @@
 									/>
 									<Separator />
 									<MenuItem
-										Header="New chart"
-										InputGesture="Ctrl+Shift+D7"
-										Click="OnNewChartClick"
-									/>
-									<MenuItem
 										Header="Fullscreen widget"
 										InputGesture="Ctrl+Shift+F"
 										Click="OnFullscreenClick"

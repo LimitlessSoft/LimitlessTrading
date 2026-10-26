@@ -34,32 +34,89 @@
 			Background="Transparent"
 		/>
 
-		<!-- center | splitter | bottom host | bottom strip (shown while a widget is docked there) -->
-		<Grid x:Name="CenterColumn" Grid.Column="3" RowDefinitions="*,6,0,Auto">
-			<Panel x:Name="CenterHost" Margin="0,8">
-				<!-- Built from the center split tree: nested grids with splitters -->
-				<Border x:Name="CenterContent" />
+		<!-- view tabs | center | splitter | bottom host | bottom strip (shown while a widget is docked there) -->
+		<Grid x:Name="CenterColumn" Grid.Column="3" RowDefinitions="Auto,*,6,0,Auto">
+			<!-- One tab per center view: click shows it, double-click renames, ✕ closes it with its
+			     widgets; "+" adds one. A widget dragged over a tab switches to that view. -->
+			<Border x:Name="ViewTabStrip" Classes="viewTabs">
+				<StackPanel Orientation="Horizontal">
+					<ItemsControl x:Name="ViewTabs" ItemsSource="{Binding Views}">
+						<ItemsControl.ItemsPanel>
+							<ItemsPanelTemplate>
+								<StackPanel Orientation="Horizontal" Spacing="2" />
+							</ItemsPanelTemplate>
+						</ItemsControl.ItemsPanel>
+						<ItemsControl.ItemTemplate>
+							<DataTemplate DataType="vm:CenterViewItem">
+								<Border
+									Classes="viewTab"
+									Classes.selected="{Binding IsSelected}"
+									PointerPressed="OnViewTabPressed"
+								>
+									<Grid ColumnDefinitions="Auto,Auto">
+										<TextBlock
+											VerticalAlignment="Center"
+											Text="{Binding Name}"
+											IsVisible="{Binding !IsRenaming}"
+										/>
+										<TextBox
+											Classes="viewName"
+											Text="{Binding RenameText}"
+											MaxLength="{Binding NameMaxLength}"
+											IsVisible="{Binding IsRenaming}"
+											PropertyChanged="OnViewNameBoxPropertyChanged"
+											KeyDown="OnViewNameBoxKeyDown"
+											LostFocus="OnViewNameBoxLostFocus"
+										/>
+										<Button
+											Grid.Column="1"
+											Classes="frameAction close viewClose"
+											Command="{Binding CloseCommand}"
+											ToolTip.Tip="Close the view and its widgets"
+											IsVisible="{Binding CanClose}"
+										>
+											<PathIcon Data="{StaticResource FrameCloseIcon}" />
+										</Button>
+									</Grid>
+								</Border>
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
+					<Button
+						Classes="frameAction viewAdd"
+						Command="{Binding AddViewCommand}"
+						ToolTip.Tip="New view"
+					>
+						<PathIcon Data="{StaticResource ViewAddIcon}" />
+					</Button>
+				</StackPanel>
+			</Border>
+
+			<Panel x:Name="CenterHost" Grid.Row="1" Margin="0,8">
+				<!-- One host per view, built from its split tree (nested grids with splitters);
+				     only the shown view's is visible -->
+				<Panel x:Name="CenterViews" />
 				<TextBlock
 					Classes="secondary"
 					HorizontalAlignment="Center"
 					VerticalAlignment="Center"
 					TextAlignment="Center"
-					Text="No widgets in the center.&#10;Open one from the menu, or drag one here by its header."
+					Text="No widgets in this view.&#10;Open one from the menu, or drag one here by its header."
 					IsVisible="{Binding !HasCenterWidgets}"
 				/>
 			</Panel>
 
 			<GridSplitter
 				x:Name="BottomSplitter"
-				Grid.Row="1"
+				Grid.Row="2"
 				ResizeDirection="Rows"
 				Background="Transparent"
 			/>
-			<Border x:Name="BottomHost" Grid.Row="2" />
+			<Border x:Name="BottomHost" Grid.Row="3" />
 
 			<Border
 				x:Name="BottomStrip"
-				Grid.Row="3"
+				Grid.Row="4"
 				Classes="strip horizontal"
 				BorderThickness="0,1,0,0"
 				IsVisible="{Binding HasBottomWidgets}"

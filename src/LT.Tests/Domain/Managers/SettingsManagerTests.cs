@@ -1,6 +1,7 @@
 using LSCore.Exceptions;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Settings;
+using LT.Contracts.Entities;
 using LT.Contracts.Enums;
 using LT.Contracts.Requests.Settings;
 using LT.Domain.Managers;
@@ -189,6 +190,60 @@ public class SettingsManagerTests
 		Assert.Equal((260d, "Messages"), (saved.BottomHeight, saved.BottomWidgetId));
 		var placement = Assert.Single(saved.Widgets);
 		Assert.Equal((WidgetDock.Bottom, 300d), (placement.Dock, placement.BottomHeight));
+	}
+
+	[Fact]
+	public void Center_views_round_trip_with_their_trees_and_the_selected_one()
+	{
+		var manager = new SettingsManager(_settings, _ibkr);
+		var layout = manager.GetLayout();
+		layout.Views =
+		[
+			new CenterViewDto
+			{
+				Id = "main",
+				Name = "Main",
+				Root = new CenterNodeDto
+				{
+					Orientation = SplitOrientation.Vertical,
+					Children =
+					[
+						new() { WidgetId = "Chart", Size = 2 },
+						new() { WidgetId = "News" },
+					],
+				},
+			},
+			new CenterViewDto { Id = "empty", Name = "Scalping" },
+		];
+		layout.SelectedViewId = "empty";
+
+		manager.SaveLayout(layout);
+
+		var saved = manager.GetLayout();
+		Assert.Equal("empty", saved.SelectedViewId);
+		Assert.Equal(
+			[("main", "Main"), ("empty", "Scalping")],
+			saved.Views.Select(x => (x.Id, x.Name))
+		);
+		Assert.Null(saved.Views[1].Root);
+		var root = saved.Views[0].Root!;
+		Assert.Equal(SplitOrientation.Vertical, root.Orientation);
+		Assert.Equal(
+			[("Chart", 2d), ("News", 1d)],
+			root.Children.Select(x => (x.WidgetId!, x.Size))
+		);
+	}
+
+	[Fact]
+	public void A_layout_saved_before_views_loads_its_center_tree_and_no_views()
+	{
+		_settings.Settings.Layout.Center = new CenterNodeEntity { WidgetId = "Chart" };
+
+		var layout = new SettingsManager(_settings, _ibkr).GetLayout();
+
+		// The workspace turns the old tree into the first view (CenterViewHelpers.Normalize)
+		Assert.Empty(layout.Views);
+		Assert.Equal("Chart", layout.Center?.WidgetId);
 	}
 
 	[Fact]

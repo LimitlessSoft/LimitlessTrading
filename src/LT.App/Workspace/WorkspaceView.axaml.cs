@@ -15,16 +15,18 @@ using LT.Contracts.Enums;
 namespace LT.App.Workspace;
 
 /// <summary>
-/// Hosts widget frames: the expanded side and bottom widgets, the center split layout and the
-/// floating windows. Each frame is created once per widget instance and moved between hosts, so a widget
-/// keeps its state.
+/// Hosts widget frames: the expanded side and bottom widgets, the center split layout of every
+/// view and the floating windows. Each frame is created once per widget instance and moved between
+/// hosts, so a widget keeps its state. Every view has its own host, kept in the visual tree and
+/// only hidden while another view is shown: switching views moves no frame (a drag in progress
+/// keeps its pointer capture).
 /// </summary>
 public partial class WorkspaceView : UserControl
 {
 	private const int LeftColumn = 1;
 	private const int RightColumn = 5;
-	private const int BottomSplitterRow = 1;
-	private const int BottomRow = 2;
+	private const int BottomSplitterRow = 2;
+	private const int BottomRow = 3;
 	private const double MinPanelWidth = 220;
 	private const double MinPanelHeight = 120;
 
@@ -33,6 +35,7 @@ public partial class WorkspaceView : UserControl
 	private const double FlushSplitterSize = 1;
 	private const double FlushSplitterReach = 3;
 	private const double CardsCenterMargin = 8;
+	private const double CardsTabsGap = 6;
 	private const double CardsFloatingPadding = 6;
 
 	private readonly Dictionary<string, WidgetFrame> _frames = [];
@@ -41,6 +44,9 @@ public partial class WorkspaceView : UserControl
 
 	// Split node → the grid built for it, to read splitter-set sizes back into the tree
 	private readonly Dictionary<CenterNodeDto, Grid> _splitGrids = [];
+
+	// View → the host its split tree is built into
+	private readonly Dictionary<CenterViewItem, Border> _viewHosts = [];
 	private WorkspaceViewModel? _viewModel;
 
 	// The widget whose frame sits in the window's fullscreen layer (or whose window is maximized)
@@ -86,6 +92,7 @@ public partial class WorkspaceView : UserControl
 			_viewModel.PropertyChanged -= OnViewModelPropertyChanged;
 			_viewModel.Appearance?.PropertyChanged -= OnAppearanceChanged;
 			_viewModel.CenterChanged -= RebuildCenter;
+			_viewModel.Views.CollectionChanged -= OnViewsChanged;
 			_viewModel.Floating.CollectionChanged -= OnFloatingChanged;
 			_viewModel.Widgets.CollectionChanged -= OnWidgetsChanged;
 			foreach (var widget in _viewModel.Widgets)
@@ -98,6 +105,7 @@ public partial class WorkspaceView : UserControl
 		_viewModel.Appearance?.PropertyChanged += OnAppearanceChanged;
 		ApplyLayoutStyle();
 		_viewModel.CenterChanged += RebuildCenter;
+		_viewModel.Views.CollectionChanged += OnViewsChanged;
 		_viewModel.Floating.CollectionChanged += OnFloatingChanged;
 		_viewModel.Widgets.CollectionChanged += OnWidgetsChanged;
 		foreach (var widget in _viewModel.Widgets)
@@ -190,6 +198,9 @@ public partial class WorkspaceView : UserControl
 			case nameof(WorkspaceViewModel.FullscreenWidget):
 				ApplyFullscreen();
 				break;
+			case nameof(WorkspaceViewModel.SelectedView):
+				ApplySelectedView();
+				break;
 		}
 	}
 
@@ -214,7 +225,9 @@ public partial class WorkspaceView : UserControl
 	// Frame corners and borders follow the window's flush class (App.axaml).
 	private void ApplyLayoutStyle()
 	{
-		CenterHost.Margin = IsFlush ? default : new Thickness(0, CardsCenterMargin);
+		CenterHost.Margin = IsFlush
+			? default
+			: new Thickness(0, CardsTabsGap, 0, CardsCenterMargin);
 		StyleSplitter(LeftSplitter, true);
 		StyleSplitter(RightSplitter, true);
 		StyleSplitter(BottomSplitter, false);
@@ -458,16 +471,100 @@ public partial class WorkspaceView : UserControl
 		_viewModel!.BottomHeight = height;
 	}
 
-	/// <summary>Rebuilds the center from the split tree: nested grids with a splitter between children.</summary>
+	private void OnViewsChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
+		RebuildCenter();
+
+	/// <summary>
+	/// Rebuilds every view's host from its split tree: nested grids with a splitter between
+	/// children. Hosts of closed views go, new views get one.
+	/// </summary>
 	private void RebuildCenter()
 	{
 		foreach (var grid in _splitGrids.Values)
 			grid.Children.Clear();
 		_splitGrids.Clear();
-		CenterContent.Child = null;
+		foreach (var host in _viewHosts.Values)
+			host.Child = null;
 
-		if (_viewModel?.CenterRoot is { } root)
-			CenterContent.Child = Build(root);
+		var views = _viewModel?.Views ?? [];
+		foreach (var view in _viewHosts.Keys.Except(views).ToList())
+		{
+			CenterViews.Children.Remove(_viewHosts[view]);
+			_viewHosts.Remove(view);
+		}
+		foreach (var view in views)
+		{
+			if (!_viewHosts.TryGetValue(view, out var host))
+			{
+				_viewHosts[view] = host = new Border();
+				CenterViews.Children.Add(host);
+			}
+			if (view.Root is { } root)
+				host.Child = Build(root);
+		}
+		ApplySelectedView();
+	}
+
+	// A press on a view tab shows it; a double-click opens its name for editing. Presses on its ✕
+	// and in its name box are handled before they get here.
+	private void OnViewTabPressed(object? sender, PointerPressedEventArgs e)
+	{
+		if (
+			sender is not Control { DataContext: CenterViewItem view }
+			|| view.IsRenaming
+			|| !e.GetCurrentPoint(sender as Visual).Properties.IsLeftButtonPressed
+		)
+			return;
+		if (e.ClickCount >= 2)
+			view.BeginRenameCommand.Execute(null);
+		else
+			view.SelectCommand.Execute(null);
+		e.Handled = true;
+	}
+
+	// A name box opens focused with the name selected, ready to type over
+	private void OnViewNameBoxPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+	{
+		if (e.Property != IsVisibleProperty || sender is not TextBox { IsVisible: true } box)
+			return;
+		Dispatcher.UIThread.Post(
+			() =>
+			{
+				box.Focus();
+				box.SelectAll();
+			},
+			DispatcherPriority.Loaded
+		);
+	}
+
+	private void OnViewNameBoxKeyDown(object? sender, KeyEventArgs e)
+	{
+		if (sender is not TextBox { DataContext: CenterViewItem view })
+			return;
+		switch (e.Key)
+		{
+			case Key.Enter:
+				view.CommitRenameCommand.Execute(null);
+				e.Handled = true;
+				break;
+			case Key.Escape:
+				view.CancelRenameCommand.Execute(null);
+				e.Handled = true;
+				break;
+		}
+	}
+
+	private void OnViewNameBoxLostFocus(object? sender, RoutedEventArgs e)
+	{
+		if (sender is TextBox { DataContext: CenterViewItem view })
+			view.CommitRenameCommand.Execute(null);
+	}
+
+	// Only the shown view's host is visible; the others stay in the visual tree, hidden
+	private void ApplySelectedView()
+	{
+		foreach (var (view, host) in _viewHosts)
+			host.IsVisible = view == _viewModel?.SelectedView;
 	}
 
 	private Control Build(CenterNodeDto node)

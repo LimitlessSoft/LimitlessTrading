@@ -17,7 +17,19 @@ public class LayoutEntity
 	public List<WidgetPlacementEntity> Widgets { get; set; } =
 		WorkspaceHelpers.GetDefaultPlacements();
 
-	/// <summary>Center split tree; null = built from the center placements (side by side).</summary>
+	/// <summary>
+	/// Tabs of the center, each with its own split tree; empty = layouts saved before views, whose
+	/// <see cref="Center"/> becomes the first view ("Main") on load.
+	/// </summary>
+	public List<CenterViewEntity> Views { get; set; } = [];
+
+	/// <summary>The view shown; null or unknown = the first one.</summary>
+	public string? SelectedViewId { get; set; }
+
+	/// <summary>
+	/// The single center split tree of layouts saved before views; read once, then saved as null
+	/// (the tree lives in <see cref="Views"/>).
+	/// </summary>
 	public CenterNodeEntity? Center { get; set; }
 
 	/// <summary>Timeframe of the last chart used; new charts start with it.</summary>
