@@ -1,0 +1,32 @@
+using LT.App.Workspace;
+using LT.Contracts.Enums;
+
+namespace LT.Tests.Workspace;
+
+/// <summary>
+/// The Widgets menu shows no shortcuts, so a dock icon's tooltip is where a widget's shortcut is
+/// shown — including Ctrl+1…9 for widgets without a Ctrl+Alt focus key.
+/// </summary>
+public class WidgetShortcutTests
+{
+	[Theory]
+	[InlineData(WorkspaceTool.Watchlist, "Ctrl+Alt+W")]
+	[InlineData(WorkspaceTool.News, "Ctrl+Alt+N")]
+	[InlineData(WorkspaceTool.Chart, "Ctrl+7")]
+	public void GetShortcut_ReturnsTheKeysThatOpenTheWidget(WorkspaceTool tool, string expected) =>
+		Assert.Equal(expected, WidgetCatalog.GetShortcut(tool));
+
+	[Fact]
+	public void DockToolTip_ShowsTheChartHotkey() =>
+		Assert.Equal(
+			"Chart (Ctrl+7)",
+			new WidgetItem("c1", WorkspaceTool.Chart, new object()).ToolTip
+		);
+
+	[Fact]
+	public void DockToolTip_ShowsTheFocusShortcut() =>
+		Assert.Equal(
+			"Watchlist (Ctrl+Alt+W)",
+			new WidgetItem("w1", WorkspaceTool.Watchlist, new object()).ToolTip
+		);
+}

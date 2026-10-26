@@ -38,7 +38,7 @@ public partial class WidgetItem : ObservableObject
 	// Parsed on first use: a geometry needs the platform's render interface
 	public Geometry Icon => field ??= Geometry.Parse(WidgetCatalog.GetIcon(Tool));
 	public string ToolTip =>
-		WidgetCatalog.GetFocusGesture(Tool) is { } gesture ? $"{Title} ({gesture})" : Title;
+		WidgetCatalog.GetShortcut(Tool) is { } shortcut ? $"{Title} ({shortcut})" : Title;
 
 	/// <summary>The widget's view model; WidgetViewFactory creates the matching view.</summary>
 	public object Content { get; }
