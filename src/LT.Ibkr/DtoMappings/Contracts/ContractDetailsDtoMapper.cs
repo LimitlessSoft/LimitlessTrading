@@ -15,6 +15,8 @@ public class ContractDetailsDtoMapper : ILSCoreMapper<ContractDetails, ContractD
 			LongName = source.LongName,
 			MinTick = source.MinTick,
 			TimeZoneId = source.TimeZoneId,
+			TradingHours = source.TradingHours,
+			LiquidHours = source.LiquidHours,
 			Industry = source.Industry,
 			Category = source.Category,
 			ContractMonth = source.ContractMonth,

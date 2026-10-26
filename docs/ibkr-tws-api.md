@@ -116,7 +116,7 @@ Limits / caveats:
 |---|---|---|
 | `GetServerTimeAsync` | `reqCurrentTime` | Cheap round trip — the heartbeat |
 | `SetMarketDataTypeAsync` | `reqMarketDataType` | 1 live, 2 frozen, 3 delayed, 4 delayed-frozen |
-| `GetContractDetailsAsync(Contract)` | `reqContractDetails` | Search by symbol, conId lookup, one expiration's options |
+| `GetContractDetailsAsync(Contract)` | `reqContractDetails` | Search by symbol, conId lookup, one expiration's options; `tradingHours` / `liquidHours` (a few days around today, in `timeZoneId`, which may be an old name like `US/Eastern`) mark a chart's pre- / post-market bars |
 | `GetOptionChainParametersAsync` | `reqSecDefOptParams` | Expirations + strikes per exchange / trading class |
 | `SubscribeMarketDataAsync` | `reqMktData` | Price, size, generic and string ticks; optional generic tick list (`106` = underlying option implied volatility, tick 24, used by the option chain) |
 | `GetHistoricalBarsAsync` | `reqHistoricalData` | IB strings: duration `"5 D"`, bar size `"5 mins"` |
