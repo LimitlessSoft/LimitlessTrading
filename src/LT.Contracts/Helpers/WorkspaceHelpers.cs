@@ -13,6 +13,7 @@ public static class WorkspaceHelpers
 		WorkspaceTool.OptionChain,
 		WorkspaceTool.OrderTicket,
 		WorkspaceTool.News,
+		WorkspaceTool.AccountPerformance,
 	];
 
 	/// <summary>Where a widget opens when it is spawned and has no saved placement.</summary>
@@ -58,8 +59,8 @@ public static class WorkspaceHelpers
 	public static string GetDefaultId(WorkspaceTool tool) => tool.ToString();
 
 	/// <summary>
-	/// First-run workspace: every widget except the option chain, the order ticket and news (opened
-	/// on purpose, from the menu), in its default dock.
+	/// First-run workspace: every widget except the option chain, the order ticket, news and account
+	/// performance (opened on purpose, from the menu), in its default dock.
 	/// </summary>
 	public static List<WidgetPlacementEntity> GetDefaultPlacements() =>
 		Enum.GetValues<WorkspaceTool>()

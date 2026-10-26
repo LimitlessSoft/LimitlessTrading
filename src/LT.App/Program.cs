@@ -77,6 +77,7 @@ public static class Program
 		// Stateful services: registered after the scan so the singleton registration wins
 		builder.Services.AddSingleton<ISettingsRepository, SettingsRepository>();
 		builder.Services.AddSingleton<ICacheRepository, FileCacheRepository>();
+		builder.Services.AddSingleton<IAccountHistoryRepository, AccountHistoryRepository>();
 		builder.Services.AddSingleton<IIbkrApiClient, IbkrApiClient>();
 		builder.Services.AddSingleton<IMessageLogManager, MessageLogManager>();
 		builder.Services.AddSingleton<IConnectionManager, ConnectionManager>();
@@ -86,6 +87,7 @@ public static class Program
 		builder.Services.AddSingleton<ISettingsManager, SettingsManager>();
 		builder.Services.AddSingleton<IAppUpdater, AppUpdater>();
 		builder.Services.AddSingleton<IUpdateManager, UpdateManager>();
+		builder.Services.AddSingleton<IAccountPerformanceManager, AccountPerformanceManager>();
 
 		// News: every INewsSource is aggregated by the news manager (more sources go here)
 		builder.Services.AddSingleton<INewsSource, IbkrNewsSource>();
@@ -102,6 +104,7 @@ public static class Program
 		builder.Services.AddHostedService<ConnectionWatchdog>();
 		builder.Services.AddHostedService<UpdateScheduler>();
 		builder.Services.AddHostedService<CacheMaintenance>();
+		builder.Services.AddHostedService<AccountPerformanceRecorder>();
 
 		// ViewModels have no interfaces, so the convention scan skips them
 		builder.Services.AddTransient<MainWindowViewModel>();

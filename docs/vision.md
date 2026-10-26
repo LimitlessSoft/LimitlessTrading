@@ -42,6 +42,7 @@ TWS is powerful but:
 | 5 — Workspaces | Multiple named layouts, dragging strip icons | not started |
 | 6 — Advanced | Option chain (a tab per expiration, strikes around the money, L1 quotes) | **done** — no greeks yet |
 | 6 — Advanced | News widget: the link group's symbol (history, then live) or the broad tapes of the selected providers, provider chips, text filter, plain-text reading pane | **done** — IB is the only source so far; the news manager aggregates any number of sources |
+| 6 — Advanced | Account performance: equity curve, returns (today / week / month / YTD, max drawdown), daily P&L calendar and bars | **built** — history is recorded by the app while connected (the socket API has none), starting 2026-10-26; deposits / withdrawals are not visible, so returns come from daily P&L |
 | 6 — Advanced | L2 depth, scanners, alerts | not started — needs IBKR.Net support |
 
 Orders exist since the order ticket (`IIbkrApiClient.PlaceOrderAsync`): every order is reviewed

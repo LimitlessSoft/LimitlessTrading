@@ -42,6 +42,7 @@ public class IbkrApiClient : IIbkrApiClient
 
 	private IbkrClient? _client;
 	private AccountSummaryFeed? _accountSummary;
+	private AccountPnlFeed? _accountPnl;
 	private ConnectRequest? _endpoint;
 
 	// IBKR.Net places orders only at the protocol version they were observed at (178)
@@ -84,6 +85,13 @@ public class IbkrApiClient : IIbkrApiClient
 				ct
 			)
 		);
+		_accountPnl = new AccountPnlFeed(
+			(account, ct) =>
+				StreamAsync<AccountPnl, AccountPnlDto>(
+					(client, token) => client.SubscribeAccountPnlAsync(account, token),
+					ct
+				)
+		);
 	}
 
 	public async Task DisconnectAsync()
@@ -91,6 +99,10 @@ public class IbkrApiClient : IIbkrApiClient
 		var accountSummary = Interlocked.Exchange(ref _accountSummary, null);
 		if (accountSummary != null)
 			await accountSummary.DisposeAsync();
+
+		var accountPnl = Interlocked.Exchange(ref _accountPnl, null);
+		if (accountPnl != null)
+			await accountPnl.DisposeAsync();
 
 		var client = Interlocked.Exchange(ref _client, null);
 		if (client != null)
@@ -209,10 +221,9 @@ public class IbkrApiClient : IIbkrApiClient
 		string account,
 		CancellationToken cancellationToken = default
 	) =>
-		StreamAsync<AccountPnl, AccountPnlDto>(
-			(client, ct) => client.SubscribeAccountPnlAsync(account, ct),
-			cancellationToken
-		);
+		(
+			_accountPnl ?? throw new InvalidOperationException("Not connected to TWS / IB Gateway.")
+		).SubscribeAsync(account, cancellationToken);
 
 	public async Task<IReadOnlyList<PositionDto>> GetPositionsAsync(
 		CancellationToken cancellationToken = default
