@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
 using IBKR.Net;
 using LSCore.Mapper.Domain;
-using LSCore.Validation.Contracts;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Account;
 using LT.Contracts.Dtos.Charts;
@@ -12,7 +11,6 @@ using LT.Contracts.Dtos.News;
 using LT.Contracts.Dtos.Options;
 using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Dtos.Positions;
-using LT.Contracts.Enums.ValidationCodes;
 using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IApiClients;
 using LT.Contracts.Requests.Connection;
@@ -341,10 +339,15 @@ public class IbkrApiClient : IIbkrApiClient
 		return orders.ToMappedList<OpenOrder, OpenOrderDto>();
 	}
 
-	// Not decoded by IBKR.Net yet: no fill has been recorded from IB
-	public Task<IReadOnlyList<ExecutionDto>> GetExecutionsAsync(
+	// The day's fills of every account and client, each with its commission report
+	public async Task<IReadOnlyList<ExecutionDto>> GetExecutionsAsync(
 		CancellationToken cancellationToken = default
-	) => throw new NotSupportedException(ConnectionValidationCodes.CVC_007.GetValidationMessage());
+	)
+	{
+		await _messages.WaitAsync(cancellationToken);
+		var executions = await RequireClient().GetExecutionsAsync(cancellationToken);
+		return executions.ToMappedList<Execution, ExecutionDto>();
+	}
 
 	public async Task<PlacedOrderDto> PlaceOrderAsync(
 		ContractDto contract,

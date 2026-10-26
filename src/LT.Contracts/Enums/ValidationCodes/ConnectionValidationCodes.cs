@@ -18,9 +18,4 @@ public enum ConnectionValidationCodes
 
 	[LSCoreValidationMessage("Already connected. Disconnect first.")]
 	CVC_005,
-
-	[LSCoreValidationMessage(
-		"Executions are not supported yet: IBKR.Net reads them once they have been recorded from IB."
-	)]
-	CVC_007,
 }
