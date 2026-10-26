@@ -159,6 +159,14 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 	[ObservableProperty]
 	public partial bool IsLoading { get; set; }
 
+	/// <summary>Header timeframe menu: switches the bar size and reloads.</summary>
+	public void SetTimeframe(ChartTimeframe timeframe)
+	{
+		if (timeframe != SelectedTimeframe.Value)
+			SelectedTimeframe =
+				Timeframes.FirstOrDefault(x => x.Value == timeframe) ?? SelectedTimeframe;
+	}
+
 	partial void OnSelectedTimeframeChanged(TimeframeOption value) => Reload();
 
 	partial void OnUseRegularTradingHoursChanged(bool value) => Reload();
@@ -196,8 +204,7 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 			Timeframe = timeframe,
 			UseRegularTradingHours = UseRegularTradingHours,
 		};
-		Title =
-			$"{ContractHelpers.GetDisplayName(contract)} · {ChartTimeframeHelpers.GetDisplayName(timeframe)}";
+		Title = ContractHelpers.GetDisplayName(contract);
 		IsIntraday = ChartTimeframeHelpers.IsIntraday(timeframe);
 		IsLoading = true;
 		try

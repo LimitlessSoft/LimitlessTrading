@@ -254,6 +254,18 @@
 		<Style Selector="Button.chartTitle:pointerover /template/ ContentPresenter">
 			<Setter Property="Background" Value="{DynamicResource FrameActionHoverBrush}" />
 		</Style>
+		<!-- Chart header timeframe beside the title: quieter than the title, same hover hint -->
+		<Style Selector="Button.chartTimeframe">
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="BorderThickness" Value="0" />
+			<Setter Property="Padding" Value="4,1" />
+			<Setter Property="MinHeight" Value="0" />
+			<Setter Property="CornerRadius" Value="4" />
+			<Setter Property="Foreground" Value="{DynamicResource SecondaryText}" />
+		</Style>
+		<Style Selector="Button.chartTimeframe:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="{DynamicResource FrameActionHoverBrush}" />
+		</Style>
 		<!-- Watchlist header: the picker reads as the title; its rows are flat full-width buttons -->
 		<Style Selector="Button.watchlistPicker">
 			<Setter Property="Background" Value="Transparent" />

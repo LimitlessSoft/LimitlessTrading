@@ -73,8 +73,11 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
 - Spawn or reveal a widget from menu → Widgets. Ctrl+1 … Ctrl+9 do the same, but collapse a side
   widget that is already expanded.
 - **Charts can be open several times** (menu → Widgets → New chart, Ctrl+Shift+7). Each chart has
-  its own timeframe, link group and contract, all saved per chart. The chart header's controls
-  (RTH, timeframe, Reload) are hidden until they are redesigned; F5 reloads.
+  its own timeframe, link group and contract, all saved per chart. New charts start at the last
+  chart's timeframe (5m on first run). **Changing the timeframe:** click the timeframe beside the
+  chart's header title (e.g. "5m"); a menu lists 1m, 5m, 15m, 1h, 1D and 1W with the current one
+  checked, and picking one reloads the bars (historical + real-time) at that size. The other
+  header controls (RTH, Reload) are hidden until they are redesigned; F5 reloads.
 - **Picking a chart's ticker:** click the chart's header title (`ChartTitleView`, hosted in the
   frame header via `WidgetViewFactory.CreateTitle`). It turns into a ticker box: typing lists
   IB's listings of the symbol to pick from, Enter takes the highlighted one or the typed ticker's
