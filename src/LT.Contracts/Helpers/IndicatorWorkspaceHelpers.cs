@@ -119,7 +119,7 @@ public static class IndicatorWorkspaceHelpers
 
 		Every `*.cs` file in this folder is one chart indicator. Edit them in any editor;
 		LimitlessTrading compiles a file again as soon as it is saved and redraws every chart that
-		shows it. Add one to a chart from the chart's indicator button (ƒx) in its header.
+		shows it. Add one to a chart from its right-click menu: Manage indicators….
 
 		Open this folder in Rider, Visual Studio or VS Code (C# Dev Kit) for IntelliSense:
 		`indicators.csproj` references a copy of the SDK in `.sdk/` (refreshed on every start).

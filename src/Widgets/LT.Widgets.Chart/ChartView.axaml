@@ -21,8 +21,8 @@
 		</StreamGeometry>
 	</UserControl.Resources>
 	<!-- The ticker and timeframe are picked in the frame header (ChartTitleView). Right-clicking
-	     the chart opens its menu: add an indicator (the picker), apply a template, manage the
-	     templates. The picker and the template manager are flyouts kept on the chart and the
+	     the chart opens its menu: manage the indicators (remove those on the chart, pick more),
+	     apply a template, manage the templates. The picker and the template manager are flyouts kept on the chart and the
 	     panel and shown at the pointer. RTH / Reload controls are hidden until they are
 	     redesigned; the view model keeps their state.
 	     A ticker dragged from a watchlist, positions, orders or executions row can be dropped
@@ -277,11 +277,7 @@
 		>
 			<vm:CandlestickChart.ContextMenu>
 				<ContextMenu x:Name="ChartMenu">
-					<MenuItem
-						x:Name="AddIndicatorMenuItem"
-						Header="Add indicator…"
-						IsEnabled="{Binding CanAddIndicator}"
-					>
+					<MenuItem x:Name="ManageIndicatorsMenuItem" Header="Manage indicators…">
 						<MenuItem.Icon>
 							<TextBlock Text="ƒx" FontStyle="Italic" HorizontalAlignment="Center" />
 						</MenuItem.Icon>
@@ -299,12 +295,61 @@
 			<FlyoutBase.AttachedFlyout>
 				<Flyout Placement="Center">
 					<StackPanel Width="320" Spacing="6">
+						<TextBlock Classes="secondary" FontSize="12" Text="On this chart" />
+						<ScrollViewer MaxHeight="200" IsVisible="{Binding HasChartIndicators}">
+							<ItemsControl ItemsSource="{Binding ChartIndicators}">
+								<ItemsControl.ItemTemplate>
+									<DataTemplate x:DataType="vm:ChartIndicatorItem">
+										<Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" MinHeight="26">
+											<TextBlock
+												Margin="6,0,0,0"
+												VerticalAlignment="Center"
+												TextTrimming="CharacterEllipsis"
+												Text="{Binding Label}"
+											/>
+											<TextBlock
+												Grid.Column="1"
+												Classes="secondary"
+												FontSize="12"
+												VerticalAlignment="Center"
+												Text="hidden"
+												IsVisible="{Binding !IsVisible}"
+											/>
+											<Button
+												Grid.Column="2"
+												Classes="frameAction close"
+												VerticalAlignment="Center"
+												ToolTip.Tip="Remove from this chart"
+												Click="OnIndicatorRemoveClick"
+											>
+												<PathIcon Data="{StaticResource FrameCloseIcon}" />
+											</Button>
+										</Grid>
+									</DataTemplate>
+								</ItemsControl.ItemTemplate>
+							</ItemsControl>
+						</ScrollViewer>
+						<TextBlock
+							Classes="secondary"
+							Margin="6,0"
+							Text="No indicators yet. Pick one below."
+							IsVisible="{Binding !HasChartIndicators}"
+						/>
+						<Separator />
+						<TextBlock
+							Classes="secondary"
+							TextWrapping="Wrap"
+							Margin="6,0"
+							Text="{Binding IndicatorLimitMessage}"
+							IsVisible="{Binding !CanAddIndicator}"
+						/>
 						<TextBox
 							x:Name="IndicatorSearchBox"
-							PlaceholderText="Search indicators"
+							PlaceholderText="Search indicators to add"
 							Text="{Binding IndicatorSearch}"
+							IsVisible="{Binding CanAddIndicator}"
 						/>
-						<ScrollViewer MaxHeight="360">
+						<ScrollViewer MaxHeight="360" IsVisible="{Binding CanAddIndicator}">
 							<ItemsControl ItemsSource="{Binding IndicatorChoices}">
 								<ItemsControl.ItemTemplate>
 									<DataTemplate x:DataType="vm:IndicatorChoiceItem">

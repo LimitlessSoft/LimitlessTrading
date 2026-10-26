@@ -687,10 +687,10 @@ while a text box has focus. On macOS, Cmd works in place of Ctrl.
 `Widgets/Chart/CandlestickChart` is a custom `Control` drawn with `DrawingContext` (no chart
 library): candles, volume, price grid, last-price line, crosshair + OHLCV readout. Wheel zooms,
 drag pans, double-click resets (zoom and pan, not the right margin); the right button doesn't
-pan — releasing it opens the chart's context menu (Add indicator…, Apply template, Templates…). The account performance widget's `EquityCurveChart` and
+pan — releasing it opens the chart's context menu (Manage indicators…, Apply template, Templates…). The account performance widget's `EquityCurveChart` and
 `DailyPnlBarChart` are drawn the same way (same palette, `ChartDrawing`).
 
-**Indicators and panes.** Right-click → Add indicator… adds indicators; they draw on the
+**Indicators and panes.** Right-click → Manage indicators… adds and removes indicators; they draw on the
 price chart, on the volume bars or in panes of their own stacked under the price chart, each
 pane with its own scale and a legend (hover a row for hide / settings / remove). All panes share
 the horizontal viewport and the crosshair. The loading / error overlay sits top centre, clear of

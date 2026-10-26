@@ -204,6 +204,7 @@ public partial class ChartViewModel
 			Link.Group = LinkGroup.None;
 		RightMargin = Math.Max(0, placement.ChartRightMargin ?? 0);
 		_indicators = [.. placement.ChartIndicators ?? []];
+		RefreshChartIndicators();
 		ScheduleIndicators();
 		LoadTemplateState(placement);
 		if (placement.ChartContract != null)
@@ -483,7 +484,18 @@ public partial class ChartViewModel
 	[ObservableProperty]
 	public partial IReadOnlyList<IndicatorChoiceItem> IndicatorChoices { get; set; } = [];
 
+	/// <summary>Indicator manager: the indicators on this chart, in legend order.</summary>
+	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(HasChartIndicators))]
+	public partial IReadOnlyList<ChartIndicatorItem> ChartIndicators { get; set; } = [];
+
+	public bool HasChartIndicators => ChartIndicators.Count > 0;
+
 	public bool CanAddIndicator => _indicators.Count < IndicatorConstants.MaxIndicatorsPerChart;
+
+	/// <summary>Indicator manager: shown instead of the picker when the chart is full.</summary>
+	public string IndicatorLimitMessage =>
+		$"A chart holds up to {IndicatorConstants.MaxIndicatorsPerChart} indicators. Remove one to add another.";
 
 	/// <summary>The folder of indicator scripts (opened from the picker).</summary>
 	public string IndicatorScriptsDirectory => _indicatorManager.GetScriptsDirectory();
@@ -512,6 +524,25 @@ public partial class ChartViewModel
 				)
 				.Select(x => new IndicatorChoiceItem(x)),
 		];
+
+	/// <summary>
+	/// Indicator manager: lists the chart's indicators with their legend labels (the definition's
+	/// short name and inputs, or the file name while it is missing).
+	/// </summary>
+	public void RefreshChartIndicators()
+	{
+		ChartIndicators =
+		[
+			.. _indicators.Select(x => new ChartIndicatorItem(
+				x.Id,
+				_indicatorManager.GetDefinition(x.DefinitionId) is { } definition
+					? IndicatorHelpers.GetLabel(definition, x.Inputs)
+					: IndicatorHelpers.GetMissingLabel(x.DefinitionId),
+				x.IsVisible
+			)),
+		];
+		OnPropertyChanged(nameof(CanAddIndicator));
+	}
 
 	/// <summary>Picker: adds the indicator with its defaults.</summary>
 	public void AddIndicator(string definitionId)
@@ -552,7 +583,7 @@ public partial class ChartViewModel
 		OnIndicatorsEdited();
 	}
 
-	/// <summary>Legend: removes an indicator from this chart.</summary>
+	/// <summary>Legend and indicator manager: removes an indicator from this chart.</summary>
 	public void RemoveIndicator(string instanceId)
 	{
 		_indicators = [.. _indicators.Where(x => x.Id != instanceId)];
@@ -592,7 +623,7 @@ public partial class ChartViewModel
 
 	private void OnIndicatorsEdited()
 	{
-		OnPropertyChanged(nameof(CanAddIndicator));
+		RefreshChartIndicators();
 		ScheduleIndicators();
 		OnTemplateSettingsEdited();
 	}
@@ -605,7 +636,10 @@ public partial class ChartViewModel
 				return;
 			RefreshIndicatorChoices();
 			if (_indicators.Any(x => definitionIds.Contains(x.DefinitionId)))
+			{
+				RefreshChartIndicators();
 				ScheduleIndicators();
+			}
 		});
 
 	// Throttled: the first change starts the timer, everything until it fires is one compute
