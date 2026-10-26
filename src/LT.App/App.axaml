@@ -92,6 +92,107 @@
 			<GradientStop Offset="0.5714" Color="Transparent" />
 		</LinearGradientBrush>
 
+		<StreamGeometry x:Key="ChevronUpIcon">
+			M1.6,8.4 L6,4 L10.4,8.4 L11.4,7.4 L6,2 L0.6,7.4 Z
+		</StreamGeometry>
+		<!-- NumericUpDown.compact's spinner: Fluent's ButtonSpinner sizes its buttons in the template
+		     (MinWidth 34, bordered), which styles can't override, so it gets its own slim template:
+		     two flat 18px chevron buttons that light up on hover -->
+		<ControlTheme x:Key="CompactSpinnerButton" TargetType="RepeatButton">
+			<Setter Property="Width" Value="18" />
+			<Setter Property="Padding" Value="0" />
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="Foreground" Value="{DynamicResource SecondaryText}" />
+			<Setter Property="VerticalAlignment" Value="Stretch" />
+			<Setter Property="HorizontalContentAlignment" Value="Center" />
+			<Setter Property="VerticalContentAlignment" Value="Center" />
+			<Setter Property="Template">
+				<ControlTemplate>
+					<ContentPresenter
+						Name="PART_ContentPresenter"
+						Background="{TemplateBinding Background}"
+						Foreground="{TemplateBinding Foreground}"
+						Content="{TemplateBinding Content}"
+						Padding="{TemplateBinding Padding}"
+						HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+						VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+					/>
+				</ControlTemplate>
+			</Setter>
+			<Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+				<Setter Property="Background" Value="{DynamicResource FrameActionHoverBrush}" />
+				<Setter Property="Foreground" Value="White" />
+			</Style>
+			<Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+				<Setter Property="Background" Value="{DynamicResource PanelStroke}" />
+			</Style>
+			<Style Selector="^:disabled">
+				<Setter Property="Opacity" Value="0.35" />
+			</Style>
+		</ControlTheme>
+		<ControlTheme x:Key="CompactButtonSpinner" TargetType="ButtonSpinner">
+			<Setter Property="Foreground" Value="{DynamicResource TextControlForeground}" />
+			<Setter Property="Background" Value="{DynamicResource TextControlBackground}" />
+			<Setter Property="BorderBrush" Value="{DynamicResource TextControlBorderBrush}" />
+			<Setter
+				Property="BorderThickness"
+				Value="{DynamicResource TextControlBorderThemeThickness}"
+			/>
+			<Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}" />
+			<Setter Property="HorizontalContentAlignment" Value="Stretch" />
+			<Setter Property="VerticalContentAlignment" Value="Center" />
+			<Setter Property="Focusable" Value="True" />
+			<Setter Property="Template">
+				<ControlTemplate>
+					<DataValidationErrors>
+						<Border
+							Background="{TemplateBinding Background}"
+							BorderBrush="{TemplateBinding BorderBrush}"
+							BorderThickness="{TemplateBinding BorderThickness}"
+							CornerRadius="{TemplateBinding CornerRadius}"
+						>
+							<DockPanel>
+								<StackPanel
+									Name="PART_SpinnerPanel"
+									TabIndex="2"
+									DockPanel.Dock="Right"
+									Orientation="Horizontal"
+									IsVisible="{TemplateBinding ShowButtonSpinner}"
+								>
+									<RepeatButton
+										Name="PART_DecreaseButton"
+										Theme="{StaticResource CompactSpinnerButton}"
+										IsTabStop="False"
+									>
+										<PathIcon Width="8" Height="8" Data="{StaticResource ChevronDownIcon}" />
+									</RepeatButton>
+									<RepeatButton
+										Name="PART_IncreaseButton"
+										Theme="{StaticResource CompactSpinnerButton}"
+										IsTabStop="False"
+									>
+										<PathIcon Width="8" Height="8" Data="{StaticResource ChevronUpIcon}" />
+									</RepeatButton>
+								</StackPanel>
+								<ContentPresenter
+									Name="PART_ContentPresenter"
+									TabIndex="1"
+									ContentTemplate="{TemplateBinding ContentTemplate}"
+									Content="{TemplateBinding Content}"
+									HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+									VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+									Padding="{TemplateBinding Padding}"
+								/>
+							</DockPanel>
+						</Border>
+					</DataValidationErrors>
+				</ControlTemplate>
+			</Setter>
+			<Style Selector="^:error">
+				<Setter Property="BorderBrush" Value="{DynamicResource SystemErrorTextColor}" />
+			</Style>
+		</ControlTheme>
+
 		<!-- AppWindow: no drawn border or shadow, the app's own panels frame them -->
 		<ControlTheme
 			x:Key="AppWindowDecorations"
@@ -404,6 +505,23 @@
 		<Style Selector="Button.danger">
 			<Setter Property="Background" Value="#C42B1C" />
 			<Setter Property="Foreground" Value="White" />
+		</Style>
+		<!-- Compact number box for a header or status row (option chain "Qty"): 24px like the frame
+		     actions, text centred, the slim CompactButtonSpinner. Fluent's TextBox minimum height
+		     sits on the inner text box too, so it is reset there as well. -->
+		<Style Selector="NumericUpDown.compact">
+			<Setter Property="Height" Value="24" />
+			<Setter Property="MinHeight" Value="0" />
+			<Setter Property="Padding" Value="6,0" />
+			<Setter Property="FontSize" Value="12" />
+			<Setter Property="VerticalContentAlignment" Value="Center" />
+			<Setter Property="CornerRadius" Value="4" />
+		</Style>
+		<Style Selector="NumericUpDown.compact /template/ ButtonSpinner#PART_Spinner">
+			<Setter Property="Theme" Value="{StaticResource CompactButtonSpinner}" />
+		</Style>
+		<Style Selector="NumericUpDown.compact /template/ TextBox#PART_TextBox">
+			<Setter Property="MinHeight" Value="0" />
 		</Style>
 		<Style Selector="AutoCompleteBox.ticker">
 			<Setter Property="MinHeight" Value="26" />

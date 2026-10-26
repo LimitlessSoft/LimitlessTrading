@@ -704,3 +704,6 @@ positions) and when off the visible price range. Each chart follows positions on
 - Colours/brushes as resources in `App.axaml`; positive/negative P/L via the `positive` /
   `negative` classes, never hard-coded in a view.
 - Widgets sit in a `Border.panel` with a `TextBlock.panelTitle` header.
+- A number box in a header or status row uses `NumericUpDown.compact` (24px, centred text, slim
+  `CompactButtonSpinner` with flat chevrons). Fluent sizes its spinner buttons inside the
+  template, so shrinking `MinHeight`/`Padding` on the control alone only squashes the text.
