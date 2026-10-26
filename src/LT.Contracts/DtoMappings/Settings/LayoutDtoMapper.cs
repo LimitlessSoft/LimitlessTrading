@@ -11,6 +11,7 @@ public class LayoutDtoMapper : ILSCoreMapper<LayoutEntity, LayoutDto>
 			new LayoutDto
 			{
 				ChartTimeframe = source.ChartTimeframe,
+				ChartPeriod = source.ChartPeriod,
 				WindowWidth = source.WindowWidth,
 				WindowHeight = source.WindowHeight,
 				IsMaximized = source.IsMaximized,
