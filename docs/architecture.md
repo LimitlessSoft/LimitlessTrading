@@ -30,7 +30,7 @@ src/
 │   ├── Enums/                     # + Enums/ValidationCodes/
 │   ├── Helpers/                   # static helper classes (no private helpers in managers)
 │   ├── Interfaces/
-│   │   ├── IApiClients/           # IIbkrApiClient — the broker boundary
+│   │   ├── IApiClients/           # IIbkrApiClient — the broker boundary; IFlexApiClient — IB Flex
 │   │   ├── IManagers/
 │   │   ├── IProcesses/            # IGatewayProcess — child processes we own (IB Gateway)
 │   │   └── IRepositories/
@@ -44,6 +44,7 @@ src/
 ├── LT.Ibkr/
 │   ├── DtoMappings/               # IBKR.Net types ↔ LT.Contracts DTOs
 │   ├── Gateway/                   # GatewayProcess — starts / stops IB Gateway's launcher
+│   ├── Flex/                      # FlexApiClient (HTTPS, no IBKR.Net) + FlexStatementParser
 │   ├── RequestThrottle.cs         # IB pacing (messages/s, historical requests / 10 min)
 │   └── IbkrApiClient.cs           # implements IIbkrApiClient over IBKR.Net (+ order connection)
 ├── LT.App/                        # Avalonia (Fluent, dark)
@@ -80,6 +81,9 @@ LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
 - `LT.Domain` depends only on `LT.Contracts` interfaces — it doesn't know IBKR is behind
   `IIbkrApiClient`, so managers are unit-testable with fakes.
 - `LT.Ibkr` maps every IB type to a DTO at the boundary. IB types never reach the Domain or UI.
+  It also holds the Flex Web Service client (`LT.Ibkr/Flex`): IB's other API, plain HTTPS + XML,
+  kept next to the socket client so every "talks to IB" piece is in one project; it uses no
+  IBKR.Net type ([ibkr-flex.md](ibkr-flex.md)).
 - Widget projects reference only `LT.Widgets.Core` (and through it `LT.Contracts`): they reach
   data through manager interfaces, never `LT.Domain`, `LT.Ibkr` or each other. App-wide styles
   and resources (`App.axaml`) still apply to them; their `StaticResource`s resolve at runtime.
@@ -106,6 +110,11 @@ LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
 - The host is started (`host.Start()`) so `ConnectionWatchdog` (a `BackgroundService`) runs the
   heartbeat; it's stopped after the Avalonia lifetime ends. `TradeJournalRecorder` (also a
   `BackgroundService`) runs `ITradeJournalManager.RecordAsync` while connected.
+  `FlexImportScheduler` runs `IFlexImportManager.RunAsync` for the app's lifetime (IB Flex
+  back-fill, daily Activity and 5-minute Trade Confirmation imports).
+- `IFlexApiClient` is registered with a factory (`FlexApiClient.CreateHttpClient()` — timeout and
+  the User-Agent IB requires — plus `TimeProvider`) as one singleton, so one `HttpClient` and one
+  pacing state serve every Flex request.
 - `UpdateScheduler` (also a `BackgroundService`) clears the previous version's folder left by an
   update, then has `IUpdateManager` check GitHub Releases ~10 s after start and every 6 h.
   `AppUpdater` (`LT.App/Services`) does the platform work: download, SHA-256 check against
@@ -157,7 +166,9 @@ account) in `settings.json`, the data cache in `cache/<CacheType>/<sha256 of key
 recorded account performance in `account-history/<account>.json` (one snapshot per trading day,
 see [ui-patterns.md → Account performance](ui-patterns.md#account-performance)) and the trade
 journal (recorded fills and intraday P&L, one file per trading day) in `trade-journal/fills/` and
-`trade-journal/pnl/`. The last two are not part of the cache, so Clear cache and the size limit
+`trade-journal/pnl/`. IB Flex imports go into those same files (account days marked
+`Source = Flex`, fills carrying their Flex `TradeId`); the import's progress is in
+`flex-import.json`, and the Flex token in `settings.json` (`SettingsEntity.Flex`, plain text). The last two are not part of the cache, so Clear cache and the size limit
 never touch them. All live under the OS app-data folder
 (`Environment.SpecialFolder.ApplicationData`: `%APPDATA%\LimitlessTrading` on Windows,
 `~/.config/LimitlessTrading` on Linux and macOS). When we need queryable local data (layouts,

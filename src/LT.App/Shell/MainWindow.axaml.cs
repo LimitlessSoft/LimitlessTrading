@@ -1,6 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
+using LT.App.Stores;
 using LT.App.Widgets.Gateway;
 using LT.App.Widgets.Settings;
 using LT.App.Workspace;
@@ -11,12 +13,24 @@ namespace LT.App.Shell;
 
 public partial class MainWindow : Window, IFullscreenHost
 {
+	private readonly SettingsNavigator? _settingsNavigator;
+	private bool _settingsOpen;
+
 	public MainWindow()
 	{
 		InitializeComponent();
 		AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
 		Closing += OnClosing;
 		Opened += OnOpened;
+		// A widget's "Set up…" opens Settings on its page (null in the previewer)
+		_settingsNavigator = Program.Services?.GetService<SettingsNavigator>();
+		if (_settingsNavigator != null)
+			_settingsNavigator.OpenRequested += OnSettingsRequested;
+		Closed += (_, _) =>
+		{
+			if (_settingsNavigator != null)
+				_settingsNavigator.OpenRequested -= OnSettingsRequested;
+		};
 	}
 
 	private MainWindowViewModel? ViewModel => DataContext as MainWindowViewModel;
@@ -102,11 +116,26 @@ public partial class MainWindow : Window, IFullscreenHost
 		e.Handled = true;
 	}
 
-	private async Task OpenSettingsAsync() =>
-		await new SettingsWindow
+	private async Task OpenSettingsAsync(string? pageTitle = null)
+	{
+		if (_settingsOpen)
+			return;
+		_settingsOpen = true;
+		try
 		{
-			DataContext = Program.Services.GetRequiredService<SettingsViewModel>(),
-		}.ShowDialog<bool>(this);
+			var viewModel = Program.Services.GetRequiredService<SettingsViewModel>();
+			if (pageTitle != null)
+				viewModel.ShowPage(pageTitle);
+			await new SettingsWindow { DataContext = viewModel }.ShowDialog<bool>(this);
+		}
+		finally
+		{
+			_settingsOpen = false;
+		}
+	}
+
+	private void OnSettingsRequested(string? pageTitle) =>
+		Dispatcher.UIThread.Post(() => _ = OpenSettingsAsync(pageTitle));
 
 	private void OnSettingsClick(object? sender, RoutedEventArgs e) => _ = OpenSettingsAsync();
 

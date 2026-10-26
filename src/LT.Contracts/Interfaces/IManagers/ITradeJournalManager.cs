@@ -1,4 +1,5 @@
 using LT.Contracts.Dtos.Account;
+using LT.Contracts.Dtos.Flex;
 using LT.Contracts.Dtos.Performance;
 
 namespace LT.Contracts.Interfaces.IManagers;
@@ -33,6 +34,16 @@ public interface ITradeJournalManager
 
 	/// <summary>Asks IB for the day's executions once and merges them into the journal; returns the fills added or updated.</summary>
 	Task<int> RecordExecutionsAsync(CancellationToken cancellationToken = default);
+
+	/// <summary>
+	/// Merges Flex executions into the journal (deduplicated by IB execution id, else tradeID, so a
+	/// Flex fill and the same socket fill stay one) and drops fills whose tradeID is in
+	/// <paramref name="cancelledTradeIds"/>. Returns the fills added, updated or removed.
+	/// </summary>
+	int ImportFlexTrades(
+		IReadOnlyList<FlexTradeDto> trades,
+		IReadOnlyCollection<string> cancelledTradeIds
+	);
 
 	/// <summary>Adds an account's daily P&amp;L to today's curve (no value: ignored).</summary>
 	void RecordPnl(string account, AccountPnlDto pnl);

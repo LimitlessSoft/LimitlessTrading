@@ -2,7 +2,8 @@
 
 LimitlessTrading is a cross-platform (**Windows, macOS, Linux**) desktop trading front-end for
 Interactive Brokers, built with **Avalonia** on **.NET 10**. It starts IB Gateway itself (the user logs in in Gateway's window) and talks to it through
-the socket API ([ibkr-tws-api.md](ibkr-tws-api.md)) and aims to replace the TWS UI for day-to-day use.
+the socket API ([ibkr-tws-api.md](ibkr-tws-api.md)), takes account history from IB's Flex Web
+Service ([ibkr-flex.md](ibkr-flex.md)), and aims to replace the TWS UI for day-to-day use.
 
 ## Why
 
@@ -38,12 +39,12 @@ TWS is powerful but:
 | 3 — Charts | Candlestick chart, historical + 5 s real-time bars, local bar cache | **done** |
 | 4 — Trading | Live positions with P&L, open orders, executions | **done** — executions wait for IBKR.Net support (no fill recorded yet) |
 | 4 — Trading | Order ticket: market / limit, quantity or cash amount, review before send, status, cancel | **built, in use** — first live order (stock limit, 2026-10-26) worked; nothing filled yet; modify and what-if not started |
-| 4 — Trading | Day trade performance: local journal of fills and intraday P&L, curve with high / low / drawdown, FIFO round trips with win rate, profit factor, expectancy and a trades table per day | **built** — the P&L curve works; trade stats wait for IBKR.Net executions |
+| 4 — Trading | Day trade performance: local journal of fills and intraday P&L, curve with high / low / drawdown, FIFO round trips with win rate, profit factor, expectancy and a trades table per day | **built** — the P&L curve works; trades and stats come from IB Flex (all history, today's a few minutes late) until IBKR.Net decodes executions |
 | 5 — Workspaces | Settings dialog, workspace where every widget can be spawned (charts several times) and dragged into the center split layout (beside / above / below), a collapsible side strip or its own floating window, saved layout (window, open panels, widths, tab, timeframe), hotkeys | **done** |
 | 5 — Workspaces | Multiple named layouts, dragging strip icons | not started |
 | 6 — Advanced | Option chain (a tab per expiration, strikes around the money, L1 quotes) | **done** — no greeks yet |
 | 6 — Advanced | News widget: the link group's symbol (history, then live) or the broad tapes of the selected providers, provider chips, text filter, plain-text reading pane | **done** — IB is the only source so far; the news manager aggregates any number of sources |
-| 6 — Advanced | Account performance: equity curve, returns (today / week / month / YTD, max drawdown), daily P&L calendar and bars | **built** — history is recorded by the app while connected (the socket API has none), starting 2026-10-26; deposits / withdrawals are not visible, so returns come from daily P&L |
+| 6 — Advanced | Account performance: equity curve, returns (today / week / month / YTD, max drawdown), daily P&L calendar and bars | **built** — past days come from IB Flex (end-of-day NAV back to the account's start, deposits / withdrawals left out of P&L), today is recorded live; without Flex only what the app recorded |
 | 6 — Advanced | L2 depth, scanners, alerts | not started — needs IBKR.Net support |
 
 Orders exist since the order ticket (`IIbkrApiClient.PlaceOrderAsync`): every order is reviewed

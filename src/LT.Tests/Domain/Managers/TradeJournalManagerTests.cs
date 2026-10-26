@@ -1,6 +1,7 @@
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Account;
 using LT.Contracts.Dtos.Executions;
+using LT.Contracts.Dtos.Flex;
 using LT.Contracts.Entities;
 using LT.Domain.Managers;
 using LT.Tests.Fakes;
@@ -220,6 +221,106 @@ public class TradeJournalManagerTests
 
 		Assert.Equal(42, Assert.Single(_repository.PnlSamples[Today]).DailyPnl);
 	}
+
+	[Fact]
+	public void Flex_trades_give_stats_while_ib_executions_fail()
+	{
+		_ibkr.ExecutionsException = new NotSupportedException("Executions are not supported yet");
+
+		var changed = _manager.ImportFlexTrades(
+			[
+				FlexTrade("t1", "e1", "BUY", 0, 10, commission: 1),
+				FlexTrade("t2", "e2", "SELL", 5, 11, commission: 1),
+			],
+			[]
+		);
+
+		Assert.Equal(2, changed);
+		var day = _manager.GetDayPerformance(Today, "DU1");
+		var trade = Assert.Single(day.Trades);
+		Assert.Equal(100, trade.GrossPnl, 6);
+		Assert.Equal(2, trade.Commission, 6);
+		Assert.Contains(Today, _manager.GetDays());
+	}
+
+	[Fact]
+	public async Task A_flex_trade_and_the_same_socket_fill_stay_one_fill()
+	{
+		_ibkr.Executions = [Execution("e1", "BOT", 0)];
+		await _manager.RecordExecutionsAsync(Ct);
+
+		var changed = _manager.ImportFlexTrades(
+			[FlexTrade("t1", "e1", "BUY", 0, 10, commission: 1.25)],
+			[]
+		);
+
+		Assert.Equal(1, changed);
+		var fill = Assert.Single(_repository.Fills[Today]);
+		Assert.Equal(("t1", 1.25), (fill.TradeId, fill.Commission!.Value));
+	}
+
+	[Fact]
+	public void Imported_history_reaches_every_day_with_fills()
+	{
+		_manager.ImportFlexTrades(
+			[
+				FlexTrade("t1", "e1", "BUY", -60 * 24 * 30, 10),
+				FlexTrade("t2", "e2", "SELL", -60 * 24 * 3, 12),
+			],
+			[]
+		);
+
+		var days = _manager.GetDays();
+		Assert.Contains(new DateOnly(2026, 9, 26), days);
+		Assert.Contains(Yesterday, days);
+		Assert.Single(_manager.GetDayPerformance(Yesterday, null).Trades);
+	}
+
+	[Fact]
+	public void A_cancelled_flex_trade_is_removed_from_the_journal()
+	{
+		_manager.ImportFlexTrades([FlexTrade("t1", "e1", "BUY", 0, 10)], []);
+
+		Assert.Equal(1, _manager.ImportFlexTrades([], ["t1"]));
+		Assert.Empty(_repository.Fills[Today]);
+	}
+
+	[Fact]
+	public void A_flex_trade_without_time_lands_on_its_trade_date()
+	{
+		var trade = FlexTrade("t1", "", "BUY", 0, 10);
+		trade.Time = null;
+		trade.TradeDate = Yesterday;
+
+		_manager.ImportFlexTrades([trade], []);
+
+		var fill = Assert.Single(_repository.Fills[Yesterday]);
+		Assert.Equal("flex:t1", fill.ExecId);
+	}
+
+	private static FlexTradeDto FlexTrade(
+		string tradeId,
+		string execId,
+		string side,
+		int minute,
+		double price,
+		double? commission = null
+	) =>
+		new()
+		{
+			Account = "DU1",
+			TradeId = tradeId,
+			ExecId = execId,
+			ConId = 1,
+			Symbol = "AAPL",
+			AssetCategory = "STK",
+			Multiplier = 1,
+			Side = side,
+			Quantity = 100,
+			Price = price,
+			Commission = commission,
+			Time = Now.AddMinutes(minute),
+		};
 
 	private static async Task WaitUntilAsync(Func<bool> condition)
 	{

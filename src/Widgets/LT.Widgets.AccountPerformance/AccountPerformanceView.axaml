@@ -2,6 +2,7 @@
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:LT.App.Widgets.AccountPerformance"
+	xmlns:controls="using:LT.App.Controls"
 	x:Class="LT.App.Widgets.AccountPerformance.AccountPerformanceView"
 	x:DataType="vm:AccountPerformanceViewModel"
 >
@@ -47,6 +48,11 @@
 	</UserControl.Styles>
 	<ScrollViewer>
 		<StackPanel Spacing="8">
+			<controls:FlexSetupBanner
+				Text="{Binding FlexBanner}"
+				IsWarning="{Binding FlexBannerIsWarning}"
+				Command="{Binding SetUpFlexCommand}"
+			/>
 			<Grid ColumnDefinitions="*,Auto">
 				<ComboBox
 					HorizontalAlignment="Stretch"
@@ -212,6 +218,7 @@
 				FontSize="11"
 				TextWrapping="Wrap"
 				Text="{Binding HistoryNote}"
+				IsVisible="{Binding HistoryNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
 			/>
 			<TextBlock
 				Classes="negative"

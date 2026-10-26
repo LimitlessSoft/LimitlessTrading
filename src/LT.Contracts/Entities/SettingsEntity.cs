@@ -5,6 +5,7 @@ public class SettingsEntity
 	public ConnectionSettingsEntity Connection { get; set; } = new();
 	public GatewaySettingsEntity Gateway { get; set; } = new();
 	public GeneralSettingsEntity General { get; set; } = new();
+	public FlexSettingsEntity Flex { get; set; } = new();
 	public LayoutEntity Layout { get; set; } = new();
 	public List<WatchlistEntity> Watchlists { get; set; } = [];
 	public string? ActiveWatchlistId { get; set; }

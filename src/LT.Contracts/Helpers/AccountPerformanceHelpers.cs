@@ -1,19 +1,22 @@
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Account;
 using LT.Contracts.Dtos.AccountPerformance;
+using LT.Contracts.Dtos.Flex;
 using LT.Contracts.Entities;
 using LT.Contracts.Enums;
 
 namespace LT.Contracts.Helpers;
 
 /// <summary>
-/// Snapshot recording and the return math of the account performance widget.
+/// Snapshot recording, the Flex merge and the return math of the account performance widget.
 ///
-/// Returns are built from IB's daily P&amp;L, not from net liquidation deltas: the socket API
-/// doesn't report deposits and withdrawals, and a deposit would show up as a gain in a NetLiq
-/// delta. A day's return is its daily P&amp;L over the equity it started with (net liquidation
-/// minus the day's P&amp;L); a span's return chains those (time-weighted). Days without a recorded
-/// daily P&amp;L are left out, as are days the app didn't run.
+/// Returns are built from each day's P&amp;L, never from raw net liquidation deltas, so deposits
+/// and withdrawals don't count as gains: a recorded day uses IB's daily P&amp;L (which leaves cash
+/// flows out); a Flex day uses its NAV change minus the day's net deposits
+/// (<see cref="MergeFlexDays"/>). A day's return is its P&amp;L over the equity it started with
+/// (net liquidation minus the day's P&amp;L, i.e. the previous close plus the day's deposits); a
+/// span's return chains those (time-weighted). Days without P&amp;L are left out, as are days
+/// with no data.
 /// </summary>
 public static class AccountPerformanceHelpers
 {
@@ -50,6 +53,84 @@ public static class AccountPerformanceHelpers
 			ApplySummary(day, carry);
 		days.Insert(index < 0 ? days.Count : index, day);
 		return day;
+	}
+
+	/// <summary>
+	/// Merges Flex end-of-day NAV into <paramref name="days"/> (sorted by date) for report dates
+	/// before <paramref name="today"/> (today stays live): net liquidation, base currency and the
+	/// day's net deposits / withdrawals (a cash flow on a date without NAV goes to the next NAV
+	/// date), marked <see cref="AccountDaySource.Flex"/>. Then every Flex day's DailyPnl is
+	/// recomputed as NAV − previous day's net liquidation − cash flow (null without a previous
+	/// day). Recorded realized / unrealized P&amp;L are kept. Returns the days added or changed.
+	/// </summary>
+	public static int MergeFlexDays(
+		List<AccountDaySnapshotEntity> days,
+		IEnumerable<FlexNavDto> nav,
+		IEnumerable<FlexCashFlowDto> cashFlows,
+		DateOnly today,
+		DateTimeOffset now
+	)
+	{
+		var navByDate = nav.Where(x => x.Date < today)
+			.GroupBy(x => x.Date)
+			.ToDictionary(x => x.Key, x => x.Last());
+		var navDates = navByDate.Keys.Order().ToList();
+		var flowByDate = new Dictionary<DateOnly, double>();
+		foreach (var flow in cashFlows)
+		{
+			var index = navDates.BinarySearch(flow.Date);
+			if (index < 0)
+				index = ~index;
+			if (index >= navDates.Count)
+				continue;
+			var date = navDates[index];
+			flowByDate[date] = flowByDate.GetValueOrDefault(date) + flow.Amount;
+		}
+
+		var changed = new HashSet<DateOnly>();
+		foreach (var date in navDates)
+		{
+			var row = navByDate[date];
+			var existed = days.Exists(x => x.Date == date);
+			var day = GetOrAddDay(days, date, now, null);
+			var cashFlow = flowByDate.GetValueOrDefault(date);
+			var currency = row.Currency.Length > 0 ? row.Currency : day.Currency;
+			if (
+				existed
+				&& day.NetLiquidation == row.Total
+				&& day.Currency == currency
+				&& day.CashFlow == cashFlow
+				&& day.Source == AccountDaySource.Flex
+			)
+				continue;
+			day.NetLiquidation = row.Total;
+			day.Currency = currency;
+			day.CashFlow = cashFlow;
+			day.Source = AccountDaySource.Flex;
+			day.LastUpdate = now;
+			changed.Add(date);
+		}
+
+		decimal? previous = null;
+		foreach (var day in days)
+		{
+			if (day.Source == AccountDaySource.Flex)
+			{
+				double? pnl =
+					previous is { } start && day.NetLiquidation is { } end
+						? (double)(end - start) - (day.CashFlow ?? 0)
+						: null;
+				if (day.DailyPnl != pnl)
+				{
+					day.DailyPnl = pnl;
+					day.LastUpdate = now;
+					changed.Add(day.Date);
+				}
+			}
+			if (day.NetLiquidation is { } value)
+				previous = value;
+		}
+		return changed.Count;
 	}
 
 	/// <summary>Takes net liquidation and currency; values IB didn't send keep the previous ones.</summary>

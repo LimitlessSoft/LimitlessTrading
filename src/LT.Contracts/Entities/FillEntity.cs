@@ -20,6 +20,9 @@ public class FillEntity
 	public string CommissionCurrency { get; set; } = string.Empty;
 	public double? RealizedPnl { get; set; }
 
+	/// <summary>IB's Flex tradeID when the fill came from (or was matched by) a Flex statement.</summary>
+	public string TradeId { get; set; } = string.Empty;
+
 	/// <summary>When the app first saw the fill.</summary>
 	public DateTimeOffset RecordedAt { get; set; }
 }

@@ -1,6 +1,7 @@
 using System.Threading.Channels;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Account;
+using LT.Contracts.Dtos.Flex;
 using LT.Contracts.Entities;
 using LT.Contracts.Enums;
 using LT.Domain.Managers;
@@ -192,5 +193,53 @@ public class AccountPerformanceManagerTests
 			Assert.True(DateTime.UtcNow < deadline, "Timed out waiting for the recorder");
 			await Task.Delay(10, TestContext.Current.CancellationToken);
 		}
+	}
+
+	[Fact]
+	public void Flex_history_is_merged_saved_and_announced_without_touching_today()
+	{
+		var changed = new List<string>();
+		_manager.HistoryChanged += changed.Add;
+
+		var count = _manager.ImportFlexHistory(
+			[
+				new FlexNavDto
+				{
+					Account = "U0000001",
+					Date = new DateOnly(2026, 10, 22),
+					Total = 1000,
+				},
+				new FlexNavDto
+				{
+					Account = "U0000001",
+					Date = new DateOnly(2026, 10, 23),
+					Total = 1600,
+				},
+				new FlexNavDto
+				{
+					Account = "U0000001",
+					Date = Today,
+					Total = 9,
+				},
+			],
+			[
+				new FlexCashFlowDto
+				{
+					Account = "U0000001",
+					Date = new DateOnly(2026, 10, 23),
+					Amount = 500,
+				},
+			]
+		);
+
+		Assert.Equal(2, count);
+		Assert.Equal(["U0000001"], changed);
+		var days = _manager.GetHistory("U0000001");
+		Assert.Equal(2, days.Count);
+		Assert.Equal(
+			(100.0, 500.0, AccountDaySource.Flex),
+			(days[1].DailyPnl!.Value, days[1].CashFlow!.Value, days[1].Source)
+		);
+		Assert.Equal(2, _repository.Entries["U0000001"].Days.Count);
 	}
 }

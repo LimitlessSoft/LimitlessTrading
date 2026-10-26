@@ -7,6 +7,7 @@ using LT.Contracts.Constants;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IManagers;
+using LT.Contracts.Requests.Flex;
 using LT.Contracts.Requests.Settings;
 
 namespace LT.App.Widgets.Settings;
@@ -15,10 +16,40 @@ namespace LT.App.Widgets.Settings;
 /// The settings window: a searchable tree of pages on the left, the selected page's tabs on the
 /// right. Changes apply on Save.
 /// </summary>
-public partial class SettingsViewModel : ViewModelBase
+public partial class SettingsViewModel : ViewModelBase, IDisposable
 {
 	private readonly ISettingsManager _settingsManager;
 	private readonly ICacheManager _cacheManager;
+	private readonly IFlexImportManager _flexImportManager;
+
+	private readonly GuideSettingViewModel _flexSetup = FlexSetupGuide.Create();
+
+	private readonly TextSettingViewModel _flexToken = new(
+		"Flex Web Service token",
+		isSecret: true,
+		placeholder: "token from Flex Web Service Configuration",
+		description: "Stored in settings.json on this computer; it can only read reports, not trade. Leave all three empty to turn the import off.",
+		keywords: "flex token secret",
+		normalize: FlexHelpers.NormalizeToken
+	);
+
+	private readonly TextSettingViewModel _flexActivityQuery = new(
+		"Activity Flex query ID",
+		placeholder: "e.g. 123456",
+		description: "Daily NAV, deposits / withdrawals and trades. Imported back to the account's start once, then daily (it covers through the previous business day).",
+		keywords: "flex query activity nav history",
+		normalize: FlexHelpers.ExtractQueryId
+	);
+
+	private readonly TextSettingViewModel _flexTradeConfirmQuery = new(
+		"Trade Confirmation Flex query ID (optional)",
+		placeholder: "e.g. 123457",
+		description: "Today's trades, a few minutes after each fill; imported every 5 minutes while the app runs and on F5.",
+		keywords: "flex query trade confirmation today fills executions",
+		normalize: FlexHelpers.ExtractQueryId
+	);
+
+	private readonly ActionSettingViewModel _flexImport;
 
 	private readonly ChoiceSettingViewModel _marketDataType = new(
 		"Market data type",
@@ -105,10 +136,28 @@ public partial class SettingsViewModel : ViewModelBase
 
 	private readonly ActionSettingViewModel _clearCache;
 
-	public SettingsViewModel(ISettingsManager settingsManager, ICacheManager cacheManager)
+	public SettingsViewModel(
+		ISettingsManager settingsManager,
+		ICacheManager cacheManager,
+		IFlexImportManager flexImportManager
+	)
 	{
 		_settingsManager = settingsManager;
 		_cacheManager = cacheManager;
+		_flexImportManager = flexImportManager;
+		_flexImport = new ActionSettingViewModel(
+			"Flex import",
+			"Save & import now",
+			ImportFlexNow,
+			"Saves the three Flex fields right away and imports what is due, plus today's trades. The first import fetches a year at a time back to the account's start (IB allows 10 requests a minute), so it can take a few minutes.",
+			"flex import now test status last error"
+		);
+		var flex = settingsManager.GetFlexSettings();
+		_flexToken.Value = flex.Token;
+		_flexActivityQuery.Value = flex.ActivityQueryId;
+		_flexTradeConfirmQuery.Value = flex.TradeConfirmQueryId;
+		RefreshFlexStatus();
+		flexImportManager.StatusChanged += OnFlexStatusChanged;
 		_clearCache = new ActionSettingViewModel(
 			"Cache on disk",
 			"Clear cache",
@@ -147,6 +196,19 @@ public partial class SettingsViewModel : ViewModelBase
 				]
 			),
 			new SettingsPageViewModel("Market data", [new("Quotes", _marketDataType)]),
+			new SettingsPageViewModel(
+				"Account history",
+				[
+					new(
+						"IB Flex",
+						_flexSetup,
+						_flexToken,
+						_flexActivityQuery,
+						_flexTradeConfirmQuery,
+						_flexImport
+					),
+				]
+			),
 			new SettingsPageViewModel(
 				"Cache",
 				[
@@ -205,6 +267,7 @@ public partial class SettingsViewModel : ViewModelBase
 	{
 		try
 		{
+			_settingsManager.SaveFlexSettings(GetFlexRequest());
 			_settingsManager.SaveAppSettings(
 				new SaveAppSettingsRequest
 				{
@@ -232,6 +295,70 @@ public partial class SettingsViewModel : ViewModelBase
 			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
 			return false;
 		}
+	}
+
+	/// <summary>Opens on the page titled <paramref name="title"/> (a widget's "Set up…"), search cleared.</summary>
+	public void ShowPage(string title)
+	{
+		SearchText = null;
+		var page = FindPage(Pages, title);
+		if (page == null)
+			return;
+		SelectedNode = page;
+		SelectedPage = page.FirstPage;
+	}
+
+	private static SettingsPageViewModel? FindPage(
+		IEnumerable<SettingsPageViewModel> pages,
+		string title
+	)
+	{
+		foreach (var page in pages)
+		{
+			if (page.Title == title)
+				return page;
+			if (FindPage(page.Children, title) is { } child)
+				return child;
+		}
+		return null;
+	}
+
+	public void Dispose() => _flexImportManager.StatusChanged -= OnFlexStatusChanged;
+
+	private SaveFlexSettingsRequest GetFlexRequest() =>
+		new()
+		{
+			Token = _flexToken.Value,
+			ActivityQueryId = _flexActivityQuery.Value,
+			TradeConfirmQueryId = _flexTradeConfirmQuery.Value,
+		};
+
+	private void ImportFlexNow()
+	{
+		try
+		{
+			_settingsManager.SaveFlexSettings(GetFlexRequest());
+			ErrorMessage = null;
+		}
+		catch (Exception ex)
+		{
+			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
+			return;
+		}
+		// Progress and errors land in the status line
+		_flexImport.IsBusy = true;
+		_flexImport.Status = "Starting the import…";
+		_ = Task.Run(() => _flexImportManager.ImportNowAsync())
+			.ContinueWith(_ => Dispatcher.UIThread.Post(RefreshFlexStatus));
+	}
+
+	private void OnFlexStatusChanged() => Dispatcher.UIThread.Post(RefreshFlexStatus);
+
+	private void RefreshFlexStatus()
+	{
+		var status = _flexImportManager.GetStatus();
+		_flexImport.Status = FlexStatusHelpers.Describe(status);
+		_flexImport.IsBusy = status.IsRunning;
 	}
 
 	private void ClearCache()

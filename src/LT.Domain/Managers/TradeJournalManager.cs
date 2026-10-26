@@ -2,6 +2,7 @@ using LSCore.Mapper.Domain;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Account;
 using LT.Contracts.Dtos.Executions;
+using LT.Contracts.Dtos.Flex;
 using LT.Contracts.Dtos.Performance;
 using LT.Contracts.Entities;
 using LT.Contracts.Helpers;
@@ -132,6 +133,51 @@ public class TradeJournalManager(
 		var hadError = ExecutionsError != null;
 		ExecutionsError = null;
 		if (changed > 0 || hadError)
+			FillsChanged?.Invoke();
+		return changed;
+	}
+
+	public int ImportFlexTrades(
+		IReadOnlyList<FlexTradeDto> trades,
+		IReadOnlyCollection<string> cancelledTradeIds
+	)
+	{
+		var now = timeProvider.GetUtcNow();
+		var changed = 0;
+		lock (_lock)
+		{
+			var days = new HashSet<DateOnly>();
+			if (cancelledTradeIds.Count > 0)
+				foreach (var (day, dayFills) in _fills.Value)
+				{
+					var removed = TradeJournalHelpers.RemoveTrades(dayFills, cancelledTradeIds);
+					if (removed == 0)
+						continue;
+					changed += removed;
+					days.Add(day);
+				}
+
+			foreach (var trade in trades)
+			{
+				var fill = trade.ToMapped<FlexTradeDto, FillEntity>();
+				// Without a time the fill is put at the close of its trade date
+				fill.Time =
+					trade.Time
+					?? TradeJournalHelpers.GetSessionClose(trade.TradeDate ?? Today, _zone);
+				fill.RecordedAt = now;
+				var day = TradeJournalHelpers.GetTradeDay(fill.Time, _zone);
+				if (!_fills.Value.TryGetValue(day, out var dayFills))
+					_fills.Value[day] = dayFills = [];
+				if (!TradeJournalHelpers.MergeFill(dayFills, fill))
+					continue;
+				changed++;
+				days.Add(day);
+			}
+			foreach (var day in days)
+				repository.SaveFills(day, _fills.Value[day]);
+		}
+
+		if (changed > 0)
 			FillsChanged?.Invoke();
 		return changed;
 	}

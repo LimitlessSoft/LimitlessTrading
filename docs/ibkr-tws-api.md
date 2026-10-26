@@ -12,8 +12,9 @@ file covers how the app uses it, IB's limits and the quirks we have hit. Read it
 ### Extending IBKR.Net
 
 IBKR.Net is ours and is changed whenever LimitlessTrading needs an IB call it doesn't have yet —
-don't work around a missing call in LT (no second IB client, no Flex / Client Portal side
-channel). The order is: record the request and its answers against a real Gateway with
+don't work around a missing call in LT (no second IB client, no Client Portal side channel). The
+one exception is account **history** (NAV, deposits, past and today's trades), which the socket
+API doesn't have at all: it comes from IB's Flex Web Service, see [ibkr-flex.md](ibkr-flex.md). The order is: record the request and its answers against a real Gateway with
 `tools/IbkrWireRecorder` (in the IBKR.Net repo), implement it there from the recording only
 (clean-room: never from IB's own API source), publish a new IBKR.Net version to nuget.org, then
 bump the package here and map the new types in `LT.Ibkr/DtoMappings/`. Until then LT is built
@@ -133,8 +134,9 @@ Limits / caveats:
 ### Not covered yet
 
 - **Executions** (`reqExecutions`, commission reports): their frames have not been recorded yet
-  (no fill when we recorded). Until then the Executions widget and the trade stats of Day trade
-  performance show "not supported yet" (`ConnectionValidationCodes.CVC_007`). The mapping must
+  (no fill when we recorded). Until then the Executions widget shows "not supported yet"
+  (`ConnectionValidationCodes.CVC_007`); Day trade performance takes its trades from IB Flex
+  ([ibkr-flex.md](ibkr-flex.md)) and shows CVC_007 only as a note when Flex isn't set up. The mapping must
   fill `ExecutionDto.ConId`, `LocalSymbol` and `Multiplier` too (trade matching keys on the
   conId, P&L uses the multiplier), and the commission report's commission by ExecId.
 - Market depth / Level 2 (`reqMktDepth`), tick-by-tick (`reqTickByTickData`), option greeks
@@ -200,7 +202,10 @@ merges every source for the News widget (see [ui-patterns.md](ui-patterns.md#wor
 ## Trade journal
 
 IB returns only the current day's executions, so the app keeps its own history
-(`ITradeJournalManager`, `TradeJournalRecorder` hosted service, `TradeJournalRepository`):
+(`ITradeJournalManager`, `TradeJournalRecorder` hosted service, `TradeJournalRepository`), filled
+from two sources: the socket API (below) and IB Flex statements (all history, and today's
+trades a few minutes late — [ibkr-flex.md → Merge rules](ibkr-flex.md#merge-rules)). Both are
+deduplicated by IB's execution id, so the same fill from either stays one:
 
 - While connected it asks for executions on connect and every 30 s
   (`AccountConstants.ExecutionsRefreshInterval`, one paced request; there is no app-wide order
@@ -248,9 +253,10 @@ IB returns only the current day's executions, so the app keeps its own history
   (`AccountPnlFeed` in `LT.Ibkr`): the Account widget, the account performance recorder and the
   trade journal follow the same one. It opens with the first subscriber, is cancelled when the last leaves, and
   a late subscriber gets the latest value first.
-- **No account history.** The socket API has no historical NAV or P&L (that needs Flex queries
-  or the Client Portal API, which the app doesn't use). The Account performance widget therefore
-  shows only what the app recorded itself while connected (`IAccountPerformanceManager`).
+- **No account history.** The socket API has no historical NAV or P&L. The Account performance
+  widget records today live (`IAccountPerformanceManager`) and imports past days from IB Flex
+  ([ibkr-flex.md](ibkr-flex.md)); without Flex it shows only what the app recorded while
+  connected.
 - **Real-time bars need a live subscription** — there is no delayed `reqRealTimeBars`. The chart
   keeps historical bars and logs "real-time bars unavailable".
 

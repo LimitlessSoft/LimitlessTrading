@@ -1,0 +1,35 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	x:Class="LT.App.Controls.FlexSetupBanner"
+>
+	<!-- Top of the performance widgets while IB Flex needs the user; see FlexSetupBanner.axaml.cs -->
+	<UserControl.Styles>
+		<Style Selector="Border#Frame">
+			<Setter Property="Background" Value="{DynamicResource PanelBackground}" />
+			<Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="CornerRadius" Value="4" />
+			<Setter Property="Padding" Value="10,6" />
+		</Style>
+		<Style Selector="Border#Frame.warning">
+			<Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}" />
+		</Style>
+		<Style Selector="Border#Frame.warning TextBlock#Message">
+			<Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+		</Style>
+	</UserControl.Styles>
+	<Border x:Name="Frame">
+		<DockPanel>
+			<Button
+				x:Name="SetUpButton"
+				DockPanel.Dock="Right"
+				Margin="10,0,0,0"
+				VerticalAlignment="Center"
+				Classes="accent"
+				Content="Set up…"
+			/>
+			<TextBlock x:Name="Message" VerticalAlignment="Center" TextWrapping="Wrap" />
+		</DockPanel>
+	</Border>
+</UserControl>
