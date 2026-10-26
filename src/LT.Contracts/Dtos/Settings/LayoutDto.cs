@@ -2,22 +2,12 @@ using LT.Contracts.Enums;
 
 namespace LT.Contracts.Dtos.Settings;
 
-public class LayoutDto
+/// <summary>The main window's workspace and size, and the extra workspace windows.</summary>
+public class LayoutDto : WorkspaceLayoutDto
 {
-	public double LeftWidth { get; set; }
-	public double RightWidth { get; set; }
-	public double BottomHeight { get; set; }
-	public string? LeftWidgetId { get; set; }
-	public string? RightWidgetId { get; set; }
-	public string? BottomWidgetId { get; set; }
-	public List<WidgetPlacementDto> Widgets { get; set; } = [];
-	public List<CenterViewDto> Views { get; set; } = [];
-	public string? SelectedViewId { get; set; }
-
-	/// <summary>Single center tree of layouts saved before views; moved into the first view on load.</summary>
-	public CenterNodeDto? Center { get; set; }
 	public ChartTimeframe ChartTimeframe { get; set; }
 	public double WindowWidth { get; set; }
 	public double WindowHeight { get; set; }
 	public bool IsMaximized { get; set; }
+	public List<WorkspaceWindowDto> Windows { get; set; } = [];
 }

@@ -115,6 +115,9 @@ public static class Program
 
 		// Creates widget view models per spawned instance (several charts)
 		builder.Services.AddSingleton<WidgetViewModelFactory>();
+		// The main window's workspace and every extra workspace window (their view models are
+		// created by it, each carrying its saved layout)
+		builder.Services.AddSingleton<WorkspaceWindows>();
 
 		builder.Services.AddHostedService<ConnectionWatchdog>();
 		builder.Services.AddHostedService<UpdateScheduler>();

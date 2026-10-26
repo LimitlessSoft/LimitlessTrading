@@ -1,28 +1,16 @@
-using LT.App.Stores;
 using LT.App.ViewModels;
-using LT.App.Widgets.Account;
-using LT.App.Widgets.AccountPerformance;
 using LT.App.Widgets.Chart;
-using LT.App.Widgets.DayTradePerformance;
-using LT.App.Widgets.Executions;
-using LT.App.Widgets.Orders;
-using LT.App.Widgets.Positions;
 using LT.App.Workspace;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
-using LT.Contracts.Interfaces.IManagers;
 
 namespace LT.App.Pages.TradingPage;
 
 /// <summary>Default workspace: widget instances placed in the center, on a side or floating.</summary>
-public class TradingPageViewModel(
-	WidgetViewModelFactory widgetViewModelFactory,
-	ISettingsManager settingsManager,
-	AppearanceStore appearance
-) : ViewModelBase
+public class TradingPageViewModel(WorkspaceWindows windows) : ViewModelBase
 {
-	public WorkspaceViewModel Workspace { get; } =
-		new(widgetViewModelFactory.Create, settingsManager.GetLayout(), appearance);
+	/// <summary>The main window's workspace; extra windows have their own.</summary>
+	public WorkspaceViewModel Workspace => windows.Main;
 
 	public void ShowTool(WorkspaceTool tool) => Workspace.Show(tool);
 
@@ -37,6 +25,7 @@ public class TradingPageViewModel(
 	public void FillLayout(LayoutDto layout)
 	{
 		Workspace.FillLayout(layout);
+		windows.FillLayout(layout);
 		// New charts start with the timeframe of the last chart
 		if (
 			Workspace.Widgets.Select(x => x.Content).OfType<ChartViewModel>().LastOrDefault() is
@@ -45,34 +34,6 @@ public class TradingPageViewModel(
 			layout.ChartTimeframe = chart.SelectedTimeframe.Value;
 	}
 
-	public void RefreshAll()
-	{
-		foreach (var content in Workspace.Widgets.Where(x => x.IsOpen).Select(x => x.Content))
-		{
-			switch (content)
-			{
-				case ChartViewModel chart:
-					chart.Reload();
-					break;
-				case AccountViewModel account:
-					account.Refresh();
-					break;
-				case AccountPerformanceViewModel performance:
-					performance.Refresh();
-					break;
-				case PositionsViewModel positions:
-					positions.Refresh();
-					break;
-				case OrdersViewModel orders:
-					orders.Refresh();
-					break;
-				case ExecutionsViewModel executions:
-					executions.Refresh();
-					break;
-				case DayTradePerformanceViewModel performance:
-					_ = performance.RefreshAsync();
-					break;
-			}
-		}
-	}
+	/// <summary>F5: every open widget, in every window.</summary>
+	public void RefreshAll() => windows.RefreshAll();
 }

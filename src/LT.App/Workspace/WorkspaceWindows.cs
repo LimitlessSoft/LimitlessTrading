@@ -1,0 +1,131 @@
+using System.Collections.ObjectModel;
+using LT.App.Shell;
+using LT.App.Stores;
+using LT.App.Widgets.Account;
+using LT.App.Widgets.AccountPerformance;
+using LT.App.Widgets.Chart;
+using LT.App.Widgets.DayTradePerformance;
+using LT.App.Widgets.Executions;
+using LT.App.Widgets.Orders;
+using LT.App.Widgets.Positions;
+using LT.Contracts.Dtos.Settings;
+using LT.Contracts.Enums;
+using LT.Contracts.Helpers;
+using LT.Contracts.Interfaces.IManagers;
+
+namespace LT.App.Workspace;
+
+/// <summary>
+/// Every workspace of the app: the main window's and one per extra workspace window
+/// (menu → New window). Each has its own docks, center views and floating widgets; a
+/// single-instance widget exists in only one of them and moves to the window that asks for it.
+/// Link groups and the other stores stay app-wide. Singleton (Program.cs); the main window opens a
+/// window for every entry of <see cref="Windows"/>.
+/// </summary>
+public class WorkspaceWindows
+{
+	private readonly WidgetViewModelFactory _widgetViewModelFactory;
+	private readonly AppearanceStore _appearance;
+
+	public WorkspaceWindows(
+		WidgetViewModelFactory widgetViewModelFactory,
+		ISettingsManager settingsManager,
+		AppearanceStore appearance
+	)
+	{
+		_widgetViewModelFactory = widgetViewModelFactory;
+		_appearance = appearance;
+		var layout = settingsManager.GetLayout();
+		WorkspaceWindowHelpers.Normalize(layout);
+		Main = Create(layout);
+		foreach (var window in layout.Windows)
+			Windows.Add(new WorkspaceWindowViewModel(this, window, Create(window)));
+	}
+
+	/// <summary>The main window's workspace.</summary>
+	public WorkspaceViewModel Main { get; }
+
+	/// <summary>The extra windows, in the order they were opened.</summary>
+	public ObservableCollection<WorkspaceWindowViewModel> Windows { get; } = [];
+
+	public IEnumerable<WorkspaceViewModel> Workspaces =>
+		Windows.Select(x => x.Workspace).Prepend(Main);
+
+	/// <summary>
+	/// Set while the app closes: extra windows closing then are kept for the next start instead of
+	/// being discarded.
+	/// </summary>
+	public bool IsExiting { get; set; }
+
+	/// <summary>Menu → New window (Ctrl+Shift+N): an empty workspace in a window of its own.</summary>
+	public WorkspaceWindowViewModel Open()
+	{
+		var layout = WorkspaceWindowHelpers.CreateEmpty(Windows.Select(x => x.Name));
+		var window = new WorkspaceWindowViewModel(this, layout, Create(layout));
+		Windows.Add(window);
+		return window;
+	}
+
+	/// <summary>The user closed the window: it is forgotten and its widgets are disposed.</summary>
+	public void Discard(WorkspaceWindowViewModel window)
+	{
+		if (Windows.Remove(window))
+			window.Workspace.DisposeWidgets();
+	}
+
+	public void FillLayout(LayoutDto layout) =>
+		layout.Windows = Windows.Select(x => x.GetLayout()).ToList();
+
+	/// <summary>F5: reloads every open widget in every window.</summary>
+	public void RefreshAll()
+	{
+		foreach (
+			var content in Workspaces
+				.SelectMany(x => x.Widgets)
+				.Where(x => x.IsOpen)
+				.Select(x => x.Content)
+		)
+		{
+			switch (content)
+			{
+				case ChartViewModel chart:
+					chart.Reload();
+					break;
+				case AccountViewModel account:
+					account.Refresh();
+					break;
+				case AccountPerformanceViewModel performance:
+					performance.Refresh();
+					break;
+				case PositionsViewModel positions:
+					positions.Refresh();
+					break;
+				case OrdersViewModel orders:
+					orders.Refresh();
+					break;
+				case ExecutionsViewModel executions:
+					executions.Refresh();
+					break;
+				case DayTradePerformanceViewModel performance:
+					_ = performance.RefreshAsync();
+					break;
+			}
+		}
+	}
+
+	private WorkspaceViewModel Create(WorkspaceLayoutDto layout)
+	{
+		WorkspaceViewModel? workspace = null;
+		workspace = new WorkspaceViewModel(
+			_widgetViewModelFactory.Create,
+			layout,
+			_appearance,
+			tool => Release(tool, workspace!)
+		);
+		return workspace;
+	}
+
+	// The single-instance widget of another workspace, taken out of it for `to`
+	private WidgetItem? Release(WorkspaceTool tool, WorkspaceViewModel to) =>
+		Workspaces.Where(x => x != to).Select(x => x.Release(tool)).FirstOrDefault(x => x != null);
+}

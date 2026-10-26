@@ -12,11 +12,15 @@ namespace LT.App.Workspace;
 /// <summary>
 /// Where every widget instance lives: in the split layout of one of the center's views (tabs), on a
 /// collapsible strip (left, right or bottom), or in its own floating window. Widgets are spawned,
-/// moved and closed independently; charts can be spawned several times.
+/// moved and closed independently; charts can be spawned several times. The main window and every
+/// extra workspace window have one each; a single-instance widget exists in only one of them.
 /// </summary>
 public partial class WorkspaceViewModel : ViewModelBase
 {
 	private readonly Func<WorkspaceTool, object> _createContent;
+
+	// Takes a single-instance widget out of whichever other workspace holds it (null: none does)
+	private readonly Func<WorkspaceTool, WidgetItem?>? _claim;
 
 	// Last dock per widget kind, for spawning new instances where the previous one was
 	private readonly Dictionary<WorkspaceTool, WidgetDock> _lastDock = [];
@@ -26,11 +30,13 @@ public partial class WorkspaceViewModel : ViewModelBase
 
 	public WorkspaceViewModel(
 		Func<WorkspaceTool, object> createContent,
-		LayoutDto layout,
-		AppearanceStore? appearance = null
+		WorkspaceLayoutDto layout,
+		AppearanceStore? appearance = null,
+		Func<WorkspaceTool, WidgetItem?>? claim = null
 	)
 	{
 		_createContent = createContent;
+		_claim = claim;
 		Appearance = appearance;
 		Bottom.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasBottomWidgets));
 		LeftWidth = layout.LeftWidth;
@@ -329,6 +335,9 @@ public partial class WorkspaceViewModel : ViewModelBase
 				&& x.IsOpen
 				&& (x.Dock != WidgetDock.Center || SelectedView is { } view && IsInView(view, x.Id))
 			);
+		// A single-instance widget living in another window moves here
+		else
+			widget ??= Claim(tool);
 		if (widget is null)
 		{
 			Spawn(tool);
@@ -347,9 +356,44 @@ public partial class WorkspaceViewModel : ViewModelBase
 			Show(tool);
 			return;
 		}
+		if (!WorkspaceHelpers.AllowsMultipleInstances(tool) && Claim(tool) != null)
+		{
+			Show(tool);
+			return;
+		}
 		var widget = CreateItem(NewId(tool), tool);
 		Place(widget, GetSpawnDock(tool));
 		Reveal(widget);
+	}
+
+	/// <summary>
+	/// Takes the instance of a single-instance widget out of this workspace (open or closed) so
+	/// another window can adopt it; its view model and settings go with it. Null when this
+	/// workspace doesn't hold it.
+	/// </summary>
+	public WidgetItem? Release(WorkspaceTool tool)
+	{
+		if (
+			WorkspaceHelpers.AllowsMultipleInstances(tool)
+			|| Widgets.FirstOrDefault(x => x.Tool == tool) is not { } widget
+		)
+			return null;
+		if (FullscreenWidget == widget)
+			FullscreenWidget = null;
+		if (CurrentWidget == widget)
+			CurrentWidget = null;
+		if (widget.Dock != null)
+			Remove(widget);
+		Widgets.Remove(widget);
+		widget.Workspace = null;
+		return widget;
+	}
+
+	/// <summary>The window is discarded: every widget's view model goes with it.</summary>
+	public void DisposeWidgets()
+	{
+		foreach (var widget in Widgets)
+			(widget.Content as IDisposable)?.Dispose();
 	}
 
 	/// <summary>
@@ -464,7 +508,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 		(widget.Content as IDisposable)?.Dispose();
 	}
 
-	public void FillLayout(LayoutDto layout)
+	public void FillLayout(WorkspaceLayoutDto layout)
 	{
 		layout.LeftWidth = LeftWidth;
 		layout.RightWidth = RightWidth;
@@ -529,6 +573,16 @@ public partial class WorkspaceViewModel : ViewModelBase
 		if (widget.Content is ILinkable linkable)
 			linkable.Link.Group = placement.LinkGroup;
 		(widget.Content as IWidgetState)?.LoadState(placement);
+	}
+
+	// Adopts a single-instance widget released by another workspace; it is still closed here
+	private WidgetItem? Claim(WorkspaceTool tool)
+	{
+		if (_claim?.Invoke(tool) is not { } widget)
+			return null;
+		widget.Workspace = this;
+		Widgets.Add(widget);
+		return widget;
 	}
 
 	private WidgetItem CreateItem(string id, WorkspaceTool tool)
