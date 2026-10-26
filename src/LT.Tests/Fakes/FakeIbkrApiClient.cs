@@ -4,6 +4,7 @@ using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Executions;
 using LT.Contracts.Dtos.MarketData;
+using LT.Contracts.Dtos.News;
 using LT.Contracts.Dtos.Options;
 using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Dtos.Positions;
@@ -51,6 +52,35 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	/// <summary>Statuses every placed order streams; the next order id is 100, 101 …</summary>
 	public List<OrderStatusDto> OrderStatuses { get; set; } = [];
 	public List<int> CancelledOrderIds { get; } = [];
+
+	public List<NewsProviderDto> NewsProviders { get; set; } = [];
+
+	/// <summary>Past headlines returned for every request (newest first).</summary>
+	public List<NewsHeadlineDto> HistoricalNews { get; set; } = [];
+	public bool HistoricalNewsHasMore { get; set; }
+
+	/// <summary>Historical news requests: contract, providers, limit, before.</summary>
+	public List<(
+		int ContractId,
+		IReadOnlyList<string> Providers,
+		int Max,
+		DateTimeOffset? Before
+	)> NewsRequests { get; } = [];
+
+	/// <summary>Headlines every news subscription streams; then it stays open until cancelled.</summary>
+	public List<NewsHeadlineDto> LiveNews { get; set; } = [];
+
+	/// <summary>Contracts subscribed to for news, with the providers asked for.</summary>
+	public List<(
+		ContractDto Contract,
+		IReadOnlyList<string>? Providers
+	)> NewsSubscriptions { get; } = [];
+
+	/// <summary>Provider code → its broad tape contracts; a provider missing here has none.</summary>
+	public Dictionary<string, List<ContractDto>> BroadTapes { get; set; } = [];
+	public int BroadTapeCalls { get; private set; }
+	public NewsArticleDto Article { get; set; } = new() { Body = "Article" };
+	public int ArticleCalls { get; private set; }
 
 	public Task ConnectAsync(ConnectRequest request, CancellationToken cancellationToken = default)
 	{
@@ -192,4 +222,84 @@ public class FakeIbkrApiClient : IIbkrApiClient
 		CancelledOrderIds.Add(orderId);
 		return Task.CompletedTask;
 	}
+
+	public Task<IReadOnlyList<NewsProviderDto>> GetNewsProvidersAsync(
+		CancellationToken cancellationToken = default
+	) =>
+		Task.FromResult<IReadOnlyList<NewsProviderDto>>([
+			.. NewsProviders.Select(x => new NewsProviderDto { Code = x.Code, Name = x.Name }),
+		]);
+
+	public Task<NewsHeadlinesPageDto> GetHistoricalNewsAsync(
+		int contractId,
+		IReadOnlyList<string> providerCodes,
+		int maxResults,
+		DateTimeOffset? before = null,
+		CancellationToken cancellationToken = default
+	)
+	{
+		NewsRequests.Add((contractId, providerCodes, maxResults, before));
+		return Task.FromResult(
+			new NewsHeadlinesPageDto
+			{
+				Headlines =
+				[
+					.. HistoricalNews
+						.Where(x => before == null || x.Time < before)
+						.Take(maxResults)
+						.Select(Copy),
+				],
+				HasMore = HistoricalNewsHasMore,
+			}
+		);
+	}
+
+	public Task<NewsArticleDto> GetNewsArticleAsync(
+		string providerCode,
+		string articleId,
+		CancellationToken cancellationToken = default
+	)
+	{
+		ArticleCalls++;
+		return Task.FromResult(Article);
+	}
+
+	public async IAsyncEnumerable<NewsHeadlineDto> SubscribeNewsAsync(
+		ContractDto contract,
+		IReadOnlyList<string>? providerCodes = null,
+		[EnumeratorCancellation] CancellationToken cancellationToken = default
+	)
+	{
+		NewsSubscriptions.Add((contract, providerCodes));
+		foreach (var headline in LiveNews)
+		{
+			await Task.Yield();
+			yield return Copy(headline);
+		}
+		await Task.Delay(Timeout.Infinite, cancellationToken);
+	}
+
+	public Task<IReadOnlyList<ContractDto>> GetBroadTapeContractsAsync(
+		string providerCode,
+		CancellationToken cancellationToken = default
+	)
+	{
+		BroadTapeCalls++;
+		return Task.FromResult<IReadOnlyList<ContractDto>>(
+			BroadTapes.TryGetValue(providerCode, out var tapes) ? tapes : []
+		);
+	}
+
+	// Callers fill in source and contract; every call gets its own copy, as from IB
+	private static NewsHeadlineDto Copy(NewsHeadlineDto x) =>
+		new()
+		{
+			ProviderCode = x.ProviderCode,
+			ArticleId = x.ArticleId,
+			Time = x.Time,
+			Headline = x.Headline,
+			Language = x.Language,
+			Sentiment = x.Sentiment,
+			Confidence = x.Confidence,
+		};
 }

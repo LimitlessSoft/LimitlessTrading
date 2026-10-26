@@ -12,4 +12,5 @@ public enum WorkspaceTool
 	Chart = 6,
 	OptionChain = 7,
 	OrderTicket = 8,
+	News = 9,
 }

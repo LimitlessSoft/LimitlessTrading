@@ -11,7 +11,10 @@ using LT.Contracts.Interfaces.IManagers;
 
 namespace LT.Domain.Managers;
 
-/// <summary>Counts market data lines across the app; registered as a singleton (see Program.cs).</summary>
+/// <summary>
+/// Counts market data lines across the app (quotes here, news ticks through AcquireLine);
+/// registered as a singleton (see Program.cs).
+/// </summary>
 public class MarketDataManager(IIbkrApiClient ibkrApiClient) : IMarketDataManager
 {
 	private int _activeLines;
@@ -28,16 +31,7 @@ public class MarketDataManager(IIbkrApiClient ibkrApiClient) : IMarketDataManage
 				MarketDataValidationCodes.MDVC_002.GetValidationMessage()
 			);
 
-		if (Interlocked.Increment(ref _activeLines) > MarketDataConstants.MaxLines)
-		{
-			Interlocked.Decrement(ref _activeLines);
-			throw new LSCoreBadRequestException(
-				MarketDataValidationCodes.MDVC_001.GetValidationMessage(
-					MarketDataConstants.MaxLines
-				)
-			);
-		}
-
+		AcquireLine();
 		try
 		{
 			var quote = new QuoteDto();
@@ -49,7 +43,19 @@ public class MarketDataManager(IIbkrApiClient ibkrApiClient) : IMarketDataManage
 		}
 		finally
 		{
-			Interlocked.Decrement(ref _activeLines);
+			ReleaseLine();
 		}
 	}
+
+	public void AcquireLine()
+	{
+		if (Interlocked.Increment(ref _activeLines) <= MarketDataConstants.MaxLines)
+			return;
+		Interlocked.Decrement(ref _activeLines);
+		throw new LSCoreBadRequestException(
+			MarketDataValidationCodes.MDVC_001.GetValidationMessage(MarketDataConstants.MaxLines)
+		);
+	}
+
+	public void ReleaseLine() => Interlocked.Decrement(ref _activeLines);
 }

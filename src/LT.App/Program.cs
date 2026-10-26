@@ -12,9 +12,11 @@ using LT.Contracts.Constants;
 using LT.Contracts.Enums;
 using LT.Contracts.Interfaces.IApiClients;
 using LT.Contracts.Interfaces.IManagers;
+using LT.Contracts.Interfaces.INewsSources;
 using LT.Contracts.Interfaces.IProcesses;
 using LT.Contracts.Interfaces.IRepositories;
 using LT.Domain.Managers;
+using LT.Domain.NewsSources;
 using LT.Ibkr;
 using LT.Ibkr.Gateway;
 using LT.Repository.Repositories;
@@ -84,6 +86,10 @@ public static class Program
 		builder.Services.AddSingleton<ISettingsManager, SettingsManager>();
 		builder.Services.AddSingleton<IAppUpdater, AppUpdater>();
 		builder.Services.AddSingleton<IUpdateManager, UpdateManager>();
+
+		// News: every INewsSource is aggregated by the news manager (more sources go here)
+		builder.Services.AddSingleton<INewsSource, IbkrNewsSource>();
+		builder.Services.AddSingleton<INewsManager, NewsManager>();
 
 		// App-wide UI state shared between widgets (the zStore of this app)
 		builder.Services.AddSingleton<AccountStore>();

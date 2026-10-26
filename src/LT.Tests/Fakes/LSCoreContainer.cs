@@ -13,6 +13,7 @@ using LT.Contracts.Entities;
 using LT.Contracts.Requests.Connection;
 using LT.Contracts.Requests.Contracts;
 using LT.Contracts.Requests.Gateway;
+using LT.Contracts.Requests.News;
 using LT.Contracts.Requests.Options;
 using LT.Contracts.Requests.Orders;
 using LT.Contracts.Requests.Settings;
@@ -20,6 +21,7 @@ using LT.Contracts.Requests.Watchlists;
 using LT.Domain.Validators.Connection;
 using LT.Domain.Validators.Contracts;
 using LT.Domain.Validators.Gateway;
+using LT.Domain.Validators.News;
 using LT.Domain.Validators.Options;
 using LT.Domain.Validators.Orders;
 using LT.Domain.Validators.Settings;
@@ -56,6 +58,14 @@ public static class LSCoreContainer
 					GetOptionChainRequestValidator
 				>()
 				.AddSingleton<LSCoreValidatorBase<PlaceOrderRequest>, PlaceOrderRequestValidator>()
+				.AddSingleton<
+					LSCoreValidatorBase<GetNewsHeadlinesRequest>,
+					GetNewsHeadlinesRequestValidator
+				>()
+				.AddSingleton<
+					LSCoreValidatorBase<SubscribeNewsRequest>,
+					SubscribeNewsRequestValidator
+				>()
 				.AddSingleton<
 					LSCoreValidatorBase<SaveAppSettingsRequest>,
 					SaveAppSettingsRequestValidator

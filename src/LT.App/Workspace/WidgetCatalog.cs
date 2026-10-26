@@ -3,6 +3,7 @@ using LT.App.Widgets.Account;
 using LT.App.Widgets.Chart;
 using LT.App.Widgets.Executions;
 using LT.App.Widgets.Messages;
+using LT.App.Widgets.News;
 using LT.App.Widgets.OptionChain;
 using LT.App.Widgets.Orders;
 using LT.App.Widgets.OrderTicket;
@@ -27,6 +28,7 @@ public static class WidgetCatalog
 		new ChartWidget(),
 		new OptionChainWidget(),
 		new OrderTicketWidget(),
+		new NewsWidget(),
 	];
 
 	public static IWidgetDefinition Get(WorkspaceTool tool) =>

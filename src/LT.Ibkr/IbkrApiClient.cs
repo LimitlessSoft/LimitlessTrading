@@ -8,6 +8,7 @@ using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Executions;
 using LT.Contracts.Dtos.MarketData;
+using LT.Contracts.Dtos.News;
 using LT.Contracts.Dtos.Options;
 using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Dtos.Positions;
@@ -239,6 +240,85 @@ public class IbkrApiClient : IIbkrApiClient
 			(client, ct) => client.SubscribePositionPnlAsync(account, contractId, ct),
 			cancellationToken
 		);
+
+	public async Task<IReadOnlyList<NewsProviderDto>> GetNewsProvidersAsync(
+		CancellationToken cancellationToken = default
+	)
+	{
+		await _messages.WaitAsync(cancellationToken);
+		var providers = await RequireClient().GetNewsProvidersAsync(cancellationToken);
+		return providers.ToMappedList<NewsProvider, NewsProviderDto>();
+	}
+
+	public async Task<NewsHeadlinesPageDto> GetHistoricalNewsAsync(
+		int contractId,
+		IReadOnlyList<string> providerCodes,
+		int maxResults,
+		DateTimeOffset? before = null,
+		CancellationToken cancellationToken = default
+	)
+	{
+		await _messages.WaitAsync(cancellationToken);
+		var news = await RequireClient()
+			.GetHistoricalNewsAsync(
+				contractId,
+				providerCodes,
+				maxResults,
+				before,
+				cancellationToken
+			);
+		return new NewsHeadlinesPageDto
+		{
+			Headlines = news.Headlines.ToMappedList<NewsHeadline, NewsHeadlineDto>(),
+			HasMore = news.HasMore,
+		};
+	}
+
+	public async Task<NewsArticleDto> GetNewsArticleAsync(
+		string providerCode,
+		string articleId,
+		CancellationToken cancellationToken = default
+	)
+	{
+		await _messages.WaitAsync(cancellationToken);
+		var article = await RequireClient()
+			.GetNewsArticleAsync(providerCode, articleId, cancellationToken);
+		return article.ToMapped<NewsArticle, NewsArticleDto>();
+	}
+
+	public IAsyncEnumerable<NewsHeadlineDto> SubscribeNewsAsync(
+		ContractDto contract,
+		IReadOnlyList<string>? providerCodes = null,
+		CancellationToken cancellationToken = default
+	) =>
+		StreamAsync<NewsHeadline, NewsHeadlineDto>(
+			(client, ct) =>
+				client.SubscribeNewsAsync(
+					contract.ToMapped<ContractDto, Contract>(),
+					providerCodes,
+					ct
+				),
+			cancellationToken
+		);
+
+	// IB answers 321 (invalid news source) or 200 (no definition) for a provider without one
+	public async Task<IReadOnlyList<ContractDto>> GetBroadTapeContractsAsync(
+		string providerCode,
+		CancellationToken cancellationToken = default
+	)
+	{
+		await _messages.WaitAsync(cancellationToken);
+		try
+		{
+			var contracts = await RequireClient()
+				.GetBroadTapeContractsAsync(providerCode, cancellationToken);
+			return contracts.ToMappedList<Contract, ContractDto>();
+		}
+		catch (IbkrException ex) when (NewsConstants.NoBroadTapeErrorCodes.Contains(ex.Code))
+		{
+			return [];
+		}
+	}
 
 	// Every client's orders: the ones placed here go out on the order connection's client id
 	public async Task<IReadOnlyList<OpenOrderDto>> GetOpenOrdersAsync(

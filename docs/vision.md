@@ -41,7 +41,8 @@ TWS is powerful but:
 | 5 — Workspaces | Settings dialog, workspace where every widget can be spawned (charts several times) and dragged into the center split layout (beside / above / below), a collapsible side strip or its own floating window, saved layout (window, open panels, widths, tab, timeframe), hotkeys | **done** |
 | 5 — Workspaces | Multiple named layouts, dragging strip icons | not started |
 | 6 — Advanced | Option chain (a tab per expiration, strikes around the money, L1 quotes) | **done** — no greeks yet |
-| 6 — Advanced | L2 depth, scanners, news, alerts | not started — needs IBKR.Net support |
+| 6 — Advanced | News widget: the link group's symbol (history, then live) or the broad tapes of the selected providers, provider chips, text filter, plain-text reading pane | **done** — IB is the only source so far; the news manager aggregates any number of sources |
+| 6 — Advanced | L2 depth, scanners, alerts | not started — needs IBKR.Net support |
 
 Orders exist since the order ticket (`IIbkrApiClient.PlaceOrderAsync`): every order is reviewed
 in the ticket and sent only on "Send order". Never send one from code without the user's yes.

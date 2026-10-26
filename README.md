@@ -48,6 +48,8 @@ Runs IB Gateway for you, keeps the connection alive and puts everything you watc
 - Watchlist with contract search and streaming quotes
 - Live or delayed data — delayed still shows live where you're subscribed
 - Option chain with a tab per expiration, strikes around the money and live quotes
+- News: the linked symbol's headlines (history + live) or every provider's broad tape, with a
+  reading pane
 
 </td>
 <td valign="top">
@@ -188,7 +190,8 @@ Deeper reading:
 | 🔜 | Named layouts | planned |
 | ✅ | Order ticket — market / limit, review before send, cancel | done — in use on live |
 | 🔜 | Order modify, what-if preview | planned |
-| 🚧 | Executions on IBKR.Net, L2 depth, scanners, news, alerts | waiting on IBKR.Net support |
+| ✅ | News — linked symbol or broad tape, provider filter, reading pane | done — IB is the first source |
+| 🚧 | Executions on IBKR.Net, L2 depth, scanners, alerts | waiting on IBKR.Net support |
 
 Details in [docs/vision.md](docs/vision.md#roadmap-sketch).
 

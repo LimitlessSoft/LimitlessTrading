@@ -16,4 +16,12 @@ public interface IMarketDataManager
 		ContractDto contract,
 		CancellationToken cancellationToken = default
 	);
+
+	/// <summary>
+	/// Counts one line for a stream that isn't a quote (news ticks); throws at the limit. Pair
+	/// every call with <see cref="ReleaseLine"/>.
+	/// </summary>
+	void AcquireLine();
+
+	void ReleaseLine();
 }

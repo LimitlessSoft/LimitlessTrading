@@ -83,6 +83,12 @@
 										Click="OnToolClick"
 										Tag="OrderTicket"
 									/>
+									<MenuItem
+										Header="News"
+										InputGesture="Ctrl+Alt+N"
+										Click="OnToolClick"
+										Tag="News"
+									/>
 									<Separator />
 									<MenuItem
 										Header="New chart"

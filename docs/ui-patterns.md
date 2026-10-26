@@ -116,13 +116,25 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   no rounded border — `Border.panel.docked`); center tiles and floating widgets keep the card look.
 - A widget opens where it last was; a new chart opens where the last chart was. On first run:
   Watchlist, Positions, Orders and Executions on the left; Account and Messages on the right;
-  Chart in the center; Option chain and Order ticket closed (`WorkspaceHelpers.GetDefaultPlacements`).
+  Chart in the center; Option chain, Order ticket and News closed (`WorkspaceHelpers.GetDefaultPlacements`).
 - **Order ticket** (`LT.Widgets.OrderTicket`, right side): takes its contract from the link group.
   Account, side, market / limit, quantity or amount in $ (market only), limit price, time in force
   (crypto: GTC / IOC). "Review order" validates (`IOrderManager.ValidateOrder`) and spells the
   order out with the endpoint; any edit drops the review; only "Send order" sends. Orders sent
   this session list their status below, with Cancel while working; everything is also logged
   to Messages.
+- **News** (`LT.Widgets.News`, bottom, Ctrl+Alt+N): two modes, saved per widget with the provider
+  selection (`WidgetPlacementDto.NewsMode` / `NewsProviders`, keys `source:code`, null = all).
+  *Linked* follows the link group's contract: the latest 100 past headlines, then live ones
+  (Load older pages back). *All news* subscribes to the broad tape of each selected provider that
+  has one (chips without one are dimmed in that mode). Provider chips choose what is asked for
+  (changes within 400 ms restart the feed once); the text box filters the list locally. Rows:
+  time, provider badge, headline, sentiment ▲/▼ when the provider scores it; newest first, at
+  most 500 (live headlines push the oldest out). Selecting one loads its article into the
+  reading pane as plain text (`NewsHelpers.ToPlainText`, no HTML renderer); a document (PDF) gets
+  "Open document", which writes it to the temp folder and opens it with the OS. Live headlines
+  are read on the thread pool and posted to the UI in batches. Data comes from `INewsManager`,
+  which merges every `INewsSource` (IB now) and dedupes on (source, provider, article id).
 - The frame (and the widget view inside it) is created once per instance and **moved** between
   hosts, so state and subscriptions survive docking, floating and collapsing. Widget view models
   are created on first open by `WidgetViewModelFactory`.
@@ -189,7 +201,7 @@ fullscreen widget restores it first; its header doesn't start a drag while fulls
 
 ### Link groups
 
-Watchlist, Positions, Chart and Option chain can be linked: the chain icon left of the frame's
+Watchlist, Positions, Chart, Option chain and News can be linked: the chain icon left of the frame's
 close button opens a menu of ten color groups (Red, Green, Blue, Yellow, Orange, Purple, Cyan,
 Pink, Lime, White) or Not linked, and is tinted
 with the current one. Widgets in the same group show the same contract:
@@ -255,7 +267,7 @@ subscription and frees the market-data line.
 | F5 | Refresh chart, account, positions, orders, executions |
 | Ctrl+, | Settings |
 | Ctrl+1 … Ctrl+9 | Show Watchlist, Positions, Orders, Executions, Account, Messages, Chart, Option chain, Order ticket (collapses an expanded side widget) |
-| Ctrl+Alt+W / P / O / E / A / M / C / B | Show and focus Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket (single-instance widgets; works from floating windows too) |
+| Ctrl+Alt+W / P / O / E / A / M / C / B / N | Show and focus Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News (single-instance widgets; works from floating windows too) |
 | Esc (side or bottom widget) | Back to the last focused center widget; an unpinned widget collapses |
 | Ctrl+Shift+7 | New chart |
 | Ctrl+Shift+F | Fullscreen the current widget (the one last clicked or typed in, framed in light blue), or restore it |

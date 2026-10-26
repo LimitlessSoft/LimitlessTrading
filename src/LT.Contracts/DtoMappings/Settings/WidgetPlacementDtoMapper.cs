@@ -23,6 +23,8 @@ public class WidgetPlacementDtoMapper : ILSCoreMapper<WidgetPlacementEntity, Wid
 			BottomHeight = source.BottomHeight,
 			ChartTimeframe = source.ChartTimeframe,
 			ChartLinked = source.ChartLinked,
+			NewsMode = source.NewsMode,
+			NewsProviders = source.NewsProviders is { } providers ? [.. providers] : null,
 			ChartContract = source.ChartContract is { } contract
 				? new ContractDtoMapper().ToMapped(contract)
 				: null,
