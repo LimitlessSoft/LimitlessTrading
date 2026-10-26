@@ -254,14 +254,14 @@ public class OptionChainHelpersTests
 	[InlineData("C", OptionQuoteColumn.Bid, 11, OrderAction.Sell)]
 	[InlineData("P", OptionQuoteColumn.Ask, 12, OrderAction.Buy)]
 	[InlineData("P", OptionQuoteColumn.Bid, 12, OrderAction.Sell)]
-	public void Quick_order_is_one_contract_at_market_for_the_day(
+	public void Quick_order_is_at_market_for_the_day(
 		string right,
 		OptionQuoteColumn column,
 		int conId,
 		OrderAction action
 	)
 	{
-		var request = OptionChainHelpers.BuildQuickOrder(TradableStrike(), right, column, "U1");
+		var request = OptionChainHelpers.BuildQuickOrder(TradableStrike(), right, column, "U1", 1);
 
 		Assert.NotNull(request);
 		Assert.Equal(conId, request.Contract!.ConId);
@@ -281,12 +281,68 @@ public class OptionChainHelpersTests
 		var strike = TradableStrike();
 		strike.Put = null;
 
-		Assert.Null(OptionChainHelpers.BuildQuickOrder(strike, "C", OptionQuoteColumn.Last, "U1"));
 		Assert.Null(
-			OptionChainHelpers.BuildQuickOrder(strike, "C", OptionQuoteColumn.Volume, "U1")
+			OptionChainHelpers.BuildQuickOrder(strike, "C", OptionQuoteColumn.Last, "U1", 1)
 		);
-		Assert.Null(OptionChainHelpers.BuildQuickOrder(strike, "P", OptionQuoteColumn.Ask, "U1"));
+		Assert.Null(
+			OptionChainHelpers.BuildQuickOrder(strike, "C", OptionQuoteColumn.Volume, "U1", 1)
+		);
+		Assert.Null(
+			OptionChainHelpers.BuildQuickOrder(strike, "P", OptionQuoteColumn.Ask, "U1", 1)
+		);
 	}
+
+	[Theory]
+	[InlineData(1)]
+	[InlineData(5)]
+	[InlineData(100)]
+	public void Quick_order_sends_the_chosen_quantity(int quantity)
+	{
+		var request = OptionChainHelpers.BuildQuickOrder(
+			TradableStrike(),
+			"C",
+			OptionQuoteColumn.Ask,
+			"U1",
+			quantity
+		);
+
+		Assert.Equal(quantity, request!.Quantity);
+		Assert.Null(OptionChainHelpers.GetQuickOrderQuantityError(quantity));
+	}
+
+	[Theory]
+	[InlineData(null)]
+	[InlineData(0d)]
+	[InlineData(-1d)]
+	[InlineData(101d)]
+	[InlineData(2.5)]
+	public void No_quick_order_for_an_empty_or_out_of_range_quantity(double? quantity)
+	{
+		var q = (decimal?)quantity;
+
+		Assert.False(OptionChainHelpers.IsValidQuickOrderQuantity(q));
+		Assert.Null(
+			OptionChainHelpers.BuildQuickOrder(
+				TradableStrike(),
+				"C",
+				OptionQuoteColumn.Ask,
+				"U1",
+				q
+			)
+		);
+		Assert.Equal(
+			"Set a one-click quantity of 1 to 100 whole contracts.",
+			OptionChainHelpers.GetQuickOrderQuantityError(q)
+		);
+	}
+
+	[Theory]
+	[InlineData(null, 1)]
+	[InlineData(7, 7)]
+	[InlineData(0, 1)]
+	[InlineData(1000, 1)]
+	public void Saved_quick_order_quantity_falls_back_to_the_default(int? saved, int expected) =>
+		Assert.Equal(expected, OptionChainHelpers.GetQuickOrderQuantityOrDefault(saved));
 
 	[Fact]
 	public void Quick_trade_needs_a_price_in_the_clicked_column()
@@ -331,7 +387,7 @@ public class OptionChainHelpersTests
 		var strike = TradableStrike();
 		string Key(string right, OptionQuoteColumn column) =>
 			OptionChainHelpers.GetQuickOrderKey(
-				OptionChainHelpers.BuildQuickOrder(strike, right, column, "U1")!
+				OptionChainHelpers.BuildQuickOrder(strike, right, column, "U1", 1)!
 			);
 
 		Assert.Equal(Key("C", OptionQuoteColumn.Ask), Key("C", OptionQuoteColumn.Ask));

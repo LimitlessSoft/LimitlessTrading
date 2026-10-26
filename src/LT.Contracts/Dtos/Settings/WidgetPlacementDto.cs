@@ -41,4 +41,7 @@ public class WidgetPlacementDto
 	// News instances: what they show and which providers (keys "ibkr:BRFG"; null: all of them)
 	public NewsMode? NewsMode { get; set; }
 	public List<string>? NewsProviders { get; set; }
+
+	/// <summary>Option chain instances: contracts per one-click order (null: the default).</summary>
+	public int? OptionQuickOrderQuantity { get; set; }
 }

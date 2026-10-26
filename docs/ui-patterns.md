@@ -438,18 +438,26 @@ option's own IV for that expiry: IBKR.Net doesn't decode option computation tick
 (`tickOptionComputation`) yet. No IV, no price, or past expiry → no band colouring.
 
 **One-click trading (real orders, no confirmation).** In the option chain a single click on an
-**ask** cell buys and on a **bid** cell sells — calls and puts alike — 1 contract, market, DAY, on
-the account selected in `AccountStore` (the one the Order ticket starts on). The order is sent
+**ask** cell buys and on a **bid** cell sells — calls and puts alike — the widget's one-click
+quantity of contracts, market, DAY, on the account selected in `AccountStore` (the one the Order
+ticket starts on). The quantity is the "Qty" box at the right of the chain's status line, in sight
+while clicking: 1 by default, whole contracts from 1 to 100 (`OrderConstants.QuickOrderQuantityMax`,
+a fat-finger guard that applies to one-click orders only, not the Order ticket). An empty or
+out-of-range box sends nothing and says so in the error line (`OrderValidationCodes.OVC_012`);
+the box has no maximum on purpose, so a typo above the cap is refused, never clamped to 100. Each
+chain instance saves its quantity in its placement (`WidgetPlacementEntity.OptionQuickOrderQuantity`,
+null = default; an invalid saved value loads as the default). The order is sent
 immediately through `IOrderManager.PlaceOrderAsync` (same validation as the ticket); there is no
 review step. Only bid / ask cells are clickable: they show a hand cursor and a translucent green
 (buy) / red (sell) tint on hover over the ITM shade; last, volume and strike cells don't react.
 A cell is disabled while disconnected, when its side has no contract or that column has no price,
 and while its own order is in flight. Repeat clicks on the same cell within 500 ms
 (`OrderConstants.QuickOrderRepeatWindow`) are dropped, so a double click sends one order. The
-chain's status line shows "Order n sent" for a few seconds and the fill; a failed send or a
-rejection shows in its error line, and everything is logged to Messages (Orders). Mapping and
+chain's status line shows "Order n sent: Buy 5 …" (with the quantity) for a few seconds and the
+fill; a failed send or a rejection shows in its error line, and everything is logged to Messages
+(Orders). Mapping and
 guard logic: `OptionChainHelpers.GetQuickOrderAction` / `BuildQuickOrder` / `CanQuickTrade` /
-`IsRepeatClick`.
+`IsRepeatClick` / `IsValidQuickOrderQuantity`.
 
 A linkable view model implements `ILinkable` (`LT.App/Workspace`) by holding a `ContractLink`
 (`src/Widgets/LT.Widgets.Core/Stores`): `Publish(contract)` to send, `ContractReceived` to follow; it never gets its

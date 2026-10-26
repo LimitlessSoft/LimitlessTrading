@@ -12,8 +12,12 @@ public static class OrderConstants
 	public const decimal CashAmountMin = 1;
 	public const decimal CashAmountMax = 10_000;
 
-	/// <summary>One-click orders from the option chain: always this many contracts.</summary>
-	public const decimal QuickOrderQuantity = 1;
+	/// <summary>
+	/// One-click orders from the option chain: the contracts per click until the user sets another
+	/// quantity in the widget, and the most it accepts (a fat-finger guard).
+	/// </summary>
+	public const int QuickOrderQuantityDefault = 1;
+	public const int QuickOrderQuantityMax = 100;
 
 	/// <summary>
 	/// Repeat clicks on the same option chain cell within this window are ignored, so a double

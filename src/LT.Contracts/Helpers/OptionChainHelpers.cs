@@ -1,10 +1,12 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using LSCore.Validation.Contracts;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.MarketData;
 using LT.Contracts.Dtos.Options;
 using LT.Contracts.Enums;
+using LT.Contracts.Enums.ValidationCodes;
 using LT.Contracts.Requests.Options;
 using LT.Contracts.Requests.Orders;
 
@@ -195,20 +197,51 @@ public static partial class OptionChainHelpers
 		};
 
 	/// <summary>
-	/// The one-click order for a chain cell: 1 contract at market, DAY, on
-	/// <paramref name="account"/>; null when the column doesn't trade or the side has no contract.
+	/// Whether <paramref name="quantity"/> may be sent with one click: a whole number of contracts
+	/// from 1 to <see cref="OrderConstants.QuickOrderQuantityMax"/> (empty input never trades).
+	/// </summary>
+	public static bool IsValidQuickOrderQuantity(decimal? quantity) =>
+		quantity is { } q
+		&& q >= 1
+		&& q <= OrderConstants.QuickOrderQuantityMax
+		&& q == decimal.Truncate(q);
+
+	/// <summary>Why a one-click quantity can't be sent; null when it can.</summary>
+	public static string? GetQuickOrderQuantityError(decimal? quantity) =>
+		IsValidQuickOrderQuantity(quantity)
+			? null
+			: OrderValidationCodes.OVC_012.GetValidationMessage(
+				1,
+				OrderConstants.QuickOrderQuantityMax
+			);
+
+	/// <summary>
+	/// A saved one-click quantity, or the default when there is none or it is out of bounds (an
+	/// edited layout file).
+	/// </summary>
+	public static int GetQuickOrderQuantityOrDefault(int? saved) =>
+		saved is { } q && IsValidQuickOrderQuantity(q)
+			? q
+			: OrderConstants.QuickOrderQuantityDefault;
+
+	/// <summary>
+	/// The one-click order for a chain cell: <paramref name="quantity"/> contracts at market, DAY,
+	/// on <paramref name="account"/>; null when the column doesn't trade, the side has no contract
+	/// or the quantity isn't a valid one-click quantity (<see cref="IsValidQuickOrderQuantity"/>).
 	/// The manager still validates it (account, contract id).
 	/// </summary>
 	public static PlaceOrderRequest? BuildQuickOrder(
 		OptionStrikeDto strike,
 		string right,
 		OptionQuoteColumn column,
-		string? account
+		string? account,
+		decimal? quantity
 	)
 	{
 		if (
 			GetQuickOrderAction(column) is not { } action
 			|| GetOption(strike, right) is not { } option
+			|| !IsValidQuickOrderQuantity(quantity)
 		)
 			return null;
 		return new PlaceOrderRequest
@@ -217,7 +250,7 @@ public static partial class OptionChainHelpers
 			Account = account ?? string.Empty,
 			Action = action,
 			OrderType = OrderType.Market,
-			Quantity = OrderConstants.QuickOrderQuantity,
+			Quantity = quantity,
 			TimeInForce = TimeInForce.Day,
 		};
 	}
