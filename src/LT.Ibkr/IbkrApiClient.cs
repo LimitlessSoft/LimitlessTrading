@@ -247,6 +247,39 @@ public class IbkrApiClient : IIbkrApiClient
 			cancellationToken
 		);
 
+	public async IAsyncEnumerable<TickByTickDto> SubscribeTickByTickAsync(
+		ContractDto contract,
+		LT.Contracts.Enums.TickByTickType tickType,
+		[EnumeratorCancellation] CancellationToken cancellationToken = default
+	)
+	{
+		await using var ticks = StreamAsync<TickByTick, TickByTickDto>(
+				(client, ct) =>
+					client.SubscribeTickByTickAsync(
+						contract.ToMapped<ContractDto, Contract>(),
+						(IBKR.Net.TickByTickType)(int)tickType,
+						cancellationToken: ct
+					),
+				cancellationToken
+			)
+			.GetAsyncEnumerator(cancellationToken);
+		while (true)
+		{
+			bool more;
+			try
+			{
+				more = await ticks.MoveNextAsync();
+			}
+			catch (IbkrException ex)
+			{
+				throw new IbkrRequestException(ex.Code, ex.ErrorText, ex);
+			}
+			if (!more)
+				break;
+			yield return ticks.Current;
+		}
+	}
+
 	public IAsyncEnumerable<AccountValueDto> SubscribeAccountSummaryAsync(
 		CancellationToken cancellationToken = default
 	) =>

@@ -18,6 +18,10 @@ public class SaveAppSettingsRequest
 	public bool CacheExecutions { get; set; } = true;
 	public bool CacheSnapshots { get; set; } = true;
 	public int CacheMaxSizeMb { get; set; } = CacheConstants.DefaultMaxSizeMb;
+	public ChartLiveUpdateMode ChartLiveUpdateMode { get; set; } = ChartLiveUpdateMode.RealtimeBars;
+
+	/// <summary>Used only with the throttled <see cref="ChartLiveUpdateMode"/>s.</summary>
+	public int ChartRedrawIntervalMs { get; set; } = ChartConstants.DefaultRedrawIntervalMs;
 
 	/// <summary>Zone times are shown in; null = the system's local zone.</summary>
 	public string? DisplayTimeZoneId { get; set; }

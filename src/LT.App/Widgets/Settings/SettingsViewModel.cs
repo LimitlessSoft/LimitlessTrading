@@ -146,6 +146,21 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 
 	private readonly ActionSettingViewModel _clearCache;
 
+	private readonly ChoiceSettingViewModel _chartLiveUpdates = new(
+		"Chart live updates",
+		[.. ChartLiveUpdateOption.All],
+		"5-second bars: IB's real-time bars, the chart moves every 5 seconds. Every trade: the last bar also follows each last-trade price (the midpoint for forex), like TWS. Quotes take one market data line per open chart. Tick-by-tick is IB's own trade-by-trade feed with IB's timestamps; IB allows only 5 at a time, so further charts use quotes. Without a free line a chart stays on 5-second bars; the status line shows the source in use. Throttled: redrawn at most once per redraw interval. Open charts reload when this changes.",
+		"chart live real-time realtime bars quotes ticks trades update speed refresh line"
+	);
+
+	private readonly NumberSettingViewModel _chartRedrawInterval = new(
+		"Chart redraw interval (ms)",
+		ChartConstants.RedrawIntervalMsMin,
+		ChartConstants.RedrawIntervalMsMax,
+		"Only for the throttled modes: the least time between two redraws of a chart.",
+		"chart redraw throttle interval milliseconds refresh"
+	);
+
 	public SettingsViewModel(
 		ISettingsManager settingsManager,
 		ICacheManager cacheManager,
@@ -202,6 +217,14 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		_cacheExecutions.Value = settings.CacheExecutions;
 		_cacheSnapshots.Value = settings.CacheSnapshots;
 		_cacheMaxSizeMb.Value = settings.CacheMaxSizeMb;
+		_chartLiveUpdates.Value = ChartLiveUpdateOption.Find(settings.ChartLiveUpdateMode);
+		_chartRedrawInterval.Value = settings.ChartRedrawIntervalMs;
+		UpdateChartRedrawInterval();
+		_chartLiveUpdates.PropertyChanged += (_, e) =>
+		{
+			if (e.PropertyName == nameof(ChoiceSettingViewModel.Value))
+				UpdateChartRedrawInterval();
+		};
 		RefreshCacheSize();
 
 		Pages =
@@ -212,6 +235,10 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 				[
 					new SettingsPageViewModel("Updates", [new("Updates", _checkForUpdates)]),
 					new SettingsPageViewModel("Time zone", [new("Time zone", _displayTimeZone)]),
+					new SettingsPageViewModel(
+						"Charts",
+						[new("Live updates", _chartLiveUpdates, _chartRedrawInterval)]
+					),
 				]
 			),
 			new SettingsPageViewModel("Appearance", [new("Layout", _layoutStyle)]),
@@ -312,6 +339,8 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 					CacheExecutions = _cacheExecutions.Value,
 					CacheSnapshots = _cacheSnapshots.Value,
 					CacheMaxSizeMb = (int)(_cacheMaxSizeMb.Value ?? 0),
+					ChartLiveUpdateMode = SelectedChartLiveUpdateMode,
+					ChartRedrawIntervalMs = (int)(_chartRedrawInterval.Value ?? 0),
 					DisplayTimeZoneId = (_displayTimeZone.Value as TimeZoneOption)?.Id,
 					ChartOutsideRegularHours = _chartOutsideRegularHours.Value,
 				}
@@ -394,6 +423,16 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		);
 		_flexImport.IsBusy = status.IsRunning;
 	}
+
+	private ChartLiveUpdateMode SelectedChartLiveUpdateMode =>
+		(_chartLiveUpdates.Value as ChartLiveUpdateOption)?.Mode
+		?? ChartLiveUpdateMode.RealtimeBars;
+
+	// The redraw interval applies only to the throttled modes
+	private void UpdateChartRedrawInterval() =>
+		_chartRedrawInterval.IsEnabled =
+			ChartLiveUpdateHelpers.GetRedrawInterval(SelectedChartLiveUpdateMode, 0)
+			> TimeSpan.Zero;
 
 	private void ClearCache()
 	{

@@ -1,5 +1,6 @@
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.MarketData;
+using LT.Contracts.Enums;
 
 namespace LT.Contracts.Interfaces.IManagers;
 
@@ -26,4 +27,17 @@ public interface IMarketDataManager
 	void AcquireLine();
 
 	void ReleaseLine();
+
+	/// <summary>Tick-by-tick subscriptions currently in use by this app.</summary>
+	int ActiveTickByTick { get; }
+
+	/// <summary>
+	/// IB tick-by-tick data; counts against IB's limit of
+	/// <c>MarketDataConstants.MaxTickByTick</c> until the enumeration ends and throws at it.
+	/// </summary>
+	IAsyncEnumerable<TickByTickDto> SubscribeTickByTickAsync(
+		ContractDto contract,
+		TickByTickType tickType,
+		CancellationToken cancellationToken = default
+	);
 }

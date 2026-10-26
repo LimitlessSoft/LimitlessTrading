@@ -16,4 +16,19 @@ public static class ChartConstants
 
 	/// <summary>Space above and below the values of an autoscaled indicator pane.</summary>
 	public const double IndicatorPanePadding = 0.08;
+
+	/// <summary>Length of IB's real-time bars (<c>reqRealTimeBars</c> supports only 5 s).</summary>
+	public static readonly TimeSpan RealtimeBarLength = TimeSpan.FromSeconds(5);
+
+	/// <summary>
+	/// Live prices move the last bar only while a 5-second bar arrived this recently: IB sends one
+	/// every 5 s while the chart's session is open (also without trades), so quotes outside it
+	/// (extended hours on an RTH chart, a closed market) don't paint bars of their own.
+	/// </summary>
+	public static readonly TimeSpan LivePriceMaxBarAge = TimeSpan.FromSeconds(15);
+
+	/// <summary>Chart redraw interval (the throttled chart live update modes), in ms.</summary>
+	public const int RedrawIntervalMsMin = 250;
+	public const int RedrawIntervalMsMax = 5000;
+	public const int DefaultRedrawIntervalMs = 1000;
 }

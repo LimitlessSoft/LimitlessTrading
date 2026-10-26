@@ -41,6 +41,22 @@ public class SaveAppSettingsRequestValidator : LSCoreValidatorBase<SaveAppSettin
 				)
 			);
 
+		RuleFor(x => x.ChartLiveUpdateMode)
+			.IsInEnum()
+			.WithMessage(SettingsValidationCodes.SVC_006.GetValidationMessage());
+
+		RuleFor(x => x.ChartRedrawIntervalMs)
+			.InclusiveBetween(
+				ChartConstants.RedrawIntervalMsMin,
+				ChartConstants.RedrawIntervalMsMax
+			)
+			.WithMessage(
+				SettingsValidationCodes.SVC_007.GetValidationMessage(
+					ChartConstants.RedrawIntervalMsMin,
+					ChartConstants.RedrawIntervalMsMax
+				)
+			);
+
 		RuleFor(x => x.DisplayTimeZoneId)
 			.Must(DisplayTimeHelpers.IsValidZoneId)
 			.WithMessage(SettingsValidationCodes.SVC_005.GetValidationMessage());

@@ -17,6 +17,10 @@ public class AppSettingsDto
 	public bool CacheExecutions { get; set; }
 	public bool CacheSnapshots { get; set; }
 	public int CacheMaxSizeMb { get; set; }
+	public ChartLiveUpdateMode ChartLiveUpdateMode { get; set; }
+
+	/// <summary>Used only with the throttled <see cref="ChartLiveUpdateMode"/>s.</summary>
+	public int ChartRedrawIntervalMs { get; set; }
 
 	/// <summary>Zone times are shown in; null = the system's local zone.</summary>
 	public string? DisplayTimeZoneId { get; set; }

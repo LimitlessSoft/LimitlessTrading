@@ -19,6 +19,10 @@ public abstract partial class SettingItemViewModel(
 	[ObservableProperty]
 	public partial bool IsVisible { get; set; } = true;
 
+	/// <summary>False while it doesn't apply (it depends on another setting); shown greyed out.</summary>
+	[ObservableProperty]
+	public partial bool IsEnabled { get; set; } = true;
+
 	public bool Matches(string? query) =>
 		SettingsSearchHelpers.Matches(query, Title, Description, keywords);
 }

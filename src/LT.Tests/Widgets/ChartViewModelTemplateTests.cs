@@ -438,7 +438,7 @@ public class ChartViewModelTemplateTests : IDisposable
 	{
 		var settings = new SettingsManager(_cache.Settings, _ibkr);
 		var chart = new ChartViewModel(
-			new ChartManager(_ibkr, _cache.Manager, _cache.Time),
+			new ChartManager(_ibkr, _cache.Manager, new MarketDataManager(_ibkr), _cache.Time),
 			new ContractManager(_ibkr, _cache.Settings, _cache.Manager),
 			_connection,
 			new MessageLogManager(),
@@ -454,7 +454,8 @@ public class ChartViewModelTemplateTests : IDisposable
 			_templates,
 			new AccountStore(_connection, settings),
 			_links,
-			new DisplayTimeStore(settings, _cache.Time)
+			new DisplayTimeStore(settings, _cache.Time),
+			_cache.Time
 		);
 		_charts.Add(chart);
 		return chart;

@@ -88,7 +88,7 @@ public class ChartViewModelTradingHoursTests : IDisposable
 	private ChartViewModel CreateChart()
 	{
 		var chart = new ChartViewModel(
-			new ChartManager(_ibkr, _cache.Manager, _cache.Time),
+			new ChartManager(_ibkr, _cache.Manager, new MarketDataManager(_ibkr), _cache.Time),
 			new ContractManager(_ibkr, _cache.Settings, _cache.Manager),
 			_connection,
 			new MessageLogManager(),
@@ -108,7 +108,8 @@ public class ChartViewModelTradingHoursTests : IDisposable
 			new ChartTemplateManager(_cache.Settings),
 			new AccountStore(_connection, _settings),
 			new LinkGroupStore(),
-			new DisplayTimeStore(_settings, _cache.Time)
+			new DisplayTimeStore(_settings, _cache.Time),
+			_cache.Time
 		);
 		_charts.Add(chart);
 		chart.OpenContract(Spy);

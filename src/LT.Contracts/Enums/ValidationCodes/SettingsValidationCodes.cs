@@ -18,4 +18,10 @@ public enum SettingsValidationCodes
 
 	[LSCoreValidationMessage("Unknown time zone.")]
 	SVC_005,
+
+	[LSCoreValidationMessage("Unknown chart live update mode.")]
+	SVC_006,
+
+	[LSCoreValidationMessage("Chart redraw interval must be between {0} and {1} ms.")]
+	SVC_007,
 }

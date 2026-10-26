@@ -5,6 +5,9 @@ public static class MarketDataConstants
 	/// <summary>IB default is 100 simultaneous lines per account; keep headroom for the chart.</summary>
 	public const int MaxLines = 90;
 
+	/// <summary>IB allows 5 simultaneous tick-by-tick subscriptions per account (error 10190).</summary>
+	public const int MaxTickByTick = 5;
+
 	/// <summary>IB disconnects above ~50 messages/s; stay below it.</summary>
 	public const int MaxMessagesPerSecond = 40;
 

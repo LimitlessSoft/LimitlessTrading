@@ -27,7 +27,7 @@
 	<Window.DataTemplates>
 		<!-- One template per kind of setting -->
 		<DataTemplate DataType="vm:BoolSettingViewModel">
-			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}">
+			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}" IsEnabled="{Binding IsEnabled}">
 				<CheckBox Content="{Binding Title}" IsChecked="{Binding Value}" />
 				<TextBlock
 					Classes="secondary settingHelp"
@@ -37,7 +37,7 @@
 			</StackPanel>
 		</DataTemplate>
 		<DataTemplate DataType="vm:ChoiceSettingViewModel">
-			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}">
+			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}" IsEnabled="{Binding IsEnabled}">
 				<TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
 				<ComboBox MinWidth="240" ItemsSource="{Binding Options}" SelectedItem="{Binding Value}" />
 				<TextBlock
@@ -48,7 +48,7 @@
 			</StackPanel>
 		</DataTemplate>
 		<DataTemplate DataType="vm:NumberSettingViewModel">
-			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}">
+			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}" IsEnabled="{Binding IsEnabled}">
 				<TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
 				<NumericUpDown
 					Width="140"
@@ -67,7 +67,7 @@
 			</StackPanel>
 		</DataTemplate>
 		<DataTemplate DataType="vm:TextSettingViewModel">
-			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}">
+			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}" IsEnabled="{Binding IsEnabled}">
 				<TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
 				<TextBox
 					Width="360"
@@ -84,7 +84,7 @@
 			</StackPanel>
 		</DataTemplate>
 		<DataTemplate DataType="vm:GuideSettingViewModel">
-			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}">
+			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}" IsEnabled="{Binding IsEnabled}">
 				<TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
 				<ItemsControl ItemsSource="{Binding Steps}">
 					<ItemsControl.ItemsPanel>
@@ -135,7 +135,7 @@
 			</StackPanel>
 		</DataTemplate>
 		<DataTemplate DataType="vm:ActionSettingViewModel">
-			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}">
+			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}" IsEnabled="{Binding IsEnabled}">
 				<TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
 				<StackPanel Orientation="Horizontal" Spacing="12">
 					<TextBlock

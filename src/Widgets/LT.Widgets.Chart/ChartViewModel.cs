@@ -58,6 +58,7 @@ public partial class ChartViewModel
 	private readonly IIndicatorManager _indicatorManager;
 	private readonly IChartTemplateManager _chartTemplateManager;
 	private readonly ISettingsManager _settingsManager;
+	private readonly TimeProvider _timeProvider;
 	private readonly DispatcherTimer _computeTimer;
 	private readonly DispatcherTimer _templateSaveTimer;
 	private List<IndicatorInstanceDto> _indicators = [];
@@ -70,6 +71,8 @@ public partial class ChartViewModel
 	private int _tradesQueued;
 	private CancellationTokenSource? _load;
 	private ContractDto? _contract;
+	private ChartLiveUpdateMode _liveMode;
+	private TimeSpan _redrawInterval;
 
 	// The regular sessions last read, by contract: a reload of the same contract reuses them
 	private (int ConId, TradingScheduleDto? Schedule)? _regularHours;
@@ -86,7 +89,8 @@ public partial class ChartViewModel
 		IChartTemplateManager chartTemplateManager,
 		AccountStore accountStore,
 		LinkGroupStore linkGroupStore,
-		DisplayTimeStore displayTime
+		DisplayTimeStore displayTime,
+		TimeProvider timeProvider
 	)
 		: base(connectionManager)
 	{
@@ -101,6 +105,7 @@ public partial class ChartViewModel
 		_indicatorManager = indicatorManager;
 		_chartTemplateManager = chartTemplateManager;
 		_settingsManager = settingsManager;
+		_timeProvider = timeProvider;
 		_accountStore = accountStore;
 		_computeTimer = new DispatcherTimer { Interval = IndicatorConstants.ComputeDebounce };
 		_computeTimer.Tick += (_, _) => ComputeIndicators();
@@ -348,14 +353,6 @@ public partial class ChartViewModel
 
 	partial void OnUseRegularTradingHoursChanged(bool value) => Reload();
 
-	// From the thread that saved the settings
-	private void OnAppSettingsChanged(AppSettingsDto settings) =>
-		Dispatcher.UIThread.Post(() =>
-		{
-			if (!_disposed)
-				UseRegularTradingHours = !settings.ChartOutsideRegularHours;
-		});
-
 	protected override void OnConnected(CancellationToken session)
 	{
 		Reload();
@@ -387,6 +384,26 @@ public partial class ChartViewModel
 		LoadTrades();
 		UpdateBreakEven();
 	}
+
+	// From the thread that saved the settings. Outside-hours and live-update changes reload
+	private void OnAppSettingsChanged(AppSettingsDto settings) =>
+		Dispatcher.UIThread.Post(() =>
+		{
+			if (_disposed)
+				return;
+			UseRegularTradingHours = !settings.ChartOutsideRegularHours;
+			if (
+				(
+					settings.ChartLiveUpdateMode == _liveMode
+					&& ChartLiveUpdateHelpers.GetRedrawInterval(
+						settings.ChartLiveUpdateMode,
+						settings.ChartRedrawIntervalMs
+					) == _redrawInterval
+				)
+			)
+				return;
+			Reload();
+		});
 
 	// From the trade journal's threads; coalesced to one UI update per burst
 	private void OnFillsChanged()
@@ -457,6 +474,12 @@ public partial class ChartViewModel
 
 	private async Task LoadAsync(CancellationToken cancellationToken)
 	{
+		var settings = _settingsManager.GetAppSettings();
+		_liveMode = settings.ChartLiveUpdateMode;
+		_redrawInterval = ChartLiveUpdateHelpers.GetRedrawInterval(
+			settings.ChartLiveUpdateMode,
+			settings.ChartRedrawIntervalMs
+		);
 		var contract = _contract;
 		ErrorMessage = null;
 		_status.Clear();
@@ -528,6 +551,37 @@ public partial class ChartViewModel
 
 		if (!IsConnected)
 			return;
+		await StreamLiveAsync(request, contract, cancellationToken);
+	}
+
+	// 5-second bars on the UI thread, plus live prices on the thread pool when the mode asks for
+	// them; the prices end with the 5-second bars (a quote line is useless without them)
+	private async Task StreamLiveAsync(
+		GetBarsRequest request,
+		ContractDto contract,
+		CancellationToken cancellationToken
+	)
+	{
+		var mode = _liveMode;
+		using var live = new ChartLiveBars(
+			Bars,
+			request.Timeframe,
+			_timeProvider,
+			_redrawInterval,
+			bars =>
+			{
+				if (!cancellationToken.IsCancellationRequested)
+					Bars = bars;
+			}
+		);
+		using var prices = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+		var pricesToken = prices.Token;
+		var note = new LiveNote();
+		if (ChartLiveUpdateHelpers.UsesLivePrices(mode))
+			_ = Task.Run(
+				() => StreamLivePricesAsync(request, mode, live, note, pricesToken),
+				CancellationToken.None
+			);
 
 		if (!UseRegularTradingHours && IsIntraday && _regularHours?.ConId != contract.ConId)
 			await LoadRegularHoursAsync(contract, cancellationToken);
@@ -538,9 +592,9 @@ public partial class ChartViewModel
 				var update in _chartManager.SubscribeRealtimeBarsAsync(request, cancellationToken)
 			)
 			{
-				Bars = BarHelpers.Merge(Bars, update, timeframe);
+				live.AddRealtimeBar(update);
 				var time = update.Time;
-				_status.Set(() => $"Live · {DisplayTime.Format(time)}");
+				_status.Set(() => $"Live · {DisplayTime.Format(time)}{note.Text}");
 			}
 		}
 		catch (OperationCanceledException) { }
@@ -554,6 +608,64 @@ public partial class ChartViewModel
 				$"{ContractHelpers.GetDisplayName(contract)}: real-time bars unavailable ({message})"
 			);
 		}
+		finally
+		{
+			prices.Cancel();
+		}
+	}
+
+	// Thread pool: a failed price stream (no tick-by-tick subscription or market data line left,
+	// IB refused it) falls back — tick-by-tick to quotes, quotes to 5-second bars only — and says
+	// so in the message log and the status line
+	private async Task StreamLivePricesAsync(
+		GetBarsRequest request,
+		ChartLiveUpdateMode mode,
+		ChartLiveBars live,
+		LiveNote note,
+		CancellationToken cancellationToken
+	)
+	{
+		ChartLiveUpdateMode? current = mode;
+		while (current is { } source)
+		{
+			var text = $" · {ChartLiveUpdateHelpers.GetSourceName(source)}";
+			Dispatcher.UIThread.Post(() => note.Text = text);
+			try
+			{
+				await foreach (
+					var price in _chartManager
+						.SubscribeLivePricesAsync(request, source, cancellationToken)
+						.ConfigureAwait(false)
+				)
+					live.AddPrice(price);
+				return;
+			}
+			catch (OperationCanceledException)
+			{
+				return;
+			}
+			catch (Exception ex)
+			{
+				if (cancellationToken.IsCancellationRequested)
+					return;
+				current = ChartLiveUpdateHelpers.GetFallback(source);
+				var next = current is { } fallback
+					? ChartLiveUpdateHelpers.GetSourceName(fallback)
+					: "5-second bars";
+				_messageLogManager.Add(
+					MessageSeverity.Info,
+					MessageLogConstants.SourceChart,
+					$"{ContractHelpers.GetDisplayName(request.Contract)}: {ChartLiveUpdateHelpers.GetSourceName(source)} unavailable, using {next} ({ErrorMessageHelpers.ToUserMessage(ex)})"
+				);
+			}
+		}
+		Dispatcher.UIThread.Post(() => note.Text = " · 5-second bars only");
+	}
+
+	// What the live status line adds after its time (a fallback); written and read on the UI thread
+	private sealed class LiveNote
+	{
+		public string Text { get; set; } = string.Empty;
 	}
 
 	// Without them every bar draws as regular; the chart itself still works
