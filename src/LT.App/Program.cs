@@ -23,6 +23,7 @@ using LT.Ibkr.Flex;
 using LT.Ibkr.Gateway;
 using LT.Indicators.Scripting;
 using LT.Repository.Repositories;
+using LT.Sec;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -83,10 +84,16 @@ public static class Program
 		builder.Services.AddSingleton<IAccountHistoryRepository, AccountHistoryRepository>();
 		builder.Services.AddSingleton<ITradeJournalRepository, TradeJournalRepository>();
 		builder.Services.AddSingleton<IFlexImportStateRepository, FlexImportStateRepository>();
+		builder.Services.AddSingleton<ISharesOutstandingRepository, SharesOutstandingRepository>();
 		builder.Services.AddSingleton<IIbkrApiClient, IbkrApiClient>();
 		// One HttpClient and one pacing state for every Flex request (IB's limits are per token)
 		builder.Services.AddSingleton<IFlexApiClient>(services => new FlexApiClient(
 			FlexApiClient.CreateHttpClient(),
+			services.GetRequiredService<TimeProvider>()
+		));
+		// One HttpClient and one pacing state for every SEC request (10 per second per client)
+		builder.Services.AddSingleton<ISecApiClient>(services => new SecApiClient(
+			SecApiClient.CreateHttpClient(),
 			services.GetRequiredService<TimeProvider>()
 		));
 		builder.Services.AddSingleton<IMessageLogManager, MessageLogManager>();
@@ -94,12 +101,15 @@ public static class Program
 		builder.Services.AddSingleton<IGatewayProcess, GatewayProcess>();
 		builder.Services.AddSingleton<IGatewayManager, GatewayManager>();
 		builder.Services.AddSingleton<IMarketDataManager, MarketDataManager>();
+		builder.Services.AddSingleton<IMarketDepthManager, MarketDepthManager>();
 		builder.Services.AddSingleton<ISettingsManager, SettingsManager>();
 		builder.Services.AddSingleton<IAppUpdater, AppUpdater>();
 		builder.Services.AddSingleton<IUpdateManager, UpdateManager>();
 		builder.Services.AddSingleton<IAccountPerformanceManager, AccountPerformanceManager>();
 		builder.Services.AddSingleton<ITradeJournalManager, TradeJournalManager>();
 		builder.Services.AddSingleton<IFlexImportManager, FlexImportManager>();
+		// Shares one SEC lookup per ticker between watchlists
+		builder.Services.AddSingleton<ISharesOutstandingManager, SharesOutstandingManager>();
 		// Holds the quick exits still working, app-wide (every Positions widget)
 		builder.Services.AddSingleton<IOrderManager, OrderManager>();
 
@@ -123,6 +133,9 @@ public static class Program
 
 		// Creates widget view models per spawned instance (several charts)
 		builder.Services.AddSingleton<WidgetViewModelFactory>();
+		// The main window's workspace and every extra workspace window (their view models are
+		// created by it, each carrying its saved layout)
+		builder.Services.AddSingleton<WorkspaceWindows>();
 
 		builder.Services.AddHostedService<ConnectionWatchdog>();
 		builder.Services.AddHostedService<UpdateScheduler>();

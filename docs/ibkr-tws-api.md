@@ -7,7 +7,7 @@ this app's license. How each message looks on the wire is in that repo's `docs/p
 file covers how the app uses it, IB's limits and the quirks we have hit. Read it before touching
 `LT.Ibkr`.
 
-`IBKR.Net` comes from nuget.org (0.5.0).
+`IBKR.Net` comes from nuget.org (0.6.0).
 
 ### Extending IBKR.Net
 
@@ -131,10 +131,12 @@ Limits / caveats:
 | `GetNewsArticleAsync` | `reqNewsArticle` | Text / HTML, or base64 binary (PDF) |
 | `SubscribeNewsAsync` | `reqMktData` `mdoff,292` | Live headlines of a contract (its providers) or a broad tape; one market data line |
 | `GetBroadTapeContractsAsync` | `reqContractDetails` (`NEWS`) | A provider's broad tape contracts; IB fails 321 / 200 when it has none |
+| `SubscribeMarketDepthAsync` | `reqMktDepth` | Order book changes (insert / update / delete per row and side), one exchange or SMART depth with each row's exchange (0.6.0) — see [Market depth](#market-depth) |
+| `GetMarketDepthExchangesAsync` | `reqMktDepthExchanges` | The exchanges IB serves depth for (306 on the live account); not used by the app yet |
 
 ### Not covered yet
 
-- Market depth / Level 2 (`reqMktDepth`), tick-by-tick (`reqTickByTickData`), option greeks and per-option implied volatility
+- Tick-by-tick (`reqTickByTickData`), option greeks and per-option implied volatility
   (`tickOptionComputation`).
 - Scanners (`reqScannerSubscription`); news bulletins (`reqNewsBulletins`).
 - Matching symbols (`reqMatchingSymbols`): search is by exact symbol + type via
@@ -194,6 +196,33 @@ merges every source for the News widget (see [ui-patterns.md](ui-patterns.md#wor
 - News requests go through the message throttle only, not the historical data window (that is
   for bars; we have not seen IB pace `reqHistoricalNews`), and the widget pages only on "Load
   older". Not verified against IB's limits under heavy paging.
+
+## Market depth
+
+`IIbkrApiClient.SubscribeMarketDepthAsync` streams IB's depth updates as DTOs
+(`LT.Ibkr/DtoMappings/MarketData`); `IMarketDepthManager` builds the book from them for the Depth
+widget (see [ui-patterns.md](ui-patterns.md#workspace-ltappworkspace)). Recorded on the live
+account on 2026-10-26 (read-only); the wire format is in IBKR.Net's `docs/protocol.md`.
+
+- **Three at a time.** IB allows 3 depth subscriptions per account by default; the 4th fails
+  with **309** "Max number (3) of market depth requests has been reached". TWS and other API
+  clients count too. `MarketDepthManager` refuses a 4th of its own
+  (`MarketDepthConstants.MaxSubscriptions`) and turns 309 into the same message. The quote line
+  limit (`IMarketDataManager`) is separate and not used.
+- **SMART depth** (`isSmartDepth`, contract on SMART) aggregates every exchange the account has
+  depth for; each row names its exchange (`IEX`, `DRCTEDGE`, `MEMX` …). IB sends **2152**
+  (informational) with the request: "Exchanges - Depth: IEX; Top: BYX; … Need additional market
+  data permissions - Depth: BATS; NASDAQ; ARCA; BEX; NYSE". On the live account only IEX gave depth
+  for US stocks, so SMART depth there is IEX's book mixed with top-of-book quotes from other
+  venues. The widget asks for SMART depth by default and can switch to the listing exchange.
+- **No subscription** for the exchange's depth: **354** (ARCA, IBIS — `VOW IBIS/DEEP`) or
+  **10089** (NASDAQ TotalView — `AAPL NASDAQ.NMS/DEEP`); shown as a readable message. Depth that
+  worked without asking: IEX, PAXOS (crypto), IDEALPRO (forex).
+- **Book maintenance** (`OrderBookHelpers.Apply`): an insert pushes rows down, a delete pulls
+  them up, an update replaces the row; a side keeps at most the requested rows (20, up to 50
+  served). IB sends deletes and updates past the end of a side (seen on PAXOS, several in a row);
+  they are ignored.
+- Requests go through the message throttle like every other.
 
 ## Trade journal
 
@@ -255,6 +284,15 @@ deduplicated by IB's execution id, so the same fill from either stays one:
   connected.
 - **Real-time bars need a live subscription** — there is no delayed `reqRealTimeBars`. The chart
   keeps historical bars and logs "real-time bars unavailable".
+- <a id="fundamentals-10358"></a>**Generic tick 258 (fundamental ratios) without the
+  fundamentals entitlement rejects the whole `reqMktData`**: `10358 Fundamentals data is not
+  allowed` comes back for the request id within milliseconds and no tick follows, not even
+  bid/ask/last (recorded read-only on IB Gateway 4001, protocol 178, 2026-10-26, for AAPL, SPY,
+  VOW and EUR.USD). Never add `258` to a shared quote line. That is why the watchlist's market cap
+  is **SEC shares outstanding × IB's last price** instead: `ISharesOutstandingManager` looks up
+  US stocks (STK in USD) at SEC EDGAR (`LT.Sec`, see
+  [architecture.md](architecture.md#external-data-sec-edgar)) and the row multiplies by every
+  flushed price (last, or the previous close before the first trade).
 
 ## How LT.Ibkr applies the rules
 

@@ -8,6 +8,7 @@ using LT.App.Stores;
 using LT.App.ViewModels;
 using LT.App.Workspace;
 using LT.Contracts.Constants;
+using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
@@ -16,7 +17,7 @@ using LT.Contracts.Interfaces.IManagers;
 namespace LT.App.Widgets.Positions;
 
 /// <summary>Live positions (reqPositions stream) with per-position P&amp;L (reqPnLSingle).</summary>
-public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
+public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable, ITickerDragSource
 {
 	private readonly IPositionManager _positionManager;
 	private readonly IOrderManager _orderManager;
@@ -99,6 +100,10 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 		if (value != null && !IsStale)
 			Link.Publish(value.Contract);
 	}
+
+	/// <summary>A position row dragged onto a chart; remembered rows, like a click on them, give none.</summary>
+	public ContractDto? GetDragContract(object? item) =>
+		item is PositionRowViewModel { Contract.ConId: > 0 } row && !IsStale ? row.Contract : null;
 
 	[RelayCommand]
 	public void Refresh() => RestartSession();

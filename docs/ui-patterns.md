@@ -107,13 +107,33 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
 | **Center** | One or more **views** (tabs above the center), each a split layout of its own: widgets side by side and/or stacked, nested to any depth, with a splitter between every pair. |
 | **Left / right side** | Each widget docked there gets an icon on that edge's strip. One is expanded at a time; expanding one (its icon, Ctrl+1…9, the menu) makes it current and gives it keyboard focus; clicking its icon again collapses the side and the center grows. Each widget keeps its own panel width (`WidgetItem.SideWidth`, saved in the layout); one without a width of its own starts at the side's last width. |
 | **Bottom** | Like a side, along the bottom of the center column (the side panels keep their full height): a horizontal icon strip, shown only while a widget is docked there, and above it one expanded widget at a time. Each widget keeps its own panel height (`WidgetItem.BottomHeight`); a collapsed bottom leaves no gap. |
-| **Floating** | The widget gets its own window (owned by the main window). Closing that window closes the widget. |
+| **Floating** | The widget gets its own window (owned by the window of its workspace). Closing that window closes the widget. |
+
+- **Workspace windows.** Menu → New window (Ctrl+Shift+N, from any workspace window) opens an
+  empty "Window 2", "Window 3", … with a workspace of its own: its own center views, left /
+  right / bottom docks and floating widgets, and its own menu (Refresh all, New window, Widgets,
+  Close window) and shortcuts, which act on that window. Widgets picked there open there. Charts
+  open independently in every window; a single-instance widget exists once in the app, so
+  picking it in window B while it lives in window A (open or closed) **moves** it to B, with its
+  settings and view model (`WorkspaceViewModel.Release` in A, adopted through the claim callback
+  `WorkspaceWindows` gives every workspace). Link groups and every store stay app-wide, so a
+  chart in one window follows a watchlist in another. The windows aren't owned by the main
+  window (they can sit on another screen, with a taskbar entry); closing one discards it and
+  disposes its widgets; closing the main window exits the app (`ShutdownMode.OnMainWindowClose`)
+  and keeps the open windows, with their bounds and layouts, for the next start. Dragging a
+  widget between windows is not supported: dropped outside its window, it floats (owned by that
+  window); move it by opening it from the other window's menu (single-instance widgets).
+  `WorkspaceWindows` (singleton) holds the main workspace and the extra ones
+  (`WorkspaceWindowViewModel`, shown by `Shell/WorkspaceWindow`, which the main window opens).
 
 - **Center views.** A tab strip above the center lists the views; left, right, bottom and
   floating widgets are shared by all of them, a center widget sits in exactly one. Click a tab to
   show it, double-click to rename it in place (Enter or clicking away saves, Esc cancels, a blank
   name keeps the old one), ✕ closes the view together with its widgets (like ✕ on each; the last
-  view has no ✕). "+" adds an empty "View N" and shows it; Ctrl+Tab / Ctrl+Shift+Tab cycle
+  view has no ✕). Right-click a tab → Duplicate puts "<name> copy" right after it and shows it:
+  the same split tree with new instances of its widgets carrying their saved settings (symbol,
+  timeframe, link group, …); single-instance widgets can't be in two views, so their slots are
+  left out (`CenterViewHelpers.Duplicate`). "+" adds an empty "View N" and shows it; Ctrl+Tab / Ctrl+Shift+Tab cycle
   through them. New and reopened center widgets go to the shown view; showing a widget that sits
   in another view (menu, Ctrl+1…9, Ctrl+Alt+key) switches to that view. Every view has its own
   host in `WorkspaceView`, built once per tree change and only hidden while another view is
@@ -131,9 +151,15 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   frame header via `WidgetViewFactory.CreateTitle`). It turns into a ticker box: typing lists
   IB's listings of the symbol to pick from, Enter takes the highlighted one or the typed ticker's
   first listing (`IContractManager.ResolveTickerAsync`); an empty box (or the chevron) lists the
-  last 10 tickers (`SettingsEntity.RecentContracts`, shared by all charts). Esc or clicking away
+  last 10 tickers (`SettingsEntity.RecentContracts`, shared by all widgets). Esc or clicking away
   cancels.
-- **Ticker search boxes** (chart title, watchlist) are one control, `Controls/ContractSearchBox`.
+- **Click-to-edit ticker titles** (chart, option chain) are one control, `Controls/TickerTitle`
+  in `LT.Widgets.Core`. Its view model implements `ITickerTitled` (`Title` plus a
+  `TickerTitleEditor`, which holds the editing state, trims and upper-cases typed text, ignores a
+  blank one and hands the ticker or picked listing to the widget's own open path).
+  `CommitOnLostFocus` makes clicking away open the typed ticker instead of cancelling.
+- **Ticker search boxes** (chart and option chain titles, watchlist) are one control,
+  `Controls/ContractSearchBox`.
   A typed symbol is looked up as stock / ETF, index and crypto at once
   (`IContractManager.SearchSymbolAsync`, `MarketDataConstants.SymbolSearchTypes`), US-dollar
   listings first. Futures and forex are not searched (every contract month / currency pairs).
@@ -174,7 +200,7 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   (`WorkspaceHelpers.GetDefaultPlacements`, sizes in `WorkspaceConstants`) the window is maximized
   with every side collapsed: Chart in the center on SPY at 5m (link group red); Watchlist on the
   left (unpinned); Account and Messages (pinned), Option chain and Order ticket (unpinned) on the
-  right. Positions, Orders, Executions, News, Account performance and Day trade performance are
+  right. Positions, Orders, Executions, News, Account performance, Day trade performance and Depth are
   closed.
 - **Order ticket** (`LT.Widgets.OrderTicket`, right side): takes its contract from the link group.
   Account, side, market / limit, quantity or amount in $ (market only), limit price, time in force
@@ -225,6 +251,21 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   says where today's trades come from ("via IB Flex, up to ~5 min delayed",
   `FlexStatusHelpers.DescribeTodayTrades`) or, without Flex, why IB's executions failed, if they did. F5 also
   starts a Flex import.
+- **Depth** (`LT.Widgets.Depth`, right side, closed on first run, Ctrl+Alt+K): the link group's
+  contract's order book as a ladder — asks stacked upwards above the spread line (best ask next
+  to it), bids downwards below it; rows that don't fit are cut off at the far end, so the inside
+  of the book stays in sight. Columns: price (bids green, asks red, best row bold), size, running
+  total from the best row out, and the exchange or market maker (SMART / Level 2 depth). A bar
+  behind each row shows its size against the largest row on either side. The spread line shows
+  spread and mid. The SMART toggle (on by default) switches between SMART depth and the listing
+  exchange's own book; a contract on one exchange (crypto on PAXOS, forex on IDEALPRO) always
+  uses that exchange. Prices show as many decimals as the book needs (2–6). Updates are read on
+  the thread pool, the latest book is drawn every 100 ms (`MarketDepthConstants.UiFlushInterval`),
+  rows are fixed view models refilled in place. IB's refusals (no depth subscription, three
+  subscriptions already open) show as the widget's error. Closing the widget cancels its depth
+  subscription at once (`IWidgetOpenState`, called by `WorkspaceViewModel.Close`; `DepthFeed`
+  owns the stream), so the slot is free; reopening subscribes again. Data from `IMarketDepthManager`
+  ([ibkr-tws-api.md → Market depth](ibkr-tws-api.md#market-depth)).
 - The frame (and the widget view inside it) is created once per instance and **moved** between
   hosts, so state and subscriptions survive docking, floating and collapsing. Widget view models
   are created on first open by `WidgetViewModelFactory`.
@@ -234,7 +275,9 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   the expanded widget per side. `WorkspaceView` only mirrors it: each view's host is rebuilt as
   nested grids whenever a tree changes, splitter sizes are written back into the tree after a
   drag.
-- Saved in `LayoutEntity`: `Widgets` (id, kind, dock, floating bounds, chart settings of each open
+- Saved in `LayoutEntity` (its workspace part is `WorkspaceLayoutEntity`, shared with every
+  extra window's `WorkspaceWindowEntity` in `LayoutEntity.Windows`, which adds its id, name and
+  bounds; layouts saved before windows have none): `Widgets` (id, kind, dock, floating bounds, chart settings of each open
   instance), `Views` (id, name and split tree with sizes of each view) with `SelectedViewId`, the
   expanded widget per side and side widths. Layouts from before views have only `Center` (one
   split tree): it becomes the first view, "Main", on load and is saved as null afterwards
@@ -245,7 +288,7 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
 solution's `Widgets` folder and referenced by `LT.App`; an `IWidgetDefinition` there (title, icon, focus key, view model type,
 view and optional header title) listed in `WidgetCatalog.Definitions` — that also registers its
 view model in DI; a default dock in `WorkspaceHelpers.GetDefaultDock`, and a menu entry in
-`MainWindow.axaml`. Per-instance settings: implement `IWidgetState` on the view model.
+`WidgetsMenuItem.Order` (the Widgets menu of every window). Per-instance settings: implement `IWidgetState` on the view model.
 
 `WidgetCatalog`, `WidgetViewFactory` and `WidgetViewModelFactory` only read the definitions; a
 widget's header title is its definition's `CreateTitle()` (`WidgetTitles.Bound` for plain text bound
@@ -270,6 +313,13 @@ on the shown watchlist. `IWatchlistManager` keeps them in `SettingsEntity.Watchl
 `ActiveWatchlistId`; the single list of older settings becomes "Main" on first load
 (`WatchlistHelpers.EnsureWatchlists`). A fresh install (no settings file) starts with a "US" list
 of SPY, MSFT, NVDA and TSLA (`WatchlistHelpers.CreateFirstRunSettings`).
+
+The **Mkt Cap** column is the SEC's shares outstanding × the row's last price (previous close
+before the first trade), recomputed on every UI flush and sortable by its numeric value
+(`MarketCapValue`). Only US stocks (STK in USD) get one; anything else, and stocks the SEC has no
+usable count for (ETFs, foreign filers), show "—". Starting a row's quote also starts its
+`ISharesOutstandingManager` lookup (cached on disk, so normally instant); the result is posted to
+the row on the UI thread. Columns are fixed: nothing about them is persisted.
 
 ### Pinned side widgets
 
@@ -297,7 +347,7 @@ fullscreen widget restores it first; its header doesn't start a drag while fulls
 
 ### Link groups
 
-Watchlist, Positions, Orders, Executions, Chart, Option chain, Order ticket and News can be linked:
+Watchlist, Positions, Orders, Executions, Chart, Option chain, Order ticket, News and Depth can be linked:
 the chain icon left of the frame's close button opens a menu of ten color groups (Red, Green, Blue, Yellow, Orange, Purple, Cyan,
 Pink, Lime, White) or Not linked, and is tinted
 with the current one. Widgets in the same group show the same contract:
@@ -314,8 +364,10 @@ with the current one. Widgets in the same group show the same contract:
 - New widgets start in Red, so out of the box they all follow each other. "Not linked" keeps a
   widget on its own contract.
 
-The option chain has no ticker input of its own: its underlying comes from its group, and the
-frame header shows that ticker (`WidgetViewFactory.CreateTitle` binds `OptionChainViewModel.Title`).
+The option chain's underlying comes from its group, and the frame header shows that ticker
+(`TickerTitle`, bound to `OptionChainViewModel.Title`). Clicking it types another underlying, as
+on a chart: Enter or clicking away opens the typed ticker (upper-cased, blank ignored), Esc
+cancels; the ticker goes through the same path as one from the group and moves the group along.
 It lists one tab per expiration (`IOptionChainManager.GetExpirationsAsync`, from
 `reqSecDefOptParams`); the selected tab loads that day's strikes around the money. Columns mirror
 around the strike with the bid next to it on both sides: call vol · last · ask · bid | strike |
@@ -361,6 +413,28 @@ A linkable view model implements `ILinkable` (`LT.App/Workspace`) by holding a `
 own publish back. The frame shows the link button for any `ILinkable`, and the workspace saves
 the group in `WidgetPlacementEntity.LinkGroup`. Layouts from before link groups load pinned
 charts as Not linked.
+
+### Dragging a ticker onto a chart
+
+A row of the Watchlist, Positions, Orders or Executions can be dragged onto any chart: the
+chart the ticker is dropped on shows it, like one picked in its own ticker box (it also goes to
+the recent tickers). Only that chart switches: the drop doesn't touch the link group, so other
+charts keep their contract. The chart stays in its group and follows the group's next contract
+(the group store skips a contract it already holds, so re-clicking the group's current row
+doesn't pull the chart back). Remembered (stale) positions, orders and fills don't drag, like
+they don't link. The press still selects the row (and so sends it to the source's group).
+
+- A left press on a row turns into a drag once it moves 6 px (`WorkspaceHelpers.IsBeyondDragThreshold`,
+  like widget headers); clicks, double-clicks, scrolling and presses on buttons inside a row
+  (Close, Quick exit, Cancel) never start one.
+- While a ticker hovers a chart, the chart shows the `Border.dropTarget` highlight with
+  "Show AAPL"; anything else dragged over it is refused.
+- Plumbing in `LT.Widgets.Core`: `Helpers/TickerDragDrop` — attached `IsSource` on the list
+  (its view model implements `Workspace/ITickerDragSource`, which says what contract a row
+  item carries), `IsTarget` on the drop area (its view model implements `ITickerDropTarget`),
+  and `HoverText` for the highlight to bind to. The payload is the row's `ContractDto` in an
+  in-process `DataFormat` (Avalonia 12 `DataTransfer` / `DragDrop.DoDragDropAsync`), so it never
+  reaches other applications.
 
 ### Account performance
 
@@ -442,14 +516,16 @@ subscription and frees the market-data line.
 | F5 | Refresh chart, account, positions, orders, executions, day trade performance |
 | Ctrl+, | Settings |
 | Ctrl+1 … Ctrl+9 | Show Watchlist, Positions, Orders, Executions, Account, Messages, Chart, Option chain, Order ticket (collapses an expanded side widget); Ctrl+7 always opens a new chart in the current view |
-| Ctrl+Alt+W / P / O / E / A / M / C / B / N / R / J | Show and focus Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News, Account performance, Day trade performance (single-instance widgets; works from floating windows too) |
+| Ctrl+Alt+W / P / O / E / A / M / C / B / N / R / J / K | Show and focus Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News, Account performance, Day trade performance, Depth (single-instance widgets; works from floating windows too) |
 | Esc (side or bottom widget) | Back to the last focused center widget; an unpinned widget collapses |
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous center view |
 | Ctrl+Shift+F | Fullscreen the current widget (the one last clicked or typed in, framed in light blue), or restore it |
+| Ctrl+Shift+N | New empty workspace window |
 
 Ctrl+Shift+*key* combos act on a widget.
 
-The window handles them in a tunnelling `KeyDown` handler (`MainWindow.axaml.cs`), so they work
+The window handles them in a tunnelling `KeyDown` handler (`MainWindow.axaml.cs`, and
+`WorkspaceWindow.axaml.cs` for its own workspace — everything but Ctrl+,), so they work
 while a text box has focus. On macOS, Cmd works in place of Ctrl.
 
 ## Charts

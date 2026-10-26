@@ -1,3 +1,4 @@
+using System.Globalization;
 using LT.App.Helpers;
 using LT.Contracts.Helpers;
 
@@ -35,5 +36,24 @@ public class FormatHelpersTests
 			"2026-10-27 01:00",
 			FormatHelpers.DayTime(Time, now.AddDays(1), Tokyo, otherDayFormat: "yyyy-MM-dd HH:mm")
 		);
+	}
+
+	[Fact]
+	public void Market_cap_is_compact()
+	{
+		var culture = CultureInfo.CurrentCulture;
+		CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+		try
+		{
+			Assert.Equal("2.41T", FormatHelpers.MarketCap(2_411_000_000_000));
+			Assert.Equal("182.3B", FormatHelpers.MarketCap(182_310_000_000));
+			Assert.Equal("950.2M", FormatHelpers.MarketCap(950_200_000));
+			Assert.Equal("12,345", FormatHelpers.MarketCap(12_345));
+			Assert.Equal(FormatHelpers.Empty, FormatHelpers.MarketCap(null));
+		}
+		finally
+		{
+			CultureInfo.CurrentCulture = culture;
+		}
 	}
 }

@@ -4,6 +4,7 @@ using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Executions;
 using LT.Contracts.Dtos.MarketData;
+using LT.Contracts.Dtos.MarketDepth;
 using LT.Contracts.Dtos.News;
 using LT.Contracts.Dtos.Options;
 using LT.Contracts.Dtos.Orders;
@@ -150,6 +151,37 @@ public class FakeIbkrApiClient : IIbkrApiClient
 			await Task.Yield();
 			yield return tick;
 		}
+	}
+
+	/// <summary>Updates every depth subscription streams; then it ends, or stays open.</summary>
+	public List<MarketDepthUpdateDto> DepthUpdates { get; set; } = [];
+
+	/// <summary>Keep depth streams open after their updates until cancelled.</summary>
+	public bool KeepDepthOpen { get; set; }
+
+	/// <summary>Thrown by a depth stream after its updates (an IB refusal).</summary>
+	public Exception? DepthException { get; set; }
+
+	public List<(ContractDto Contract, int Rows, bool IsSmartDepth)> DepthRequests { get; } = [];
+
+	public async IAsyncEnumerable<MarketDepthUpdateDto> SubscribeMarketDepthAsync(
+		ContractDto contract,
+		int rows,
+		bool isSmartDepth,
+		[EnumeratorCancellation] CancellationToken cancellationToken = default
+	)
+	{
+		lock (DepthRequests)
+			DepthRequests.Add((contract, rows, isSmartDepth));
+		foreach (var update in DepthUpdates)
+		{
+			await Task.Yield();
+			yield return update;
+		}
+		if (DepthException != null)
+			throw DepthException;
+		if (KeepDepthOpen)
+			await Task.Delay(Timeout.Infinite, cancellationToken);
 	}
 
 	public Task<IReadOnlyList<BarDto>> GetHistoricalBarsAsync(

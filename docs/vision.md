@@ -46,7 +46,8 @@ TWS is powerful but:
 | 6 — Advanced | Option chain (a tab per expiration, strikes around the money, L1 quotes) | **done** — no greeks yet |
 | 6 — Advanced | News widget: the link group's symbol (history, then live) or the broad tapes of the selected providers, provider chips, text filter, plain-text reading pane | **done** — IB is the only source so far; the news manager aggregates any number of sources |
 | 6 — Advanced | Account performance: equity curve, returns (today / week / month / YTD, max drawdown), daily P&L calendar and bars | **built** — past days come from IB Flex (end-of-day NAV back to the account's start, deposits / withdrawals left out of P&L), today is recorded live; without Flex only what the app recorded |
-| 6 — Advanced | L2 depth, scanners, alerts | not started — needs IBKR.Net support |
+| 6 — Advanced | Depth widget: the link group's order book as a ladder (asks above, bids below), SMART depth or the listing exchange's, price / size / running total / exchange, size bars, spread | **built** — IBKR.Net 0.6.0; IB allows 3 depth subscriptions per account; SMART depth shows only exchanges the account has depth for (IEX on the live account) |
+| 6 — Advanced | Scanners, alerts | not started — scanners need IBKR.Net support |
 
 Orders exist since the order ticket (`IIbkrApiClient.PlaceOrderAsync`): every order is reviewed
 in the ticket and sent only on "Send order". Never send one from code without the user's yes.

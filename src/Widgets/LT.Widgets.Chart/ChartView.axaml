@@ -2,12 +2,15 @@
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:LT.App.Widgets.Chart"
+	xmlns:helpers="using:LT.App.Helpers"
 	x:Class="LT.App.Widgets.Chart.ChartView"
 	x:DataType="vm:ChartViewModel"
 >
 	<!-- The ticker and timeframe are picked in the frame header (ChartTitleView). RTH / Reload
-	     controls are hidden until they are redesigned; the view model keeps their state. -->
-	<Panel>
+	     controls are hidden until they are redesigned; the view model keeps their state.
+	     A ticker dragged from a watchlist, positions, orders or executions row can be dropped
+	     anywhere on the chart (TickerDragDrop); the highlight shows while it hovers. -->
+	<Panel x:Name="DropRoot" Background="Transparent" helpers:TickerDragDrop.IsTarget="True">
 		<vm:CandlestickChart
 			x:Name="Chart"
 			Bars="{Binding Bars}"
@@ -37,5 +40,18 @@
 				IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
 			/>
 		</StackPanel>
+		<Border
+			Classes="dropTarget"
+			Margin="4"
+			IsHitTestVisible="False"
+			IsVisible="{Binding #DropRoot.(helpers:TickerDragDrop.HoverText), Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+		>
+			<TextBlock
+				HorizontalAlignment="Center"
+				VerticalAlignment="Center"
+				FontWeight="SemiBold"
+				Text="{Binding #DropRoot.(helpers:TickerDragDrop.HoverText)}"
+			/>
+		</Border>
 	</Panel>
 </UserControl>

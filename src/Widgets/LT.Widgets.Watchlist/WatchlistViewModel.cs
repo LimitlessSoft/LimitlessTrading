@@ -12,17 +12,19 @@ using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Watchlists;
 using LT.Contracts.Enums;
+using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IManagers;
 using LT.Contracts.Requests.Watchlists;
 
 namespace LT.App.Widgets.Watchlist;
 
-public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable
+public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITickerDragSource
 {
 	private readonly IWatchlistManager _watchlistManager;
 	private readonly IContractManager _contractManager;
 	private readonly IMarketDataManager _marketDataManager;
 	private readonly IMessageLogManager _messageLogManager;
+	private readonly ISharesOutstandingManager _sharesOutstandingManager;
 	private CancellationToken _session = new(true);
 
 	public WatchlistViewModel(
@@ -32,6 +34,7 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable
 		IConnectionManager connectionManager,
 		IMessageLogManager messageLogManager,
 		ISettingsManager settingsManager,
+		ISharesOutstandingManager sharesOutstandingManager,
 		LinkGroupStore linkGroupStore
 	)
 		: base(connectionManager)
@@ -40,6 +43,7 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable
 		_contractManager = contractManager;
 		_marketDataManager = marketDataManager;
 		_messageLogManager = messageLogManager;
+		_sharesOutstandingManager = sharesOutstandingManager;
 		Link = new ContractLink(linkGroupStore, () => SelectedRow?.Contract);
 
 		LoadWatchlists();
@@ -200,6 +204,10 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable
 	[ObservableProperty]
 	public partial WatchlistRowViewModel? SelectedRow { get; set; }
 
+	/// <summary>A watchlist row dragged onto a chart.</summary>
+	public ContractDto? GetDragContract(object? item) =>
+		item is WatchlistRowViewModel { Contract.ConId: > 0 } row ? row.Contract : null;
+
 	partial void OnSelectedRowChanged(WatchlistRowViewModel? value)
 	{
 		if (value != null)
@@ -311,6 +319,28 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable
 						$"{row.Symbol}: {message}"
 					);
 				}
+			},
+			token
+		);
+		LoadSharesOutstanding(row, token);
+	}
+
+	// Market cap's share count from the SEC (cached on disk); US stocks only, others stay "—"
+	private void LoadSharesOutstanding(WatchlistRowViewModel row, CancellationToken token)
+	{
+		if (!MarketCapHelpers.IsEligible(row.Contract))
+			return;
+		_ = Task.Run(
+			async () =>
+			{
+				try
+				{
+					var shares = await _sharesOutstandingManager
+						.GetSharesOutstandingAsync(row.Contract, token)
+						.ConfigureAwait(false);
+					Dispatcher.UIThread.Post(() => row.SetSharesOutstanding(shares));
+				}
+				catch (OperationCanceledException) { }
 			},
 			token
 		);

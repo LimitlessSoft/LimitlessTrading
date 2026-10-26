@@ -36,8 +36,9 @@
 
 		<!-- view tabs | center | splitter | bottom host | bottom strip (shown while a widget is docked there) -->
 		<Grid x:Name="CenterColumn" Grid.Column="3" RowDefinitions="Auto,*,6,0,Auto">
-			<!-- One tab per center view: click shows it, double-click renames, ✕ closes it with its
-			     widgets; "+" adds one. A widget dragged over a tab switches to that view. -->
+			<!-- One tab per center view: click shows it, double-click renames, right-click offers
+			     Duplicate, ✕ closes it with its widgets; "+" adds one. A widget dragged over a tab
+			     switches to that view. -->
 			<Border x:Name="ViewTabStrip" Classes="viewTabs">
 				<StackPanel Orientation="Horizontal">
 					<ItemsControl x:Name="ViewTabs" ItemsSource="{Binding Views}">
@@ -53,6 +54,11 @@
 									Classes.selected="{Binding IsSelected}"
 									PointerPressed="OnViewTabPressed"
 								>
+									<Border.ContextMenu>
+										<ContextMenu>
+											<MenuItem Header="Duplicate" Command="{Binding DuplicateCommand}" />
+										</ContextMenu>
+									</Border.ContextMenu>
 									<Grid ColumnDefinitions="Auto,Auto">
 										<TextBlock
 											VerticalAlignment="Center"

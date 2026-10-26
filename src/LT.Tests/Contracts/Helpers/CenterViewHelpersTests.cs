@@ -196,4 +196,84 @@ public class CenterViewHelpersTests
 		int remaining,
 		int expected
 	) => Assert.Equal(expected, CenterViewHelpers.GetIndexAfterClose(closedIndex, remaining));
+
+	[Fact]
+	public void A_duplicate_is_called_copy_then_takes_the_first_free_number() =>
+		Assert.Equal(
+			"Main copy 3",
+			CenterViewHelpers.GetDuplicateName("Main", ["Main", "main COPY", "Main copy 2"])
+		);
+
+	[Fact]
+	public void A_duplicate_of_a_long_name_cuts_the_name_so_the_suffix_fits()
+	{
+		var source = new string('x', WorkspaceConstants.ViewNameMaxLength);
+
+		var name = CenterViewHelpers.GetDuplicateName(source, [source]);
+
+		Assert.Equal(WorkspaceConstants.ViewNameMaxLength, name.Length);
+		Assert.EndsWith($" {WorkspaceConstants.DuplicateViewNameSuffix}", name);
+	}
+
+	[Fact]
+	public void A_duplicate_keeps_the_tree_and_its_sizes_with_the_copied_widget_ids()
+	{
+		// H[Chart, V[Chart-2, Chart-3]] with uneven sizes
+		var root = CenterLayoutHelpers.Insert(
+			Tree("Chart", "Chart-2"),
+			"Chart-3",
+			"Chart-2",
+			DropEdge.Bottom
+		);
+		root.Children[0].Size = 2;
+		root.Children[1].Children[1].Size = 0.5;
+		var ids = new Dictionary<string, string>
+		{
+			["Chart"] = "c1",
+			["Chart-2"] = "c2",
+			["Chart-3"] = "c3",
+		};
+
+		var copy = CenterViewHelpers.Duplicate("Main", root, ids, ["Main"]);
+
+		Assert.Equal("Main copy", copy.Name);
+		Assert.False(string.IsNullOrEmpty(copy.Id));
+		Assert.Equal("H[c1,V[c2,c3]]", Describe(copy.Root));
+		Assert.Equal(2, copy.Root!.Children[0].Size);
+		Assert.Equal(0.5, copy.Root.Children[1].Children[1].Size);
+		// The source tree is untouched and shares no node with the copy
+		Assert.Equal("H[Chart,V[Chart-2,Chart-3]]", Describe(root));
+		Assert.NotSame(root.Children[0], copy.Root.Children[0]);
+	}
+
+	[Fact]
+	public void Widgets_without_a_copy_are_left_out_of_the_duplicate_and_their_splits_collapse()
+	{
+		// H[Chart, V[Options, Chart-2]]: the option chain is single-instance, not copied
+		var root = CenterLayoutHelpers.Insert(
+			Tree("Chart", "Options"),
+			"Chart-2",
+			"Options",
+			DropEdge.Bottom
+		);
+		var ids = new Dictionary<string, string> { ["Chart"] = "c1", ["Chart-2"] = "c2" };
+
+		var copy = CenterViewHelpers.Duplicate("Main", root, ids, []);
+
+		Assert.Equal("H[c1,c2]", Describe(copy.Root));
+		Assert.Equal("H[Chart,V[Options,Chart-2]]", Describe(root));
+	}
+
+	[Fact]
+	public void A_duplicate_of_a_view_with_nothing_to_copy_is_empty()
+	{
+		var copy = CenterViewHelpers.Duplicate(
+			"Main",
+			Tree("Options"),
+			new Dictionary<string, string>(),
+			[]
+		);
+
+		Assert.Null(copy.Root);
+	}
 }

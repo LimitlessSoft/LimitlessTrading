@@ -12,11 +12,15 @@ namespace LT.App.Workspace;
 /// <summary>
 /// Where every widget instance lives: in the split layout of one of the center's views (tabs), on a
 /// collapsible strip (left, right or bottom), or in its own floating window. Widgets are spawned,
-/// moved and closed independently; charts can be spawned several times.
+/// moved and closed independently; charts can be spawned several times. The main window and every
+/// extra workspace window have one each; a single-instance widget exists in only one of them.
 /// </summary>
 public partial class WorkspaceViewModel : ViewModelBase
 {
 	private readonly Func<WorkspaceTool, object> _createContent;
+
+	// Takes a single-instance widget out of whichever other workspace holds it (null: none does)
+	private readonly Func<WorkspaceTool, WidgetItem?>? _claim;
 
 	// Last dock per widget kind, for spawning new instances where the previous one was
 	private readonly Dictionary<WorkspaceTool, WidgetDock> _lastDock = [];
@@ -26,11 +30,13 @@ public partial class WorkspaceViewModel : ViewModelBase
 
 	public WorkspaceViewModel(
 		Func<WorkspaceTool, object> createContent,
-		LayoutDto layout,
-		AppearanceStore? appearance = null
+		WorkspaceLayoutDto layout,
+		AppearanceStore? appearance = null,
+		Func<WorkspaceTool, WidgetItem?>? claim = null
 	)
 	{
 		_createContent = createContent;
+		_claim = claim;
 		Appearance = appearance;
 		Bottom.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasBottomWidgets));
 		LeftWidth = layout.LeftWidth;
@@ -41,16 +47,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 		foreach (var placement in WorkspaceHelpers.Normalize(layout.Widgets))
 		{
 			var widget = CreateItem(placement.Id, placement.Tool);
-			widget.FloatX = placement.FloatX;
-			widget.FloatY = placement.FloatY;
-			widget.FloatWidth = placement.FloatWidth;
-			widget.FloatHeight = placement.FloatHeight;
-			widget.IsPinned = placement.IsPinned;
-			widget.SideWidth = placement.SideWidth;
-			widget.BottomHeight = placement.BottomHeight;
-			if (widget.Content is ILinkable linkable)
-				linkable.Link.Group = placement.LinkGroup;
-			(widget.Content as IWidgetState)?.LoadState(placement);
+			LoadPlacement(widget, placement);
 			if (placement.Dock == WidgetDock.Center)
 			{
 				SetDock(widget, WidgetDock.Center);
@@ -133,6 +130,40 @@ public partial class WorkspaceViewModel : ViewModelBase
 			CenterViewHelpers.GetNewName(Views.Select(x => x.Name))
 		);
 		Views.Add(view);
+		SelectedView = view;
+	}
+
+	/// <summary>
+	/// Right-click → Duplicate: a copy of the view right after it, shown at once. Its split tree is
+	/// the same, filled with new instances of the widgets carrying their settings (symbol, link
+	/// group, …); single-instance widgets can't be in two places, so their slots are left out.
+	/// </summary>
+	public void DuplicateView(CenterViewItem source)
+	{
+		var index = Views.IndexOf(source);
+		if (index < 0)
+			return;
+		var widgetIds = new Dictionary<string, string>();
+		foreach (var id in CenterLayoutHelpers.GetWidgetIds(source.Root).ToList())
+		{
+			if (
+				Find(id) is not { } widget
+				|| !WorkspaceHelpers.AllowsMultipleInstances(widget.Tool)
+			)
+				continue;
+			var copy = CreateItem(NewId(widget.Tool), widget.Tool);
+			LoadPlacement(copy, SavePlacement(widget));
+			SetDock(copy, WidgetDock.Center);
+			widgetIds[id] = copy.Id;
+		}
+		var duplicate = CenterViewHelpers.Duplicate(
+			source.Name,
+			source.Root,
+			widgetIds,
+			Views.Select(x => x.Name)
+		);
+		var view = new CenterViewItem(this, duplicate.Id, duplicate.Name) { Root = duplicate.Root };
+		Views.Insert(index + 1, view);
 		SelectedView = view;
 	}
 
@@ -304,6 +335,9 @@ public partial class WorkspaceViewModel : ViewModelBase
 				&& x.IsOpen
 				&& (x.Dock != WidgetDock.Center || SelectedView is { } view && IsInView(view, x.Id))
 			);
+		// A single-instance widget living in another window moves here
+		else
+			widget ??= Claim(tool);
 		if (widget is null)
 		{
 			Spawn(tool);
@@ -322,9 +356,44 @@ public partial class WorkspaceViewModel : ViewModelBase
 			Show(tool);
 			return;
 		}
+		if (!WorkspaceHelpers.AllowsMultipleInstances(tool) && Claim(tool) != null)
+		{
+			Show(tool);
+			return;
+		}
 		var widget = CreateItem(NewId(tool), tool);
 		Place(widget, GetSpawnDock(tool));
 		Reveal(widget);
+	}
+
+	/// <summary>
+	/// Takes the instance of a single-instance widget out of this workspace (open or closed) so
+	/// another window can adopt it; its view model and settings go with it. Null when this
+	/// workspace doesn't hold it.
+	/// </summary>
+	public WidgetItem? Release(WorkspaceTool tool)
+	{
+		if (
+			WorkspaceHelpers.AllowsMultipleInstances(tool)
+			|| Widgets.FirstOrDefault(x => x.Tool == tool) is not { } widget
+		)
+			return null;
+		if (FullscreenWidget == widget)
+			FullscreenWidget = null;
+		if (CurrentWidget == widget)
+			CurrentWidget = null;
+		if (widget.Dock != null)
+			Remove(widget);
+		Widgets.Remove(widget);
+		widget.Workspace = null;
+		return widget;
+	}
+
+	/// <summary>The window is discarded: every widget's view model goes with it.</summary>
+	public void DisposeWidgets()
+	{
+		foreach (var widget in Widgets)
+			(widget.Content as IDisposable)?.Dispose();
 	}
 
 	/// <summary>
@@ -433,13 +502,14 @@ public partial class WorkspaceViewModel : ViewModelBase
 	{
 		if (widget.Dock != null)
 			Remove(widget);
+		(widget.Content as IWidgetOpenState)?.SetOpen(false);
 		if (!WorkspaceHelpers.AllowsMultipleInstances(widget.Tool))
 			return;
 		Widgets.Remove(widget);
 		(widget.Content as IDisposable)?.Dispose();
 	}
 
-	public void FillLayout(LayoutDto layout)
+	public void FillLayout(WorkspaceLayoutDto layout)
 	{
 		layout.LeftWidth = LeftWidth;
 		layout.RightWidth = RightWidth;
@@ -465,27 +535,55 @@ public partial class WorkspaceViewModel : ViewModelBase
 			.Concat(Right)
 			.Concat(Bottom)
 			.Concat(Floating)
-			.Select(x =>
-			{
-				var placement = new WidgetPlacementDto
-				{
-					Id = x.Id,
-					Tool = x.Tool,
-					Dock = x.Dock!.Value,
-					FloatX = x.FloatX,
-					FloatY = x.FloatY,
-					FloatWidth = x.FloatWidth,
-					FloatHeight = x.FloatHeight,
-					IsPinned = x.IsPinned,
-					SideWidth = x.SideWidth,
-					BottomHeight = x.BottomHeight,
-				};
-				if (x.Content is ILinkable linkable)
-					placement.LinkGroup = linkable.Link.Group;
-				(x.Content as IWidgetState)?.SaveState(placement);
-				return placement;
-			})
+			.Select(SavePlacement)
 			.ToList();
+	}
+
+	// A widget's saved placement: where it is and its own settings (symbol, link group, …)
+	private static WidgetPlacementDto SavePlacement(WidgetItem widget)
+	{
+		var placement = new WidgetPlacementDto
+		{
+			Id = widget.Id,
+			Tool = widget.Tool,
+			Dock = widget.Dock!.Value,
+			FloatX = widget.FloatX,
+			FloatY = widget.FloatY,
+			FloatWidth = widget.FloatWidth,
+			FloatHeight = widget.FloatHeight,
+			IsPinned = widget.IsPinned,
+			SideWidth = widget.SideWidth,
+			BottomHeight = widget.BottomHeight,
+		};
+		if (widget.Content is ILinkable linkable)
+			placement.LinkGroup = linkable.Link.Group;
+		(widget.Content as IWidgetState)?.SaveState(placement);
+		return placement;
+	}
+
+	// Everything of a saved placement but its dock, which the caller sets
+	private static void LoadPlacement(WidgetItem widget, WidgetPlacementDto placement)
+	{
+		widget.FloatX = placement.FloatX;
+		widget.FloatY = placement.FloatY;
+		widget.FloatWidth = placement.FloatWidth;
+		widget.FloatHeight = placement.FloatHeight;
+		widget.IsPinned = placement.IsPinned;
+		widget.SideWidth = placement.SideWidth;
+		widget.BottomHeight = placement.BottomHeight;
+		if (widget.Content is ILinkable linkable)
+			linkable.Link.Group = placement.LinkGroup;
+		(widget.Content as IWidgetState)?.LoadState(placement);
+	}
+
+	// Adopts a single-instance widget released by another workspace; it is still closed here
+	private WidgetItem? Claim(WorkspaceTool tool)
+	{
+		if (_claim?.Invoke(tool) is not { } widget)
+			return null;
+		widget.Workspace = this;
+		Widgets.Add(widget);
+		return widget;
 	}
 
 	private WidgetItem CreateItem(string id, WorkspaceTool tool)

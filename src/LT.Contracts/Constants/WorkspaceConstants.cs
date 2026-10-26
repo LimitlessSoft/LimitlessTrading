@@ -27,6 +27,18 @@ public static class WorkspaceConstants
 
 	public const int ViewNameMaxLength = 40;
 
+	/// <summary>A duplicated view is "&lt;name&gt; copy", then "&lt;name&gt; copy 2", …</summary>
+	public const string DuplicateViewNameSuffix = "copy";
+
 	/// <summary>Hovering a dragged widget this long over a view tab switches to that view.</summary>
 	public const int ViewTabHoverSwitchMs = 600;
+
+	// Extra workspace windows (menu → New window): start size and the smallest they can get
+	public const double WindowDefaultWidth = 1280;
+	public const double WindowDefaultHeight = 800;
+	public const double WindowMinWidth = 720;
+	public const double WindowMinHeight = 420;
+
+	/// <summary>Extra windows are "Window 2", "Window 3", … (the main window counts as the first).</summary>
+	public const string NewWindowNamePrefix = "Window";
 }

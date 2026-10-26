@@ -15,7 +15,7 @@ using LT.Contracts.Interfaces.IManagers;
 
 namespace LT.App.Widgets.Executions;
 
-public partial class ExecutionsViewModel : ConnectedViewModelBase, ILinkable
+public partial class ExecutionsViewModel : ConnectedViewModelBase, ILinkable, ITickerDragSource
 {
 	private readonly IExecutionManager _executionManager;
 	private readonly AccountStore _accountStore;
@@ -171,6 +171,10 @@ public partial class ExecutionsViewModel : ConnectedViewModelBase, ILinkable
 		else
 			_updatedText.Clear();
 	}
+
+	/// <summary>A fill row dragged onto a chart: the same contract a click sends to the group.</summary>
+	public ContractDto? GetDragContract(object? item) =>
+		GetLinkContract((item as ExecutionRowViewModel)?.Execution);
 
 	// Cached fills are for looking at only, like remembered positions; they drive no other widget
 	private ContractDto? GetLinkContract(ExecutionDto? execution) =>

@@ -4,6 +4,7 @@
 	xmlns:vm="using:LT.App.Shell"
 	xmlns:connectionBar="using:LT.App.Widgets.ConnectionBar"
 	xmlns:tradingPage="using:LT.App.Pages.TradingPage"
+	xmlns:workspace="using:LT.App.Workspace"
 	x:Class="LT.App.Shell.MainWindow"
 	x:DataType="vm:MainWindowViewModel"
 	Title="{Binding Title}"
@@ -32,82 +33,15 @@
 									InputGesture="F5"
 									Command="{Binding RefreshAllCommand}"
 								/>
-								<MenuItem Header="Widgets">
-									<MenuItem
-										Header="Watchlist"
-										InputGesture="Ctrl+Alt+W"
-										Click="OnToolClick"
-										Tag="Watchlist"
-									/>
-									<MenuItem
-										Header="Positions"
-										InputGesture="Ctrl+Alt+P"
-										Click="OnToolClick"
-										Tag="Positions"
-									/>
-									<MenuItem
-										Header="Orders"
-										InputGesture="Ctrl+Alt+O"
-										Click="OnToolClick"
-										Tag="Orders"
-									/>
-									<MenuItem
-										Header="Executions"
-										InputGesture="Ctrl+Alt+E"
-										Click="OnToolClick"
-										Tag="Executions"
-									/>
-									<MenuItem
-										Header="Account"
-										InputGesture="Ctrl+Alt+A"
-										Click="OnToolClick"
-										Tag="Account"
-									/>
-									<MenuItem
-										Header="Account performance"
-										InputGesture="Ctrl+Alt+R"
-										Click="OnToolClick"
-										Tag="AccountPerformance"
-									/>
-									<MenuItem
-										Header="Messages"
-										InputGesture="Ctrl+Alt+M"
-										Click="OnToolClick"
-										Tag="Messages"
-									/>
-									<Separator />
-									<MenuItem Header="Chart" InputGesture="Ctrl+D7" Click="OnToolClick" Tag="Chart" />
-									<MenuItem
-										Header="Option chain"
-										InputGesture="Ctrl+Alt+C"
-										Click="OnToolClick"
-										Tag="OptionChain"
-									/>
-									<MenuItem
-										Header="Order ticket"
-										InputGesture="Ctrl+Alt+B"
-										Click="OnToolClick"
-										Tag="OrderTicket"
-									/>
-									<MenuItem
-										Header="News"
-										InputGesture="Ctrl+Alt+N"
-										Click="OnToolClick"
-										Tag="News"
-									/>
-									<MenuItem
-										Header="Day trade performance"
-										InputGesture="Ctrl+Alt+J"
-										Click="OnToolClick"
-										Tag="DayTradePerformance"
-									/>
-									<Separator />
-									<MenuItem
-										Header="Fullscreen widget"
-										InputGesture="Ctrl+Shift+F"
-										Click="OnFullscreenClick"
-									/>
-								</MenuItem>
+								<MenuItem
+									Header="New window"
+									InputGesture="Ctrl+Shift+N"
+									Command="{Binding NewWindowCommand}"
+								/>
+								<workspace:WidgetsMenuItem
+									ToolClicked="OnToolClicked"
+									FullscreenClicked="OnFullscreenClicked"
+								/>
 								<Separator />
 								<MenuItem Header="Check for updates" Command="{Binding Update.CheckCommand}" />
 								<MenuItem Header="Settings…" InputGesture="Ctrl+OemComma" Click="OnSettingsClick" />

@@ -38,7 +38,12 @@ namespace LT.App.Widgets.Chart;
 /// time — and posted back to the UI thread.
 /// </para>
 /// </summary>
-public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILinkable
+public partial class ChartViewModel
+	: ConnectedViewModelBase,
+		IWidgetState,
+		ILinkable,
+		ITickerTitled,
+		ITickerDropTarget
 {
 	private readonly IChartManager _chartManager;
 	private readonly IContractManager _contractManager;
@@ -90,6 +95,12 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 		accountStore.PropertyChanged += OnAccountChanged;
 		Link = new ContractLink(linkGroupStore, () => _contract);
 		Link.ContractReceived += OnContractReceived;
+		TickerEditor = new TickerTitleEditor(
+			contractManager,
+			() => IsConnected,
+			OpenTickerAsync,
+			OpenContract
+		);
 
 		Timeframes = Enum.GetValues<ChartTimeframe>().Select(x => new TimeframeOption(x)).ToList();
 		var saved = settingsManager.GetLayout().ChartTimeframe;
@@ -104,20 +115,8 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 	/// <summary>The display time zone; the chart draws its time axis in it.</summary>
 	public DisplayTimeStore DisplayTime { get; }
 
-	/// <summary>Ticker box suggestions for an empty box: the recent contracts.</summary>
-	public IReadOnlyList<ContractSuggestionItem> GetRecentSuggestions() =>
-		_contractManager.GetRecentContracts().Select(x => new ContractSuggestionItem(x)).ToList();
-
-	/// <summary>Ticker box suggestions for typed text: IB's listings of the symbol.</summary>
-	public Task<IEnumerable<object>> GetTickerSuggestionsAsync(
-		string? text,
-		CancellationToken cancellationToken
-	) =>
-		string.IsNullOrWhiteSpace(text)
-			? Task.FromResult<IEnumerable<object>>(GetRecentSuggestions())
-		: IsConnected
-			? ContractSuggestionItem.SearchAsync(_contractManager, text, cancellationToken)
-		: Task.FromResult(Enumerable.Empty<object>());
+	/// <summary>The header title's ticker box (<see cref="LT.App.Controls.TickerTitle"/>).</summary>
+	public TickerTitleEditor TickerEditor { get; }
 
 	/// <summary>Ticker box: resolves the ticker and pins this chart to it.</summary>
 	public async Task OpenTickerAsync(string ticker)
@@ -138,6 +137,22 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 	{
 		_contractManager.AddRecentContract(contract);
 		ShowContract(contract);
+	}
+
+	/// <summary>
+	/// A ticker dragged onto this chart (from a watchlist, positions, orders or executions row):
+	/// shown here like a picked one and added to the recent tickers, but only this chart switches —
+	/// the link group keeps its contract, so other charts stay put. The chart stays in its group
+	/// and follows the group's next contract.
+	/// </summary>
+	public void DropContract(ContractDto contract)
+	{
+		ErrorMessage = null;
+		_contractManager.AddRecentContract(contract);
+		if (contract.ConId == _contract?.ConId)
+			return;
+		_contract = contract;
+		Reload();
 	}
 
 	// A ticker picked here moves every widget in this chart's link group along

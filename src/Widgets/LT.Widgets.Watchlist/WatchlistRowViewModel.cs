@@ -19,6 +19,10 @@ public partial class WatchlistRowViewModel(ContractDto contract) : ViewModelBase
 
 	public CancellationTokenSource? Subscription { get; set; }
 
+	// Market cap inputs: the latest flushed quote and the SEC share count (null until known)
+	private QuoteDto? _quote;
+	private long? _sharesOutstanding;
+
 	[ObservableProperty]
 	public partial string Last { get; set; } = FormatHelpers.Empty;
 
@@ -36,6 +40,13 @@ public partial class WatchlistRowViewModel(ContractDto contract) : ViewModelBase
 
 	[ObservableProperty]
 	public partial string Volume { get; set; } = FormatHelpers.Empty;
+
+	[ObservableProperty]
+	public partial string MarketCap { get; set; } = FormatHelpers.Empty;
+
+	/// <summary>The column's sort key; null while unknown.</summary>
+	[ObservableProperty]
+	public partial double? MarketCapValue { get; set; }
 
 	[ObservableProperty]
 	public partial bool IsUp { get; set; }
@@ -65,5 +76,20 @@ public partial class WatchlistRowViewModel(ContractDto contract) : ViewModelBase
 		IsDown = change < 0;
 		IsDelayed = quote.IsDelayed;
 		Error = null;
+		_quote = quote;
+		UpdateMarketCap();
+	}
+
+	/// <summary>The SEC share count arrived (UI thread); market cap follows every price from now on.</summary>
+	public void SetSharesOutstanding(long? shares)
+	{
+		_sharesOutstanding = shares;
+		UpdateMarketCap();
+	}
+
+	private void UpdateMarketCap()
+	{
+		MarketCapValue = MarketCapHelpers.Compute(_sharesOutstanding, _quote);
+		MarketCap = FormatHelpers.MarketCap(MarketCapValue);
 	}
 }

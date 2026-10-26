@@ -23,6 +23,7 @@ using LT.Contracts.Requests.Contracts;
 using LT.Contracts.Requests.Flex;
 using LT.Contracts.Requests.Gateway;
 using LT.Contracts.Requests.Indicators;
+using LT.Contracts.Requests.MarketDepth;
 using LT.Contracts.Requests.News;
 using LT.Contracts.Requests.Options;
 using LT.Contracts.Requests.Orders;
@@ -33,6 +34,7 @@ using LT.Domain.Validators.Contracts;
 using LT.Domain.Validators.Flex;
 using LT.Domain.Validators.Gateway;
 using LT.Domain.Validators.Indicators;
+using LT.Domain.Validators.MarketDepth;
 using LT.Domain.Validators.News;
 using LT.Domain.Validators.Options;
 using LT.Domain.Validators.Orders;
@@ -70,6 +72,10 @@ public static class LSCoreContainer
 					GetOptionChainRequestValidator
 				>()
 				.AddSingleton<LSCoreValidatorBase<PlaceOrderRequest>, PlaceOrderRequestValidator>()
+				.AddSingleton<
+					LSCoreValidatorBase<SubscribeOrderBookRequest>,
+					SubscribeOrderBookRequestValidator
+				>()
 				.AddSingleton<
 					LSCoreValidatorBase<GetNewsHeadlinesRequest>,
 					GetNewsHeadlinesRequestValidator

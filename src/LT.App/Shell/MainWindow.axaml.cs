@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -19,6 +20,9 @@ public partial class MainWindow : Window, IFullscreenHost
 	private readonly OrderTicketNavigator? _orderTicketNavigator;
 	private bool _settingsOpen;
 
+	// Open extra workspace windows, by view model
+	private readonly Dictionary<WorkspaceWindowViewModel, WorkspaceWindow> _workspaceWindows = [];
+
 	public MainWindow()
 	{
 		InitializeComponent();
@@ -39,6 +43,8 @@ public partial class MainWindow : Window, IFullscreenHost
 				_settingsNavigator.OpenRequested -= OnSettingsRequested;
 			if (_orderTicketNavigator != null)
 				_orderTicketNavigator.OpenRequested -= OnOrderTicketRequested;
+			if (ViewModel?.Windows is { } windows)
+				windows.Windows.CollectionChanged -= OnWorkspaceWindowsChanged;
 		};
 	}
 
@@ -66,8 +72,33 @@ public partial class MainWindow : Window, IFullscreenHost
 	}
 
 	// A Gateway still running from an earlier session is reused; otherwise Gateway is the only way
-	// in and the password isn't stored, so ask right away
-	private void OnOpened(object? sender, EventArgs e) => _ = AttachOrLogInAsync();
+	// in and the password isn't stored, so ask right away. The extra windows of the last session
+	// come back.
+	private void OnOpened(object? sender, EventArgs e)
+	{
+		if (ViewModel?.Windows is { } windows)
+		{
+			foreach (var window in windows.Windows)
+				OpenWorkspaceWindow(window);
+			windows.Windows.CollectionChanged += OnWorkspaceWindowsChanged;
+		}
+		_ = AttachOrLogInAsync();
+	}
+
+	private void OnWorkspaceWindowsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+	{
+		foreach (var window in e.NewItems?.OfType<WorkspaceWindowViewModel>() ?? [])
+			OpenWorkspaceWindow(window);
+	}
+
+	private void OpenWorkspaceWindow(WorkspaceWindowViewModel viewModel)
+	{
+		if (ViewModel?.Windows is not { } windows || _workspaceWindows.ContainsKey(viewModel))
+			return;
+		var window = WorkspaceWindow.Open(windows, viewModel, this);
+		_workspaceWindows[viewModel] = window;
+		window.Closed += (_, _) => _workspaceWindows.Remove(viewModel);
+	}
 
 	private async Task AttachOrLogInAsync()
 	{
@@ -80,6 +111,11 @@ public partial class MainWindow : Window, IFullscreenHost
 
 	private void OnClosing(object? sender, WindowClosingEventArgs e)
 	{
+		// The extra windows close with the app and are kept for the next start
+		if (ViewModel?.Windows is { } windows)
+			windows.IsExiting = true;
+		foreach (var window in _workspaceWindows.Values)
+			window.StoreLayout();
 		Page.StoreLayout();
 		var maximized = WindowState == WindowState.Maximized;
 		ViewModel?.SaveLayout(
@@ -106,6 +142,9 @@ public partial class MainWindow : Window, IFullscreenHost
 				break;
 			case Key.F when ctrl:
 				Page.FocusSearch();
+				break;
+			case Key.N when ctrl && shift:
+				ViewModel?.NewWindow();
 				break;
 			case Key.Tab when ctrl:
 				ViewModel?.CycleView(shift ? -1 : 1);
@@ -154,22 +193,15 @@ public partial class MainWindow : Window, IFullscreenHost
 	private void OnGatewayClick(object? sender, RoutedEventArgs e) =>
 		_ = GatewayWindow.ShowAsync(this);
 
-	private void OnFullscreenClick(object? sender, RoutedEventArgs e) =>
-		ViewModel?.ToggleFullscreen();
+	private void OnFullscreenClicked() => ViewModel?.ToggleFullscreen();
 
-	private void OnToolClick(object? sender, RoutedEventArgs e)
+	private void OnToolClicked(WorkspaceTool tool)
 	{
-		if (
-			sender is MenuItem { Tag: string tag }
-			&& Enum.TryParse<WorkspaceTool>(tag, out var tool)
-		)
-		{
-			// Same as the item's shortcut: single-instance widgets also get focus
-			if (WidgetCatalog.GetFocusKey(tool) != null)
-				ViewModel?.FocusTool(tool);
-			else
-				ViewModel?.ShowTool(tool);
-		}
+		// Same as the item's shortcut: single-instance widgets also get focus
+		if (WidgetCatalog.GetFocusKey(tool) != null)
+			ViewModel?.FocusTool(tool);
+		else
+			ViewModel?.ShowTool(tool);
 	}
 
 	private void OnReleaseNotesClick(object? sender, RoutedEventArgs e)

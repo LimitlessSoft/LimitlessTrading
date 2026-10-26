@@ -114,6 +114,35 @@ public static class CenterLayoutHelpers
 		return root;
 	}
 
+	/// <summary>
+	/// A deep copy of the tree (sizes and orientations kept) with each leaf's widget id replaced
+	/// through <paramref name="widgetIds"/>. Leaves without an entry are left out, collapsing their
+	/// splits as <see cref="Remove"/> does; null when none is left.
+	/// </summary>
+	public static CenterNodeDto? Copy(
+		CenterNodeDto? node,
+		IReadOnlyDictionary<string, string> widgetIds
+	)
+	{
+		if (node is null)
+			return null;
+		if (node.IsLeaf)
+			return widgetIds.TryGetValue(node.WidgetId!, out var id)
+				? new CenterNodeDto { WidgetId = id, Size = node.Size }
+				: null;
+		return Simplify(
+			new CenterNodeDto
+			{
+				Orientation = node.Orientation,
+				Size = node.Size,
+				Children = node
+					.Children.Select(x => Copy(x, widgetIds))
+					.OfType<CenterNodeDto>()
+					.ToList(),
+			}
+		);
+	}
+
 	public static bool Contains(CenterNodeDto? root, string widgetId) =>
 		root != null && Find(root, widgetId) != null;
 
