@@ -28,6 +28,10 @@ namespace LT.App.Widgets.Chart;
 /// and has its own vertical scale (<see cref="ChartPane"/>). Each pane has a legend at its top
 /// left (CandlestickChart.Indicators.cs) whose rows raise <see cref="IndicatorAction"/>.
 /// </para>
+/// <para>
+/// With <see cref="RegularHours"/> set (intraday, pre- / post-market shown), bars outside the
+/// regular session have a lighter background behind them and hollow candles.
+/// </para>
 /// </summary>
 public partial class CandlestickChart : Control
 {
@@ -64,6 +68,9 @@ public partial class CandlestickChart : Control
 			nameof(Indicators)
 		);
 
+	public static readonly StyledProperty<TradingScheduleDto?> RegularHoursProperty =
+		AvaloniaProperty.Register<CandlestickChart, TradingScheduleDto?>(nameof(RegularHours));
+
 	private const double PriceAxisWidth = 72;
 	private const double TimeAxisHeight = 22;
 	private const double TopPadding = 24;
@@ -76,6 +83,8 @@ public partial class CandlestickChart : Control
 	private static readonly ImmutableSolidColorBrush Background = new ImmutableSolidColorBrush(
 		Color.Parse("#15181D")
 	);
+	private static readonly ImmutableSolidColorBrush ExtendedHoursBrush =
+		new ImmutableSolidColorBrush(Color.Parse("#1C2129"));
 	private static readonly ImmutableSolidColorBrush UpBrush = new ImmutableSolidColorBrush(
 		Color.Parse("#26A69A")
 	);
@@ -175,7 +184,8 @@ public partial class CandlestickChart : Control
 			BreakEvenPriceProperty,
 			RightMarginProperty,
 			TimeZoneProperty,
-			IndicatorsProperty
+			IndicatorsProperty,
+			RegularHoursProperty
 		);
 		ClipToBoundsProperty.OverrideDefaultValue<CandlestickChart>(true);
 		FocusableProperty.OverrideDefaultValue<CandlestickChart>(true);
@@ -225,6 +235,16 @@ public partial class CandlestickChart : Control
 		set => SetValue(BreakEvenPriceProperty, value);
 	}
 
+	/// <summary>
+	/// Regular sessions of the charted contract; bars outside them are drawn as pre- / post-market.
+	/// Null: every bar is regular (daily bars, regular hours only, or no hours from IB).
+	/// </summary>
+	public TradingScheduleDto? RegularHours
+	{
+		get => GetValue(RegularHoursProperty);
+		set => SetValue(RegularHoursProperty, value);
+	}
+
 	/// <summary>Computed indicators, in legend order (hidden ones too, for their legend row).</summary>
 	public IReadOnlyList<IndicatorResultDto>? Indicators
 	{
@@ -267,6 +287,18 @@ public partial class CandlestickChart : Control
 			_offset = 0;
 			_barSpacing = DefaultBarSpacing;
 		}
+	}
+
+	// Which visible bars (start..end) are outside the regular session; all false without hours
+	private bool[] GetExtendedBars(IReadOnlyList<BarDto> bars, int start, int end)
+	{
+		var extended = new bool[Math.Max(0, end - start)];
+		if (RegularHours is not { } schedule || !IsIntraday)
+			return extended;
+		var length = ChartTimeframeHelpers.GetBarLength(Timeframe);
+		for (var i = start; i < end; i++)
+			extended[i - start] = !TradingHoursHelpers.IsRegular(schedule, bars[i].Time, length);
+		return extended;
 	}
 
 	public override void Render(DrawingContext context)
@@ -389,6 +421,25 @@ public partial class CandlestickChart : Control
 			ChartViewportHelpers.GetBarX(index, rightEdge, plot.Right, _barSpacing);
 		var view = new Viewport(start, end, _barSpacing, X);
 
+		// pre- / post-market: a lighter band behind each run of bars outside the regular session
+		var extended = GetExtendedBars(bars, start, end);
+		for (var i = start; i < end; i++)
+		{
+			if (!extended[i - start])
+				continue;
+			var first = i;
+			while (i + 1 < end && extended[i + 1 - start])
+				i++;
+			var left = Math.Max(plot.X, X(first) - _barSpacing / 2);
+			var right = Math.Min(plot.Right, X(i) + _barSpacing / 2);
+			if (right > left)
+				context.DrawRectangle(
+					ExtendedHoursBrush,
+					null,
+					new Rect(left, plot.Y, right - left, plot.Height)
+				);
+		}
+
 		// price grid + axis labels
 		var step = NiceStep((high - low) / Math.Max(2, priceRect.Height / 48));
 		var decimals = step >= 1 ? 2 : Math.Min(6, (int)Math.Ceiling(-Math.Log10(step)) + 1);
@@ -438,13 +489,22 @@ public partial class CandlestickChart : Control
 			}
 
 			var wickX = Math.Round(x) + 0.5;
-			context.DrawLine(
-				up ? UpPen : DownPen,
-				new Point(wickX, Y(bar.High)),
-				new Point(wickX, Y(bar.Low))
-			);
+			var pen = up ? UpPen : DownPen;
 			var bodyTop = Y(Math.Max(bar.Open, bar.Close));
 			var bodyBottom = Y(Math.Min(bar.Open, bar.Close));
+			// Pre- / post-market: a hollow body (outline only) the wick doesn't cross
+			if (extended[i - start] && bodyWidth >= 3)
+			{
+				var left = Math.Round(x - bodyWidth / 2) + 0.5;
+				var right = Math.Max(left + 2, Math.Round(x + bodyWidth / 2) - 0.5);
+				var top = Math.Round(bodyTop) + 0.5;
+				var bottom = Math.Max(top + 1, Math.Round(bodyBottom) + 0.5);
+				context.DrawLine(pen, new Point(wickX, Y(bar.High)), new Point(wickX, top));
+				context.DrawLine(pen, new Point(wickX, bottom), new Point(wickX, Y(bar.Low)));
+				context.DrawRectangle(null, pen, new Rect(left, top, right - left, bottom - top));
+				continue;
+			}
+			context.DrawLine(pen, new Point(wickX, Y(bar.High)), new Point(wickX, Y(bar.Low)));
 			context.DrawRectangle(
 				up ? UpBrush : DownBrush,
 				null,

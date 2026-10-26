@@ -45,6 +45,9 @@ public static class ContractHelpers
 	public static string GetSearchCacheKey(ContractDto query) =>
 		$"search|{query.Symbol}|{query.SecurityType}|{query.Exchange}|{query.Currency}";
 
+	/// <summary>Cache key of a contract's details read for its trading hours.</summary>
+	public static string GetTradingHoursCacheKey(int conId) => $"hours|{conId}";
+
 	/// <summary>Cache key of a ticker box's search of every type.</summary>
 	public static string GetSymbolSearchCacheKey(string symbol) =>
 		$"symbol|{symbol.Trim().ToUpperInvariant()}";

@@ -74,6 +74,9 @@ public partial class ChartViewModel
 	private ChartLiveUpdateMode _liveMode;
 	private TimeSpan _redrawInterval;
 
+	// The regular sessions last read, by contract: a reload of the same contract reuses them
+	private (int ConId, TradingScheduleDto? Schedule)? _regularHours;
+
 	public ChartViewModel(
 		IChartManager chartManager,
 		IContractManager contractManager,
@@ -139,6 +142,7 @@ public partial class ChartViewModel
 			SetAppliedTemplate(template);
 		}
 
+		UseRegularTradingHours = !settingsManager.GetAppSettings().ChartOutsideRegularHours;
 		_contract = linkGroupStore.Get(Link.Group);
 		Reload();
 	}
@@ -270,8 +274,19 @@ public partial class ChartViewModel
 	[ObservableProperty]
 	public partial PeriodOption SelectedPeriod { get; set; }
 
+	/// <summary>
+	/// Regular hours only (IB useRTH); the opposite of the "outside regular trading hours" chart
+	/// setting, which every chart follows.
+	/// </summary>
 	[ObservableProperty]
 	public partial bool UseRegularTradingHours { get; set; } = true;
+
+	/// <summary>
+	/// The contract's regular sessions while pre- / post-market bars are shown on an intraday
+	/// chart (the chart shades the bars outside them); null otherwise or when IB has none.
+	/// </summary>
+	[ObservableProperty]
+	public partial TradingScheduleDto? RegularHours { get; set; }
 
 	[ObservableProperty]
 	public partial IReadOnlyList<BarDto> Bars { get; set; } = [];
@@ -370,13 +385,15 @@ public partial class ChartViewModel
 		UpdateBreakEven();
 	}
 
-	// Chart live updates changed in Settings: open charts reload with the new mode
+	// From the thread that saved the settings. Outside-hours and live-update changes reload
 	private void OnAppSettingsChanged(AppSettingsDto settings) =>
 		Dispatcher.UIThread.Post(() =>
 		{
+			if (_disposed)
+				return;
+			UseRegularTradingHours = !settings.ChartOutsideRegularHours;
 			if (
-				_disposed
-				|| (
+				(
 					settings.ChartLiveUpdateMode == _liveMode
 					&& ChartLiveUpdateHelpers.GetRedrawInterval(
 						settings.ChartLiveUpdateMode,
@@ -470,6 +487,7 @@ public partial class ChartViewModel
 		{
 			Title = "Chart";
 			Bars = [];
+			RegularHours = null;
 			_status.SetFixed("Select a contract in the watchlist or positions.");
 			return;
 		}
@@ -485,6 +503,13 @@ public partial class ChartViewModel
 		};
 		Title = ContractHelpers.GetDisplayName(contract);
 		IsIntraday = ChartTimeframeHelpers.IsIntraday(timeframe);
+		RegularHours =
+			!UseRegularTradingHours
+			&& IsIntraday
+			&& _regularHours is { } known
+			&& known.ConId == contract.ConId
+				? known.Schedule
+				: null;
 		IsLoading = true;
 		try
 		{
@@ -557,6 +582,9 @@ public partial class ChartViewModel
 				() => StreamLivePricesAsync(request, mode, live, note, pricesToken),
 				CancellationToken.None
 			);
+
+		if (!UseRegularTradingHours && IsIntraday && _regularHours?.ConId != contract.ConId)
+			await LoadRegularHoursAsync(contract, cancellationToken);
 
 		try
 		{
@@ -638,6 +666,29 @@ public partial class ChartViewModel
 	private sealed class LiveNote
 	{
 		public string Text { get; set; } = string.Empty;
+	}
+
+	// Without them every bar draws as regular; the chart itself still works
+	private async Task LoadRegularHoursAsync(
+		ContractDto contract,
+		CancellationToken cancellationToken
+	)
+	{
+		try
+		{
+			var schedule = await _chartManager.GetRegularHoursAsync(contract, cancellationToken);
+			_regularHours = (contract.ConId, schedule);
+			RegularHours = schedule;
+		}
+		catch (OperationCanceledException) { }
+		catch (Exception ex)
+		{
+			_messageLogManager.Add(
+				MessageSeverity.Info,
+				MessageLogConstants.SourceChart,
+				$"{ContractHelpers.GetDisplayName(contract)}: trading hours unavailable, pre- and post-market bars are not marked ({ErrorMessageHelpers.ToUserMessage(ex)})"
+			);
+		}
 	}
 
 	/// <summary>The chart's indicators as last computed, in legend order.</summary>

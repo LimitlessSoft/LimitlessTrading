@@ -45,6 +45,9 @@ public class FakeIbkrApiClient : IIbkrApiClient
 
 	/// <summary>The duration of each historical bars request, in order.</summary>
 	public List<string> HistoricalDurations { get; } = [];
+
+	/// <summary>useRTH of each historical bars request, in order.</summary>
+	public List<bool> HistoricalUseRth { get; } = [];
 	public List<AccountValueDto> AccountValues { get; set; } = [];
 
 	/// <summary>Each account's P&amp;L stream; none by default.</summary>
@@ -198,6 +201,7 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	{
 		HistoricalCalls++;
 		HistoricalDurations.Add(duration);
+		HistoricalUseRth.Add(useRegularTradingHours);
 		return HistoricalException != null
 			? Task.FromException<IReadOnlyList<BarDto>>(HistoricalException)
 			: Task.FromResult<IReadOnlyList<BarDto>>(HistoricalBars);

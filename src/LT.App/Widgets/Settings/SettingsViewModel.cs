@@ -94,6 +94,12 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		"version release upgrade"
 	);
 
+	private readonly BoolSettingViewModel _chartOutsideRegularHours = new(
+		"Show pre- and post-market bars",
+		"Intraday charts include trading outside regular hours; those bars have hollow candles on a lighter background. Off: regular hours only. Daily and weekly bars are always regular hours.",
+		"chart rth regular trading hours extended outside premarket pre-market postmarket post-market after hours session"
+	);
+
 	private readonly BoolSettingViewModel _cacheEnabled = new(
 		"Cache data on disk",
 		"Keeps data fetched from IB to open things faster and to show the last known values, marked as cached, while IB can't be reached. Off: nothing is read from or written to the cache.",
@@ -203,6 +209,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		_stopGatewayOnExit.Value = settings.StopGatewayOnExit;
 		_checkForUpdates.Value = settings.CheckForUpdates;
 		_layoutStyle.Value = settings.LayoutStyle;
+		_chartOutsideRegularHours.Value = settings.ChartOutsideRegularHours;
 		_cacheEnabled.Value = settings.CacheEnabled;
 		_cacheChartBars.Value = settings.CacheChartBars;
 		_cacheContracts.Value = settings.CacheContracts;
@@ -243,6 +250,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 				]
 			),
 			new SettingsPageViewModel("Market data", [new("Quotes", _marketDataType)]),
+			new SettingsPageViewModel("Chart", [new("Trading hours", _chartOutsideRegularHours)]),
 			new SettingsPageViewModel(
 				"Account history",
 				[
@@ -334,6 +342,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 					ChartLiveUpdateMode = SelectedChartLiveUpdateMode,
 					ChartRedrawIntervalMs = (int)(_chartRedrawInterval.Value ?? 0),
 					DisplayTimeZoneId = (_displayTimeZone.Value as TimeZoneOption)?.Id,
+					ChartOutsideRegularHours = _chartOutsideRegularHours.Value,
 				}
 			);
 			// a lowered limit applies now, not at the next cache write

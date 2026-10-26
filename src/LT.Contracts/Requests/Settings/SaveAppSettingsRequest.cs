@@ -25,4 +25,7 @@ public class SaveAppSettingsRequest
 
 	/// <summary>Zone times are shown in; null = the system's local zone.</summary>
 	public string? DisplayTimeZoneId { get; set; }
+
+	/// <summary>Intraday charts include pre- and post-market bars.</summary>
+	public bool ChartOutsideRegularHours { get; set; } = true;
 }
