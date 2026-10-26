@@ -133,7 +133,7 @@ public partial class DayTradePerformanceViewModel : ConnectedViewModelBase
 
 	/// <summary>
 	/// Where the trades come from: IB Flex and how delayed today's are, or why IB's executions
-	/// can't be read (CVC_007 until IBKR.Net decodes them) when Flex isn't set up.
+	/// couldn't be read when Flex isn't set up.
 	/// </summary>
 	[ObservableProperty]
 	public partial string? TradesNote { get; set; }

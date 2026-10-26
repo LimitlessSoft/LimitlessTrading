@@ -1,8 +1,7 @@
 # IB Flex Web Service — account history and trades
 
 The socket API (IB Gateway) has no NAV or P&L history and returns only the current day's
-executions, which IBKR.Net can't decode yet (`CVC_007`). So the Account performance and Day trade
-performance widgets get their history from IB's **Flex Web Service**: Flex queries the user
+executions. So the Account performance and Day trade performance widgets get their history from IB's **Flex Web Service**: Flex queries the user
 creates once in Client Portal, fetched by the app over HTTPS with a token. This is the one place
 the app talks to IB outside the Gateway; it was chosen with the user on 2026-10-26 after the
 socket-only routes were ruled out (no history at all before the app first ran). Everything after
@@ -172,7 +171,7 @@ error) so a restart doesn't download again:
 
 - **Dedupe key: IB's execution id** (`ibExecID` in Activity, `execID` in Trade Confirmation),
   which is the same id the socket API reports as `execId` — so a Flex fill and the same fill from
-  `reqExecutions` (once IBKR.Net decodes it) collapse into one. A Flex row without an execution
+  `reqExecutions` collapse into one. A Flex row without an execution
   id is keyed `flex:<tradeID>`; fills also match by `tradeID`, and a `flex:` key is replaced by the
   real id when one arrives. A later row fills in commission (Activity's is final), realized P&L,
   tradeID, multiplier, conId and local symbol.

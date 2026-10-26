@@ -17,7 +17,7 @@ public interface ITradeJournalManager
 	/// <summary>Raised on any thread after a P&amp;L update was recorded.</summary>
 	event Action? PnlChanged;
 
-	/// <summary>Why the last executions request failed (CVC_007 until IBKR.Net reads them); null when it worked.</summary>
+	/// <summary>Why the last executions request failed (e.g. an IB error); null when it worked.</summary>
 	string? ExecutionsError { get; }
 
 	/// <summary>Today's trading day.</summary>
