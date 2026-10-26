@@ -131,10 +131,16 @@ new instance) and lives in one of four wrappers:
   and every store stay app-wide, so a chart in one window follows a watchlist in another. The windows aren't owned by the main
   window (they can sit on another screen, with a taskbar entry); closing one discards it and
   disposes its widgets; closing the main window exits the app (`ShutdownMode.OnMainWindowClose`)
-  and keeps the open windows, with their bounds and layouts, for the next start. Dragging a
-  widget between windows is not supported: dropped outside its window, it floats (owned by that
-  window); to have it in another window, open a new one from that window's menu (or move its
-  whole view there).
+  and keeps the open windows, with their bounds and layouts, for the next start. **Dragging a
+  widget onto another workspace window** moves it there: the same drop targets as in its own
+  window (strip slots, beside / above / below a center tile, a view tab) show on that window,
+  and anywhere else in it (its title bar, the main window's toolbar) puts it right of everything
+  in its shown view. It keeps its view model and settings; the other window builds its own frame,
+  a floating widget's window closes first, an id taken there gets a new one, and an extra window
+  left with nothing open is closed. Dropped outside every workspace window it floats (owned by
+  its own window). Model: `WorkspaceViewModel.MoveWidgetTo` → `IWorkspaceHost.MoveWidget` →
+  `ReleaseWidget` / `AdoptWidget`; the drag is `WorkspaceView.DragDrop.cs`. Over overlapping
+  windows the dragging window wins (z-order is not looked at), like a dragged view tab.
   **✕ with several workspace windows open** (main + extra; floating widget windows don't count)
   asks: Close this window (Enter), Close application, or Cancel. With one window, ✕ just exits.
   The extra window's menu → Close window doesn't ask. Close application exits like closing the
