@@ -268,13 +268,19 @@ fullscreen widget restores it first; its header doesn't start a drag while fulls
 
 ### Link groups
 
-Watchlist, Positions, Chart, Option chain and News can be linked: the chain icon left of the frame's
-close button opens a menu of ten color groups (Red, Green, Blue, Yellow, Orange, Purple, Cyan,
+Watchlist, Positions, Orders, Executions, Chart, Option chain, Order ticket and News can be linked:
+the chain icon left of the frame's close button opens a menu of ten color groups (Red, Green, Blue, Yellow, Orange, Purple, Cyan,
 Pink, Lime, White) or Not linked, and is tinted
 with the current one. Widgets in the same group show the same contract:
 
-- Clicking a watchlist or positions row, or picking a chart's ticker, sends that contract to the
-  group; charts and option chains in the group switch to it.
+- Clicking a watchlist, positions, orders or executions row, or picking a chart's ticker, sends
+  that contract to the group; charts and option chains in the group switch to it. Remembered
+  (stale) positions, orders and fills send nothing. Orders and Executions rebuild their list on
+  every refresh and keep the same row selected (by permId / execId) without sending it again, so
+  a refresh never pulls the group back. An execution's contract goes out without the fill's
+  venue, so linked widgets ask through SMART.
+- Positions, Orders and Executions only send: a contract from the group doesn't filter or move
+  their lists.
 - Joining a group shows the group's contract; joining an empty group gives it the widget's own.
 - New widgets start in Red, so out of the box they all follow each other. "Not linked" keeps a
   widget on its own contract.

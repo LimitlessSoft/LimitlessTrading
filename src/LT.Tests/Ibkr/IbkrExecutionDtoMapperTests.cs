@@ -1,10 +1,13 @@
 using IBKR.Net;
 using LT.Ibkr.DtoMappings.Executions;
+using LT.Tests.Fakes;
 
 namespace LT.Tests.Ibkr;
 
 public class IbkrExecutionDtoMapperTests
 {
+	public IbkrExecutionDtoMapperTests() => LSCoreContainer.EnsureInitialized();
+
 	private static Execution Fill(Contract contract, string side = "BOT") =>
 		new(
 			"0000e0d5.6576fd38.01.01",
@@ -103,5 +106,23 @@ public class IbkrExecutionDtoMapperTests
 		Assert.Null(dto.RealizedPnl);
 		Assert.Null(dto.Time);
 		Assert.Equal("BOT", dto.Side);
+	}
+
+	[Fact]
+	public void A_fill_carries_its_contract_for_the_link_group_without_the_fill_venue()
+	{
+		var dto = new IbkrExecutionDtoMapper().ToMapped(Fill(Option));
+
+		Assert.Equal(712345678, dto.Contract.ConId);
+		Assert.Equal("SPY", dto.Contract.Symbol);
+		Assert.Equal("SPY   261030C00580000", dto.Contract.LocalSymbol);
+		Assert.Equal("OPT", dto.Contract.SecurityType);
+		Assert.Equal("USD", dto.Contract.Currency);
+		Assert.Equal(580, dto.Contract.Strike);
+		Assert.Equal("C", dto.Contract.Right);
+		Assert.Equal("100", dto.Contract.Multiplier);
+		// Linked widgets ask for data through SMART, not the venue the fill happened on
+		Assert.Equal(string.Empty, dto.Contract.Exchange);
+		Assert.Equal("CBOE", dto.Exchange);
 	}
 }

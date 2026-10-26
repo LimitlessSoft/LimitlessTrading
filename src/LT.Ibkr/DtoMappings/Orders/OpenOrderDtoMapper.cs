@@ -29,6 +29,7 @@ public class OpenOrderDtoMapper : ILSCoreMapper<OpenOrder, OpenOrderDto>
 			AuxPrice = source.Order.AuxPrice,
 			TimeInForce = source.Order.TimeInForce,
 			Status = source.Status,
+			Contract = contract,
 		};
 	}
 }

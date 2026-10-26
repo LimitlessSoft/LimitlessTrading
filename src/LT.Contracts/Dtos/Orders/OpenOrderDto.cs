@@ -1,3 +1,5 @@
+using LT.Contracts.Dtos.Contracts;
+
 namespace LT.Contracts.Dtos.Orders;
 
 public class OpenOrderDto
@@ -21,4 +23,7 @@ public class OpenOrderDto
 
 	/// <summary>Placed by this app and still working: the Orders widget can cancel it.</summary>
 	public bool CanCancel { get; set; }
+
+	/// <summary>The order's contract, sent to the link group; empty (ConId 0) in older snapshots.</summary>
+	public ContractDto Contract { get; set; } = new();
 }

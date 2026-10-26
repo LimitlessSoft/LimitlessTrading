@@ -34,6 +34,7 @@
 		</StackPanel>
 		<DataGrid
 			ItemsSource="{Binding Orders}"
+			SelectedItem="{Binding SelectedOrder}"
 			IsReadOnly="True"
 			CanUserSortColumns="True"
 			GridLinesVisibility="Horizontal"
