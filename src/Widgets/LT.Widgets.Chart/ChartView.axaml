@@ -6,11 +6,263 @@
 	x:Class="LT.App.Widgets.Chart.ChartView"
 	x:DataType="vm:ChartViewModel"
 >
-	<!-- The ticker and timeframe are picked in the frame header (ChartTitleView). RTH / Reload
-	     controls are hidden until they are redesigned; the view model keeps their state.
+	<UserControl.Resources>
+		<StreamGeometry x:Key="ChartTemplatesIcon">
+			M12,16L19.36,10.27L21,9L12,2L3,9L4.63,10.27M12,18.54L4.62,12.81L3,14.07L12,21.07L21,14.07L19.37,12.8L12,18.54Z
+		</StreamGeometry>
+		<StreamGeometry x:Key="TemplateDefaultIcon">
+			M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z
+		</StreamGeometry>
+		<StreamGeometry x:Key="TemplateNotDefaultIcon">
+			M12,15.39L8.24,17.66L9.23,13.38L5.91,10.5L10.29,10.11L12,6.09L13.71,10.1L18.09,10.5L14.77,13.38L15.76,17.66M22,9.24L14.81,8.63L12,2L9.19,8.63L2,9.24L7.45,13.97L5.82,21L12,17.27L18.18,21L16.54,13.97L22,9.24Z
+		</StreamGeometry>
+		<StreamGeometry x:Key="TemplateExportIcon">
+			M23,12L19,8V11H10V13H19V16M1,18V6C1,4.89 1.9,4 3,4H15A2,2 0 0,1 17,6V9H15V6H3V18H15V15H17V18A2,2 0 0,1 15,20H3A2,2 0 0,1 1,18Z
+		</StreamGeometry>
+	</UserControl.Resources>
+	<!-- The ticker and timeframe are picked in the frame header (ChartTitleView). Right-clicking
+	     the chart opens its menu: add an indicator (the picker), apply a template, manage the
+	     templates. The picker and the template manager are flyouts kept on the chart and the
+	     panel and shown at the pointer. RTH / Reload controls are hidden until they are
+	     redesigned; the view model keeps their state.
 	     A ticker dragged from a watchlist, positions, orders or executions row can be dropped
 	     anywhere on the chart (TickerDragDrop); the highlight shows while it hovers. -->
 	<Panel x:Name="DropRoot" Background="Transparent" helpers:TickerDragDrop.IsTarget="True">
+		<FlyoutBase.AttachedFlyout>
+			<Flyout Placement="Center">
+				<StackPanel Width="340" Spacing="4">
+					<TextBlock Classes="secondary" FontSize="12" Text="Templates" />
+					<ScrollViewer MaxHeight="320">
+						<ItemsControl ItemsSource="{Binding Templates}">
+							<ItemsControl.ItemTemplate>
+								<DataTemplate x:DataType="vm:ChartTemplateItemViewModel">
+									<Panel MinHeight="30">
+										<Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" IsVisible="{Binding IsIdle}">
+											<Button
+												Classes="frameAction"
+												VerticalAlignment="Center"
+												ToolTip.Tip="{Binding DefaultToolTip}"
+												Command="{Binding Owner.ToggleDefaultTemplateCommand}"
+												CommandParameter="{Binding}"
+											>
+												<Panel>
+													<PathIcon
+														Data="{StaticResource TemplateDefaultIcon}"
+														IsVisible="{Binding IsDefault}"
+													/>
+													<PathIcon
+														Data="{StaticResource TemplateNotDefaultIcon}"
+														IsVisible="{Binding !IsDefault}"
+													/>
+												</Panel>
+											</Button>
+											<Button
+												Grid.Column="1"
+												Classes="pickerRow"
+												Click="OnTemplatePicked"
+												HorizontalContentAlignment="Stretch"
+												ToolTip.Tip="Apply to this chart"
+											>
+												<Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+													<TextBlock
+														VerticalAlignment="Center"
+														TextTrimming="CharacterEllipsis"
+														Text="{Binding Name}"
+													/>
+													<TextBlock
+														Grid.Column="1"
+														Classes="secondary"
+														FontSize="12"
+														VerticalAlignment="Center"
+														Text="{Binding Summary}"
+													/>
+												</Grid>
+											</Button>
+											<Button
+												Grid.Column="2"
+												Classes="frameAction"
+												VerticalAlignment="Center"
+												ToolTip.Tip="Rename"
+												Command="{Binding Owner.BeginRenameTemplateCommand}"
+												CommandParameter="{Binding}"
+											>
+												<PathIcon Data="{StaticResource FrameRenameIcon}" />
+											</Button>
+											<Button
+												Grid.Column="3"
+												Classes="frameAction"
+												VerticalAlignment="Center"
+												ToolTip.Tip="Export to a file…"
+												Click="OnExportTemplateClick"
+											>
+												<PathIcon Data="{StaticResource TemplateExportIcon}" />
+											</Button>
+											<Button
+												Grid.Column="4"
+												Classes="frameAction close"
+												VerticalAlignment="Center"
+												ToolTip.Tip="Delete"
+												Command="{Binding Owner.AskDeleteTemplateCommand}"
+												CommandParameter="{Binding}"
+											>
+												<PathIcon Data="{StaticResource FrameCloseIcon}" />
+											</Button>
+										</Grid>
+										<TextBox
+											Classes="watchlistName"
+											Text="{Binding RenameText}"
+											PlaceholderText="Template name"
+											IsVisible="{Binding IsRenaming}"
+											PropertyChanged="OnRenameBoxPropertyChanged"
+											KeyDown="OnRenameBoxKeyDown"
+											LostFocus="OnRenameBoxLostFocus"
+										/>
+										<Grid
+											ColumnDefinitions="*,Auto,Auto"
+											ColumnSpacing="6"
+											IsVisible="{Binding IsConfirmingDelete}"
+										>
+											<TextBlock
+												VerticalAlignment="Center"
+												TextTrimming="CharacterEllipsis"
+												Text="{Binding DeletePrompt}"
+											/>
+											<Button
+												Grid.Column="1"
+												Content="Cancel"
+												Command="{Binding Owner.CancelDeleteTemplateCommand}"
+												CommandParameter="{Binding}"
+											/>
+											<Button
+												Grid.Column="2"
+												Classes="danger"
+												Content="Delete"
+												Command="{Binding Owner.ConfirmDeleteTemplateCommand}"
+												CommandParameter="{Binding}"
+											/>
+										</Grid>
+									</Panel>
+								</DataTemplate>
+							</ItemsControl.ItemTemplate>
+						</ItemsControl>
+					</ScrollViewer>
+					<TextBlock
+						Classes="secondary"
+						FontSize="12"
+						TextWrapping="Wrap"
+						Text="No templates yet. Save this chart's timeframe and indicators below to reuse them on any chart."
+						IsVisible="{Binding !HasTemplates}"
+					/>
+					<Separator Margin="0,2" />
+					<!-- The button flips it (the view model may ask first); the check box only shows it -->
+					<Button
+						Classes="pickerRow"
+						HorizontalContentAlignment="Stretch"
+						Command="{Binding ToggleFollowTemplateCommand}"
+						IsEnabled="{Binding HasAppliedTemplate}"
+						IsVisible="{Binding !IsConfirmingFollow}"
+						ToolTip.Tip="Save this chart's changes to its template, and take the changes other charts following it save"
+					>
+						<Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+							<CheckBox
+								IsChecked="{Binding FollowTemplate, Mode=OneWay}"
+								IsHitTestVisible="False"
+								Focusable="False"
+								MinWidth="0"
+								Padding="0"
+								VerticalAlignment="Center"
+							/>
+							<TextBlock
+								Grid.Column="1"
+								VerticalAlignment="Center"
+								Text="Follow and save on change"
+							/>
+							<TextBlock
+								Grid.Column="2"
+								Classes="secondary"
+								FontSize="12"
+								MaxWidth="150"
+								VerticalAlignment="Center"
+								TextTrimming="CharacterEllipsis"
+								Text="{Binding FollowStatus}"
+							/>
+						</Grid>
+					</Button>
+					<TextBlock
+						Classes="secondary"
+						FontSize="12"
+						TextWrapping="Wrap"
+						Text="Apply or save a template to follow it."
+						IsVisible="{Binding !HasAppliedTemplate}"
+					/>
+					<StackPanel Spacing="6" IsVisible="{Binding IsConfirmingFollow}">
+						<TextBlock FontSize="12" TextWrapping="Wrap" Text="{Binding FollowPrompt}" />
+						<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+							<Button Content="Cancel" Command="{Binding CancelFollowCommand}" />
+							<Button Content="Update and follow" Command="{Binding ConfirmFollowCommand}" />
+						</StackPanel>
+					</StackPanel>
+					<Separator Margin="0,2" />
+					<Grid
+						ColumnDefinitions="*,Auto"
+						ColumnSpacing="6"
+						IsVisible="{Binding !IsConfirmingOverwrite}"
+					>
+						<TextBox
+							x:Name="TemplateNameBox"
+							PlaceholderText="Save this chart as…"
+							Text="{Binding NewTemplateName}"
+						/>
+						<Button Grid.Column="1" Content="Save" Command="{Binding SaveTemplateCommand}" />
+					</Grid>
+					<Grid
+						ColumnDefinitions="*,Auto,Auto"
+						ColumnSpacing="6"
+						IsVisible="{Binding IsConfirmingOverwrite}"
+					>
+						<TextBlock
+							VerticalAlignment="Center"
+							TextTrimming="CharacterEllipsis"
+							Text="{Binding OverwritePrompt}"
+						/>
+						<Button Grid.Column="1" Content="Cancel" Command="{Binding CancelOverwriteCommand}" />
+						<Button
+							Grid.Column="2"
+							Classes="danger"
+							Content="Replace"
+							Command="{Binding ConfirmOverwriteCommand}"
+						/>
+					</Grid>
+					<TextBlock
+						FontSize="12"
+						TextWrapping="Wrap"
+						Classes.negative="{Binding IsTemplateMessageError}"
+						Classes.secondary="{Binding !IsTemplateMessageError}"
+						Text="{Binding TemplateMessage}"
+						IsVisible="{Binding TemplateMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+					/>
+					<Separator Margin="0,2" />
+					<Grid ColumnDefinitions="*,*">
+						<Button
+							x:Name="ImportTemplatesButton"
+							Classes="pickerRow"
+							ToolTip.Tip="Add the templates of an exported file"
+						>
+							<TextBlock Classes="secondary" Text="Import…" />
+						</Button>
+						<Button
+							x:Name="ExportAllTemplatesButton"
+							Grid.Column="1"
+							Classes="pickerRow"
+							ToolTip.Tip="Write every template to one file"
+							IsEnabled="{Binding HasTemplates}"
+						>
+							<TextBlock Classes="secondary" Text="Export all…" />
+						</Button>
+					</Grid>
+				</StackPanel>
+			</Flyout>
+		</FlyoutBase.AttachedFlyout>
 		<vm:CandlestickChart
 			x:Name="Chart"
 			Bars="{Binding Bars}"
@@ -22,7 +274,84 @@
 			BreakEvenPrice="{Binding BreakEvenPrice}"
 			RightMargin="{Binding RightMargin}"
 			TimeZone="{Binding DisplayTime.Zone}"
-		/>
+		>
+			<vm:CandlestickChart.ContextMenu>
+				<ContextMenu x:Name="ChartMenu">
+					<MenuItem
+						x:Name="AddIndicatorMenuItem"
+						Header="Add indicator…"
+						IsEnabled="{Binding CanAddIndicator}"
+					>
+						<MenuItem.Icon>
+							<TextBlock Text="ƒx" FontStyle="Italic" HorizontalAlignment="Center" />
+						</MenuItem.Icon>
+					</MenuItem>
+					<Separator />
+					<!-- Filled with the templates when the menu opens -->
+					<MenuItem x:Name="ApplyTemplateMenuItem" Header="Apply template">
+						<MenuItem.Icon>
+							<PathIcon Width="12" Height="12" Data="{StaticResource ChartTemplatesIcon}" />
+						</MenuItem.Icon>
+					</MenuItem>
+					<MenuItem x:Name="ManageTemplatesMenuItem" Header="Templates…" />
+				</ContextMenu>
+			</vm:CandlestickChart.ContextMenu>
+			<FlyoutBase.AttachedFlyout>
+				<Flyout Placement="Center">
+					<StackPanel Width="320" Spacing="6">
+						<TextBox
+							x:Name="IndicatorSearchBox"
+							PlaceholderText="Search indicators"
+							Text="{Binding IndicatorSearch}"
+						/>
+						<ScrollViewer MaxHeight="360">
+							<ItemsControl ItemsSource="{Binding IndicatorChoices}">
+								<ItemsControl.ItemTemplate>
+									<DataTemplate x:DataType="vm:IndicatorChoiceItem">
+										<Button
+											Classes="pickerRow"
+											Click="OnIndicatorPicked"
+											HorizontalContentAlignment="Stretch"
+										>
+											<StackPanel Spacing="1">
+												<Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+													<TextBlock
+														VerticalAlignment="Center"
+														TextTrimming="CharacterEllipsis"
+														Text="{Binding Name}"
+													/>
+													<TextBlock
+														Grid.Column="1"
+														Classes="secondary"
+														FontSize="12"
+														VerticalAlignment="Center"
+														Text="{Binding Kind}"
+													/>
+												</Grid>
+												<TextBlock
+													Classes="negative"
+													FontSize="11"
+													TextTrimming="CharacterEllipsis"
+													Text="{Binding Error}"
+													IsVisible="{Binding HasError}"
+												/>
+											</StackPanel>
+										</Button>
+									</DataTemplate>
+								</ItemsControl.ItemTemplate>
+							</ItemsControl>
+						</ScrollViewer>
+						<Button
+							x:Name="ScriptsFolderButton"
+							Classes="pickerRow"
+							ToolTip.Tip="Every .cs file there is an indicator; edit them in any editor"
+						>
+							<TextBlock Classes="secondary" Text="Open the scripts folder…" />
+						</Button>
+					</StackPanel>
+				</Flyout>
+			</FlyoutBase.AttachedFlyout>
+		</vm:CandlestickChart>
 		<StackPanel
 			HorizontalAlignment="Center"
 			VerticalAlignment="Top"

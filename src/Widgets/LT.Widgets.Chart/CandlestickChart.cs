@@ -756,6 +756,9 @@ public partial class CandlestickChart : Control
 				RaiseIndicatorAction(legend.InstanceId, legend.Action);
 			return;
 		}
+		// The right button is the chart's context menu (opened on release): no pan, no reset
+		if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed)
+			return;
 		if (IsOnMarginHandle(position))
 		{
 			if (e.ClickCount == 2)
