@@ -419,8 +419,17 @@ while a text box has focus. On macOS, Cmd works in place of Ctrl.
 
 `Widgets/Chart/CandlestickChart` is a custom `Control` drawn with `DrawingContext` (no chart
 library): candles, volume, price grid, last-price line, crosshair + OHLCV readout. Wheel zooms,
-drag pans, double-click resets. The account performance widget's `EquityCurveChart` and
+drag pans, double-click resets (zoom and pan, not the right margin). The account performance widget's `EquityCurveChart` and
 `DailyPnlBarChart` are drawn the same way (same palette, `ChartDrawing`).
+
+**Right margin.** A small grip in the time axis marks the end of the last bar; dragging it left
+leaves empty space after the latest bar (dragging right narrows it, double-clicking it removes
+it), with a resize cursor and a dashed guide through the plot while hovered or dragged. The
+margin is kept in bars (`ChartRightMargin`, saved per chart in the layout), so it holds across
+zoom, new live bars and timeframe or contract switches; it is capped at half the plot width at
+the current zoom (`ChartConstants.MaxRightMarginFraction`). Panning into history uses up the
+margin first; the grip is hidden once the last bar is off the plot. Price autoscale still uses
+only the visible bars. The viewport math is in `ChartViewportHelpers`.
 
 **Your trades on the chart.** The chart draws the selected account's (all accounts when none is
 selected) recorded fills of the charted contract from the trade journal

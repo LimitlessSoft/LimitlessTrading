@@ -15,6 +15,7 @@
 			Fills="{Binding Fills}"
 			TradeLegs="{Binding TradeLegs}"
 			BreakEvenPrice="{Binding BreakEvenPrice}"
+			RightMargin="{Binding RightMargin}"
 		/>
 		<StackPanel
 			HorizontalAlignment="Left"

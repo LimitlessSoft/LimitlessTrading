@@ -136,6 +136,7 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 		// Layouts saved before link groups: a chart pinned to its own ticker is not linked
 		if (!placement.ChartLinked)
 			Link.Group = LinkGroup.None;
+		RightMargin = Math.Max(0, placement.ChartRightMargin ?? 0);
 		if (placement.ChartContract != null)
 			ShowContract(placement.ChartContract);
 	}
@@ -145,6 +146,7 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 		placement.ChartTimeframe = SelectedTimeframe.Value;
 		placement.ChartLinked = Link.Group != LinkGroup.None;
 		placement.ChartContract = _contract;
+		placement.ChartRightMargin = RightMargin > 0 ? RightMargin : null;
 	}
 
 	public override void Dispose()
@@ -171,6 +173,10 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 
 	[ObservableProperty]
 	public partial bool IsIntraday { get; set; }
+
+	/// <summary>Empty bars after the latest one; set by dragging the chart's margin handle.</summary>
+	[ObservableProperty]
+	public partial double RightMargin { get; set; }
 
 	/// <summary>The account's recorded fills of the charted contract, oldest first.</summary>
 	[ObservableProperty]

@@ -23,6 +23,7 @@ public class WidgetPlacementEntityMapper : ILSCoreMapper<WidgetPlacementDto, Wid
 			BottomHeight = source.BottomHeight,
 			ChartTimeframe = source.ChartTimeframe,
 			ChartLinked = source.ChartLinked,
+			ChartRightMargin = source.ChartRightMargin,
 			NewsMode = source.NewsMode,
 			NewsProviders = source.NewsProviders is { } providers ? [.. providers] : null,
 			ChartContract = source.ChartContract is { } contract
