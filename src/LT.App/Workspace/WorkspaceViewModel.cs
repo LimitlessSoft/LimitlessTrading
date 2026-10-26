@@ -20,6 +20,9 @@ public partial class WorkspaceViewModel : ViewModelBase
 	// Last dock per widget kind, for spawning new instances where the previous one was
 	private readonly Dictionary<WorkspaceTool, WidgetDock> _lastDock = [];
 
+	// Center widget last clicked or typed in: where Esc in a side or bottom widget returns focus
+	private string? _lastCenterId;
+
 	public WorkspaceViewModel(
 		Func<WorkspaceTool, object> createContent,
 		LayoutDto layout,
@@ -127,6 +130,31 @@ public partial class WorkspaceViewModel : ViewModelBase
 	{
 		oldValue?.IsCurrent = false;
 		newValue?.IsCurrent = true;
+		if (newValue is { IsCenter: true })
+			_lastCenterId = newValue.Id;
+	}
+
+	/// <summary>
+	/// Esc in an expanded side or bottom widget: an unpinned one collapses, and the center widget
+	/// focused last (else the first one) becomes current and gets keyboard focus. False when there
+	/// was nothing to do (a pinned widget and an empty center).
+	/// </summary>
+	public bool LeaveDocked(WidgetItem widget)
+	{
+		if (widget is not { IsSide: true, IsActive: true, IsFullscreen: false })
+			return false;
+		var collapsed = !widget.IsPinned;
+		if (collapsed)
+			Collapse(widget);
+		var targetId = WorkspaceHelpers.GetFocusReturnId(
+			_lastCenterId,
+			CenterLayoutHelpers.GetWidgetIds(CenterRoot)
+		);
+		if (targetId is null || Find(targetId) is not { } target)
+			return collapsed;
+		CurrentWidget = target;
+		target.RequestFocus();
+		return true;
 	}
 
 	/// <summary>

@@ -84,4 +84,26 @@ public class WorkspaceHelpersTests
 	[InlineData(3, 7)]
 	public void A_press_moved_to_the_threshold_on_either_axis_is_a_drag(double dx, double dy) =>
 		Assert.True(WorkspaceHelpers.IsBeyondDragThreshold(dx, dy));
+
+	[Fact]
+	public void Focus_returns_to_the_center_widget_focused_last() =>
+		Assert.Equal(
+			"Chart-2",
+			WorkspaceHelpers.GetFocusReturnId("Chart-2", ["Chart", "Chart-2", "OptionChain"])
+		);
+
+	[Fact]
+	public void Focus_returns_to_the_first_center_widget_when_none_was_focused() =>
+		Assert.Equal("Chart", WorkspaceHelpers.GetFocusReturnId(null, ["Chart", "OptionChain"]));
+
+	[Fact]
+	public void Focus_returns_to_the_first_center_widget_when_the_last_one_left_the_center() =>
+		Assert.Equal(
+			"Chart",
+			WorkspaceHelpers.GetFocusReturnId("Chart-2", ["Chart", "OptionChain"])
+		);
+
+	[Fact]
+	public void Focus_has_nowhere_to_return_with_an_empty_center() =>
+		Assert.Null(WorkspaceHelpers.GetFocusReturnId("Chart", []));
 }

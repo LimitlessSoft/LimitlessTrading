@@ -46,7 +46,13 @@ public partial class WorkspaceView : UserControl
 	// The widget whose frame sits in the window's fullscreen layer (or whose window is maximized)
 	private WidgetItem? _fullscreen;
 
-	public WorkspaceView() => InitializeComponent();
+	public WorkspaceView()
+	{
+		InitializeComponent();
+		// Bubbling and unhandled only: a dropdown or a text box that cancels on Esc keeps it
+		foreach (var host in new[] { LeftHost, RightHost, BottomHost })
+			host.AddHandler(KeyDownEvent, OnDockedKeyDown);
+	}
 
 	/// <summary>View of the first open instance of a widget (e.g. to focus the watchlist search).</summary>
 	public Control? GetWidgetView(WorkspaceTool tool) =>
@@ -152,6 +158,20 @@ public partial class WorkspaceView : UserControl
 		if (source != null && own.Any(x => x == source || x.IsVisualAncestorOf(source)))
 			return;
 		_viewModel!.Collapse(active);
+	}
+
+	// Esc in an expanded side or bottom widget goes back to the center (collapsing it if unpinned)
+	private void OnDockedKeyDown(object? sender, KeyEventArgs e)
+	{
+		if (
+			e.Handled
+			|| e.Key != Key.Escape
+			|| e.KeyModifiers != KeyModifiers.None
+			|| _viewModel is null
+			|| (sender as Border)?.Child is not WidgetFrame { Widget: { } widget }
+		)
+			return;
+		e.Handled = _viewModel.LeaveDocked(widget);
 	}
 
 	private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
