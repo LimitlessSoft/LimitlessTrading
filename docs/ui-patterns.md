@@ -116,7 +116,8 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   no rounded border — `Border.panel.docked`); center tiles and floating widgets keep the card look.
 - A widget opens where it last was; a new chart opens where the last chart was. On first run:
   Watchlist, Positions, Orders and Executions on the left; Account and Messages on the right;
-  Chart in the center; Option chain, Order ticket, News and Account performance closed
+  Chart in the center; Option chain, Order ticket, News, Account performance and Day trade
+  performance closed
   (`WorkspaceHelpers.GetDefaultPlacements`).
 - **Order ticket** (`LT.Widgets.OrderTicket`, right side): takes its contract from the link group.
   Account, side, market / limit, quantity or amount in $ (market only), limit price, time in force
@@ -136,6 +137,15 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   "Open document", which writes it to the temp folder and opens it with the OS. Live headlines
   are read on the thread pool and posted to the UI in batches. Data comes from `INewsManager`,
   which merges every `INewsSource` (IB now) and dedupes on (source, provider, article id).
+- **Day trade performance** (`LT.Widgets.DayTradePerformance`, center, closed on first run,
+  Ctrl+Alt+J): one trading day of the selected account from the trade journal
+  ([ibkr-tws-api.md → Trade journal](ibkr-tws-api.md#trade-journal)) — ‹ / › step over recorded
+  days, Today goes back. The intraday P&L curve (`PnlCurveChart`, drawn like the candlestick
+  chart; live for today) with session high / low and max drawdown from a peak; then net P&L,
+  trades (W / L), win rate, average win / loss, profit factor, expectancy, largest win / loss,
+  gross and commissions, and the day's closed trades newest first. Recording runs whether the
+  widget is open or not; recorded days show offline. Without executions (IBKR.Net, CVC_007) the
+  curve still works and the stats show why they are empty.
 - The frame (and the widget view inside it) is created once per instance and **moved** between
   hosts, so state and subscriptions survive docking, floating and collapsing. Widget view models
   are created on first open by `WidgetViewModelFactory`.
@@ -295,10 +305,10 @@ subscription and frees the market-data line.
 | Ctrl+F | Focus the watchlist's add-symbol box |
 | Enter / Esc (ticker box) | Take the highlighted listing (or the typed ticker) / cancel |
 | Delete (watchlist) | Remove selected row |
-| F5 | Refresh chart, account, positions, orders, executions |
+| F5 | Refresh chart, account, positions, orders, executions, day trade performance |
 | Ctrl+, | Settings |
 | Ctrl+1 … Ctrl+9 | Show Watchlist, Positions, Orders, Executions, Account, Messages, Chart, Option chain, Order ticket (collapses an expanded side widget) |
-| Ctrl+Alt+W / P / O / E / A / M / C / B / N / R | Show and focus Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News, Account performance (single-instance widgets; works from floating windows too) |
+| Ctrl+Alt+W / P / O / E / A / M / C / B / N / R / J | Show and focus Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News, Account performance, Day trade performance (single-instance widgets; works from floating windows too) |
 | Esc (side or bottom widget) | Back to the last focused center widget; an unpinned widget collapses |
 | Ctrl+Shift+7 | New chart |
 | Ctrl+Shift+F | Fullscreen the current widget (the one last clicked or typed in, framed in light blue), or restore it |

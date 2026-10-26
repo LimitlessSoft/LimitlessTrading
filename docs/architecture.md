@@ -104,7 +104,8 @@ LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
 - `TimeProvider.System` is registered so managers that depend on time (reconnect backoff, bar
   cache TTL) are testable with `FakeTimeProvider`.
 - The host is started (`host.Start()`) so `ConnectionWatchdog` (a `BackgroundService`) runs the
-  heartbeat; it's stopped after the Avalonia lifetime ends.
+  heartbeat; it's stopped after the Avalonia lifetime ends. `TradeJournalRecorder` (also a
+  `BackgroundService`) runs `ITradeJournalManager.RecordAsync` while connected.
 - `UpdateScheduler` (also a `BackgroundService`) clears the previous version's folder left by an
   update, then has `IUpdateManager` check GitHub Releases ~10 s after start and every 6 h.
   `AppUpdater` (`LT.App/Services`) does the platform work: download, SHA-256 check against
@@ -152,10 +153,12 @@ Zustand stores play in Termodom FEs:
 ## Persistence
 
 `LT.Repository` stores settings (connection, general settings, layout, watchlist, selected
-account) in `settings.json`, the data cache in `cache/<CacheType>/<sha256 of key>.json` and
+account) in `settings.json`, the data cache in `cache/<CacheType>/<sha256 of key>.json`,
 recorded account performance in `account-history/<account>.json` (one snapshot per trading day,
-see [ui-patterns.md → Account performance](ui-patterns.md#account-performance); not part of the
-cache, so Clear cache and the size limit never touch it), all under the OS app-data folder
+see [ui-patterns.md → Account performance](ui-patterns.md#account-performance)) and the trade
+journal (recorded fills and intraday P&L, one file per trading day) in `trade-journal/fills/` and
+`trade-journal/pnl/`. The last two are not part of the cache, so Clear cache and the size limit
+never touch them. All live under the OS app-data folder
 (`Environment.SpecialFolder.ApplicationData`: `%APPDATA%\LimitlessTrading` on Windows,
 `~/.config/LimitlessTrading` on Linux and macOS). When we need queryable local data (layouts,
 journal) the plan is SQLite + EF Core behind the same repository interfaces.

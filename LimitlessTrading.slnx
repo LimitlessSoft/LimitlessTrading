@@ -4,6 +4,7 @@
 		<Project Path="src/Widgets/LT.Widgets.Account/LT.Widgets.Account.csproj" />
 		<Project Path="src/Widgets/LT.Widgets.AccountPerformance/LT.Widgets.AccountPerformance.csproj" />
 		<Project Path="src/Widgets/LT.Widgets.Chart/LT.Widgets.Chart.csproj" />
+		<Project Path="src/Widgets/LT.Widgets.DayTradePerformance/LT.Widgets.DayTradePerformance.csproj" />
 		<Project Path="src/Widgets/LT.Widgets.Executions/LT.Widgets.Executions.csproj" />
 		<Project Path="src/Widgets/LT.Widgets.Messages/LT.Widgets.Messages.csproj" />
 		<Project Path="src/Widgets/LT.Widgets.News/LT.Widgets.News.csproj" />
