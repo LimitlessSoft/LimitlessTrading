@@ -269,6 +269,80 @@ public class SettingsManagerTests
 	}
 
 	[Fact]
+	public void Workspace_windows_round_trip_with_their_own_workspace_and_bounds()
+	{
+		var manager = new SettingsManager(_settings, _ibkr);
+		var layout = manager.GetLayout();
+		layout.Windows =
+		[
+			new WorkspaceWindowDto
+			{
+				Id = "w2",
+				Name = "Window 2",
+				X = -1200,
+				Y = 80,
+				Width = 1100,
+				Height = 720,
+				LeftWidth = 280,
+				LeftWidgetId = "Positions",
+				Widgets =
+				[
+					new WidgetPlacementDto
+					{
+						Id = "Positions",
+						Tool = WorkspaceTool.Positions,
+						Dock = WidgetDock.Left,
+					},
+					new WidgetPlacementDto
+					{
+						Id = "Chart",
+						Tool = WorkspaceTool.Chart,
+						Dock = WidgetDock.Center,
+					},
+				],
+				Views =
+				[
+					new CenterViewDto
+					{
+						Id = "v",
+						Name = "Main",
+						Root = new CenterNodeDto { WidgetId = "Chart" },
+					},
+				],
+				SelectedViewId = "v",
+			},
+		];
+
+		manager.SaveLayout(layout);
+
+		var saved = manager.GetLayout();
+		var window = Assert.Single(saved.Windows);
+		Assert.Equal(
+			("w2", "Window 2", -1200d, 80d, 1100d, 720d, false),
+			(
+				window.Id,
+				window.Name,
+				window.X,
+				window.Y,
+				window.Width,
+				window.Height,
+				window.IsMaximized
+			)
+		);
+		Assert.Equal(
+			(280d, "Positions", "v"),
+			(window.LeftWidth, window.LeftWidgetId, window.SelectedViewId)
+		);
+		Assert.Equal(
+			[WorkspaceTool.Positions, WorkspaceTool.Chart],
+			window.Widgets.Select(x => x.Tool)
+		);
+		Assert.Equal("Chart", Assert.Single(window.Views).Root?.WidgetId);
+		// The main window's own workspace is untouched
+		Assert.Equal(layout.Widgets.Select(x => x.Id), saved.Widgets.Select(x => x.Id));
+	}
+
+	[Fact]
 	public void A_layout_saved_before_views_loads_its_center_tree_and_no_views()
 	{
 		_settings.Settings.Layout.Center = new CenterNodeEntity { WidgetId = "Chart" };

@@ -53,7 +53,7 @@ public class DisplayTimeStoreTests
 		store.ZoneChanged += () => changes++;
 
 		Save("America/New_York");
-		Dispatcher.UIThread.RunJobs();
+		TestUiThread.Invoke(() => Dispatcher.UIThread.RunJobs());
 
 		Assert.Equal(1, changes);
 		Assert.Equal("10:00:00", store.Format(_time.GetUtcNow()));
@@ -68,7 +68,7 @@ public class DisplayTimeStoreTests
 		store.ZoneChanged += () => changes++;
 
 		Save("America/New_York");
-		Dispatcher.UIThread.RunJobs();
+		TestUiThread.Invoke(() => Dispatcher.UIThread.RunJobs());
 
 		Assert.Equal(0, changes);
 	}

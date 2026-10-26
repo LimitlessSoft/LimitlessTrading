@@ -6,9 +6,9 @@ using Avalonia.Threading;
 namespace LT.App.Controls;
 
 /// <summary>
-/// Ticker box with IB suggestions (chart title, watchlist). Enter picks the highlighted listing,
-/// or enters the typed ticker when nothing that was searched for this text is highlighted; a click
-/// on a listing picks it; Esc cancels.
+/// Ticker box with IB suggestions (chart and option chain titles, watchlist). Enter picks the
+/// highlighted listing, or enters the typed ticker when nothing that was searched for this text is
+/// highlighted; a click on a listing picks it; Esc cancels.
 /// </summary>
 public partial class ContractSearchBox : UserControl
 {
@@ -41,6 +41,9 @@ public partial class ContractSearchBox : UserControl
 		get => Box.IsDropDownOpen;
 		set => Box.IsDropDownOpen = value;
 	}
+
+	/// <summary>The typed text, as typed.</summary>
+	public string? Text => Box.Text;
 
 	/// <summary>True while the text box or its dropdown has keyboard focus.</summary>
 	public bool HasFocus => Box.IsKeyboardFocusWithin;

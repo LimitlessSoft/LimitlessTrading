@@ -33,6 +33,16 @@ public partial class WidgetFrame : UserControl
 
 	public WidgetItem? Widget => DataContext as WidgetItem;
 
+	/// <summary>
+	/// The frame is dropped (its widget was discarded or moved to another window): unbinds the
+	/// widget's view and header title, which another frame may now show the view model in.
+	/// </summary>
+	public void Release()
+	{
+		Body?.DataContext = null;
+		(TitleHost.Content as Control)?.DataContext = null;
+	}
+
 	/// <summary>Where on the frame the header was grabbed, so a floating window lands under the pointer.</summary>
 	public Point GrabOffset => Header.TranslatePoint(_drag.GrabOffset, this) ?? _drag.GrabOffset;
 

@@ -5,6 +5,7 @@ using LT.App.Pages.TradingPage;
 using LT.App.Stores;
 using LT.App.ViewModels;
 using LT.App.Widgets.ConnectionBar;
+using LT.App.Workspace;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Connection;
 using LT.Contracts.Dtos.Settings;
@@ -30,9 +31,11 @@ public partial class MainWindowViewModel : ViewModelBase
 		DisplayTimeStore displayTime,
 		ConnectionBarViewModel connectionBar,
 		TradingPageViewModel tradingPage,
-		UpdateViewModel update
+		UpdateViewModel update,
+		WorkspaceWindows windows
 	)
 	{
+		Windows = windows;
 		_marketDataManager = marketDataManager;
 		_settingsManager = settingsManager;
 		_accountStore = accountStore;
@@ -67,6 +70,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
 	public TradingPageViewModel CurrentPage { get; }
 
+	/// <summary>The extra workspace windows; the main window opens and closes their windows.</summary>
+	public WorkspaceWindows Windows { get; }
+
 	[ObservableProperty]
 	public partial string AccountsText { get; set; } = string.Empty;
 
@@ -93,6 +99,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
 	[RelayCommand]
 	public void RefreshAll() => CurrentPage.RefreshAll();
+
+	/// <summary>Menu → New window (Ctrl+Shift+N): an empty workspace in a window of its own.</summary>
+	[RelayCommand]
+	public void NewWindow() => Windows.Open();
 
 	public void ShowTool(WorkspaceTool tool) => CurrentPage.ShowTool(tool);
 

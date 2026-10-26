@@ -107,7 +107,24 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
 | **Center** | One or more **views** (tabs above the center), each a split layout of its own: widgets side by side and/or stacked, nested to any depth, with a splitter between every pair. |
 | **Left / right side** | Each widget docked there gets an icon on that edge's strip. One is expanded at a time; expanding one (its icon, Ctrl+1…9, the menu) makes it current and gives it keyboard focus; clicking its icon again collapses the side and the center grows. Each widget keeps its own panel width (`WidgetItem.SideWidth`, saved in the layout); one without a width of its own starts at the side's last width. |
 | **Bottom** | Like a side, along the bottom of the center column (the side panels keep their full height): a horizontal icon strip, shown only while a widget is docked there, and above it one expanded widget at a time. Each widget keeps its own panel height (`WidgetItem.BottomHeight`); a collapsed bottom leaves no gap. |
-| **Floating** | The widget gets its own window (owned by the main window). Closing that window closes the widget. |
+| **Floating** | The widget gets its own window (owned by the window of its workspace). Closing that window closes the widget. |
+
+- **Workspace windows.** Menu → New window (Ctrl+Shift+N, from any workspace window) opens an
+  empty "Window 2", "Window 3", … with a workspace of its own: its own center views, left /
+  right / bottom docks and floating widgets, and its own menu (Refresh all, New window, Widgets,
+  Close window) and shortcuts, which act on that window. Widgets picked there open there. Charts
+  open independently in every window; a single-instance widget exists once in the app, so
+  picking it in window B while it lives in window A (open or closed) **moves** it to B, with its
+  settings and view model (`WorkspaceViewModel.Release` in A, adopted through the claim callback
+  `WorkspaceWindows` gives every workspace). Link groups and every store stay app-wide, so a
+  chart in one window follows a watchlist in another. The windows aren't owned by the main
+  window (they can sit on another screen, with a taskbar entry); closing one discards it and
+  disposes its widgets; closing the main window exits the app (`ShutdownMode.OnMainWindowClose`)
+  and keeps the open windows, with their bounds and layouts, for the next start. Dragging a
+  widget between windows is not supported: dropped outside its window, it floats (owned by that
+  window); move it by opening it from the other window's menu (single-instance widgets).
+  `WorkspaceWindows` (singleton) holds the main workspace and the extra ones
+  (`WorkspaceWindowViewModel`, shown by `Shell/WorkspaceWindow`, which the main window opens).
 
 - **Center views.** A tab strip above the center lists the views; left, right, bottom and
   floating widgets are shared by all of them, a center widget sits in exactly one. Click a tab to
@@ -134,9 +151,15 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   frame header via `WidgetViewFactory.CreateTitle`). It turns into a ticker box: typing lists
   IB's listings of the symbol to pick from, Enter takes the highlighted one or the typed ticker's
   first listing (`IContractManager.ResolveTickerAsync`); an empty box (or the chevron) lists the
-  last 10 tickers (`SettingsEntity.RecentContracts`, shared by all charts). Esc or clicking away
+  last 10 tickers (`SettingsEntity.RecentContracts`, shared by all widgets). Esc or clicking away
   cancels.
-- **Ticker search boxes** (chart title, watchlist) are one control, `Controls/ContractSearchBox`.
+- **Click-to-edit ticker titles** (chart, option chain) are one control, `Controls/TickerTitle`
+  in `LT.Widgets.Core`. Its view model implements `ITickerTitled` (`Title` plus a
+  `TickerTitleEditor`, which holds the editing state, trims and upper-cases typed text, ignores a
+  blank one and hands the ticker or picked listing to the widget's own open path).
+  `CommitOnLostFocus` makes clicking away open the typed ticker instead of cancelling.
+- **Ticker search boxes** (chart and option chain titles, watchlist) are one control,
+  `Controls/ContractSearchBox`.
   A typed symbol is looked up as stock / ETF, index and crypto at once
   (`IContractManager.SearchSymbolAsync`, `MarketDataConstants.SymbolSearchTypes`), US-dollar
   listings first. Futures and forex are not searched (every contract month / currency pairs).
@@ -252,7 +275,9 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   the expanded widget per side. `WorkspaceView` only mirrors it: each view's host is rebuilt as
   nested grids whenever a tree changes, splitter sizes are written back into the tree after a
   drag.
-- Saved in `LayoutEntity`: `Widgets` (id, kind, dock, floating bounds, chart settings of each open
+- Saved in `LayoutEntity` (its workspace part is `WorkspaceLayoutEntity`, shared with every
+  extra window's `WorkspaceWindowEntity` in `LayoutEntity.Windows`, which adds its id, name and
+  bounds; layouts saved before windows have none): `Widgets` (id, kind, dock, floating bounds, chart settings of each open
   instance), `Views` (id, name and split tree with sizes of each view) with `SelectedViewId`, the
   expanded widget per side and side widths. Layouts from before views have only `Center` (one
   split tree): it becomes the first view, "Main", on load and is saved as null afterwards
@@ -263,7 +288,7 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
 solution's `Widgets` folder and referenced by `LT.App`; an `IWidgetDefinition` there (title, icon, focus key, view model type,
 view and optional header title) listed in `WidgetCatalog.Definitions` — that also registers its
 view model in DI; a default dock in `WorkspaceHelpers.GetDefaultDock`, and a menu entry in
-`MainWindow.axaml`. Per-instance settings: implement `IWidgetState` on the view model.
+`WidgetsMenuItem.Order` (the Widgets menu of every window). Per-instance settings: implement `IWidgetState` on the view model.
 
 `WidgetCatalog`, `WidgetViewFactory` and `WidgetViewModelFactory` only read the definitions; a
 widget's header title is its definition's `CreateTitle()` (`WidgetTitles.Bound` for plain text bound
@@ -339,8 +364,10 @@ with the current one. Widgets in the same group show the same contract:
 - New widgets start in Red, so out of the box they all follow each other. "Not linked" keeps a
   widget on its own contract.
 
-The option chain has no ticker input of its own: its underlying comes from its group, and the
-frame header shows that ticker (`WidgetViewFactory.CreateTitle` binds `OptionChainViewModel.Title`).
+The option chain's underlying comes from its group, and the frame header shows that ticker
+(`TickerTitle`, bound to `OptionChainViewModel.Title`). Clicking it types another underlying, as
+on a chart: Enter or clicking away opens the typed ticker (upper-cased, blank ignored), Esc
+cancels; the ticker goes through the same path as one from the group and moves the group along.
 It lists one tab per expiration (`IOptionChainManager.GetExpirationsAsync`, from
 `reqSecDefOptParams`); the selected tab loads that day's strikes around the money. Columns mirror
 around the strike with the bid next to it on both sides: call vol · last · ask · bid | strike |
@@ -493,10 +520,12 @@ subscription and frees the market-data line.
 | Esc (side or bottom widget) | Back to the last focused center widget; an unpinned widget collapses |
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous center view |
 | Ctrl+Shift+F | Fullscreen the current widget (the one last clicked or typed in, framed in light blue), or restore it |
+| Ctrl+Shift+N | New empty workspace window |
 
 Ctrl+Shift+*key* combos act on a widget.
 
-The window handles them in a tunnelling `KeyDown` handler (`MainWindow.axaml.cs`), so they work
+The window handles them in a tunnelling `KeyDown` handler (`MainWindow.axaml.cs`, and
+`WorkspaceWindow.axaml.cs` for its own workspace — everything but Ctrl+,), so they work
 while a text box has focus. On macOS, Cmd works in place of Ctrl.
 
 ## Charts
