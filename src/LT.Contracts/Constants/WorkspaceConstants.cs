@@ -27,6 +27,9 @@ public static class WorkspaceConstants
 
 	public const int ViewNameMaxLength = 40;
 
+	/// <summary>A duplicated view is "&lt;name&gt; copy", then "&lt;name&gt; copy 2", …</summary>
+	public const string DuplicateViewNameSuffix = "copy";
+
 	/// <summary>Hovering a dragged widget this long over a view tab switches to that view.</summary>
 	public const int ViewTabHoverSwitchMs = 600;
 }

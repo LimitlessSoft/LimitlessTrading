@@ -113,7 +113,10 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   floating widgets are shared by all of them, a center widget sits in exactly one. Click a tab to
   show it, double-click to rename it in place (Enter or clicking away saves, Esc cancels, a blank
   name keeps the old one), ✕ closes the view together with its widgets (like ✕ on each; the last
-  view has no ✕). "+" adds an empty "View N" and shows it; Ctrl+Tab / Ctrl+Shift+Tab cycle
+  view has no ✕). Right-click a tab → Duplicate puts "<name> copy" right after it and shows it:
+  the same split tree with new instances of its widgets carrying their saved settings (symbol,
+  timeframe, link group, …); single-instance widgets can't be in two views, so their slots are
+  left out (`CenterViewHelpers.Duplicate`). "+" adds an empty "View N" and shows it; Ctrl+Tab / Ctrl+Shift+Tab cycle
   through them. New and reopened center widgets go to the shown view; showing a widget that sits
   in another view (menu, Ctrl+1…9, Ctrl+Alt+key) switches to that view. Every view has its own
   host in `WorkspaceView`, built once per tree change and only hidden while another view is
