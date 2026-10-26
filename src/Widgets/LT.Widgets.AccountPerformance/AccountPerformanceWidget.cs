@@ -9,6 +9,8 @@ public class AccountPerformanceWidget : IWidgetDefinition
 {
 	public WorkspaceTool Tool => WorkspaceTool.AccountPerformance;
 
+	public WidgetCategory Category => WidgetCategory.Ibkr;
+
 	public string Title => "Account performance";
 
 	public string Icon =>

@@ -8,194 +8,235 @@
 >
 	<!-- The wrapper every widget sits in, whichever host (center, side, floating) holds it.
 	     Docked on a side it is flush with the strip and window edges (no card look). -->
-	<Border
-		Classes="panel"
-		Classes.docked="{Binding IsSide}"
-		Classes.current="{Binding IsCurrent}"
-		Classes.fullscreen="{Binding IsFullscreen}"
-	>
-		<DockPanel>
-			<!-- The header is the drag handle: drop on a side, a center tile or outside to float -->
-			<Border x:Name="Header" DockPanel.Dock="Top" Margin="0,0,0,8" Background="Transparent">
-				<DockPanel>
-					<StackPanel
-						DockPanel.Dock="Right"
-						Classes="frameActions"
-						Orientation="Horizontal"
-						Spacing="2"
-						VerticalAlignment="Center"
-					>
-						<Button
-							Classes="frameAction pin"
-							Classes.unpinned="{Binding !IsPinned}"
-							ToolTip.Tip="{Binding PinToolTip}"
-							Command="{Binding TogglePinCommand}"
-							IsVisible="{Binding CanPin}"
+	<Panel>
+		<Border
+			x:Name="Frame"
+			Classes="panel"
+			Classes.docked="{Binding IsSide}"
+			Classes.current="{Binding IsCurrent}"
+			Classes.fullscreen="{Binding IsFullscreen}"
+		>
+			<DockPanel>
+				<!-- The header is the drag handle: drop on a side, a center tile or outside to float -->
+				<Border x:Name="Header" DockPanel.Dock="Top" Margin="0,0,0,8" Background="Transparent">
+					<DockPanel>
+						<StackPanel
+							DockPanel.Dock="Right"
+							Classes="frameActions"
+							Orientation="Horizontal"
+							Spacing="2"
+							VerticalAlignment="Center"
 						>
-							<PathIcon Data="{StaticResource FramePinIcon}" />
-						</Button>
-						<!-- Widgets in the same color group show the same contract -->
-						<Button
-							Classes="frameAction link"
-							ToolTip.Tip="{Binding LinkToolTip}"
-							IsVisible="{Binding IsLinkable}"
-						>
-							<PathIcon Foreground="{Binding LinkBrush}" Data="{StaticResource FrameLinkIcon}" />
-							<Button.Flyout>
-								<MenuFlyout Placement="BottomEdgeAlignedRight">
-									<MenuItem
-										Header="Not linked"
-										Command="{Binding SetLinkGroupCommand}"
-										CommandParameter="{x:Static enums:LinkGroup.None}"
-									>
-										<MenuItem.Icon>
-											<Ellipse Width="10" Height="10" Fill="{x:Static vm:LinkGroupBrushes.None}" />
-										</MenuItem.Icon>
-									</MenuItem>
-									<MenuItem
-										Header="Red group"
-										Command="{Binding SetLinkGroupCommand}"
-										CommandParameter="{x:Static enums:LinkGroup.Red}"
-									>
-										<MenuItem.Icon>
-											<Ellipse Width="10" Height="10" Fill="{x:Static vm:LinkGroupBrushes.Red}" />
-										</MenuItem.Icon>
-									</MenuItem>
-									<MenuItem
-										Header="Green group"
-										Command="{Binding SetLinkGroupCommand}"
-										CommandParameter="{x:Static enums:LinkGroup.Green}"
-									>
-										<MenuItem.Icon>
-											<Ellipse Width="10" Height="10" Fill="{x:Static vm:LinkGroupBrushes.Green}" />
-										</MenuItem.Icon>
-									</MenuItem>
-									<MenuItem
-										Header="Blue group"
-										Command="{Binding SetLinkGroupCommand}"
-										CommandParameter="{x:Static enums:LinkGroup.Blue}"
-									>
-										<MenuItem.Icon>
-											<Ellipse Width="10" Height="10" Fill="{x:Static vm:LinkGroupBrushes.Blue}" />
-										</MenuItem.Icon>
-									</MenuItem>
-									<MenuItem
-										Header="Yellow group"
-										Command="{Binding SetLinkGroupCommand}"
-										CommandParameter="{x:Static enums:LinkGroup.Yellow}"
-									>
-										<MenuItem.Icon>
-											<Ellipse
-												Width="10"
-												Height="10"
-												Fill="{x:Static vm:LinkGroupBrushes.Yellow}"
-											/>
-										</MenuItem.Icon>
-									</MenuItem>
-									<MenuItem
-										Header="Orange group"
-										Command="{Binding SetLinkGroupCommand}"
-										CommandParameter="{x:Static enums:LinkGroup.Orange}"
-									>
-										<MenuItem.Icon>
-											<Ellipse
-												Width="10"
-												Height="10"
-												Fill="{x:Static vm:LinkGroupBrushes.Orange}"
-											/>
-										</MenuItem.Icon>
-									</MenuItem>
-									<MenuItem
-										Header="Purple group"
-										Command="{Binding SetLinkGroupCommand}"
-										CommandParameter="{x:Static enums:LinkGroup.Purple}"
-									>
-										<MenuItem.Icon>
-											<Ellipse
-												Width="10"
-												Height="10"
-												Fill="{x:Static vm:LinkGroupBrushes.Purple}"
-											/>
-										</MenuItem.Icon>
-									</MenuItem>
-									<MenuItem
-										Header="Cyan group"
-										Command="{Binding SetLinkGroupCommand}"
-										CommandParameter="{x:Static enums:LinkGroup.Cyan}"
-									>
-										<MenuItem.Icon>
-											<Ellipse Width="10" Height="10" Fill="{x:Static vm:LinkGroupBrushes.Cyan}" />
-										</MenuItem.Icon>
-									</MenuItem>
-									<MenuItem
-										Header="Pink group"
-										Command="{Binding SetLinkGroupCommand}"
-										CommandParameter="{x:Static enums:LinkGroup.Pink}"
-									>
-										<MenuItem.Icon>
-											<Ellipse Width="10" Height="10" Fill="{x:Static vm:LinkGroupBrushes.Pink}" />
-										</MenuItem.Icon>
-									</MenuItem>
-									<MenuItem
-										Header="Lime group"
-										Command="{Binding SetLinkGroupCommand}"
-										CommandParameter="{x:Static enums:LinkGroup.Lime}"
-									>
-										<MenuItem.Icon>
-											<Ellipse Width="10" Height="10" Fill="{x:Static vm:LinkGroupBrushes.Lime}" />
-										</MenuItem.Icon>
-									</MenuItem>
-									<MenuItem
-										Header="White group"
-										Command="{Binding SetLinkGroupCommand}"
-										CommandParameter="{x:Static enums:LinkGroup.White}"
-									>
-										<MenuItem.Icon>
-											<Ellipse Width="10" Height="10" Fill="{x:Static vm:LinkGroupBrushes.White}" />
-										</MenuItem.Icon>
-									</MenuItem>
-								</MenuFlyout>
-							</Button.Flyout>
-						</Button>
-						<Button
-							Classes="frameAction"
-							ToolTip.Tip="{Binding FullscreenToolTip}"
-							Command="{Binding ToggleFullscreenCommand}"
-						>
-							<Panel>
-								<PathIcon
-									Data="{StaticResource FrameFullscreenIcon}"
-									IsVisible="{Binding !IsFullscreen}"
-								/>
-								<PathIcon
-									Data="{StaticResource FrameRestoreIcon}"
-									IsVisible="{Binding IsFullscreen}"
-								/>
-							</Panel>
-						</Button>
-						<Button
-							Classes="frameAction close"
-							ToolTip.Tip="Close"
-							Command="{Binding CloseCommand}"
-						>
-							<PathIcon Data="{StaticResource FrameCloseIcon}" />
-						</Button>
-					</StackPanel>
-					<StackPanel Orientation="Horizontal" Spacing="8">
-						<PathIcon
-							Width="14"
-							Height="14"
-							Foreground="{DynamicResource SecondaryText}"
-							Data="{Binding Icon}"
-						/>
-						<!-- Widget-specific title (the chart's ticker box) replaces the plain one -->
-						<ContentControl x:Name="TitleHost" VerticalAlignment="Center">
-							<TextBlock Classes="panelTitle" Text="{Binding Title}" />
-						</ContentControl>
-					</StackPanel>
-				</DockPanel>
-			</Border>
-			<ContentControl x:Name="BodyHost" />
-		</DockPanel>
-	</Border>
+							<Button
+								Classes="frameAction pin"
+								Classes.unpinned="{Binding !IsPinned}"
+								ToolTip.Tip="{Binding PinToolTip}"
+								Command="{Binding TogglePinCommand}"
+								IsVisible="{Binding CanPin}"
+							>
+								<PathIcon Data="{StaticResource FramePinIcon}" />
+							</Button>
+							<!-- Widgets in the same color group show the same contract -->
+							<Button
+								Classes="frameAction link"
+								ToolTip.Tip="{Binding LinkToolTip}"
+								IsVisible="{Binding IsLinkable}"
+							>
+								<PathIcon Foreground="{Binding LinkBrush}" Data="{StaticResource FrameLinkIcon}" />
+								<Button.Flyout>
+									<MenuFlyout Placement="BottomEdgeAlignedRight">
+										<MenuItem
+											Header="Not linked"
+											Command="{Binding SetLinkGroupCommand}"
+											CommandParameter="{x:Static enums:LinkGroup.None}"
+										>
+											<MenuItem.Icon>
+												<Ellipse
+													Width="10"
+													Height="10"
+													Fill="{x:Static vm:LinkGroupBrushes.None}"
+												/>
+											</MenuItem.Icon>
+										</MenuItem>
+										<MenuItem
+											Header="Red group"
+											Command="{Binding SetLinkGroupCommand}"
+											CommandParameter="{x:Static enums:LinkGroup.Red}"
+										>
+											<MenuItem.Icon>
+												<Ellipse Width="10" Height="10" Fill="{x:Static vm:LinkGroupBrushes.Red}" />
+											</MenuItem.Icon>
+										</MenuItem>
+										<MenuItem
+											Header="Green group"
+											Command="{Binding SetLinkGroupCommand}"
+											CommandParameter="{x:Static enums:LinkGroup.Green}"
+										>
+											<MenuItem.Icon>
+												<Ellipse
+													Width="10"
+													Height="10"
+													Fill="{x:Static vm:LinkGroupBrushes.Green}"
+												/>
+											</MenuItem.Icon>
+										</MenuItem>
+										<MenuItem
+											Header="Blue group"
+											Command="{Binding SetLinkGroupCommand}"
+											CommandParameter="{x:Static enums:LinkGroup.Blue}"
+										>
+											<MenuItem.Icon>
+												<Ellipse
+													Width="10"
+													Height="10"
+													Fill="{x:Static vm:LinkGroupBrushes.Blue}"
+												/>
+											</MenuItem.Icon>
+										</MenuItem>
+										<MenuItem
+											Header="Yellow group"
+											Command="{Binding SetLinkGroupCommand}"
+											CommandParameter="{x:Static enums:LinkGroup.Yellow}"
+										>
+											<MenuItem.Icon>
+												<Ellipse
+													Width="10"
+													Height="10"
+													Fill="{x:Static vm:LinkGroupBrushes.Yellow}"
+												/>
+											</MenuItem.Icon>
+										</MenuItem>
+										<MenuItem
+											Header="Orange group"
+											Command="{Binding SetLinkGroupCommand}"
+											CommandParameter="{x:Static enums:LinkGroup.Orange}"
+										>
+											<MenuItem.Icon>
+												<Ellipse
+													Width="10"
+													Height="10"
+													Fill="{x:Static vm:LinkGroupBrushes.Orange}"
+												/>
+											</MenuItem.Icon>
+										</MenuItem>
+										<MenuItem
+											Header="Purple group"
+											Command="{Binding SetLinkGroupCommand}"
+											CommandParameter="{x:Static enums:LinkGroup.Purple}"
+										>
+											<MenuItem.Icon>
+												<Ellipse
+													Width="10"
+													Height="10"
+													Fill="{x:Static vm:LinkGroupBrushes.Purple}"
+												/>
+											</MenuItem.Icon>
+										</MenuItem>
+										<MenuItem
+											Header="Cyan group"
+											Command="{Binding SetLinkGroupCommand}"
+											CommandParameter="{x:Static enums:LinkGroup.Cyan}"
+										>
+											<MenuItem.Icon>
+												<Ellipse
+													Width="10"
+													Height="10"
+													Fill="{x:Static vm:LinkGroupBrushes.Cyan}"
+												/>
+											</MenuItem.Icon>
+										</MenuItem>
+										<MenuItem
+											Header="Pink group"
+											Command="{Binding SetLinkGroupCommand}"
+											CommandParameter="{x:Static enums:LinkGroup.Pink}"
+										>
+											<MenuItem.Icon>
+												<Ellipse
+													Width="10"
+													Height="10"
+													Fill="{x:Static vm:LinkGroupBrushes.Pink}"
+												/>
+											</MenuItem.Icon>
+										</MenuItem>
+										<MenuItem
+											Header="Lime group"
+											Command="{Binding SetLinkGroupCommand}"
+											CommandParameter="{x:Static enums:LinkGroup.Lime}"
+										>
+											<MenuItem.Icon>
+												<Ellipse
+													Width="10"
+													Height="10"
+													Fill="{x:Static vm:LinkGroupBrushes.Lime}"
+												/>
+											</MenuItem.Icon>
+										</MenuItem>
+										<MenuItem
+											Header="White group"
+											Command="{Binding SetLinkGroupCommand}"
+											CommandParameter="{x:Static enums:LinkGroup.White}"
+										>
+											<MenuItem.Icon>
+												<Ellipse
+													Width="10"
+													Height="10"
+													Fill="{x:Static vm:LinkGroupBrushes.White}"
+												/>
+											</MenuItem.Icon>
+										</MenuItem>
+									</MenuFlyout>
+								</Button.Flyout>
+							</Button>
+							<Button
+								Classes="frameAction"
+								ToolTip.Tip="{Binding FullscreenToolTip}"
+								Command="{Binding ToggleFullscreenCommand}"
+							>
+								<Panel>
+									<PathIcon
+										Data="{StaticResource FrameFullscreenIcon}"
+										IsVisible="{Binding !IsFullscreen}"
+									/>
+									<PathIcon
+										Data="{StaticResource FrameRestoreIcon}"
+										IsVisible="{Binding IsFullscreen}"
+									/>
+								</Panel>
+							</Button>
+							<Button
+								Classes="frameAction close"
+								ToolTip.Tip="Close"
+								Command="{Binding CloseCommand}"
+							>
+								<PathIcon Data="{StaticResource FrameCloseIcon}" />
+							</Button>
+						</StackPanel>
+						<StackPanel Orientation="Horizontal" Spacing="8">
+							<PathIcon
+								Width="14"
+								Height="14"
+								Foreground="{DynamicResource SecondaryText}"
+								Data="{Binding Icon}"
+							/>
+							<!-- Widget-specific title (the chart's ticker box) replaces the plain one -->
+							<ContentControl x:Name="TitleHost" VerticalAlignment="Center">
+								<TextBlock Classes="panelTitle" Text="{Binding Title}" />
+							</ContentControl>
+						</StackPanel>
+					</DockPanel>
+				</Border>
+				<ContentControl x:Name="BodyHost" />
+			</DockPanel>
+		</Border>
+		<!-- Where the widget's content comes from (WidgetCategory): IBKR or a tool of its own -->
+		<vm:CornerMarker
+			Width="12"
+			Height="12"
+			HorizontalAlignment="Left"
+			VerticalAlignment="Top"
+			Fill="{Binding CategoryBrush}"
+			CornerRadius="{Binding #Frame.CornerRadius}"
+			ToolTip.Tip="{Binding CategoryToolTip}"
+		/>
+	</Panel>
 </UserControl>

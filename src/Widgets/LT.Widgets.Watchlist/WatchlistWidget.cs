@@ -9,6 +9,8 @@ public class WatchlistWidget : IWidgetDefinition
 {
 	public WorkspaceTool Tool => WorkspaceTool.Watchlist;
 
+	public WidgetCategory Category => WidgetCategory.Ibkr;
+
 	public string Title => "Watchlist";
 
 	/// <summary>An eye.</summary>

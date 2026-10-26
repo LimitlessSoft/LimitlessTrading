@@ -16,4 +16,5 @@ public enum WorkspaceTool
 	AccountPerformance = 10,
 	DayTradePerformance = 11,
 	Depth = 12,
+	Notes = 13,
 }

@@ -9,6 +9,8 @@ public class DayTradePerformanceWidget : IWidgetDefinition
 {
 	public WorkspaceTool Tool => WorkspaceTool.DayTradePerformance;
 
+	public WidgetCategory Category => WidgetCategory.Ibkr;
+
 	public string Title => "Day trade performance";
 
 	// Clock (intraday), so it doesn't read as Account performance's rising line

@@ -9,6 +9,8 @@ public class OrderTicketWidget : IWidgetDefinition
 {
 	public WorkspaceTool Tool => WorkspaceTool.OrderTicket;
 
+	public WidgetCategory Category => WidgetCategory.Ibkr;
+
 	public string Title => "Order ticket";
 
 	/// <summary>A price tag: buy / sell.</summary>

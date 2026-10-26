@@ -29,4 +29,15 @@ public class WidgetShortcutTests
 			"Watchlist (Ctrl+Alt+W)",
 			new WidgetItem("w1", WorkspaceTool.Watchlist, new object()).ToolTip
 		);
+
+	[Fact]
+	public void Frame_corner_marker_names_and_colors_the_source()
+	{
+		var ibkr = new WidgetItem("w1", WorkspaceTool.Watchlist, new object());
+		var notes = new WidgetItem("n1", WorkspaceTool.Notes, new object());
+
+		Assert.Equal("Interactive Brokers", ibkr.CategoryToolTip);
+		Assert.Equal("Tools", notes.CategoryToolTip);
+		Assert.NotSame(ibkr.CategoryBrush, notes.CategoryBrush);
+	}
 }

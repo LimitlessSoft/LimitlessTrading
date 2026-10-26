@@ -18,7 +18,8 @@ public static class WorkspaceHelpers
 			WorkspaceTool.Account
 			or WorkspaceTool.Messages
 			or WorkspaceTool.OrderTicket
-			or WorkspaceTool.Depth => WidgetDock.Right,
+			or WorkspaceTool.Depth
+			or WorkspaceTool.Notes => WidgetDock.Right,
 			WorkspaceTool.News => WidgetDock.Bottom,
 			_ => WidgetDock.Center,
 		};

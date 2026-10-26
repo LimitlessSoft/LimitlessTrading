@@ -10,6 +10,8 @@ public class OptionChainWidget : IWidgetDefinition
 {
 	public WorkspaceTool Tool => WorkspaceTool.OptionChain;
 
+	public WidgetCategory Category => WidgetCategory.Ibkr;
+
 	public string Title => "Option chain";
 
 	public string Icon =>

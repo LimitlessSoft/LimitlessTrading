@@ -198,7 +198,7 @@ journal (recorded fills and intraday P&L, one file per trading day) in `trade-jo
 SDK copy, [indicators.md](indicators.md#script-files)). IB Flex imports go into those same files (account days marked
 `Source = Flex`, fills carrying their Flex `TradeId`); the import's progress is in
 `flex-import.json`, and the Flex token in `settings.json` (`SettingsEntity.Flex`, plain text). The last two are not part of the cache, so Clear cache and the size limit
-never touch them. All live under the OS app-data folder
+never touch them; nor do they touch the Notes widgets' text, `notes.json` (one entry per note id). All live under the OS app-data folder
 (`Environment.SpecialFolder.ApplicationData`: `%APPDATA%\LimitlessTrading` on Windows,
 `~/.config/LimitlessTrading` on Linux and macOS). When we need queryable local data (layouts,
 journal) the plan is SQLite + EF Core behind the same repository interfaces.

@@ -87,6 +87,7 @@ public static class Program
 		builder.Services.AddSingleton<IFlexImportStateRepository, FlexImportStateRepository>();
 		builder.Services.AddSingleton<ISharesOutstandingRepository, SharesOutstandingRepository>();
 		builder.Services.AddSingleton<IPatchNotesRepository, PatchNotesRepository>();
+		builder.Services.AddSingleton<INotesRepository, NotesRepository>();
 		builder.Services.AddSingleton<IIbkrApiClient, IbkrApiClient>();
 		// One HttpClient and one pacing state for every Flex request (IB's limits are per token)
 		builder.Services.AddSingleton<IFlexApiClient>(services => new FlexApiClient(
@@ -121,6 +122,8 @@ public static class Program
 		builder.Services.AddSingleton<IOrderManager, OrderManager>();
 		// One Changed event for every watchlist widget, so two showing one list stay in step
 		builder.Services.AddSingleton<IWatchlistManager, WatchlistManager>();
+		// One copy of the notes and one pending save for every Notes widget (flushed on exit)
+		builder.Services.AddSingleton<INotesManager, NotesManager>();
 
 		// Chart indicators: one engine (compiled scripts, their load contexts), one catalog, one
 		// watcher on the scripts folder
