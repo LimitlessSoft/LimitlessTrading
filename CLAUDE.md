@@ -24,6 +24,11 @@ tasks go to the `code` agent (`.claude/agents/code.md`), which has the commit, p
    whatever account is connected, usually live. Never place an order (app, probe, script) without
    the user's explicit yes for that order. Order modification and what-if are not built. See
    [docs/ibkr-tws-api.md](docs/ibkr-tws-api.md#orders).
+   **Pre-approved, no confirmation needed:** read-only connections to the live TWS / IB Gateway
+   for recording or probing (a client id the app doesn't use; never a `3` place / `4` cancel
+   frame — check the recording), and extending IBKR.Net end to end: implement, bump the version,
+   commit / push on its `advance/X.Y.Z` branch and publish to nuget.org (push to `main`). Only
+   orders need an explicit yes.
 1. **`IBKR.Net` types live only in `LT.Ibkr`.** Everything crossing `IIbkrApiClient` is an
    `LT.Contracts` DTO; map IB types in `LT.Ibkr/DtoMappings/`. IBKR.Net is our own client: when
    LT needs an IB call it lacks, add it there (record the frames with `tools/IbkrWireRecorder`,
