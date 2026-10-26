@@ -5,7 +5,8 @@ namespace LT.Contracts.Helpers;
 
 /// <summary>
 /// Extra workspace windows: each has a workspace of its own (side panels, widgets, center views)
-/// next to the main window's. A single-instance widget exists once in the whole app.
+/// next to the main window's. Widget instances belong to one window; any widget can be open in
+/// several windows at once.
 /// </summary>
 public static class WorkspaceWindowHelpers
 {
@@ -52,16 +53,11 @@ public static class WorkspaceWindowHelpers
 	/// <summary>
 	/// Cleans the saved windows of <paramref name="layout"/>: unique non-empty ids, non-blank names,
 	/// a usable size, and each window's widgets cleaned like the main one's
-	/// (<see cref="WorkspaceHelpers.Normalize"/>). A single-instance widget already in the main
-	/// window or in an earlier window is dropped from the later one.
+	/// (<see cref="WorkspaceHelpers.Normalize"/>).
 	/// </summary>
 	public static void Normalize(LayoutDto layout)
 	{
 		layout.Widgets = WorkspaceHelpers.Normalize(layout.Widgets);
-		var taken = layout
-			.Widgets.Where(x => !WorkspaceHelpers.AllowsMultipleInstances(x.Tool))
-			.Select(x => x.Tool)
-			.ToHashSet();
 		var ids = new HashSet<string>();
 		var names = new List<string>();
 		foreach (var window in layout.Windows)
@@ -77,10 +73,7 @@ public static class WorkspaceWindowHelpers
 			if (window.Height < WorkspaceConstants.WindowMinHeight)
 				window.Height = WorkspaceConstants.WindowDefaultHeight;
 
-			window.Widgets = WorkspaceHelpers
-				.Normalize(window.Widgets)
-				.Where(x => WorkspaceHelpers.AllowsMultipleInstances(x.Tool) || taken.Add(x.Tool))
-				.ToList();
+			window.Widgets = WorkspaceHelpers.Normalize(window.Widgets);
 		}
 	}
 }

@@ -18,8 +18,8 @@ namespace LT.App.Workspace;
 
 /// <summary>
 /// Every workspace of the app: the main window's and one per extra workspace window
-/// (menu → New window). Each has its own docks, center views and floating widgets; a
-/// single-instance widget exists in only one of them and moves to the window that asks for it.
+/// (menu → New window). Each has its own docks, center views and floating widgets, with
+/// instances of their own of any widget.
 /// Link groups and the other stores stay app-wide. Singleton (Program.cs); the main window opens a
 /// window for every entry of <see cref="Windows"/>.
 /// </summary>
@@ -193,20 +193,6 @@ public class WorkspaceWindows : IWorkspaceHost
 		}
 	}
 
-	private WorkspaceViewModel Create(WorkspaceLayoutDto layout)
-	{
-		WorkspaceViewModel? workspace = null;
-		workspace = new WorkspaceViewModel(
-			_widgetViewModelFactory.Create,
-			layout,
-			_appearance,
-			tool => Release(tool, workspace!),
-			this
-		);
-		return workspace;
-	}
-
-	// The single-instance widget of another workspace, taken out of it for `to`
-	private WidgetItem? Release(WorkspaceTool tool, WorkspaceViewModel to) =>
-		Workspaces.Where(x => x != to).Select(x => x.Release(tool)).FirstOrDefault(x => x != null);
+	private WorkspaceViewModel Create(WorkspaceLayoutDto layout) =>
+		new(_widgetViewModelFactory.Create, layout, _appearance, this);
 }

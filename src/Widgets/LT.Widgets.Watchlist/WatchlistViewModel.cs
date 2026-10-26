@@ -10,6 +10,7 @@ using LT.App.ViewModels;
 using LT.App.Workspace;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Contracts;
+using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Dtos.Watchlists;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
@@ -18,14 +19,28 @@ using LT.Contracts.Requests.Watchlists;
 
 namespace LT.App.Widgets.Watchlist;
 
-public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITickerDragSource
+public partial class WatchlistViewModel
+	: ConnectedViewModelBase,
+		ILinkable,
+		ITickerDragSource,
+		IWidgetState
 {
 	private readonly IWatchlistManager _watchlistManager;
+	private readonly ISettingsManager _settingsManager;
+	private readonly DispatcherTimer _flushTimer;
+	private readonly DispatcherTimer _resortTimer;
 	private readonly IContractManager _contractManager;
 	private readonly IMarketDataManager _marketDataManager;
 	private readonly IMessageLogManager _messageLogManager;
 	private readonly ISharesOutstandingManager _sharesOutstandingManager;
 	private CancellationToken _session = new(true);
+
+	// The watchlist this widget shows; every watchlist widget has its own
+	private string _watchlistId;
+
+	// This widget is changing the watchlists itself: it updates its rows on its own, so it skips
+	// the manager's Changed it causes
+	private bool _changing;
 
 	// The rows in the watchlist's saved order: the base of every sort, and of no sort
 	private readonly List<WatchlistRowViewModel> _savedOrder = [];
@@ -53,14 +68,18 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 		_marketDataManager = marketDataManager;
 		_messageLogManager = messageLogManager;
 		_sharesOutstandingManager = sharesOutstandingManager;
+		_settingsManager = settingsManager;
 		Link = new ContractLink(linkGroupStore, () => SelectedRow?.Contract);
 
+		// A new widget opens on the watchlist picked last
+		_watchlistId = watchlistManager.GetActive().Id;
 		LoadWatchlists();
 		LoadRows();
 
-		settingsManager.AppSettingsChanged += _ => Dispatcher.UIThread.Post(RestartSession);
+		settingsManager.AppSettingsChanged += OnAppSettingsChanged;
+		watchlistManager.Changed += OnWatchlistsChanged;
 
-		new DispatcherTimer(
+		_flushTimer = new DispatcherTimer(
 			MarketDataConstants.UiFlushInterval,
 			DispatcherPriority.Background,
 			(_, _) =>
@@ -71,9 +90,10 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 				if (changed && WatchlistSortHelpers.DependsOnQuotes(SortColumn))
 					_resortPending = true;
 			}
-		).Start();
+		);
+		_flushTimer.Start();
 
-		new DispatcherTimer(
+		_resortTimer = new DispatcherTimer(
 			MarketDataConstants.WatchlistResortInterval,
 			DispatcherPriority.Background,
 			(_, _) =>
@@ -81,7 +101,53 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 				if (_resortPending)
 					ApplyOrder();
 			}
-		).Start();
+		);
+		_resortTimer.Start();
+	}
+
+	/// <summary>A saved widget shows its own watchlist again (a deleted one: the active one).</summary>
+	public void LoadState(WidgetPlacementDto placement)
+	{
+		var id = WatchlistHelpers.ResolveShownId(
+			placement.WatchlistId,
+			_watchlistManager.GetActive().Id,
+			_watchlistManager.GetWatchlists()
+		);
+		if (id == _watchlistId)
+			return;
+		_watchlistId = id;
+		LoadWatchlists();
+		LoadRows();
+	}
+
+	public void SaveState(WidgetPlacementDto placement) => placement.WatchlistId = _watchlistId;
+
+	private void OnAppSettingsChanged(AppSettingsDto settings) =>
+		Dispatcher.UIThread.Post(RestartSession);
+
+	// Another watchlist widget changed the watchlists: follow a rename, a deleted list (back to
+	// the active one) and items or pins added, removed or moved on the list shown here
+	private void OnWatchlistsChanged()
+	{
+		if (_changing)
+			return;
+		var id = WatchlistHelpers.ResolveShownId(
+			_watchlistId,
+			_watchlistManager.GetActive().Id,
+			_watchlistManager.GetWatchlists()
+		);
+		var reload =
+			id != _watchlistId
+			|| !WatchlistHelpers.IsSameItems(
+				_watchlistManager.GetItems(id),
+				_savedOrder.Select(x => x.Contract)
+			);
+		_watchlistId = id;
+		LoadWatchlists();
+		if (reload)
+			LoadRows();
+		else
+			LoadPins();
 	}
 
 	/// <summary>The column the unpinned rows are sorted by (header click); pinned rows stay on top.</summary>
@@ -112,7 +178,7 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 	private void Pin(WatchlistRowViewModel? row)
 	{
 		row ??= SelectedRow;
-		if (row != null && Run(() => _watchlistManager.Pin(row.Contract)))
+		if (row != null && Run(() => _watchlistManager.Pin(_watchlistId, row.Contract)))
 			LoadPins();
 	}
 
@@ -120,14 +186,14 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 	private void Unpin(WatchlistRowViewModel? row)
 	{
 		row ??= SelectedRow;
-		if (row != null && Run(() => _watchlistManager.Unpin(row.Contract)))
+		if (row != null && Run(() => _watchlistManager.Unpin(_watchlistId, row.Contract)))
 			LoadPins();
 	}
 
 	// Pin places from the saved watchlist, then the rows in display order
 	private void LoadPins()
 	{
-		var pinned = _watchlistManager.GetPinned();
+		var pinned = _watchlistManager.GetPinned(_watchlistId);
 		foreach (var row in _savedOrder)
 		{
 			var index = pinned
@@ -181,7 +247,10 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 	{
 		if (item.IsActive)
 			return;
-		Run(() => _watchlistManager.SetActive(item.Id));
+		// Also where the next new watchlist widget opens
+		if (!Run(() => _watchlistManager.SetActive(item.Id)))
+			return;
+		_watchlistId = item.Id;
 		LoadWatchlists();
 		LoadRows();
 	}
@@ -192,9 +261,11 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 	{
 		if (
 			!Run(() =>
-				_watchlistManager.SaveName(
-					new SaveWatchlistNameRequest { Name = _watchlistManager.GetNewName() }
-				)
+				_watchlistId = _watchlistManager
+					.SaveName(
+						new SaveWatchlistNameRequest { Name = _watchlistManager.GetNewName() }
+					)
+					.Id
 			)
 		)
 			return;
@@ -253,8 +324,17 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 	private void ConfirmDelete(WatchlistItemViewModel item)
 	{
 		Run(() => _watchlistManager.Delete(item.Id));
+		// Deleting the shown watchlist shows the active one
+		var id = WatchlistHelpers.ResolveShownId(
+			_watchlistId,
+			_watchlistManager.GetActive().Id,
+			_watchlistManager.GetWatchlists()
+		);
+		var reload = id != _watchlistId;
+		_watchlistId = id;
 		LoadWatchlists();
-		LoadRows();
+		if (reload)
+			LoadRows();
 	}
 
 	[RelayCommand]
@@ -263,6 +343,7 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 	// Watchlist changes report problems (taken name, last list) in the widget's error line
 	private bool Run(Action change)
 	{
+		_changing = true;
 		try
 		{
 			change();
@@ -274,26 +355,31 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
 			return false;
 		}
+		finally
+		{
+			_changing = false;
+		}
 	}
 
 	private void LoadWatchlists()
 	{
-		var activeId = _watchlistManager.GetActive().Id;
 		Watchlists.Clear();
 		foreach (var watchlist in _watchlistManager.GetWatchlists())
-			Watchlists.Add(new WatchlistItemViewModel(this, watchlist, watchlist.Id == activeId));
+			Watchlists.Add(
+				new WatchlistItemViewModel(this, watchlist, watchlist.Id == _watchlistId)
+			);
 		ActiveWatchlist = Watchlists.FirstOrDefault(x => x.IsActive);
 		OnPropertyChanged(nameof(CanDelete));
 	}
 
-	// The active watchlist's rows, streaming when connected
+	// The shown watchlist's rows, streaming when connected
 	private void LoadRows()
 	{
 		foreach (var row in Rows)
 			Stop(row);
 		Rows.Clear();
 		_savedOrder.Clear();
-		foreach (var contract in _watchlistManager.GetItems())
+		foreach (var contract in _watchlistManager.GetItems(_watchlistId))
 		{
 			var row = new WatchlistRowViewModel(contract);
 			_savedOrder.Add(row);
@@ -339,6 +425,12 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 
 	public override void Dispose()
 	{
+		_flushTimer.Stop();
+		_resortTimer.Stop();
+		_settingsManager.AppSettingsChanged -= OnAppSettingsChanged;
+		_watchlistManager.Changed -= OnWatchlistsChanged;
+		foreach (var row in Rows)
+			Stop(row);
 		Link.Dispose();
 		base.Dispose();
 	}
@@ -372,7 +464,8 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 	{
 		try
 		{
-			_watchlistManager.Add(contract);
+			_changing = true;
+			_watchlistManager.Add(_watchlistId, contract);
 			var row = new WatchlistRowViewModel(contract);
 			_savedOrder.Add(row);
 			Rows.Add(row);
@@ -387,6 +480,10 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 		{
 			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
 		}
+		finally
+		{
+			_changing = false;
+		}
 	}
 
 	[RelayCommand]
@@ -397,7 +494,15 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 			return;
 
 		Stop(row);
-		_watchlistManager.Remove(row.Contract);
+		_changing = true;
+		try
+		{
+			_watchlistManager.Remove(_watchlistId, row.Contract);
+		}
+		finally
+		{
+			_changing = false;
+		}
 		_savedOrder.Remove(row);
 		Rows.Remove(row);
 		LoadWatchlists();

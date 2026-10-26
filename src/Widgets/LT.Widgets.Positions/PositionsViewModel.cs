@@ -158,6 +158,7 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable, ITi
 	public override void Dispose()
 	{
 		_displayTime.ZoneChanged -= _staleText.Rebuild;
+		_accountStore.PropertyChanged -= OnAccountChanged;
 		Link.Dispose();
 		base.Dispose();
 	}

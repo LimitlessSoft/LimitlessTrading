@@ -60,10 +60,12 @@ public partial class WorkspaceView : UserControl
 			host.AddHandler(KeyDownEvent, OnDockedKeyDown);
 	}
 
-	/// <summary>View of the first open instance of a widget (e.g. to focus the watchlist search).</summary>
+	/// <summary>
+	/// View of the instance of a widget that showing it acts on (<see cref="WorkspaceViewModel.FindShown"/>),
+	/// e.g. to focus the watchlist search.
+	/// </summary>
 	public Control? GetWidgetView(WorkspaceTool tool) =>
-		_viewModel?.Widgets.FirstOrDefault(x => x.Tool == tool && x.IsOpen) is { } widget
-		&& _frames.TryGetValue(widget.Id, out var frame)
+		_viewModel?.FindShown(tool) is { } widget && _frames.TryGetValue(widget.Id, out var frame)
 			? frame.Body
 			: null;
 

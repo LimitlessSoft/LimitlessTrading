@@ -45,7 +45,7 @@ public class WorkspaceWindowHelpersTests
 	}
 
 	[Fact]
-	public void A_single_instance_widget_stays_in_the_first_window_holding_it()
+	public void Any_widget_can_be_open_in_several_windows()
 	{
 		var layout = new LayoutDto
 		{
@@ -77,8 +77,14 @@ public class WorkspaceWindowHelpersTests
 			[WorkspaceTool.Chart, WorkspaceTool.Account],
 			layout.Widgets.Select(x => x.Tool)
 		);
-		Assert.Equal([WorkspaceTool.Watchlist], layout.Windows[0].Widgets.Select(x => x.Tool));
-		Assert.Equal([WorkspaceTool.News], layout.Windows[1].Widgets.Select(x => x.Tool));
+		Assert.Equal(
+			[WorkspaceTool.Account, WorkspaceTool.Watchlist],
+			layout.Windows[0].Widgets.Select(x => x.Tool)
+		);
+		Assert.Equal(
+			[WorkspaceTool.Watchlist, WorkspaceTool.News],
+			layout.Windows[1].Widgets.Select(x => x.Tool)
+		);
 	}
 
 	[Fact]

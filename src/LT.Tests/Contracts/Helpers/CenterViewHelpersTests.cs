@@ -249,7 +249,7 @@ public class CenterViewHelpersTests
 	[Fact]
 	public void Widgets_without_a_copy_are_left_out_of_the_duplicate_and_their_splits_collapse()
 	{
-		// H[Chart, V[Options, Chart-2]]: the option chain is single-instance, not copied
+		// H[Chart, V[Options, Chart-2]]: the option chain has no copy (gone from the workspace)
 		var root = CenterLayoutHelpers.Insert(
 			Tree("Chart", "Options"),
 			"Chart-2",

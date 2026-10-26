@@ -9,7 +9,7 @@ namespace LT.App.Workspace;
 
 /// <summary>
 /// One widget instance: what it is, the view model it shows and where it currently lives.
-/// <see cref="Dock"/> is null while the widget is closed.
+/// <see cref="Dock"/> is null only for a moment while it moves, and once it is closed (discarded).
 /// </summary>
 public partial class WidgetItem : ObservableObject
 {
@@ -74,9 +74,6 @@ public partial class WidgetItem : ObservableObject
 		if (value != null)
 			(Content as IWidgetOpenState)?.SetOpen(true);
 	}
-
-	/// <summary>Where the widget was last open, so reopening puts it back there.</summary>
-	public WidgetDock? LastDock { get; set; }
 
 	/// <summary>Shown over the whole window (or its floating window maximized).</summary>
 	[ObservableProperty]

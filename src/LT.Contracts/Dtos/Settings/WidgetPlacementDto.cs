@@ -63,4 +63,7 @@ public class WidgetPlacementDto
 
 	/// <summary>Account performance: deposits, withdrawals and transfers marked (null: off).</summary>
 	public bool? PerformanceShowCashMovements { get; set; }
+
+	/// <summary>Watchlist instances: the watchlist shown (null or deleted: the active one).</summary>
+	public string? WatchlistId { get; set; }
 }

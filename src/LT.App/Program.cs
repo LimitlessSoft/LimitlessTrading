@@ -116,6 +116,8 @@ public static class Program
 		builder.Services.AddSingleton<ISharesOutstandingManager, SharesOutstandingManager>();
 		// Holds the quick exits still working, app-wide (every Positions widget)
 		builder.Services.AddSingleton<IOrderManager, OrderManager>();
+		// One Changed event for every watchlist widget, so two showing one list stay in step
+		builder.Services.AddSingleton<IWatchlistManager, WatchlistManager>();
 
 		// Chart indicators: one engine (compiled scripts, their load contexts), one catalog, one
 		// watcher on the scripts folder

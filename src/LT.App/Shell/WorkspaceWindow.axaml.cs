@@ -170,14 +170,8 @@ public partial class WorkspaceWindow : AppWindow, IFullscreenHost
 		);
 	}
 
-	private void OnToolClicked(WorkspaceTool tool)
-	{
-		// Same as the item's shortcut: single-instance widgets also get focus
-		if (WidgetCatalog.GetFocusKey(tool) != null)
-			ViewModel?.FocusTool(tool);
-		else
-			ViewModel?.ShowTool(tool);
-	}
+	// Menu → Widgets always opens a new instance
+	private void OnToolClicked(WorkspaceTool tool) => ViewModel?.SpawnTool(tool);
 
 	private void OnFullscreenClicked() => ViewModel?.ToggleFullscreen();
 

@@ -84,6 +84,8 @@ public partial class OrdersViewModel : ConnectedViewModelBase, ILinkable, ITicke
 
 	public override void Dispose()
 	{
+		_accountStore.PropertyChanged -= OnAccountChanged;
+		_displayTime.ZoneChanged -= OnZoneChanged;
 		Link.Dispose();
 		base.Dispose();
 	}

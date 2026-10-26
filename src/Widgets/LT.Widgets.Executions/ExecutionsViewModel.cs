@@ -79,6 +79,7 @@ public partial class ExecutionsViewModel : ConnectedViewModelBase, ILinkable, IT
 	public override void Dispose()
 	{
 		_displayTime.ZoneChanged -= OnZoneChanged;
+		_accountStore.PropertyChanged -= OnAccountChanged;
 		Link.Dispose();
 		base.Dispose();
 	}

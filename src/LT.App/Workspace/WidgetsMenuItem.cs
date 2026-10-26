@@ -4,7 +4,8 @@ using LT.Contracts.Enums;
 namespace LT.App.Workspace;
 
 /// <summary>
-/// Menu → Widgets, the same in every window: one item per widget, then "Fullscreen widget". No
+/// Menu → Widgets, the same in every window: one item per widget, each opening a new instance of
+/// it (any widget can be open several times), then "Fullscreen widget". No
 /// shortcut labels: they show on the dock icons' and the fullscreen button's tooltips. The window handles <see cref="ToolClicked"/> and
 /// <see cref="FullscreenClicked"/> for its own workspace.
 /// </summary>
