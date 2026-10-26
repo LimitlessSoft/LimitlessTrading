@@ -8,8 +8,8 @@ using LT.Contracts.Helpers;
 namespace LT.App.Workspace;
 
 /// <summary>
-/// Where every widget instance lives: in the center split layout, on a collapsible side strip,
-/// or in its own floating window. Widgets are spawned, moved and closed independently; charts can
+/// Where every widget instance lives: in the center split layout, on a collapsible strip (left,
+/// right or bottom), or in its own floating window. Widgets are spawned, moved and closed independently; charts can
 /// be spawned several times.
 /// </summary>
 public partial class WorkspaceViewModel : ViewModelBase
@@ -22,8 +22,10 @@ public partial class WorkspaceViewModel : ViewModelBase
 	public WorkspaceViewModel(Func<WorkspaceTool, object> createContent, LayoutDto layout)
 	{
 		_createContent = createContent;
+		Bottom.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasBottomWidgets));
 		LeftWidth = layout.LeftWidth;
 		RightWidth = layout.RightWidth;
+		BottomHeight = layout.BottomHeight;
 
 		var centerIds = new List<string>();
 		foreach (var placement in WorkspaceHelpers.Normalize(layout.Widgets))
@@ -35,6 +37,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 			widget.FloatHeight = placement.FloatHeight;
 			widget.IsPinned = placement.IsPinned;
 			widget.SideWidth = placement.SideWidth;
+			widget.BottomHeight = placement.BottomHeight;
 			if (widget.Content is ILinkable linkable)
 				linkable.Link.Group = placement.LinkGroup;
 			(widget.Content as IWidgetState)?.LoadState(placement);
@@ -50,6 +53,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 
 		LeftActive = Left.FirstOrDefault(x => x.Id == layout.LeftWidgetId);
 		RightActive = Right.FirstOrDefault(x => x.Id == layout.RightWidgetId);
+		BottomActive = Bottom.FirstOrDefault(x => x.Id == layout.BottomWidgetId);
 	}
 
 	/// <summary>Every instance that exists: open ones and closed single-instance widgets.</summary>
@@ -57,6 +61,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 
 	public ObservableCollection<WidgetItem> Left { get; } = [];
 	public ObservableCollection<WidgetItem> Right { get; } = [];
+	public ObservableCollection<WidgetItem> Bottom { get; } = [];
 	public ObservableCollection<WidgetItem> Floating { get; } = [];
 
 	/// <summary>Center split tree; null when the center is empty. See <see cref="CenterChanged"/>.</summary>
@@ -74,15 +79,26 @@ public partial class WorkspaceViewModel : ViewModelBase
 	[ObservableProperty]
 	public partial WidgetItem? RightActive { get; set; }
 
-	/// <summary>Side panel widths; the view applies them and writes them back before saving.</summary>
+	[ObservableProperty]
+	public partial WidgetItem? BottomActive { get; set; }
+
+	/// <summary>The bottom strip shows only while a widget is docked there.</summary>
+	public bool HasBottomWidgets => Bottom.Count > 0;
+
 	/// <summary>Last width of each side panel: the start width of widgets without their own.</summary>
 	public double LeftWidth { get; set; }
 	public double RightWidth { get; set; }
+
+	/// <summary>Last height of the bottom panel: the start height of widgets without their own.</summary>
+	public double BottomHeight { get; set; }
 
 	partial void OnLeftActiveChanged(WidgetItem? oldValue, WidgetItem? newValue) =>
 		Activate(oldValue, newValue);
 
 	partial void OnRightActiveChanged(WidgetItem? oldValue, WidgetItem? newValue) =>
+		Activate(oldValue, newValue);
+
+	partial void OnBottomActiveChanged(WidgetItem? oldValue, WidgetItem? newValue) =>
 		Activate(oldValue, newValue);
 
 	public WidgetItem? Find(string id) => Widgets.FirstOrDefault(x => x.Id == id);
@@ -164,7 +180,9 @@ public partial class WorkspaceViewModel : ViewModelBase
 	/// <summary>Hotkey: collapses an expanded side widget, otherwise shows the widget.</summary>
 	public void Toggle(WorkspaceTool tool)
 	{
-		var active = new[] { LeftActive, RightActive }.FirstOrDefault(x => x?.Tool == tool);
+		var active = new[] { LeftActive, RightActive, BottomActive }.FirstOrDefault(x =>
+			x?.Tool == tool
+		);
 		if (active != null)
 			Collapse(active);
 		else
@@ -185,12 +203,14 @@ public partial class WorkspaceViewModel : ViewModelBase
 			LeftActive = null;
 		if (RightActive == widget)
 			RightActive = null;
+		if (BottomActive == widget)
+			BottomActive = null;
 	}
 
 	/// <summary>
 	/// Drag and drop result. Center: placed on <paramref name="edge"/> of the widget
-	/// <paramref name="targetId"/> (no target: right of everything). Sides: inserted at icon
-	/// position <paramref name="index"/> (null appends).
+	/// <paramref name="targetId"/> (no target: right of everything). Strips (left, right, bottom):
+	/// inserted at icon position <paramref name="index"/> (null appends).
 	/// </summary>
 	public void Drop(
 		WidgetItem widget,
@@ -253,8 +273,10 @@ public partial class WorkspaceViewModel : ViewModelBase
 	{
 		layout.LeftWidth = LeftWidth;
 		layout.RightWidth = RightWidth;
+		layout.BottomHeight = BottomHeight;
 		layout.LeftWidgetId = LeftActive?.Id;
 		layout.RightWidgetId = RightActive?.Id;
+		layout.BottomWidgetId = BottomActive?.Id;
 		layout.Center = CenterRoot;
 		layout.Widgets = CenterLayoutHelpers
 			.GetWidgetIds(CenterRoot)
@@ -262,6 +284,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 			.OfType<WidgetItem>()
 			.Concat(Left)
 			.Concat(Right)
+			.Concat(Bottom)
 			.Concat(Floating)
 			.Select(x =>
 			{
@@ -276,6 +299,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 					FloatHeight = x.FloatHeight,
 					IsPinned = x.IsPinned,
 					SideWidth = x.SideWidth,
+					BottomHeight = x.BottomHeight,
 				};
 				if (x.Content is ILinkable linkable)
 					placement.LinkGroup = linkable.Link.Group;
@@ -306,6 +330,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 		{
 			WidgetDock.Left => Left,
 			WidgetDock.Right => Right,
+			WidgetDock.Bottom => Bottom,
 			_ => Floating,
 		};
 
@@ -364,6 +389,9 @@ public partial class WorkspaceViewModel : ViewModelBase
 				break;
 			case WidgetDock.Right:
 				RightActive = widget;
+				break;
+			case WidgetDock.Bottom:
+				BottomActive = widget;
 				break;
 			case WidgetDock.Floating:
 				break;

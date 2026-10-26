@@ -56,6 +56,7 @@ public partial class WidgetItem : ObservableObject
 		nameof(IsCenter),
 		nameof(IsLeft),
 		nameof(IsRight),
+		nameof(IsBottom),
 		nameof(IsFloating),
 		nameof(IsSide),
 		nameof(CanPin)
@@ -70,10 +71,10 @@ public partial class WidgetItem : ObservableObject
 	[NotifyPropertyChangedFor(nameof(FullscreenToolTip), nameof(CanPin))]
 	public partial bool IsFullscreen { get; set; }
 
-	/// <summary>Side widgets show the pin (not while fullscreen).</summary>
+	/// <summary>Side and bottom widgets show the pin (not while fullscreen).</summary>
 	public bool CanPin => IsSide && !IsFullscreen;
 
-	/// <summary>Side widgets: unpinned ones collapse as soon as you click or type elsewhere.</summary>
+	/// <summary>Side and bottom widgets: unpinned ones collapse as soon as you click or type elsewhere.</summary>
 	[ObservableProperty]
 	[NotifyPropertyChangedFor(nameof(PinToolTip))]
 	public partial bool IsPinned { get; set; } = true;
@@ -90,7 +91,7 @@ public partial class WidgetItem : ObservableObject
 	public string FullscreenToolTip =>
 		IsFullscreen ? "Restore (Ctrl+Shift+F)" : "Fullscreen (Ctrl+Shift+F)";
 
-	/// <summary>Side widgets only: this one is expanded in its side panel.</summary>
+	/// <summary>Side and bottom widgets only: this one is expanded in its panel.</summary>
 	[ObservableProperty]
 	public partial bool IsActive { get; set; }
 
@@ -98,11 +99,17 @@ public partial class WidgetItem : ObservableObject
 	public bool IsCenter => Dock == WidgetDock.Center;
 	public bool IsLeft => Dock == WidgetDock.Left;
 	public bool IsRight => Dock == WidgetDock.Right;
+	public bool IsBottom => Dock == WidgetDock.Bottom;
 	public bool IsFloating => Dock == WidgetDock.Floating;
-	public bool IsSide => IsLeft || IsRight;
+
+	/// <summary>On a collapsible strip: left, right or bottom.</summary>
+	public bool IsSide => IsLeft || IsRight || IsBottom;
 
 	/// <summary>Docked on a side: this widget's panel width (null: the side's last width).</summary>
 	public double? SideWidth { get; set; }
+
+	/// <summary>Docked at the bottom: this widget's panel height (null: the bottom's last height).</summary>
+	public double? BottomHeight { get; set; }
 
 	// Last floating window bounds (device pixels for position, DIPs for size)
 	public double? FloatX { get; set; }
@@ -115,7 +122,7 @@ public partial class WidgetItem : ObservableObject
 
 	public void RequestFocus() => FocusRequested?.Invoke(this);
 
-	/// <summary>Strip icon: expand or collapse in the side panel.</summary>
+	/// <summary>Strip icon: expand or collapse in its panel.</summary>
 	[RelayCommand]
 	private void Toggle() => Workspace?.ToggleSide(this);
 

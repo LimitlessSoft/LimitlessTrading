@@ -14,15 +14,18 @@ using LT.Contracts.Enums;
 namespace LT.App.Workspace;
 
 /// <summary>
-/// Hosts widget frames: the expanded side widgets, the center split layout and the floating
-/// windows. Each frame is created once per widget instance and moved between hosts, so a widget
+/// Hosts widget frames: the expanded side and bottom widgets, the center split layout and the
+/// floating windows. Each frame is created once per widget instance and moved between hosts, so a widget
 /// keeps its state.
 /// </summary>
 public partial class WorkspaceView : UserControl
 {
 	private const int LeftColumn = 1;
 	private const int RightColumn = 5;
+	private const int BottomSplitterRow = 1;
+	private const int BottomRow = 2;
 	private const double MinPanelWidth = 220;
+	private const double MinPanelHeight = 120;
 	private const double SplitterSize = 6;
 
 	private readonly Dictionary<string, WidgetFrame> _frames = [];
@@ -54,6 +57,8 @@ public partial class WorkspaceView : UserControl
 			StoreSideWidth(left, true, LayoutGrid.ColumnDefinitions[LeftColumn].ActualWidth);
 		if (_viewModel.RightActive is { } right)
 			StoreSideWidth(right, false, LayoutGrid.ColumnDefinitions[RightColumn].ActualWidth);
+		if (_viewModel.BottomActive is { } bottom)
+			StoreBottomHeight(bottom, CenterColumn.RowDefinitions[BottomRow].ActualHeight);
 		StoreCenterSizes();
 		foreach (var (id, window) in _windows)
 			if (_viewModel.Find(id) is { } widget)
@@ -84,6 +89,7 @@ public partial class WorkspaceView : UserControl
 
 		ApplySide(_viewModel.LeftActive, LeftHost, LeftColumn, LeftSplitter, true);
 		ApplySide(_viewModel.RightActive, RightHost, RightColumn, RightSplitter, false);
+		ApplyBottom(_viewModel.BottomActive);
 		RebuildCenter();
 	}
 
@@ -118,7 +124,7 @@ public partial class WorkspaceView : UserControl
 	private void OnWindowInput(object? sender, RoutedEventArgs e) =>
 		CollapseUnpinnedOutside(e.Source as Visual);
 
-	// Input inside a side panel, its strip or its splitter keeps it open; anything else (another
+	// Input inside a side or bottom panel, its strip or its splitter keeps it open; anything else (another
 	// widget, the toolbar, a floating window: source null) collapses an unpinned one
 	private void CollapseUnpinnedOutside(Visual? source)
 	{
@@ -126,6 +132,7 @@ public partial class WorkspaceView : UserControl
 			return;
 		CollapseIfOutside(_viewModel.LeftActive, source, LeftHost, LeftStrip, LeftSplitter);
 		CollapseIfOutside(_viewModel.RightActive, source, RightHost, RightStrip, RightSplitter);
+		CollapseIfOutside(_viewModel.BottomActive, source, BottomHost, BottomStrip, BottomSplitter);
 	}
 
 	private void CollapseIfOutside(WidgetItem? active, Visual? source, params Visual[] own)
@@ -146,6 +153,9 @@ public partial class WorkspaceView : UserControl
 				break;
 			case nameof(WorkspaceViewModel.RightActive):
 				ApplySide(_viewModel!.RightActive, RightHost, RightColumn, RightSplitter, false);
+				break;
+			case nameof(WorkspaceViewModel.BottomActive):
+				ApplyBottom(_viewModel!.BottomActive);
 				break;
 			case nameof(WorkspaceViewModel.FullscreenWidget):
 				ApplyFullscreen();
@@ -263,6 +273,39 @@ public partial class WorkspaceView : UserControl
 		splitter.IsVisible = true;
 	}
 
+	// The bottom panel works like a side one, with heights instead of widths
+	private void ApplyBottom(WidgetItem? active)
+	{
+		var definition = CenterColumn.RowDefinitions[BottomRow];
+		if (BottomHost.Child is { } current && current.DataContext != active)
+		{
+			if (current.DataContext is WidgetItem previous)
+				StoreBottomHeight(previous, definition.ActualHeight);
+			BottomHost.Child = null;
+		}
+
+		// Unlike a side, a collapsed bottom leaves no gap: the center reaches the strip
+		var splitterRow = CenterColumn.RowDefinitions[BottomSplitterRow];
+		if (active is null)
+		{
+			definition.Height = new GridLength(0);
+			splitterRow.Height = new GridLength(0);
+			BottomSplitter.IsVisible = false;
+			return;
+		}
+
+		var frame = GetFrame(active);
+		if (BottomHost.Child != frame && active != _fullscreen)
+		{
+			Detach(frame);
+			BottomHost.Child = frame;
+		}
+		var height = active.BottomHeight ?? _viewModel!.BottomHeight;
+		definition.Height = new GridLength(Math.Max(MinPanelHeight, height));
+		splitterRow.Height = new GridLength(SplitterSize);
+		BottomSplitter.IsVisible = true;
+	}
+
 	private void SetCurrent(WidgetItem widget)
 	{
 		if (_viewModel != null)
@@ -306,6 +349,8 @@ public partial class WorkspaceView : UserControl
 			ApplySide(widget, LeftHost, LeftColumn, LeftSplitter, true);
 		else if (widget == _viewModel?.RightActive)
 			ApplySide(widget, RightHost, RightColumn, RightSplitter, false);
+		else if (widget == _viewModel?.BottomActive)
+			ApplyBottom(widget);
 	}
 
 	// Each side widget remembers its own width; the side remembers the last one for newcomers
@@ -318,6 +363,14 @@ public partial class WorkspaceView : UserControl
 			_viewModel!.LeftWidth = width;
 		else
 			_viewModel!.RightWidth = width;
+	}
+
+	private void StoreBottomHeight(WidgetItem widget, double height)
+	{
+		if (height <= 0)
+			return;
+		widget.BottomHeight = height;
+		_viewModel!.BottomHeight = height;
 	}
 
 	/// <summary>Rebuilds the center from the split tree: nested grids with a splitter between children.</summary>

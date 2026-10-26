@@ -111,4 +111,30 @@ public class SettingsManagerTests
 			(saved[0].FloatX, saved[0].FloatY, saved[0].FloatWidth, saved[0].FloatHeight)
 		);
 	}
+
+	[Fact]
+	public void A_bottom_dock_round_trips_with_its_heights_and_expanded_widget()
+	{
+		var manager = new SettingsManager(_settings, _ibkr);
+		var layout = manager.GetLayout();
+		layout.BottomHeight = 260;
+		layout.BottomWidgetId = "Messages";
+		layout.Widgets =
+		[
+			new WidgetPlacementDto
+			{
+				Id = "Messages",
+				Tool = WorkspaceTool.Messages,
+				Dock = WidgetDock.Bottom,
+				BottomHeight = 300,
+			},
+		];
+
+		manager.SaveLayout(layout);
+
+		var saved = manager.GetLayout();
+		Assert.Equal((260d, "Messages"), (saved.BottomHeight, saved.BottomWidgetId));
+		var placement = Assert.Single(saved.Widgets);
+		Assert.Equal((WidgetDock.Bottom, 300d), (placement.Dock, placement.BottomHeight));
+	}
 }

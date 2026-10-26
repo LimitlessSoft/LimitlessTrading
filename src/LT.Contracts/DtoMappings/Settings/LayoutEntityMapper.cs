@@ -11,8 +11,10 @@ public class LayoutEntityMapper : ILSCoreMapper<LayoutDto, LayoutEntity>
 		{
 			LeftWidth = source.LeftWidth,
 			RightWidth = source.RightWidth,
+			BottomHeight = source.BottomHeight,
 			LeftWidgetId = source.LeftWidgetId,
 			RightWidgetId = source.RightWidgetId,
+			BottomWidgetId = source.BottomWidgetId,
 			Widgets = source.Widgets.Select(new WidgetPlacementEntityMapper().ToMapped).ToList(),
 			Center = source.Center is { } center
 				? new CenterNodeEntityMapper().ToMapped(center)

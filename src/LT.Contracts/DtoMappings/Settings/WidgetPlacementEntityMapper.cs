@@ -20,6 +20,7 @@ public class WidgetPlacementEntityMapper : ILSCoreMapper<WidgetPlacementDto, Wid
 			LinkGroup = source.LinkGroup,
 			IsPinned = source.IsPinned,
 			SideWidth = source.SideWidth,
+			BottomHeight = source.BottomHeight,
 			ChartTimeframe = source.ChartTimeframe,
 			ChartLinked = source.ChartLinked,
 			ChartContract = source.ChartContract is { } contract

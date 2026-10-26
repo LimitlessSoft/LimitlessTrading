@@ -6,8 +6,10 @@ public class LayoutDto
 {
 	public double LeftWidth { get; set; }
 	public double RightWidth { get; set; }
+	public double BottomHeight { get; set; }
 	public string? LeftWidgetId { get; set; }
 	public string? RightWidgetId { get; set; }
+	public string? BottomWidgetId { get; set; }
 	public List<WidgetPlacementDto> Widgets { get; set; } = [];
 	public CenterNodeDto? Center { get; set; }
 	public ChartTimeframe ChartTimeframe { get; set; }

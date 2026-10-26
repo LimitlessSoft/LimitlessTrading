@@ -6,14 +6,14 @@ using LT.Contracts.Enums;
 namespace LT.App.Workspace;
 
 /// <summary>
-/// Drag and drop docking: a widget is dragged by its frame header and dropped on a side strip
-/// (at an icon position), on a center tile, or outside the main window to float. Positions
+/// Drag and drop docking: a widget is dragged by its frame header and dropped on a strip (left,
+/// right or bottom, at an icon position), on a center tile, or outside the main window to float. Positions
 /// arrive in screen pixels because a drag can start in a floating window.
 /// </summary>
 public partial class WorkspaceView
 {
-	// A collapsed side accepts drops on its strip plus this thin edge, so it never covers the
-	// center tiles next to it
+	// A collapsed side (or bottom) accepts drops on its strip plus this thin edge, so it never
+	// covers the center tiles next to it
 	private const double CollapsedSideDropWidth = 24;
 
 	// Strip icon geometry, matching Button.tool in App.axaml (36 px button + 4 px bottom margin)
@@ -82,7 +82,10 @@ public partial class WorkspaceView
 			return;
 		_gapContainer?.Margin = default;
 		_gapContainer = container;
-		_gapContainer?.Margin = new Thickness(0, StripIconSlot, 0, 0);
+		_gapContainer?.Margin =
+			strip == BottomIcons
+				? new Thickness(StripIconSlot, 0, 0, 0)
+				: new Thickness(0, StripIconSlot, 0, 0);
 	}
 
 	private void OnDragDropped(WidgetFrame frame, PixelPoint screen)
@@ -161,6 +164,9 @@ public partial class WorkspaceView
 		if (point.X > RightStrip.Bounds.Left - Math.Max(rightWidth, CollapsedSideDropWidth))
 			return GetStripTarget(WidgetDock.Right, RightStrip, RightIcons, point);
 
+		if (GetBottomTarget(point) is { } bottom)
+			return bottom;
+
 		// Over a center widget: the nearest edge decides beside / above / below it
 		foreach (var tile in _viewModel.Widgets.Where(x => x.IsCenter))
 		{
@@ -209,6 +215,50 @@ public partial class WorkspaceView
 		}
 
 		return new DropTarget(WidgetDock.Center, null, CenterHost.Bounds, "Dock in center");
+	}
+
+	/// <summary>
+	/// Bottom drop: over the open bottom panel or its strip, or (collapsed / no bottom widgets yet)
+	/// a thin band along the center column's bottom edge. Null when the pointer is elsewhere.
+	/// </summary>
+	private DropTarget? GetBottomTarget(Point point)
+	{
+		if (CenterColumn.TranslatePoint(default, this) is not { } origin)
+			return null;
+		var column = new Rect(origin, CenterColumn.Bounds.Size);
+		var strip = BottomStrip.IsVisible ? BottomStrip.Bounds.Height : 0;
+		var panel = _viewModel!.BottomActive != null ? BottomHost.Bounds.Height : 0;
+		var zoneTop = column.Bottom - strip - Math.Max(panel, CollapsedSideDropWidth);
+		if (point.X < column.Left || point.X > column.Right || point.Y < zoneTop)
+			return null;
+		if (!BottomStrip.IsVisible)
+			return new DropTarget(
+				WidgetDock.Bottom,
+				null,
+				new Rect(
+					column.Left,
+					column.Bottom - CollapsedSideDropWidth,
+					column.Width,
+					CollapsedSideDropWidth
+				),
+				"Dock at the bottom"
+			);
+
+		// The icon slot nearest the pointer, along the strip's row
+		var left = BottomIcons.TranslatePoint(default, this)?.X ?? column.Left;
+		var index = Math.Clamp(
+			(int)Math.Round((point.X - left) / StripIconSlot),
+			0,
+			BottomIcons.ItemCount
+		);
+		var stripTop = column.Bottom - strip;
+		var slot = new Rect(
+			left + index * StripIconSlot,
+			stripTop + (strip - StripIconSize) / 2,
+			StripIconSize,
+			StripIconSize
+		);
+		return new DropTarget(WidgetDock.Bottom, index, slot, string.Empty, BottomIcons);
 	}
 
 	/// <summary>

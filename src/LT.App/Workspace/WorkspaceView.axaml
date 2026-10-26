@@ -33,18 +33,45 @@
 			Background="Transparent"
 		/>
 
-		<Panel x:Name="CenterHost" Grid.Column="3" Margin="0,8">
-			<!-- Built from the center split tree: nested grids with splitters -->
-			<Border x:Name="CenterContent" />
-			<TextBlock
-				Classes="secondary"
-				HorizontalAlignment="Center"
-				VerticalAlignment="Center"
-				TextAlignment="Center"
-				Text="No widgets in the center.&#10;Open one from the menu, or drag one here by its header."
-				IsVisible="{Binding !HasCenterWidgets}"
+		<!-- center | splitter | bottom host | bottom strip (shown while a widget is docked there) -->
+		<Grid x:Name="CenterColumn" Grid.Column="3" RowDefinitions="*,6,0,Auto">
+			<Panel x:Name="CenterHost" Margin="0,8">
+				<!-- Built from the center split tree: nested grids with splitters -->
+				<Border x:Name="CenterContent" />
+				<TextBlock
+					Classes="secondary"
+					HorizontalAlignment="Center"
+					VerticalAlignment="Center"
+					TextAlignment="Center"
+					Text="No widgets in the center.&#10;Open one from the menu, or drag one here by its header."
+					IsVisible="{Binding !HasCenterWidgets}"
+				/>
+			</Panel>
+
+			<GridSplitter
+				x:Name="BottomSplitter"
+				Grid.Row="1"
+				ResizeDirection="Rows"
+				Background="Transparent"
 			/>
-		</Panel>
+			<Border x:Name="BottomHost" Grid.Row="2" />
+
+			<Border
+				x:Name="BottomStrip"
+				Grid.Row="3"
+				Classes="strip horizontal"
+				BorderThickness="0,1,0,0"
+				IsVisible="{Binding HasBottomWidgets}"
+			>
+				<ItemsControl x:Name="BottomIcons" ItemsSource="{Binding Bottom}">
+					<ItemsControl.ItemsPanel>
+						<ItemsPanelTemplate>
+							<StackPanel Orientation="Horizontal" />
+						</ItemsPanelTemplate>
+					</ItemsControl.ItemsPanel>
+				</ItemsControl>
+			</Border>
+		</Grid>
 
 		<GridSplitter
 			x:Name="RightSplitter"

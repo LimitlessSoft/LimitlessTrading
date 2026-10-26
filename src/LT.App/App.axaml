@@ -105,6 +105,13 @@
 			<Setter Property="BorderBrush" Value="{DynamicResource PanelStroke}" />
 			<Setter Property="Padding" Value="4,8" />
 		</Style>
+		<!-- The bottom strip lays its icons out in a row -->
+		<Style Selector="Border.strip.horizontal">
+			<Setter Property="Padding" Value="8,4" />
+		</Style>
+		<Style Selector="Border.strip.horizontal Button.tool">
+			<Setter Property="Margin" Value="0,0,4,0" />
+		</Style>
 		<Style Selector="Border.toolbar">
 			<Setter Property="Background" Value="{DynamicResource PanelBackground}" />
 			<Setter Property="Padding" Value="4,4,4,0" />

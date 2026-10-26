@@ -7,4 +7,5 @@ public enum WidgetDock
 	Left = 1,
 	Right = 2,
 	Floating = 3,
+	Bottom = 4,
 }

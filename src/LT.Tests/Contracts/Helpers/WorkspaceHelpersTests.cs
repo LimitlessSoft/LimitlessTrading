@@ -50,4 +50,20 @@ public class WorkspaceHelpersTests
 
 		Assert.Equal("Watchlist", result.Single().Id);
 	}
+
+	[Fact]
+	public void Normalize_keeps_bottom_placements() =>
+		Assert.Equal(
+			WidgetDock.Bottom,
+			WorkspaceHelpers
+				.Normalize([
+					new WidgetPlacementDto
+					{
+						Tool = WorkspaceTool.Messages,
+						Dock = WidgetDock.Bottom,
+					},
+				])
+				.Single()
+				.Dock
+		);
 }

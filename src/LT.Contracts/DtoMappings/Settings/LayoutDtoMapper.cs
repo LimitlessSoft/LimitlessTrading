@@ -11,8 +11,10 @@ public class LayoutDtoMapper : ILSCoreMapper<LayoutEntity, LayoutDto>
 		{
 			LeftWidth = source.LeftWidth,
 			RightWidth = source.RightWidth,
+			BottomHeight = source.BottomHeight,
 			LeftWidgetId = source.LeftWidgetId,
 			RightWidgetId = source.RightWidgetId,
+			BottomWidgetId = source.BottomWidgetId,
 			Widgets = source.Widgets.Select(new WidgetPlacementDtoMapper().ToMapped).ToList(),
 			Center = source.Center is { } center
 				? new CenterNodeDtoMapper().ToMapped(center)

@@ -7,10 +7,12 @@ public class LayoutEntity
 {
 	public double LeftWidth { get; set; } = 380;
 	public double RightWidth { get; set; } = 300;
+	public double BottomHeight { get; set; } = 240;
 
 	/// <summary>Expanded widget instance of each side; null = that side is collapsed.</summary>
 	public string? LeftWidgetId { get; set; } = nameof(WorkspaceTool.Watchlist);
 	public string? RightWidgetId { get; set; } = nameof(WorkspaceTool.Account);
+	public string? BottomWidgetId { get; set; }
 
 	public List<WidgetPlacementEntity> Widgets { get; set; } =
 		WorkspaceHelpers.GetDefaultPlacements();
