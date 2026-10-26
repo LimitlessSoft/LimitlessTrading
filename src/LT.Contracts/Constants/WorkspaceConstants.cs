@@ -2,6 +2,14 @@ namespace LT.Contracts.Constants;
 
 public static class WorkspaceConstants
 {
+	// First-run workspace: side and bottom panel sizes, and each side widget's own width
+	public const double DefaultLeftWidth = 441;
+	public const double DefaultRightWidth = 635;
+	public const double DefaultBottomHeight = 240;
+	public const double DefaultWatchlistWidth = 441;
+	public const double DefaultRightWidgetWidth = 407;
+	public const double DefaultOptionChainWidth = 1100;
+
 	public const double FloatingDefaultWidth = 520;
 	public const double FloatingDefaultHeight = 600;
 	public const double FloatingMinWidth = 260;

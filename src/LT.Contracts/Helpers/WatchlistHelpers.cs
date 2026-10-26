@@ -37,6 +37,25 @@ public static class WatchlistHelpers
 		return changed;
 	}
 
+	/// <summary>
+	/// Settings of a fresh install (no settings file yet): the defaults plus a "US" watchlist of
+	/// starter stocks. Settings files without watchlists keep the empty "Main" of
+	/// <see cref="EnsureWatchlists"/>, so a list migrated from older settings is never mixed with
+	/// these.
+	/// </summary>
+	public static SettingsEntity CreateFirstRunSettings() =>
+		new()
+		{
+			Watchlists =
+			[
+				new WatchlistEntity
+				{
+					Name = MarketDataConstants.StarterWatchlistName,
+					Items = ContractHelpers.GetStarterContracts(),
+				},
+			],
+		};
+
 	/// <summary>Settings with a watchlist and an active one; older settings are migrated and saved.</summary>
 	public static SettingsEntity LoadSettings(ISettingsRepository settingsRepository)
 	{
