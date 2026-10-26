@@ -1,8 +1,13 @@
+using System.Collections.Concurrent;
+using LSCore.Exceptions;
+using LSCore.Validation.Contracts;
 using LSCore.Validation.Domain;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Cache;
 using LT.Contracts.Dtos.Orders;
+using LT.Contracts.Dtos.Positions;
 using LT.Contracts.Enums;
+using LT.Contracts.Enums.ValidationCodes;
 using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IApiClients;
 using LT.Contracts.Interfaces.IManagers;
@@ -12,6 +17,9 @@ namespace LT.Domain.Managers;
 
 public class OrderManager(IIbkrApiClient ibkrApiClient, ICacheManager cacheManager) : IOrderManager
 {
+	// Positions with a quick exit still working, so a second click can't send a second exit
+	private readonly ConcurrentDictionary<(string Account, int ContractId), byte> _exits = new();
+
 	public async Task<IReadOnlyList<OpenOrderDto>> GetOpenOrdersAsync(
 		string? account,
 		CancellationToken cancellationToken = default
@@ -61,6 +69,45 @@ public class OrderManager(IIbkrApiClient ibkrApiClient, ICacheManager cacheManag
 			OrderHelpers.ToOrder(request),
 			cancellationToken
 		);
+	}
+
+	public async Task<PlacedOrderDto> ExitPositionAsync(
+		PositionDto position,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var request =
+			OrderHelpers.GetQuickExitRequest(position)
+			?? throw new LSCoreBadRequestException(
+				OrderValidationCodes.OVC_010.GetValidationMessage()
+			);
+		request.Validate();
+		var key = (position.Account, position.ContractId);
+		if (!_exits.TryAdd(key, 0))
+			throw new LSCoreBadRequestException(
+				OrderValidationCodes.OVC_011.GetValidationMessage()
+			);
+		try
+		{
+			var placed = await ibkrApiClient.PlaceOrderAsync(
+				request.Contract!,
+				OrderHelpers.ToOrder(request),
+				cancellationToken
+			);
+			return new PlacedOrderDto
+			{
+				OrderId = placed.OrderId,
+				Statuses = AsyncEnumerableHelpers.OnEndAsync(
+					placed.Statuses,
+					() => _exits.TryRemove(key, out _)
+				),
+			};
+		}
+		catch
+		{
+			_exits.TryRemove(key, out _);
+			throw;
+		}
 	}
 
 	public Task CancelOrderAsync(int orderId, CancellationToken cancellationToken = default) =>

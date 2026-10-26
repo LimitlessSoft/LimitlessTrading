@@ -98,6 +98,8 @@ public static class Program
 		builder.Services.AddSingleton<IAccountPerformanceManager, AccountPerformanceManager>();
 		builder.Services.AddSingleton<ITradeJournalManager, TradeJournalManager>();
 		builder.Services.AddSingleton<IFlexImportManager, FlexImportManager>();
+		// Holds the quick exits still working, app-wide (every Positions widget)
+		builder.Services.AddSingleton<IOrderManager, OrderManager>();
 
 		// News: every INewsSource is aggregated by the news manager (more sources go here)
 		builder.Services.AddSingleton<INewsSource, IbkrNewsSource>();

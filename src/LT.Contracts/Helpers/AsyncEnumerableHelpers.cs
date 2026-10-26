@@ -69,4 +69,27 @@ public static class AsyncEnumerableHelpers
 			await Task.WhenAll(pumps).ConfigureAwait(false);
 		}
 	}
+
+	/// <summary>
+	/// The items of <paramref name="source"/>; <paramref name="onEnd"/> runs once it ends, fails or
+	/// is disposed (the reader stopped early).
+	/// </summary>
+	public static async IAsyncEnumerable<T> OnEndAsync<T>(
+		IAsyncEnumerable<T> source,
+		Action onEnd,
+		[EnumeratorCancellation] CancellationToken cancellationToken = default
+	)
+	{
+		try
+		{
+			await foreach (
+				var item in source.WithCancellation(cancellationToken).ConfigureAwait(false)
+			)
+				yield return item;
+		}
+		finally
+		{
+			onEnd();
+		}
+	}
 }

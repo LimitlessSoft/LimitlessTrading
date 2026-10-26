@@ -54,6 +54,25 @@ public static class OrderHelpers
 		};
 	}
 
+	/// <summary>
+	/// The quick exit of <paramref name="position"/>: a market order for the whole size (sell a long,
+	/// buy back a short) in the position's account, sent without review. Time in force is the
+	/// default for a market order of that security type (DAY; IOC for crypto). Null for a flat
+	/// position.
+	/// </summary>
+	public static PlaceOrderRequest? GetQuickExitRequest(PositionDto position) =>
+		position.Quantity == 0
+			? null
+			: new()
+			{
+				Contract = position.Contract,
+				Account = position.Account,
+				Action = position.Quantity > 0 ? OrderAction.Sell : OrderAction.Buy,
+				OrderType = OrderType.Market,
+				Quantity = Math.Abs(position.Quantity),
+				TimeInForce = GetTimeInForces(position.Contract.SecurityType, OrderType.Market)[0],
+			};
+
 	public static OrderDto ToOrder(PlaceOrderRequest request) =>
 		new()
 		{

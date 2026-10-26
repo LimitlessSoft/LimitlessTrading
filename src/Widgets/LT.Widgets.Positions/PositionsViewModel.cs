@@ -7,6 +7,9 @@ using LT.App.Helpers;
 using LT.App.Stores;
 using LT.App.ViewModels;
 using LT.App.Workspace;
+using LT.Contracts.Constants;
+using LT.Contracts.Dtos.Orders;
+using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IManagers;
 
@@ -16,14 +19,19 @@ namespace LT.App.Widgets.Positions;
 public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 {
 	private readonly IPositionManager _positionManager;
+	private readonly IOrderManager _orderManager;
+	private readonly IMessageLogManager _messageLogManager;
 	private readonly AccountStore _accountStore;
 	private readonly OrderTicketNavigator _orderTicketNavigator;
 	private readonly DisplayTimeStore _displayTime;
 	private readonly ZonedText _staleText;
 	private readonly Dictionary<(string Account, int ContractId), PositionRowViewModel> _all = [];
+	private CancellationToken _session = new(true);
 
 	public PositionsViewModel(
 		IPositionManager positionManager,
+		IOrderManager orderManager,
+		IMessageLogManager messageLogManager,
 		IConnectionManager connectionManager,
 		AccountStore accountStore,
 		LinkGroupStore linkGroupStore,
@@ -36,6 +44,8 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 		_displayTime = displayTime;
 		_staleText = new ZonedText(x => StaleText = x);
 		displayTime.ZoneChanged += _staleText.Rebuild;
+		_orderManager = orderManager;
+		_messageLogManager = messageLogManager;
 		_accountStore = accountStore;
 		_orderTicketNavigator = orderTicketNavigator;
 		Link = new ContractLink(linkGroupStore, () => SelectedPosition?.Contract);
@@ -105,6 +115,41 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 		_orderTicketNavigator.Open(draft);
 	}
 
+	/// <summary>
+	/// Quick exit: sends a market order for the whole of <paramref name="row"/>'s position right
+	/// away, no ticket and no confirmation. The row's button stays disabled until the order fails
+	/// or ends unfilled, or the position changes; the manager refuses a second exit of the same
+	/// position while one is working.
+	/// </summary>
+	[RelayCommand(AllowConcurrentExecutions = true)]
+	private async Task QuickExitAsync(PositionRowViewModel row)
+	{
+		if (!CanClose || row.IsExiting)
+			return;
+		row.IsExiting = true;
+		var position = row.Position;
+		var description = OrderHelpers.GetQuickExitRequest(position) is { } request
+			? OrderHelpers.Describe(request)
+			: row.Symbol;
+		try
+		{
+			var placed = await _orderManager.ExitPositionAsync(position, _session);
+			ErrorMessage = null;
+			Log(MessageSeverity.Info, $"Order {placed.OrderId} sent (quick exit): {description}");
+			_ = FollowExitAsync(row, placed, _session);
+		}
+		catch (OperationCanceledException)
+		{
+			row.IsExiting = false;
+		}
+		catch (Exception ex)
+		{
+			row.IsExiting = false;
+			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
+			Log(MessageSeverity.Error, $"Quick exit not sent ({description}): {ErrorMessage}");
+		}
+	}
+
 	public override void Dispose()
 	{
 		_displayTime.ZoneChanged -= _staleText.Rebuild;
@@ -114,6 +159,7 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 
 	protected override void OnConnected(CancellationToken session)
 	{
+		_session = session;
 		Clear();
 		_ = StreamPositionsAsync(session);
 	}
@@ -226,6 +272,49 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 			ErrorMessage = $"{row.Symbol}: {ErrorMessageHelpers.ToUserMessage(ex)}";
 		}
 	}
+
+	// A rejection fails the status stream: shown in the error line and the messages. A fill keeps
+	// the row disabled until the position update arrives, so a stale size can't be sent again.
+	private async Task FollowExitAsync(
+		PositionRowViewModel row,
+		PlacedOrderDto placed,
+		CancellationToken session
+	)
+	{
+		try
+		{
+			await foreach (
+				var status in placed.Statuses.WithCancellation(session).ConfigureAwait(false)
+			)
+			{
+				if (!status.IsDone)
+					continue;
+				var text =
+					$"Order {placed.OrderId} {status.Status}: {FormatHelpers.Quantity(status.Filled)} filled @ {FormatHelpers.Price(status.AverageFillPrice)}";
+				Log(MessageSeverity.Info, text);
+				if (status.Status != "Filled")
+					Dispatcher.UIThread.Post(() =>
+					{
+						row.IsExiting = false;
+						ErrorMessage = $"{row.Symbol}: {text}";
+					});
+			}
+		}
+		catch (OperationCanceledException) { }
+		catch (Exception ex)
+		{
+			var text = $"Order {placed.OrderId} rejected: {ErrorMessageHelpers.ToUserMessage(ex)}";
+			Log(MessageSeverity.Error, text);
+			Dispatcher.UIThread.Post(() =>
+			{
+				row.IsExiting = false;
+				ErrorMessage = $"{row.Symbol}: {text}";
+			});
+		}
+	}
+
+	private void Log(MessageSeverity severity, string text) =>
+		_messageLogManager.Add(severity, MessageLogConstants.SourceOrders, text);
 
 	private bool IsVisible(PositionRowViewModel row) =>
 		_accountStore.SelectedAccount == null || row.Account == _accountStore.SelectedAccount;

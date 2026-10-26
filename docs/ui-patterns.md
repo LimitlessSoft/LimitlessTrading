@@ -190,6 +190,15 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   for a short, the whole size, at market. `OrderTicketViewModel.Prefill` leaves the link group
   so the popup can't switch contract; review and send are the ticket's own — nothing is sent
   until "Send order". The view model is disposed when the dialog closes.
+- **Quick exit** (Positions, a lightning button next to Close; same enabling): sends a market
+  order for the whole position **right away**, no ticket and no confirmation —
+  `IOrderManager.ExitPositionAsync` with `OrderHelpers.GetQuickExitRequest` (the position's
+  account and contract, sell a long / buy a short, the whole size, market, the security type's
+  default time in force: DAY, IOC for crypto). The row's button is disabled from the click until
+  the order fails or ends unfilled, or the position next changes (a fill waits for the position
+  update, so a stale size is never sent twice); `OrderManager` (a singleton) also refuses a second
+  exit of a position while one is working, across widgets. Sent / done / rejected go to Messages;
+  failures also show in the widget's error line.
 - **News** (`LT.Widgets.News`, bottom, Ctrl+Alt+N): two modes, saved per widget with the provider
   selection (`WidgetPlacementDto.NewsMode` / `NewsProviders`, keys `source:code`, null = all).
   *Linked* follows the link group's contract: the latest 100 past headlines, then live ones
