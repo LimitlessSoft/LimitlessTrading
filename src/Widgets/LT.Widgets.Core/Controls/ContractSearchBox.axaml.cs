@@ -2,13 +2,14 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using LT.App.Helpers;
 
 namespace LT.App.Controls;
 
 /// <summary>
 /// Ticker box with IB suggestions (chart and option chain titles, watchlist). Enter picks the
 /// highlighted listing, or enters the typed ticker when nothing that was searched for this text is
-/// highlighted; a click on a listing picks it; Esc cancels.
+/// highlighted; a click on a listing picks it; Esc cancels (see <see cref="PassesIdleEscape"/>).
 /// </summary>
 public partial class ContractSearchBox : UserControl
 {
@@ -41,6 +42,12 @@ public partial class ContractSearchBox : UserControl
 		get => Box.IsDropDownOpen;
 		set => Box.IsDropDownOpen = value;
 	}
+
+	/// <summary>
+	/// An Esc with nothing to cancel (empty text, dropdown closed) is left unhandled, for the
+	/// widget around the box. For an always-shown box; off for a box shown only while editing.
+	/// </summary>
+	public bool PassesIdleEscape { get; set; }
 
 	/// <summary>The typed text, as typed.</summary>
 	public string? Text => Box.Text;
@@ -76,9 +83,15 @@ public partial class ContractSearchBox : UserControl
 		switch (e.Key)
 		{
 			case Key.Escape:
+				// Read before cancelling: cancelling empties the box
+				var consumes = ContractSearchBoxHelpers.ConsumesEscape(
+					Box.Text,
+					Box.IsDropDownOpen,
+					PassesIdleEscape
+				);
 				_ignoreClose = true;
 				Cancelled?.Invoke();
-				e.Handled = true;
+				e.Handled = consumes;
 				break;
 			case Key.Enter:
 				var text = Box.Text?.Trim() ?? string.Empty;

@@ -8,9 +8,11 @@
 	x:DataType="vm:WatchlistViewModel"
 >
 	<DockPanel>
-		<!-- Typing lists IB's listings of the symbol; pick one or press Enter to add it -->
+		<!-- Typing lists IB's listings of the symbol; pick one or press Enter to add it. Esc clears
+		     it; on an empty box Esc goes to the workspace (an unpinned docked watchlist collapses) -->
 		<controls:ContractSearchBox
 			x:Name="SearchBox"
+			PassesIdleEscape="True"
 			DockPanel.Dock="Top"
 			Margin="0,0,0,6"
 			Placeholder="Add symbol (Ctrl+F)"
