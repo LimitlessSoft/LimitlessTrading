@@ -5,7 +5,7 @@
 	x:Class="LT.App.Widgets.Chart.ChartView"
 	x:DataType="vm:ChartViewModel"
 >
-	<!-- The ticker is picked in the frame header (ChartTitleView). Linked / RTH / timeframe / Reload
+	<!-- The ticker and timeframe are picked in the frame header (ChartTitleView). RTH / Reload
 	     controls are hidden until they are redesigned; the view model keeps their state. -->
 	<Panel>
 		<vm:CandlestickChart Bars="{Binding Bars}" IsIntraday="{Binding IsIntraday}" />

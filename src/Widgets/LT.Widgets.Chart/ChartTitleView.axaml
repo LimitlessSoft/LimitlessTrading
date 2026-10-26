@@ -6,19 +6,36 @@
 	x:Class="LT.App.Widgets.Chart.ChartTitleView"
 	x:DataType="vm:ChartViewModel"
 >
-	<!-- Chart header title: click it to type a ticker (IB listings are suggested) or pick a recent one -->
-	<Panel>
+	<!-- Chart header title: click it to type a ticker (IB listings are suggested) or pick a recent one;
+	     click the timeframe next to it to pick another bar size -->
+	<StackPanel Orientation="Horizontal" Spacing="2">
+		<Panel>
+			<Button
+				x:Name="TitleButton"
+				Classes="chartTitle"
+				Content="{Binding Title}"
+				ToolTip.Tip="Click to change the ticker"
+			/>
+			<StackPanel x:Name="Editor" Orientation="Horizontal" Spacing="2" IsVisible="False">
+				<controls:ContractSearchBox
+					x:Name="TickerBox"
+					Width="360"
+					Placeholder="Ticker, e.g. AAPL"
+				/>
+				<Button x:Name="RecentButton" Classes="frameAction" ToolTip.Tip="Recent tickers">
+					<PathIcon Data="{StaticResource ChevronDownIcon}" />
+				</Button>
+			</StackPanel>
+		</Panel>
 		<Button
-			x:Name="TitleButton"
-			Classes="chartTitle"
-			Content="{Binding Title}"
-			ToolTip.Tip="Click to change the ticker"
-		/>
-		<StackPanel x:Name="Editor" Orientation="Horizontal" Spacing="2" IsVisible="False">
-			<controls:ContractSearchBox x:Name="TickerBox" Width="360" Placeholder="Ticker, e.g. AAPL" />
-			<Button x:Name="RecentButton" Classes="frameAction" ToolTip.Tip="Recent tickers">
-				<PathIcon Data="{StaticResource ChevronDownIcon}" />
-			</Button>
-		</StackPanel>
-	</Panel>
+			x:Name="TimeframeButton"
+			Classes="chartTimeframe"
+			Content="{Binding SelectedTimeframe}"
+			ToolTip.Tip="Click to change the timeframe"
+		>
+			<Button.Flyout>
+				<MenuFlyout Placement="BottomEdgeAlignedLeft" />
+			</Button.Flyout>
+		</Button>
+	</StackPanel>
 </UserControl>
