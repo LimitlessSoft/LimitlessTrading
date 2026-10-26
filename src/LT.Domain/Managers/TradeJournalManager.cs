@@ -34,8 +34,13 @@ public class TradeJournalManager(
 	private DateTimeOffset _pnlSavedAt;
 	private bool _pnlDirty;
 
+	// Holds one pending refresh request at most, so a burst of them coalesces into one
+	private readonly SemaphoreSlim _refreshRequested = new(0, 1);
+	private volatile bool _recording;
+
 	public event Action? FillsChanged;
 	public event Action? PnlChanged;
+	public event Action<IReadOnlyList<ExecutionDto>>? ExecutionsReceived;
 
 	public string? ExecutionsError { get; private set; }
 
@@ -71,22 +76,58 @@ public class TradeJournalManager(
 			)
 			.ToList();
 
+		_recording = true;
 		try
 		{
 			while (!cancellationToken.IsCancellationRequested)
 			{
+				// Refreshes asked for until now (the rest of a burst, or from before this
+				// connection) are covered by this request; only later ones run it again
+				while (_refreshRequested.Wait(0)) { }
 				await RecordExecutionsAsync(cancellationToken);
-				await Task.Delay(
+
+				// The next poll, or sooner when an order reported a fill; one asked for while the
+				// request above ran is already pending and wakes this right away
+				using var wait = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+				var poll = Task.Delay(
 					AccountConstants.ExecutionsRefreshInterval,
 					timeProvider,
-					cancellationToken
+					wait.Token
 				);
+				var refresh = _refreshRequested.WaitAsync(wait.Token);
+				var woken = await Task.WhenAny(poll, refresh);
+				await wait.CancelAsync();
+				cancellationToken.ThrowIfCancellationRequested();
+				if (woken == refresh)
+					await Task.Delay(
+						TradeJournalConstants.FillRefreshDelay,
+						timeProvider,
+						cancellationToken
+					);
 			}
 		}
 		catch (OperationCanceledException) { }
+		finally
+		{
+			_recording = false;
+		}
 
 		await Task.WhenAll(pnlStreams);
 		Flush();
+	}
+
+	public void RequestExecutionsRefresh()
+	{
+		if (!_recording)
+			return;
+		try
+		{
+			_refreshRequested.Release();
+		}
+		catch (SemaphoreFullException)
+		{
+			// One is pending already and covers this one
+		}
 	}
 
 	public async Task<int> RecordExecutionsAsync(CancellationToken cancellationToken = default)
@@ -134,6 +175,7 @@ public class TradeJournalManager(
 		ExecutionsError = null;
 		if (changed > 0 || hadError)
 			FillsChanged?.Invoke();
+		ExecutionsReceived?.Invoke(executions);
 		return changed;
 	}
 

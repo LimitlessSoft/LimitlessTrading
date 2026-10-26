@@ -24,4 +24,7 @@ public class AppSettingsDto
 
 	/// <summary>Zone times are shown in; null = the system's local zone.</summary>
 	public string? DisplayTimeZoneId { get; set; }
+
+	/// <summary>Play a short sound when an order fills (each new execution).</summary>
+	public bool PlayFillSound { get; set; }
 }

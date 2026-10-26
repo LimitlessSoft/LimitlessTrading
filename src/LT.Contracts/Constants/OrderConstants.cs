@@ -8,6 +8,9 @@ public static class OrderConstants
 	/// </summary>
 	public const int OrderClientIdOffset = 100;
 
+	/// <summary>IB's order status of a completely filled order.</summary>
+	public const string FilledStatus = "Filled";
+
 	/// <summary>Bounds of a cash amount order (e.g. $10 of BTC); a guard against typos.</summary>
 	public const decimal CashAmountMin = 1;
 	public const decimal CashAmountMax = 10_000;

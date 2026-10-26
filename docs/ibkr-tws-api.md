@@ -236,6 +236,22 @@ deduplicated by IB's execution id, so the same fill from either stays one:
   (`AccountConstants.ExecutionsRefreshInterval`, one paced request; there is no app-wide order
   status event to trigger on) and merges them into `trade-journal/fills/<day>.json`, deduplicated
   by ExecId; a commission that arrives later is merged into the saved fill.
+- **Fill sound.** Each executions answer is also handed to `IFillAlertManager`
+  (`ITradeJournalManager.ExecutionsReceived`, wired by the `FillAlertService` hosted service),
+  which plays a short chime when an ExecId it hasn't seen comes in (one sound per answer, however
+  many fills; each partial fill has its own ExecId). The first answer after the connection comes
+  up or goes down is IB's replay of the day and stays silent, so fills made while disconnected
+  never sound. There is no execution event to listen to. Fills of the app's own orders are asked
+  for at once: `OrderManager` taps the statuses of the orders it places (`OrderHelpers.OnFillsAsync`:
+  more filled quantity, or a first `Filled`) and raises `OrderFilled`, and the journal then asks
+  for executions `TradeJournalConstants.FillRefreshDelay` (1 s) later instead of at the next poll
+  (`RequestExecutionsRefresh`). Requests coalesce: one pending at most, those made before the
+  request starts are covered by it, those made while it runs add one more. This only works while
+  a widget still reads the order's statuses. Fills from TWS or other clients wait for the poll,
+  up to 30 s. Setting *General → Sounds* (`PlayFillSound`, on by default). Playback is
+  `ISoundPlayer` (`LT.App/Services/SoundPlayer.cs`): a generated WAV in the app data folder's
+  `sounds/`, played by winmm `PlaySound` (Windows), `afplay` (macOS) or `paplay` / `pw-play` /
+  `aplay` (Linux), off the calling thread and never throwing.
 - It follows each managed account's `reqPnL` (up to `TradeJournalConstants.MaxPnlAccounts`) on
   the shared subscription and keeps DailyPnl as a curve: at most one point per account every
   10 s (a newer value replaces the point inside that window, so short spikes can be missed),

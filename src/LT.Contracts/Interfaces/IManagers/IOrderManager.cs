@@ -9,6 +9,13 @@ namespace LT.Contracts.Interfaces.IManagers;
 public interface IOrderManager
 {
 	/// <summary>
+	/// Raised on any thread when an order placed through this manager reports a new fill
+	/// (<see cref="Helpers.OrderHelpers.IsNewFill"/>), while its
+	/// <see cref="PlacedOrderDto.Statuses"/> are being read.
+	/// </summary>
+	event Action<OrderStatusDto>? OrderFilled;
+
+	/// <summary>
 	/// Working orders, with <see cref="OpenOrderDto.CanCancel"/> set for this app's own. Keeps the
 	/// account's last-known orders as a snapshot.
 	/// </summary>

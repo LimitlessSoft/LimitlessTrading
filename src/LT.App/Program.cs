@@ -111,6 +111,9 @@ public static class Program
 		builder.Services.AddSingleton<IPatchNotesManager, PatchNotesManager>();
 		builder.Services.AddSingleton<IAccountPerformanceManager, AccountPerformanceManager>();
 		builder.Services.AddSingleton<ITradeJournalManager, TradeJournalManager>();
+		// Remembers the fills already heard of and the one sound playing, app-wide
+		builder.Services.AddSingleton<ISoundPlayer, SoundPlayer>();
+		builder.Services.AddSingleton<IFillAlertManager, FillAlertManager>();
 		builder.Services.AddSingleton<IFlexImportManager, FlexImportManager>();
 		// Shares one SEC lookup per ticker between watchlists
 		builder.Services.AddSingleton<ISharesOutstandingManager, SharesOutstandingManager>();
@@ -150,6 +153,7 @@ public static class Program
 		builder.Services.AddHostedService<CacheMaintenance>();
 		builder.Services.AddHostedService<AccountPerformanceRecorder>();
 		builder.Services.AddHostedService<TradeJournalRecorder>();
+		builder.Services.AddHostedService<FillAlertService>();
 		builder.Services.AddHostedService<FlexImportScheduler>();
 		builder.Services.AddHostedService<IndicatorScriptHost>();
 

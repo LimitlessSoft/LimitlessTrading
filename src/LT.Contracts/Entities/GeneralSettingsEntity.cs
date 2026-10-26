@@ -28,4 +28,7 @@ public class GeneralSettingsEntity
 	/// older settings files load as, is the system's local zone.
 	/// </summary>
 	public string? DisplayTimeZoneId { get; set; }
+
+	/// <summary>Play a short sound when an order fills (each new execution).</summary>
+	public bool PlayFillSound { get; set; } = true;
 }

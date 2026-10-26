@@ -20,6 +20,13 @@ public static class TradeJournalConstants
 	/// <summary>How often new curve points are written to disk (and on disconnect / exit).</summary>
 	public static readonly TimeSpan PnlSaveInterval = TimeSpan.FromMinutes(1);
 
+	/// <summary>
+	/// After one of the app's orders reports a fill, executions are asked for this much later
+	/// instead of at the next poll: the rest of a burst of status updates (a partial-fill run)
+	/// joins the same request, and IB has the execution ready.
+	/// </summary>
+	public static readonly TimeSpan FillRefreshDelay = TimeSpan.FromSeconds(1);
+
 	/// <summary>Accounts whose P&amp;L is recorded per connection (one reqPnL each).</summary>
 	public const int MaxPnlAccounts = 10;
 }

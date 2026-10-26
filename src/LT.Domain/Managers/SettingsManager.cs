@@ -44,6 +44,7 @@ public class SettingsManager(ISettingsRepository settingsRepository, IIbkrApiCli
 		settings.General.DisplayTimeZoneId = string.IsNullOrWhiteSpace(request.DisplayTimeZoneId)
 			? null
 			: request.DisplayTimeZoneId;
+		settings.General.PlayFillSound = request.PlayFillSound;
 		settingsRepository.Save(settings);
 		if (ibkrApiClient.IsConnected)
 			ibkrApiClient.SetMarketDataType(request.MarketDataType);
