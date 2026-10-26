@@ -344,16 +344,17 @@ instead.
 
 ### Chart templates
 
-The layers icon in a chart's header (`ChartTitleView`, after ƒx) opens its templates: named chart
-setups — timeframe, indicators (type, inputs, visibility, plot colours) and right margin. Click a
+Right-clicking a chart (`ChartView`) → **Templates…** opens its templates at the pointer: named
+chart setups — timeframe, indicators (type, inputs, visibility, plot colours) and right margin. Click a
 template's name to apply it to that chart; the star makes it the **default**, applied to every new
 chart (restored charts keep their saved setup); the pencil renames it in place; the export icon
 writes it to a JSON file; ✕ deletes it after an inline confirmation. "Save this chart as…" saves
 the chart's current setup (a name already taken asks "Replace …?" first; replacing keeps its id
 and default). Import… adds the templates of a file (a taken name gets " (2)", " (3)" …; the whole
 file is refused, naming the template, when anything in it is invalid); Export all… writes every
-template to one file. Results and errors show at the bottom of the menu, which reopens after a
-file dialog.
+template to one file. Results and errors show at the bottom of the menu, which reopens (centred
+on the chart) after a file dialog. The same right-click menu's **Apply template** submenu lists
+the templates (the default starred) to apply one in a click.
 
 - `IChartTemplateManager` (`ChartTemplateManager`, stateless) keeps them in
   `SettingsEntity.ChartTemplates` with `DefaultChartTemplateId`; validation messages are
@@ -628,10 +629,11 @@ while a text box has focus. On macOS, Cmd works in place of Ctrl.
 
 `Widgets/Chart/CandlestickChart` is a custom `Control` drawn with `DrawingContext` (no chart
 library): candles, volume, price grid, last-price line, crosshair + OHLCV readout. Wheel zooms,
-drag pans, double-click resets (zoom and pan, not the right margin). The account performance widget's `EquityCurveChart` and
+drag pans, double-click resets (zoom and pan, not the right margin); the right button doesn't
+pan — releasing it opens the chart's context menu (Add indicator…, Apply template, Templates…). The account performance widget's `EquityCurveChart` and
 `DailyPnlBarChart` are drawn the same way (same palette, `ChartDrawing`).
 
-**Indicators and panes.** The ƒx button in the chart header adds indicators; they draw on the
+**Indicators and panes.** Right-click → Add indicator… adds indicators; they draw on the
 price chart, on the volume bars or in panes of their own stacked under the price chart, each
 pane with its own scale and a legend (hover a row for hide / settings / remove). All panes share
 the horizontal viewport and the crosshair. The loading / error overlay sits top centre, clear of
