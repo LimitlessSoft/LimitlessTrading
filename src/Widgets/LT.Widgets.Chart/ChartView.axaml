@@ -23,8 +23,8 @@
 	<!-- The ticker and timeframe are picked in the frame header (ChartTitleView). Right-clicking
 	     the chart opens its menu: manage the indicators (remove those on the chart, pick more),
 	     apply a template, manage the templates. The picker and the template manager are flyouts kept on the chart and the
-	     panel and shown at the pointer. RTH / Reload controls are hidden until they are
-	     redesigned; the view model keeps their state.
+	     panel and shown at the pointer. Regular / extended hours is in the header
+	     (ChartTitleView); there is no Reload button, F5 reloads.
 	     A ticker dragged from a watchlist, positions, orders or executions row can be dropped
 	     anywhere on the chart (TickerDragDrop); the highlight shows while it hovers. -->
 	<Panel x:Name="DropRoot" Background="Transparent" helpers:TickerDragDrop.IsTarget="True">

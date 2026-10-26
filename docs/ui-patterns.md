@@ -225,12 +225,16 @@ new instance) and lives in one of four wrappers:
   every bar of the new series fits (also on double-click; the wheel can zoom in from there), while
   Auto keeps the latest bars at the default zoom. Period is saved per chart, new charts start at
   the last chart's period, and it is part of chart templates. A load superseded by another
-  timeframe, period or contract never shows its bars or its error. The other header controls (RTH, Reload) are hidden until
-  they are redesigned; F5 reloads.
-- **Pre- and post-market bars:** Settings → Chart → Trading hours, "Show pre- and post-market
-  bars" (`GeneralSettingsEntity.ChartOutsideRegularHours`, on by default, also for settings saved
-  before it) sets every chart's `UseRegularTradingHours` (IB `useRTH`) for historical and
-  real-time bars; saving it reloads open charts. On an intraday chart with it on, bars outside the
+  timeframe, period or contract never shows its bars or its error. There is no Reload button;
+  F5 reloads.
+- **Pre- and post-market bars:** per chart. On an intraday chart the header's **ETH / RTH**
+  button after the period (hidden on daily and weekly, which are always regular hours) switches
+  that chart between pre- and post-market bars (ETH, the default) and regular hours only (RTH):
+  `ChartViewModel.UseRegularTradingHours` (IB `useRTH`) for historical and real-time bars, and
+  only that chart reloads. Saved with the chart (`WidgetPlacementEntity.ChartOutsideRegularHours`;
+  null, as in layouts saved before it, is on); new charts start on. It used to be an app-wide
+  setting (Settings → Chart); settings files that still carry `ChartOutsideRegularHours` load
+  and the value is ignored. With pre- and post-market bars on an intraday chart, bars outside the
   regular session get a lighter background band (all panes) and hollow candles. The regular
   session is the contract's `liquidHours` in its `timeZoneId` from contract details
   (`IChartManager.GetRegularHoursAsync`, cached `CacheConstants.TradingHoursTtl`, fetched once per
@@ -451,8 +455,8 @@ template stops following.
   `GetSettingsError`; raise `CurrentVersion` only when an existing field changes meaning.
 - Applying gives the chart its own copies of the indicators (new instance ids). Indicators whose
   script isn't on this computer stay in the legend as missing, as in a layout.
-- Not in templates: the contract, link group and regular / extended hours (an app setting,
-  Settings → Chart).
+- Not in templates: the contract, link group and regular / extended hours (saved per chart, set
+  from the chart's header).
 
 ### Watchlists
 

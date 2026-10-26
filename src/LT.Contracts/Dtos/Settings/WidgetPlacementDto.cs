@@ -36,6 +36,12 @@ public class WidgetPlacementDto
 
 	/// <summary>Chart instances: the span of bars shown (null: older layouts, Auto).</summary>
 	public ChartPeriod? ChartPeriod { get; set; }
+
+	/// <summary>
+	/// Chart instances: intraday bars include pre- and post-market trading (IB useRTH=false);
+	/// null (older layouts) is on, the default.
+	/// </summary>
+	public bool? ChartOutsideRegularHours { get; set; }
 	public bool ChartLinked { get; set; } = true;
 	public ContractDto? ChartContract { get; set; }
 

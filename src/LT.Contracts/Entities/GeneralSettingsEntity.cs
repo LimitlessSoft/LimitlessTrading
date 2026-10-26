@@ -28,10 +28,4 @@ public class GeneralSettingsEntity
 	/// older settings files load as, is the system's local zone.
 	/// </summary>
 	public string? DisplayTimeZoneId { get; set; }
-
-	/// <summary>
-	/// Intraday charts show pre- and post-market bars (IB useRTH=false), drawn apart from the
-	/// regular session. On by default, also for settings saved before it existed.
-	/// </summary>
-	public bool ChartOutsideRegularHours { get; set; } = true;
 }

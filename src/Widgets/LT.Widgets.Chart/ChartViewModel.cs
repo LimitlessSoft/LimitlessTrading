@@ -27,7 +27,8 @@ using LT.Contracts.Requests.Indicators;
 namespace LT.App.Widgets.Chart;
 
 /// <summary>
-/// One chart. Several can be open; each has its own timeframe and period and either follows the selected
+/// One chart. Several can be open; each has its own timeframe, period and trading hours (regular
+/// only or with pre- and post-market bars) and either follows the selected
 /// contract (linked) or stays on the contract it shows (pinned). The selected account's recorded
 /// fills of the contract are drawn on it (trade journal: socket executions and IB Flex), closed
 /// quantity joined entry → exit, and the break-even of an open position (live positions only).
@@ -142,7 +143,6 @@ public partial class ChartViewModel
 			SetAppliedTemplate(template);
 		}
 
-		UseRegularTradingHours = !settingsManager.GetAppSettings().ChartOutsideRegularHours;
 		_contract = linkGroupStore.Get(Link.Group);
 		Reload();
 	}
@@ -218,6 +218,7 @@ public partial class ChartViewModel
 		SelectedPeriod =
 			Periods.FirstOrDefault(x => x.Value == (placement.ChartPeriod ?? ChartPeriod.Auto))
 			?? SelectedPeriod;
+		UseRegularTradingHours = !(placement.ChartOutsideRegularHours ?? true);
 		// Layouts saved before link groups: a chart pinned to its own ticker is not linked
 		if (!placement.ChartLinked)
 			Link.Group = LinkGroup.None;
@@ -234,6 +235,7 @@ public partial class ChartViewModel
 	{
 		placement.ChartTimeframe = SelectedTimeframe.Value;
 		placement.ChartPeriod = SelectedPeriod.Value;
+		placement.ChartOutsideRegularHours = !UseRegularTradingHours;
 		placement.ChartLinked = Link.Group != LinkGroup.None;
 		placement.ChartContract = _contract;
 		placement.ChartRightMargin = RightMargin > 0 ? RightMargin : null;
@@ -266,6 +268,7 @@ public partial class ChartViewModel
 	public IReadOnlyList<TimeframeOption> Timeframes { get; }
 
 	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(HasTradingHoursToggle))]
 	public partial TimeframeOption SelectedTimeframe { get; set; }
 
 	/// <summary>Header period menu: Auto, then the rolling and the calendar periods.</summary>
@@ -282,11 +285,30 @@ public partial class ChartViewModel
 	public bool FitsPeriod => SelectedPeriod.Value != ChartPeriod.Auto;
 
 	/// <summary>
-	/// Regular hours only (IB useRTH); the opposite of the "outside regular trading hours" chart
-	/// setting, which every chart follows.
+	/// Regular hours only (IB useRTH). Each chart has its own, saved with it; off by default, so
+	/// intraday charts include pre- and post-market bars. Toggled from the header.
 	/// </summary>
 	[ObservableProperty]
-	public partial bool UseRegularTradingHours { get; set; } = true;
+	[NotifyPropertyChangedFor(nameof(TradingHoursLabel), nameof(TradingHoursToolTip))]
+	public partial bool UseRegularTradingHours { get; set; }
+
+	/// <summary>
+	/// Header trading hours toggle shown: intraday timeframes only (daily and weekly bars are
+	/// always regular hours).
+	/// </summary>
+	public bool HasTradingHoursToggle => ChartTimeframeHelpers.IsIntraday(SelectedTimeframe.Value);
+
+	/// <summary>Header trading hours toggle: ETH with pre- and post-market bars, RTH without.</summary>
+	public string TradingHoursLabel => UseRegularTradingHours ? "RTH" : "ETH";
+
+	public string TradingHoursToolTip =>
+		UseRegularTradingHours
+			? "Regular hours only. Click to show pre- and post-market bars"
+			: "Pre- and post-market bars shown (hollow, on a lighter background). Click for regular hours only";
+
+	/// <summary>Header trading hours toggle: switches this chart between RTH and ETH and reloads it.</summary>
+	[RelayCommand]
+	public void ToggleTradingHours() => UseRegularTradingHours = !UseRegularTradingHours;
 
 	/// <summary>
 	/// The contract's regular sessions while pre- / post-market bars are shown on an intraday
@@ -396,13 +418,12 @@ public partial class ChartViewModel
 		UpdateBreakEven();
 	}
 
-	// From the thread that saved the settings. Outside-hours and live-update changes reload
+	// From the thread that saved the settings. Live-update changes reload
 	private void OnAppSettingsChanged(AppSettingsDto settings) =>
 		Dispatcher.UIThread.Post(() =>
 		{
 			if (_disposed)
 				return;
-			UseRegularTradingHours = !settings.ChartOutsideRegularHours;
 			if (
 				(
 					settings.ChartLiveUpdateMode == _liveMode

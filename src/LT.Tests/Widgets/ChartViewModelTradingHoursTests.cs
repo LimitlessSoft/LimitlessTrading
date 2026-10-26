@@ -1,9 +1,8 @@
-using Avalonia.Threading;
 using LT.App.Stores;
 using LT.App.Widgets.Chart;
 using LT.Contracts.Dtos.Contracts;
+using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
-using LT.Contracts.Requests.Settings;
 using LT.Domain.Managers;
 using LT.Indicators.Scripting;
 using LT.Tests.Fakes;
@@ -11,8 +10,8 @@ using LT.Tests.Fakes;
 namespace LT.Tests.Widgets;
 
 /// <summary>
-/// Charts follow the "pre- and post-market bars" setting: on by default (IB useRTH=false), and
-/// switching it reloads the open charts without reopening them.
+/// Each chart has its own trading hours: pre- and post-market bars by default (IB useRTH=false),
+/// switched from the chart's header (reloading only that chart) and saved with the chart.
 /// </summary>
 public class ChartViewModelTradingHoursTests : IDisposable
 {
@@ -40,29 +39,72 @@ public class ChartViewModelTradingHoursTests : IDisposable
 		var chart = TestUiThread.Invoke(CreateChart);
 
 		Assert.False(chart.UseRegularTradingHours);
+		Assert.Equal("ETH", chart.TradingHoursLabel);
 		WaitFor(() => _ibkr.HistoricalUseRth.Count > 0);
 		Assert.False(_ibkr.HistoricalUseRth[^1]);
 	}
 
 	[Fact]
-	public void Turning_the_setting_off_reloads_open_charts_with_regular_hours_only()
+	public void Toggling_one_chart_reloads_it_with_regular_hours_and_leaves_the_others()
 	{
-		var chart = TestUiThread.Invoke(CreateChart);
+		var (first, second) = TestUiThread.Invoke(() => (CreateChart(), CreateChart()));
 		WaitFor(() => _ibkr.HistoricalUseRth.Count > 0);
 
-		_settings.SaveAppSettings(
-			new SaveAppSettingsRequest
-			{
-				MarketDataType = MarketDataType.Delayed,
-				HeartbeatSeconds = 10,
-				ChartOutsideRegularHours = false,
-			}
-		);
-		TestUiThread.Invoke(() => Dispatcher.UIThread.RunJobs());
+		TestUiThread.Invoke(() => first.ToggleTradingHoursCommand.Execute(null));
 
-		Assert.True(chart.UseRegularTradingHours);
+		Assert.True(first.UseRegularTradingHours);
+		Assert.Equal("RTH", first.TradingHoursLabel);
+		Assert.False(second.UseRegularTradingHours);
 		WaitFor(() => _ibkr.HistoricalUseRth.Contains(true));
-		Assert.Null(chart.RegularHours);
+		Assert.Single(_ibkr.HistoricalUseRth, x => x);
+		Assert.Null(first.RegularHours);
+	}
+
+	[Fact]
+	public void Trading_hours_are_saved_with_the_chart_and_restored()
+	{
+		var placement = new WidgetPlacementDto { Tool = WorkspaceTool.Chart };
+		TestUiThread.Invoke(() =>
+		{
+			var chart = CreateChart();
+			chart.ToggleTradingHours();
+			chart.SaveState(placement);
+		});
+		Assert.False(placement.ChartOutsideRegularHours);
+
+		var restored = TestUiThread.Invoke(() =>
+		{
+			var chart = CreateChart();
+			chart.LoadState(placement);
+			return chart;
+		});
+
+		Assert.True(restored.UseRegularTradingHours);
+		WaitFor(() => _ibkr.HistoricalUseRth.Contains(true));
+	}
+
+	[Fact]
+	public void A_chart_from_a_layout_saved_before_per_chart_hours_shows_outside_regular_hours()
+	{
+		var chart = TestUiThread.Invoke(() =>
+		{
+			var chart = CreateChart();
+			chart.LoadState(new WidgetPlacementDto { Tool = WorkspaceTool.Chart });
+			return chart;
+		});
+
+		Assert.False(chart.UseRegularTradingHours);
+	}
+
+	[Fact]
+	public void The_toggle_is_offered_on_intraday_charts_only()
+	{
+		var chart = TestUiThread.Invoke(CreateChart);
+
+		TestUiThread.Invoke(() => chart.SetTimeframe(ChartTimeframe.FiveMinutes));
+		Assert.True(chart.HasTradingHoursToggle);
+		TestUiThread.Invoke(() => chart.SetTimeframe(ChartTimeframe.OneDay));
+		Assert.False(chart.HasTradingHoursToggle);
 	}
 
 	public void Dispose()
