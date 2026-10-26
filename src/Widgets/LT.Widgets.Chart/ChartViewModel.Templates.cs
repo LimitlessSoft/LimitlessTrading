@@ -1,9 +1,14 @@
 using System.Collections.ObjectModel;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LSCore.Validation.Contracts;
 using LT.App.Helpers;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.ChartTemplates;
+using LT.Contracts.Dtos.Settings;
+using LT.Contracts.Enums;
+using LT.Contracts.Enums.ValidationCodes;
 using LT.Contracts.Helpers;
 using LT.Contracts.Requests.ChartTemplates;
 
@@ -15,9 +20,190 @@ namespace LT.App.Widgets.Chart;
 /// visibility and colours, right margin — under a name (a taken name asks before replacing it),
 /// applies one, renames, deletes, marks one as the default for new charts, and exports / imports
 /// them as JSON files (the files are picked by the view). Problems and results show in the menu.
+/// <para>
+/// The chart remembers the template it last applied or was saved as (or the default it started
+/// from). "Follow and save on change" ties it to that template: its edits are saved to it
+/// (<see cref="ChartTemplateConstants.FollowSaveDebounce"/> after they stop, only the settings the
+/// template holds) and every template save
+/// (<see cref="LT.Contracts.Interfaces.IManagers.IChartTemplateManager.TemplateSaved"/>) is applied
+/// to it, so all charts following one template stay alike. Applying a save is not an
+/// edit (it is not saved back), and a save the chart already looks like is ignored. Turning it on
+/// while the chart differs from the template asks first, then updates the chart to it.
+/// </para>
 /// </summary>
 public partial class ChartViewModel
 {
+	private string? _templateId;
+	private bool _applyingTemplate;
+
+	/// <summary>The template this chart uses (last applied or saved as); null: none.</summary>
+	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(HasAppliedTemplate))]
+	[NotifyPropertyChangedFor(nameof(FollowStatus))]
+	[NotifyPropertyChangedFor(nameof(FollowPrompt))]
+	public partial string? AppliedTemplateName { get; private set; }
+
+	/// <summary>Following needs a template; without one the switch is disabled.</summary>
+	public bool HasAppliedTemplate => AppliedTemplateName != null;
+
+	/// <summary>"Follow and save on change": this chart and its template stay alike.</summary>
+	[ObservableProperty]
+	public partial bool FollowTemplate { get; private set; }
+
+	/// <summary>Following was asked for while the chart differs from the template; asks first.</summary>
+	[ObservableProperty]
+	public partial bool IsConfirmingFollow { get; private set; }
+
+	/// <summary>Beside the switch: the template it follows.</summary>
+	public string FollowStatus => AppliedTemplateName ?? "No template";
+
+	public string FollowPrompt =>
+		$"This chart uses an outdated version of template \"{AppliedTemplateName}\". Following it first updates the chart to the latest version.";
+
+	/// <summary>Turns following on (asking first when the chart is outdated) or off.</summary>
+	[RelayCommand]
+	public void ToggleFollowTemplate()
+	{
+		IsConfirmingFollow = false;
+		if (FollowTemplate)
+			StopFollowingTemplate();
+		else if (GetAppliedTemplate() is { } template)
+		{
+			if (ChartTemplateHelpers.Matches(template.Settings, GetTemplateSettings()))
+				FollowTemplate = true;
+			else
+				IsConfirmingFollow = true;
+		}
+	}
+
+	/// <summary>Updates the chart to the template's latest version, then follows it.</summary>
+	[RelayCommand]
+	public void ConfirmFollow()
+	{
+		IsConfirmingFollow = false;
+		if (GetAppliedTemplate() is not { } template)
+			return;
+		ApplyTemplateSettings(template.Settings);
+		FollowTemplate = true;
+	}
+
+	/// <summary>Leaves the chart as it is, not following.</summary>
+	[RelayCommand]
+	public void CancelFollow() => IsConfirmingFollow = false;
+
+	/// <summary>
+	/// Saves the chart's edits to the template it follows (the debounce's end; also when following
+	/// stops, another template is applied or the chart closes). Nothing when they already match.
+	/// </summary>
+	public void SaveFollowedTemplate()
+	{
+		_templateSaveTimer.Stop();
+		if (!FollowTemplate || GetAppliedTemplate() is not { } template)
+			return;
+		var own = GetTemplateSettings();
+		if (ChartTemplateHelpers.Matches(template.Settings, own))
+			return;
+		try
+		{
+			_chartTemplateManager.UpdateSettings(
+				new UpdateChartTemplateSettingsRequest
+				{
+					Id = template.Id,
+					Settings = ChartTemplateHelpers.Merge(template.Settings, own),
+				}
+			);
+		}
+		catch (Exception ex)
+		{
+			var message = ErrorMessageHelpers.ToUserMessage(ex);
+			ShowTemplateError(message);
+			_messageLogManager.Add(
+				MessageSeverity.Warning,
+				MessageLogConstants.SourceChart,
+				$"{Title}: template {template.Name} not saved ({message})"
+			);
+		}
+	}
+
+	private void FlushTemplateSave()
+	{
+		if (_templateSaveTimer.IsEnabled)
+			SaveFollowedTemplate();
+	}
+
+	private void StopFollowingTemplate()
+	{
+		FlushTemplateSave();
+		IsConfirmingFollow = false;
+		FollowTemplate = false;
+	}
+
+	// A template-relevant setting changed: saved once the edits stop, when this chart follows
+	private void OnTemplateSettingsEdited()
+	{
+		if (_applyingTemplate || !FollowTemplate || _disposed)
+			return;
+		_templateSaveTimer.Stop();
+		_templateSaveTimer.Start();
+	}
+
+	// Any chart's save (this one's too: it matches already, so nothing happens)
+	private void OnTemplateSaved(ChartTemplateDto template)
+	{
+		if (!Dispatcher.UIThread.CheckAccess())
+		{
+			Dispatcher.UIThread.Post(() => OnTemplateSaved(template));
+			return;
+		}
+		if (_disposed || template.Id != _templateId)
+			return;
+		AppliedTemplateName = template.Name;
+		if (
+			!FollowTemplate
+			|| ChartTemplateHelpers.Matches(template.Settings, GetTemplateSettings())
+		)
+			return;
+		// The template's latest version wins over an edit still waiting to be saved
+		_templateSaveTimer.Stop();
+		ApplyTemplateSettings(template.Settings);
+	}
+
+	// The template in use as stored now; a deleted one is forgotten (and no longer followed)
+	private ChartTemplateDto? GetAppliedTemplate()
+	{
+		if (_templateId == null)
+			return null;
+		var template = _chartTemplateManager.GetTemplate(_templateId);
+		SetAppliedTemplate(template);
+		if (template == null)
+			ShowTemplateError(ChartTemplateValidationCodes.CHTVC_004.GetValidationMessage());
+		return template;
+	}
+
+	private void SetAppliedTemplate(ChartTemplateDto? template)
+	{
+		_templateId = template?.Id;
+		AppliedTemplateName = template?.Name;
+		if (template != null)
+			return;
+		_templateSaveTimer.Stop();
+		IsConfirmingFollow = false;
+		FollowTemplate = false;
+	}
+
+	// A restored chart following its template takes the template's latest version
+	private void LoadTemplateState(WidgetPlacementDto placement)
+	{
+		var template = placement.ChartTemplateId is { } id
+			? _chartTemplateManager.GetTemplate(id)
+			: null;
+		SetAppliedTemplate(template);
+		if (template == null || !placement.ChartFollowTemplate)
+			return;
+		ApplyTemplateSettings(template.Settings);
+		FollowTemplate = true;
+	}
+
 	/// <summary>Template menu: every template, by name.</summary>
 	public ObservableCollection<ChartTemplateItemViewModel> Templates { get; } = [];
 
@@ -45,6 +231,7 @@ public partial class ChartViewModel
 	public void RefreshTemplates()
 	{
 		IsConfirmingOverwrite = false;
+		IsConfirmingFollow = false;
 		TemplateMessage = null;
 		LoadTemplates();
 	}
@@ -81,9 +268,11 @@ public partial class ChartViewModel
 	private void Save(bool overwrite)
 	{
 		IsConfirmingOverwrite = false;
+		FlushTemplateSave();
+		ChartTemplateDto? saved = null;
 		if (
 			!RunTemplateChange(() =>
-				_chartTemplateManager.Save(
+				saved = _chartTemplateManager.Save(
 					new SaveChartTemplateRequest
 					{
 						Name = NewTemplateName ?? string.Empty,
@@ -94,12 +283,17 @@ public partial class ChartViewModel
 			)
 		)
 			return;
+		// The chart now uses what it was saved as (and follows that one, if it was following)
+		SetAppliedTemplate(saved);
 		ShowTemplateResult($"Saved {NewTemplateName?.Trim()}");
 		NewTemplateName = null;
 		LoadTemplates();
 	}
 
-	/// <summary>Applies the template to this chart; settings it doesn't hold stay as they are.</summary>
+	/// <summary>
+	/// Applies the template to this chart; settings it doesn't hold stay as they are. The chart
+	/// uses it from now on (and follows it instead, if it was following another).
+	/// </summary>
 	public void ApplyTemplate(string id)
 	{
 		if (_chartTemplateManager.GetTemplate(id) is not { } template)
@@ -107,20 +301,31 @@ public partial class ChartViewModel
 			LoadTemplates();
 			return;
 		}
+		FlushTemplateSave();
 		ApplyTemplateSettings(template.Settings);
+		SetAppliedTemplate(template);
 	}
 
+	// Not an edit: never saved back to a template
 	private void ApplyTemplateSettings(ChartTemplateSettingsDto settings)
 	{
-		if (settings.Timeframe is { } timeframe)
-			SetTimeframe(timeframe);
-		if (settings.RightMargin is { } margin)
-			RightMargin = Math.Max(0, margin);
-		if (settings.Indicators is { } indicators)
+		_applyingTemplate = true;
+		try
 		{
-			_indicators = ChartTemplateHelpers.CopyIndicators(indicators);
-			IndicatorResults = [];
-			OnIndicatorsEdited();
+			if (settings.Timeframe is { } timeframe)
+				SetTimeframe(timeframe);
+			if (settings.RightMargin is { } margin)
+				RightMargin = Math.Max(0, margin);
+			if (settings.Indicators is { } indicators)
+			{
+				_indicators = ChartTemplateHelpers.CopyIndicators(indicators);
+				IndicatorResults = [];
+				OnIndicatorsEdited();
+			}
+		}
+		finally
+		{
+			_applyingTemplate = false;
 		}
 	}
 
@@ -260,8 +465,12 @@ public partial class ChartViewModel
 	private void LoadTemplates()
 	{
 		Templates.Clear();
-		foreach (var template in _chartTemplateManager.GetTemplates())
+		var templates = _chartTemplateManager.GetTemplates();
+		foreach (var template in templates)
 			Templates.Add(new ChartTemplateItemViewModel(this, template));
 		OnPropertyChanged(nameof(HasTemplates));
+		// Renamed or deleted since
+		if (_templateId != null)
+			SetAppliedTemplate(templates.FirstOrDefault(x => x.Id == _templateId));
 	}
 }

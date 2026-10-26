@@ -154,6 +154,55 @@
 						IsVisible="{Binding !HasTemplates}"
 					/>
 					<Separator Margin="0,2" />
+					<!-- The button flips it (the view model may ask first); the check box only shows it -->
+					<Button
+						Classes="pickerRow"
+						HorizontalContentAlignment="Stretch"
+						Command="{Binding ToggleFollowTemplateCommand}"
+						IsEnabled="{Binding HasAppliedTemplate}"
+						IsVisible="{Binding !IsConfirmingFollow}"
+						ToolTip.Tip="Save this chart's changes to its template, and take the changes other charts following it save"
+					>
+						<Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+							<CheckBox
+								IsChecked="{Binding FollowTemplate, Mode=OneWay}"
+								IsHitTestVisible="False"
+								Focusable="False"
+								MinWidth="0"
+								Padding="0"
+								VerticalAlignment="Center"
+							/>
+							<TextBlock
+								Grid.Column="1"
+								VerticalAlignment="Center"
+								Text="Follow and save on change"
+							/>
+							<TextBlock
+								Grid.Column="2"
+								Classes="secondary"
+								FontSize="12"
+								MaxWidth="150"
+								VerticalAlignment="Center"
+								TextTrimming="CharacterEllipsis"
+								Text="{Binding FollowStatus}"
+							/>
+						</Grid>
+					</Button>
+					<TextBlock
+						Classes="secondary"
+						FontSize="12"
+						TextWrapping="Wrap"
+						Text="Apply or save a template to follow it."
+						IsVisible="{Binding !HasAppliedTemplate}"
+					/>
+					<StackPanel Spacing="6" IsVisible="{Binding IsConfirmingFollow}">
+						<TextBlock FontSize="12" TextWrapping="Wrap" Text="{Binding FollowPrompt}" />
+						<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+							<Button Content="Cancel" Command="{Binding CancelFollowCommand}" />
+							<Button Content="Update and follow" Command="{Binding ConfirmFollowCommand}" />
+						</StackPanel>
+					</StackPanel>
+					<Separator Margin="0,2" />
 					<Grid
 						ColumnDefinitions="*,Auto"
 						ColumnSpacing="6"

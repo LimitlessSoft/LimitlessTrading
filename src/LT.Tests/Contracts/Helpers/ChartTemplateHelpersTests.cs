@@ -1,4 +1,7 @@
 using LT.Contracts.Constants;
+using LT.Contracts.Dtos.ChartTemplates;
+using LT.Contracts.Dtos.Indicators;
+using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 
 namespace LT.Tests.Contracts.Helpers;
@@ -33,4 +36,60 @@ public class ChartTemplateHelpersTests
 	[InlineData("   ", "chart-templates.json")]
 	public void File_names_drop_characters_file_systems_refuse(string name, string expected) =>
 		Assert.Equal(expected, ChartTemplateHelpers.GetFileName(name));
+
+	[Fact]
+	public void A_chart_matches_a_template_by_indicator_content_not_instance()
+	{
+		var template = new ChartTemplateSettingsDto
+		{
+			Timeframe = ChartTimeframe.OneHour,
+			Indicators = [Ema(20)],
+		};
+
+		Assert.True(ChartTemplateHelpers.Matches(template, Chart(ChartTimeframe.OneHour, Ema(20))));
+		Assert.False(
+			ChartTemplateHelpers.Matches(template, Chart(ChartTimeframe.OneHour, Ema(50)))
+		);
+		Assert.False(ChartTemplateHelpers.Matches(template, Chart(ChartTimeframe.OneDay, Ema(20))));
+	}
+
+	[Fact]
+	public void Settings_a_template_does_not_hold_never_make_a_chart_differ() =>
+		Assert.True(
+			ChartTemplateHelpers.Matches(
+				new ChartTemplateSettingsDto { Timeframe = ChartTimeframe.OneHour },
+				Chart(ChartTimeframe.OneHour, Ema(20))
+			)
+		);
+
+	[Fact]
+	public void Merging_keeps_the_templates_shape()
+	{
+		var merged = ChartTemplateHelpers.Merge(
+			new ChartTemplateSettingsDto { Timeframe = ChartTimeframe.OneHour },
+			Chart(ChartTimeframe.OneDay, Ema(20))
+		);
+
+		Assert.Equal(ChartTimeframe.OneDay, merged.Timeframe);
+		Assert.Null(merged.RightMargin);
+		Assert.Null(merged.Indicators);
+	}
+
+	private static IndicatorInstanceDto Ema(double length) =>
+		new()
+		{
+			DefinitionId = "ema",
+			Inputs = new() { ["Length"] = length },
+		};
+
+	private static ChartTemplateSettingsDto Chart(
+		ChartTimeframe timeframe,
+		params IndicatorInstanceDto[] indicators
+	) =>
+		new()
+		{
+			Timeframe = timeframe,
+			RightMargin = 0,
+			Indicators = [.. indicators],
+		};
 }

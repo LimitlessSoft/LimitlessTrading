@@ -38,6 +38,15 @@ public class WidgetPlacementEntity
 	/// <summary>Chart instances: their indicators in legend order (null: none; older layouts).</summary>
 	public List<IndicatorInstanceEntity>? ChartIndicators { get; set; }
 
+	/// <summary>Chart instances: the template last applied to or saved from it (null: none).</summary>
+	public string? ChartTemplateId { get; set; }
+
+	/// <summary>
+	/// Chart instances: follows <see cref="ChartTemplateId"/> — its changes are saved to the
+	/// template and the template's changes applied to it.
+	/// </summary>
+	public bool ChartFollowTemplate { get; set; }
+
 	// News instances: what they show and which providers (keys "ibkr:BRFG"; null: all of them)
 	public NewsMode? NewsMode { get; set; }
 	public List<string>? NewsProviders { get; set; }

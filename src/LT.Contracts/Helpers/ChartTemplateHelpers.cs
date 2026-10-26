@@ -147,6 +147,56 @@ public static class ChartTemplateHelpers
 				}),
 		];
 
+	/// <summary>
+	/// The chart's setup (<paramref name="chart"/>, every setting held) already looks as the
+	/// template sets it: every setting the template holds is equal; indicators compare by type,
+	/// inputs, visibility and colours in legend order, not by instance id.
+	/// </summary>
+	public static bool Matches(ChartTemplateSettingsDto template, ChartTemplateSettingsDto chart)
+	{
+		if (template.Timeframe is { } timeframe && chart.Timeframe != timeframe)
+			return false;
+		if (template.RightMargin is { } margin && chart.RightMargin != Math.Max(0, margin))
+			return false;
+		if (template.Indicators is not { } indicators)
+			return true;
+		var own = chart.Indicators ?? [];
+		var expected = indicators.Take(IndicatorConstants.MaxIndicatorsPerChart).ToList();
+		return own.Count == expected.Count
+			&& own.Zip(expected).All(x => IndicatorMatches(x.First, x.Second));
+	}
+
+	/// <summary>
+	/// What saving <paramref name="chart"/>'s setup to the template stores: the chart's value of
+	/// every setting the template holds; settings it doesn't hold stay out of it.
+	/// </summary>
+	public static ChartTemplateSettingsDto Merge(
+		ChartTemplateSettingsDto template,
+		ChartTemplateSettingsDto chart
+	) =>
+		new()
+		{
+			Timeframe = template.Timeframe != null ? chart.Timeframe : null,
+			RightMargin = template.RightMargin != null ? chart.RightMargin ?? 0 : null,
+			Indicators = template.Indicators != null ? [.. chart.Indicators ?? []] : null,
+		};
+
+	private static bool IndicatorMatches(IndicatorInstanceDto a, IndicatorInstanceDto b) =>
+		a.DefinitionId == b.DefinitionId
+		&& a.IsVisible == b.IsVisible
+		&& DictionaryEquals(a.Inputs, b.Inputs)
+		&& DictionaryEquals(a.PlotColors ?? [], b.PlotColors ?? []);
+
+	private static bool DictionaryEquals<T>(
+		IReadOnlyDictionary<string, T> a,
+		IReadOnlyDictionary<string, T> b
+	) =>
+		a.Count == b.Count
+		&& a.All(x =>
+			b.TryGetValue(x.Key, out var value)
+			&& EqualityComparer<T>.Default.Equals(x.Value, value)
+		);
+
 	public static string SerializeFile(IEnumerable<ChartTemplateEntity> templates) =>
 		JsonSerializer.Serialize(
 			new ChartTemplateFileEntity

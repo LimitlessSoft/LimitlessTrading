@@ -118,6 +118,8 @@ public static class Program
 		builder.Services.AddSingleton<IIndicatorEngine, IndicatorEngine>();
 		builder.Services.AddSingleton<IIndicatorScriptRepository, IndicatorScriptRepository>();
 		builder.Services.AddSingleton<IIndicatorManager, IndicatorManager>();
+		// One for all charts: those following a template hear each other's saves through it
+		builder.Services.AddSingleton<IChartTemplateManager, ChartTemplateManager>();
 
 		// News: every INewsSource is aggregated by the news manager (more sources go here)
 		builder.Services.AddSingleton<INewsSource, IbkrNewsSource>();

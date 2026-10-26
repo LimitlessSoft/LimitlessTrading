@@ -28,6 +28,8 @@ public class WidgetPlacementEntityMapper : ILSCoreMapper<WidgetPlacementDto, Wid
 			ChartIndicators = source.ChartIndicators is { } indicators
 				? [.. indicators.Select(new IndicatorInstanceEntityMapper().ToMapped)]
 				: null,
+			ChartTemplateId = source.ChartTemplateId,
+			ChartFollowTemplate = source.ChartFollowTemplate,
 			NewsMode = source.NewsMode,
 			NewsProviders = source.NewsProviders is { } providers ? [.. providers] : null,
 			OptionQuickOrderQuantity = source.OptionQuickOrderQuantity,

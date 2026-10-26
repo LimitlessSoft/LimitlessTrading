@@ -12,9 +12,14 @@ using LT.Contracts.Requests.ChartTemplates;
 
 namespace LT.Domain.Managers;
 
-/// <summary>Chart templates in <see cref="SettingsEntity.ChartTemplates"/>.</summary>
+/// <summary>
+/// Chart templates in <see cref="SettingsEntity.ChartTemplates"/>. A singleton: every chart
+/// listens to the same <see cref="TemplateSaved"/>.
+/// </summary>
 public class ChartTemplateManager(ISettingsRepository settingsRepository) : IChartTemplateManager
 {
+	public event Action<ChartTemplateDto>? TemplateSaved;
+
 	public IReadOnlyList<ChartTemplateDto> GetTemplates()
 	{
 		var settings = settingsRepository.Get();
@@ -71,9 +76,28 @@ public class ChartTemplateManager(ISettingsRepository settingsRepository) : ICha
 			templates.Add(saved);
 		else
 			templates[templates.IndexOf(template)] = saved;
-		template = saved;
 		settingsRepository.Save(settings);
-		return ChartTemplateHelpers.ToDto(template, settings.DefaultChartTemplateId);
+		var dto = ChartTemplateHelpers.ToDto(saved, settings.DefaultChartTemplateId);
+		TemplateSaved?.Invoke(dto);
+		return dto;
+	}
+
+	public ChartTemplateDto UpdateSettings(UpdateChartTemplateSettingsRequest request)
+	{
+		request.Validate();
+		var settings = settingsRepository.Get();
+		var templates = ChartTemplateHelpers.GetTemplates(settings);
+		var template =
+			templates.FirstOrDefault(x => x.Id == request.Id)
+			?? throw new LSCoreBadRequestException(
+				ChartTemplateValidationCodes.CHTVC_004.GetValidationMessage()
+			);
+		var saved = ChartTemplateHelpers.ToEntity(template.Id, template.Name, request.Settings);
+		templates[templates.IndexOf(template)] = saved;
+		settingsRepository.Save(settings);
+		var dto = ChartTemplateHelpers.ToDto(saved, settings.DefaultChartTemplateId);
+		TemplateSaved?.Invoke(dto);
+		return dto;
 	}
 
 	public ChartTemplateDto Rename(RenameChartTemplateRequest request)
