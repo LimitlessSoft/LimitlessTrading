@@ -313,8 +313,12 @@ deduplicated by IB's execution id, so the same fill from either stays one:
 
 ## How LT.Ibkr applies the rules
 
-- `RequestThrottle` (sliding window) paces every request: 40 msg/s overall and 60 historical
-  requests per 10 minutes. Requests wait instead of tripping IB's disconnect.
+- `RequestThrottle` (sliding window) paces every request: 40 msg/s overall, and
+  `HistoricalPacing` holds historical requests for bars of 30 s or less to 60 per 10 minutes.
+  Requests wait instead of tripping IB's disconnect. Chart bars (1 min and up) are not held to
+  the 60 / 10 min window: IB doesn't enforce it for them (75 distinct 15-min requests in 70 s,
+  recorded read-only on IB Gateway 4001, 2026-10-26, all answered; IB slowed its answers to
+  ~6 s each after ~55). Holding them queued chart loads for minutes behind other charts.
 - `MarketDataManager` counts lines and refuses a subscription above 90 (headroom under IB's 100).
 - `ChartManager` turns the chart's period into the IB duration (`ChartPeriodHelpers.GetRange`):
   the span plus a day of slack, rounded up to 2/8/32/93/185/365 D or whole years (end is always
@@ -339,8 +343,9 @@ deduplicated by IB's execution id, so the same fill from either stays one:
 - **Market data lines:** default 100 simultaneous `reqMktData` subscriptions per account (grows
   with commissions/quote boosters). Watchlists larger than that need virtualization — only
   subscribe what's visible.
-- **Historical data pacing:** no more than 60 requests per 10 minutes; identical requests within 15
-  seconds are rejected. Cache bars locally.
+- **Historical data pacing:** for bars of 30 seconds or less, no more than 60 requests per 10
+  minutes and identical requests within 15 seconds are rejected. Larger bars are only slowed down
+  by IB (soft pacing). Cache bars locally.
 - **Market data subscriptions:** without paid subscriptions you get error 354/10167; call
   `SetMarketDataType(3)` to fall back to delayed data (default for paper accounts).
 - **Threading:** IBKR.Net reads the socket on a background thread and hands us channels/tasks;

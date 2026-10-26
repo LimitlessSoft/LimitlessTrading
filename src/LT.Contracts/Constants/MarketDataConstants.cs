@@ -11,7 +11,7 @@ public static class MarketDataConstants
 	/// <summary>IB disconnects above ~50 messages/s; stay below it.</summary>
 	public const int MaxMessagesPerSecond = 40;
 
-	/// <summary>Historical data pacing: no more than 60 requests in 10 minutes.</summary>
+	/// <summary>Historical data pacing for bars of 30 s or less: 60 requests in 10 minutes.</summary>
 	public const int MaxHistoricalRequests = 60;
 	public static readonly TimeSpan HistoricalWindow = TimeSpan.FromMinutes(10);
 
