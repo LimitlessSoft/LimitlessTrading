@@ -20,6 +20,32 @@ public static class TradeMatchingHelpers
 	public static IReadOnlyList<RoundTripDto> Match(IEnumerable<ExecutionDto> fills)
 	{
 		var trades = new List<RoundTripDto>();
+		Run(fills, trades, null);
+		return trades
+			.OrderBy(x => x.IsClosed ? 0 : 1)
+			.ThenBy(x => x.CloseTime ?? x.OpenTime)
+			.ThenBy(x => x.OpenTime)
+			.ToList();
+	}
+
+	/// <summary>
+	/// The same matching as <see cref="Match"/>, as the entry → exit pairs of the closed quantity:
+	/// each exit fill against the FIFO entry lots it closed, by exit time. Quantity still open has
+	/// no leg.
+	/// </summary>
+	public static IReadOnlyList<TradeLegDto> MatchLegs(IEnumerable<ExecutionDto> fills)
+	{
+		var legs = new List<TradeLegDto>();
+		Run(fills, null, legs);
+		return legs.OrderBy(x => x.ExitTime).ThenBy(x => x.EntryTime).ToList();
+	}
+
+	private static void Run(
+		IEnumerable<ExecutionDto> fills,
+		List<RoundTripDto>? trades,
+		List<TradeLegDto>? legs
+	)
+	{
 		var groups = fills
 			.Where(x => x.Shares != 0 && GetDirection(x.Side) != 0)
 			.GroupBy(x => (x.Account, GetContractKey(x)));
@@ -39,7 +65,7 @@ public static class TradeMatchingHelpers
 				{
 					if (open == null || open.Direction == direction)
 					{
-						open ??= new TradeBuilder(fill, direction);
+						open ??= new TradeBuilder(fill, direction, legs);
 						open.AddEntry(fill, remaining, commissionPerUnit);
 						remaining = 0;
 						continue;
@@ -50,20 +76,14 @@ public static class TradeMatchingHelpers
 					remaining -= closing;
 					if (open.OpenQuantity == 0)
 					{
-						trades.Add(open.Build());
+						trades?.Add(open.Build());
 						open = null;
 					}
 				}
 			}
 			if (open != null)
-				trades.Add(open.Build());
+				trades?.Add(open.Build());
 		}
-
-		return trades
-			.OrderBy(x => x.IsClosed ? 0 : 1)
-			.ThenBy(x => x.CloseTime ?? x.OpenTime)
-			.ThenBy(x => x.OpenTime)
-			.ToList();
 	}
 
 	/// <summary>+1 for a buy ("BOT", "BUY"), -1 for a sell ("SLD", "SELL"), 0 otherwise.</summary>
@@ -81,9 +101,14 @@ public static class TradeMatchingHelpers
 			? fill.ConId.ToString(System.Globalization.CultureInfo.InvariantCulture)
 			: $"{fill.SecurityType}:{fill.LocalSymbol}:{fill.Symbol}";
 
-	private sealed class TradeBuilder(ExecutionDto first, int direction)
+	private sealed class TradeBuilder(ExecutionDto first, int direction, List<TradeLegDto>? legs)
 	{
-		private readonly List<(decimal Quantity, double Price)> _lots = [];
+		private readonly List<(
+			decimal Quantity,
+			double Price,
+			ExecutionDto Fill,
+			double CommissionPerUnit
+		)> _lots = [];
 		private readonly double _multiplier = first.Multiplier is > 0 ? first.Multiplier.Value : 1;
 		private decimal _entryQuantity;
 		private double _entryValue;
@@ -100,7 +125,7 @@ public static class TradeMatchingHelpers
 
 		public void AddEntry(ExecutionDto fill, decimal quantity, double commissionPerUnit)
 		{
-			_lots.Add((quantity, fill.Price));
+			_lots.Add((quantity, fill.Price, fill, commissionPerUnit));
 			OpenQuantity += quantity;
 			_entryQuantity += quantity;
 			_entryValue += (double)quantity * fill.Price;
@@ -113,13 +138,30 @@ public static class TradeMatchingHelpers
 			var left = quantity;
 			while (left > 0)
 			{
-				var (lotQuantity, lotPrice) = _lots[0];
-				var used = Math.Min(left, lotQuantity);
-				_gross += (fill.Price - lotPrice) * (double)used * _multiplier * Direction;
+				var lot = _lots[0];
+				var used = Math.Min(left, lot.Quantity);
+				var gross = (fill.Price - lot.Price) * (double)used * _multiplier * Direction;
+				_gross += gross;
 				left -= used;
+				legs?.Add(
+					new TradeLegDto
+					{
+						Account = first.Account,
+						Side = Direction > 0 ? TradeSide.Long : TradeSide.Short,
+						Quantity = used,
+						EntryExecId = lot.Fill.ExecId,
+						EntryTime = lot.Fill.Time ?? DateTimeOffset.MinValue,
+						EntryPrice = lot.Price,
+						ExitExecId = fill.ExecId,
+						ExitTime = fill.Time ?? DateTimeOffset.MinValue,
+						ExitPrice = fill.Price,
+						GrossPnl = gross,
+						Commission = (double)used * (lot.CommissionPerUnit + commissionPerUnit),
+					}
+				);
 				// The rest of a partly closed lot stays first in line
-				if (used < lotQuantity)
-					_lots[0] = (lotQuantity - used, lotPrice);
+				if (used < lot.Quantity)
+					_lots[0] = lot with { Quantity = lot.Quantity - used };
 				else
 					_lots.RemoveAt(0);
 			}

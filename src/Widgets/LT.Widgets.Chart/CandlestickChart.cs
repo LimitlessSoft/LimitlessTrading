@@ -5,12 +5,18 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using LT.Contracts.Dtos.Charts;
+using LT.Contracts.Dtos.Executions;
+using LT.Contracts.Dtos.Performance;
+using LT.Contracts.Enums;
+using LT.Contracts.Helpers;
 
 namespace LT.App.Widgets.Chart;
 
 /// <summary>
 /// Lightweight OHLC + volume chart. Wheel zooms, drag pans, double-click resets, hover shows the
-/// bar under the cursor.
+/// bar under the cursor. Optionally the user's fills (buy ▲ / sell ▼ at their price, on the bar
+/// that contains their time), lines from each entry to the exit that closed it (green: won, red:
+/// lost) and the open position's break-even line.
 /// </summary>
 public class CandlestickChart : Control
 {
@@ -21,6 +27,18 @@ public class CandlestickChart : Control
 		CandlestickChart,
 		bool
 	>(nameof(IsIntraday));
+
+	public static readonly StyledProperty<ChartTimeframe> TimeframeProperty =
+		AvaloniaProperty.Register<CandlestickChart, ChartTimeframe>(nameof(Timeframe));
+
+	public static readonly StyledProperty<IReadOnlyList<ExecutionDto>?> FillsProperty =
+		AvaloniaProperty.Register<CandlestickChart, IReadOnlyList<ExecutionDto>?>(nameof(Fills));
+
+	public static readonly StyledProperty<IReadOnlyList<TradeLegDto>?> TradeLegsProperty =
+		AvaloniaProperty.Register<CandlestickChart, IReadOnlyList<TradeLegDto>?>(nameof(TradeLegs));
+
+	public static readonly StyledProperty<double?> BreakEvenPriceProperty =
+		AvaloniaProperty.Register<CandlestickChart, double?>(nameof(BreakEvenPrice));
 
 	private const double PriceAxisWidth = 72;
 	private const double TimeAxisHeight = 22;
@@ -70,6 +88,26 @@ public class CandlestickChart : Control
 	);
 	private static readonly IPen UpPen = new ImmutablePen(UpBrush, 1);
 	private static readonly IPen DownPen = new ImmutablePen(DownBrush, 1);
+	private static readonly ImmutableSolidColorBrush BreakEvenBrush = new ImmutableSolidColorBrush(
+		Color.Parse("#FFB300")
+	);
+	private static readonly IPen BreakEvenPen = new ImmutablePen(
+		BreakEvenBrush,
+		1,
+		new ImmutableDashStyle([6, 3], 0)
+	);
+	private static readonly IPen MarkerOutlinePen = new ImmutablePen(LabelBrush, 1);
+	private static readonly IPen WinLegPen = new ImmutablePen(
+		UpBrush,
+		1.5,
+		new ImmutableDashStyle([4, 3], 0)
+	);
+	private static readonly IPen LossLegPen = new ImmutablePen(
+		DownBrush,
+		1.5,
+		new ImmutableDashStyle([4, 3], 0)
+	);
+	private static readonly TimeZoneInfo TradeDayZone = TradeJournalHelpers.GetTradeDayTimeZone();
 
 	private double _barSpacing = DefaultBarSpacing;
 	private int _offset;
@@ -77,9 +115,21 @@ public class CandlestickChart : Control
 	private Point? _dragStart;
 	private int _dragStartOffset;
 
+	// Bar index of each fill / leg end; rebuilt when the bars, fills or timeframe change
+	private (int Index, ExecutionDto Fill)[] _fillBars = [];
+	private (int Entry, int Exit, TradeLegDto Leg)[] _legBars = [];
+	private bool _tradesDirty = true;
+
 	static CandlestickChart()
 	{
-		AffectsRender<CandlestickChart>(BarsProperty, IsIntradayProperty);
+		AffectsRender<CandlestickChart>(
+			BarsProperty,
+			IsIntradayProperty,
+			TimeframeProperty,
+			FillsProperty,
+			TradeLegsProperty,
+			BreakEvenPriceProperty
+		);
 		ClipToBoundsProperty.OverrideDefaultValue<CandlestickChart>(true);
 		FocusableProperty.OverrideDefaultValue<CandlestickChart>(true);
 	}
@@ -96,9 +146,41 @@ public class CandlestickChart : Control
 		set => SetValue(IsIntradayProperty, value);
 	}
 
+	/// <summary>Bar size, to tell which bar a fill's time falls in.</summary>
+	public ChartTimeframe Timeframe
+	{
+		get => GetValue(TimeframeProperty);
+		set => SetValue(TimeframeProperty, value);
+	}
+
+	public IReadOnlyList<ExecutionDto>? Fills
+	{
+		get => GetValue(FillsProperty);
+		set => SetValue(FillsProperty, value);
+	}
+
+	public IReadOnlyList<TradeLegDto>? TradeLegs
+	{
+		get => GetValue(TradeLegsProperty);
+		set => SetValue(TradeLegsProperty, value);
+	}
+
+	public double? BreakEvenPrice
+	{
+		get => GetValue(BreakEvenPriceProperty);
+		set => SetValue(BreakEvenPriceProperty, value);
+	}
+
 	protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
 	{
 		base.OnPropertyChanged(change);
+		if (
+			change.Property == BarsProperty
+			|| change.Property == FillsProperty
+			|| change.Property == TradeLegsProperty
+			|| change.Property == TimeframeProperty
+		)
+			_tradesDirty = true;
 		if (change.Property != BarsProperty)
 			return;
 
@@ -232,6 +314,36 @@ public class CandlestickChart : Control
 			);
 		}
 
+		DrawTrades(context, bars, priceRect, X, Y);
+
+		// break-even of the open position
+		if (BreakEvenPrice is { } breakEven)
+		{
+			var beY = Math.Round(Y(breakEven)) + 0.5;
+			if (beY >= priceRect.Top && beY <= priceRect.Bottom)
+			{
+				context.DrawLine(BreakEvenPen, new Point(plot.X, beY), new Point(plot.Right, beY));
+				var tag = Text("Break-even", 11, BreakEvenBrush);
+				context.DrawText(tag, new Point(plot.X + 6, beY - tag.Height - 1));
+				var label = Text(
+					breakEven.ToString("N" + decimals, CultureInfo.CurrentCulture),
+					11,
+					Background
+				);
+				context.DrawRectangle(
+					BreakEvenBrush,
+					null,
+					new Rect(
+						plot.Right,
+						beY - label.Height / 2 - 2,
+						PriceAxisWidth,
+						label.Height + 4
+					)
+				);
+				context.DrawText(label, new Point(plot.Right + 6, beY - label.Height / 2));
+			}
+		}
+
 		// last price
 		var last = bars[^1].Close;
 		var lastY = Math.Round(Y(last)) + 0.5;
@@ -291,6 +403,96 @@ public class CandlestickChart : Control
 			b.Close >= b.Open ? UpBrush : DownBrush
 		);
 		context.DrawText(readout, new Point(6, 4));
+
+		// the hovered bar's fills under the readout
+		var hoveredFills = _fillBars.Where(x => x.Index == hovered).Select(x => x.Fill).ToList();
+		if (hoveredFills.Count > 0)
+		{
+			const int shown = 4;
+			var text = string.Join(
+				"   ",
+				hoveredFills
+					.Take(shown)
+					.Select(x =>
+						$"{(TradeMatchingHelpers.GetDirection(x.Side) > 0 ? "Buy" : "Sell")} {Math.Abs(x.Shares):#,0.####} @ {x.Price.ToString("N" + decimals, CultureInfo.CurrentCulture)}"
+					)
+			);
+			if (hoveredFills.Count > shown)
+				text += $"   +{hoveredFills.Count - shown} more";
+			context.DrawText(Text(text, 11, LabelBrush), new Point(6, 4 + readout.Height));
+		}
+	}
+
+	private void DrawTrades(
+		DrawingContext context,
+		IReadOnlyList<BarDto> bars,
+		Rect priceRect,
+		Func<int, double> x,
+		Func<double, double> y
+	)
+	{
+		if (_tradesDirty)
+		{
+			_tradesDirty = false;
+			var timeframe = Timeframe;
+			_fillBars = (Fills ?? [])
+				.Where(f => f.Time != null && TradeMatchingHelpers.GetDirection(f.Side) != 0)
+				.Select(f =>
+					(
+						ChartTradeHelpers.FindBarIndex(
+							bars,
+							f.Time!.Value,
+							timeframe,
+							TradeDayZone
+						),
+						f
+					)
+				)
+				.Where(f => f.Item1 >= 0)
+				.ToArray();
+			_legBars = (TradeLegs ?? [])
+				.Select(l =>
+					(
+						ChartTradeHelpers.FindBarIndex(bars, l.EntryTime, timeframe, TradeDayZone),
+						ChartTradeHelpers.FindBarIndex(bars, l.ExitTime, timeframe, TradeDayZone),
+						l
+					)
+				)
+				.Where(l => l.Item1 >= 0 && l.Item2 >= 0)
+				.ToArray();
+		}
+		if (_fillBars.Length == 0 && _legBars.Length == 0)
+			return;
+
+		using var clip = context.PushClip(priceRect);
+		foreach (var (entry, exit, leg) in _legBars)
+			context.DrawLine(
+				leg.NetPnl >= 0 ? WinLegPen : LossLegPen,
+				new Point(x(entry), y(leg.EntryPrice)),
+				new Point(x(exit), y(leg.ExitPrice))
+			);
+
+		// Tip at the fill price: a buy points up from below it, a sell down from above it
+		var width = Math.Clamp(_barSpacing * 0.9, 7, 12);
+		var height = width * 0.85;
+		foreach (var (index, fill) in _fillBars)
+		{
+			var px = x(index);
+			if (px < priceRect.Left - width || px > priceRect.Right + width)
+				continue;
+			var py = y(fill.Price);
+			var buy = TradeMatchingHelpers.GetDirection(fill.Side) > 0;
+			var baseY = buy ? py + height : py - height;
+			var geometry = new StreamGeometry();
+			using (var g = geometry.Open())
+			{
+				g.BeginFigure(new Point(px, py), true);
+				g.LineTo(new Point(px - width / 2, baseY));
+				g.LineTo(new Point(px + width / 2, baseY));
+				g.EndFigure(true);
+			}
+			context.DrawGeometry(buy ? UpBrush : DownBrush, MarkerOutlinePen, geometry);
+		}
 	}
 
 	protected override void OnPointerMoved(PointerEventArgs e)

@@ -287,4 +287,25 @@ public class TradeJournalManager(
 			FillCount = fillCount,
 		};
 	}
+
+	public ContractTradesDto GetContractTrades(int contractId, string? account)
+	{
+		List<ExecutionDto> fills;
+		lock (_lock)
+		{
+			fills = _fills
+				.Value.Values.SelectMany(x => x)
+				.Where(x => x.ConId == contractId && (account == null || x.Account == account))
+				.OrderBy(x => x.Time)
+				.ThenBy(x => x.ExecId, StringComparer.Ordinal)
+				.ToList()
+				.ToMappedList<FillEntity, ExecutionDto>();
+		}
+
+		return new ContractTradesDto
+		{
+			Fills = fills,
+			Legs = TradeMatchingHelpers.MatchLegs(fills),
+		};
+	}
 }
