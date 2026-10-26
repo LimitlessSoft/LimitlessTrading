@@ -2,6 +2,7 @@ using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LT.App.Stores;
+using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
 
 namespace LT.App.Workspace;
@@ -127,6 +128,10 @@ public partial class WidgetItem : ObservableObject
 	public double? FloatY { get; set; }
 	public double? FloatWidth { get; set; }
 	public double? FloatHeight { get; set; }
+
+	/// <summary>Last floating window state (null: normal) and screen (null: not known).</summary>
+	public WindowPlacementState? FloatState { get; set; }
+	public WindowScreenDto? FloatScreen { get; set; }
 
 	/// <summary>Raised when a floating widget should come to the front.</summary>
 	public event Action<WidgetItem>? FocusRequested;

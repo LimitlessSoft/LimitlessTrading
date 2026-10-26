@@ -29,12 +29,16 @@ public partial class MainWindow : AppWindow, IFullscreenHost
 	// Open extra workspace windows, by view model
 	private readonly Dictionary<WorkspaceWindowViewModel, WorkspaceWindow> _workspaceWindows = [];
 
+	// Normal bounds, state and screen, saved with the layout
+	private readonly WindowPlacementTracker _placement;
+
 	public MainWindow()
 	{
 		InitializeComponent();
 		AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
 		Closing += OnClosing;
 		Opened += OnOpened;
+		_placement = new WindowPlacementTracker(this);
 		// A widget's "Set up…" opens Settings on its page (null in the previewer)
 		_settingsNavigator = Program.Services?.GetService<SettingsNavigator>();
 		if (_settingsNavigator != null)
@@ -71,10 +75,8 @@ public partial class MainWindow : AppWindow, IFullscreenHost
 		if (ViewModel?.GetLayout() is not { } layout)
 			return;
 
-		Width = Math.Max(MinWidth, layout.WindowWidth);
-		Height = Math.Max(MinHeight, layout.WindowHeight);
-		if (layout.IsMaximized)
-			WindowState = WindowState.Maximized;
+		// Back on the screen it was on; older layouts open centered as before
+		_placement.Restore(WindowPlacementHelpers.GetMain(layout));
 	}
 
 	// A Gateway still running from an earlier session is reused; otherwise Gateway is the only way
@@ -153,12 +155,7 @@ public partial class MainWindow : AppWindow, IFullscreenHost
 		foreach (var window in _workspaceWindows.Values)
 			window.StoreLayout();
 		Page.StoreLayout();
-		var maximized = WindowState == WindowState.Maximized;
-		ViewModel?.SaveLayout(
-			maximized ? null : ClientSize.Width,
-			maximized ? null : ClientSize.Height,
-			maximized
-		);
+		ViewModel?.SaveLayout(_placement.Capture());
 	}
 
 	private async Task AskAndCloseAsync()
@@ -201,13 +198,7 @@ public partial class MainWindow : AppWindow, IFullscreenHost
 			Dispatcher.UIThread.Post(window.Close, DispatcherPriority.Background);
 		}
 		windows.ReplaceMain();
-		WindowState = WindowState.Normal;
-		if (next is { X: { } x, Y: { } y })
-			Position = new PixelPoint((int)x, (int)y);
-		Width = Math.Max(MinWidth, next.Width);
-		Height = Math.Max(MinHeight, next.Height);
-		if (next.IsMaximized)
-			WindowState = WindowState.Maximized;
+		_placement.Restore(next.Placement);
 	}
 
 	private void OnPreviewKeyDown(object? sender, KeyEventArgs e)

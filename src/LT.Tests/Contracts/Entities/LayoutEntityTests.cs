@@ -92,4 +92,112 @@ public class LayoutEntityTests
 			(Assert.Single(window.Widgets).Tool, window.Widgets[0].Dock)
 		);
 	}
+
+	[Fact]
+	public void A_layout_saved_before_window_placement_loads_without_screen_or_state()
+	{
+		const string json = """
+			{
+			  "Layout": {
+			    "WindowWidth": 1300,
+			    "WindowHeight": 850,
+			    "IsMaximized": true,
+			    "Widgets": [ { "Id": "Chart", "Tool": 6, "Dock": 3, "FloatX": 50, "FloatY": 60 } ],
+			    "Windows": [ { "Id": "w2", "Name": "Window 2", "X": 1920, "Y": 40, "IsMaximized": true } ]
+			  }
+			}
+			""";
+
+		var layout = JsonSerializer.Deserialize<SettingsEntity>(json)!.Layout;
+
+		Assert.Equal(
+			(null, null, null, null, 1300d, 850d, true),
+			(
+				layout.WindowX,
+				layout.WindowY,
+				layout.WindowState,
+				layout.WindowScreen,
+				layout.WindowWidth,
+				layout.WindowHeight,
+				layout.IsMaximized
+			)
+		);
+		var window = Assert.Single(layout.Windows);
+		Assert.Equal((null, null, true), (window.State, window.Screen, window.IsMaximized));
+		var widget = Assert.Single(layout.Widgets);
+		Assert.Equal((null, null, 50d), (widget.FloatState, widget.FloatScreen, widget.FloatX));
+	}
+
+	[Fact]
+	public void Window_placements_survive_a_save_and_load()
+	{
+		var layout = new LayoutEntity
+		{
+			WindowX = -1800,
+			WindowY = 30,
+			WindowWidth = 1500,
+			WindowHeight = 950,
+			WindowState = WindowPlacementState.FullScreen,
+			WindowScreen = new WindowScreenEntity
+			{
+				Name = "HDMI-1",
+				X = -1920,
+				Width = 1920,
+				Height = 1080,
+			},
+			Widgets =
+			[
+				new WidgetPlacementEntity
+				{
+					Id = "News",
+					Tool = WorkspaceTool.News,
+					Dock = WidgetDock.Floating,
+					FloatState = WindowPlacementState.Maximized,
+					FloatScreen = new WindowScreenEntity { Name = "DP-1", Width = 2560 },
+				},
+			],
+			Windows =
+			[
+				new WorkspaceWindowEntity
+				{
+					Id = "w2",
+					State = WindowPlacementState.Maximized,
+					Screen = new WindowScreenEntity { Name = "DP-2", X = 2560 },
+				},
+			],
+		};
+
+		var loaded = JsonSerializer.Deserialize<LayoutEntity>(JsonSerializer.Serialize(layout))!;
+
+		Assert.Equal(
+			(-1800d, 30d, 1500d, 950d, WindowPlacementState.FullScreen),
+			(
+				loaded.WindowX,
+				loaded.WindowY,
+				loaded.WindowWidth,
+				loaded.WindowHeight,
+				loaded.WindowState
+			)
+		);
+		Assert.Equal(
+			("HDMI-1", -1920d, 0d, 1920d, 1080d),
+			(
+				loaded.WindowScreen?.Name,
+				loaded.WindowScreen?.X,
+				loaded.WindowScreen?.Y,
+				loaded.WindowScreen?.Width,
+				loaded.WindowScreen?.Height
+			)
+		);
+		var widget = Assert.Single(loaded.Widgets);
+		Assert.Equal(
+			(WindowPlacementState.Maximized, "DP-1", 2560d),
+			(widget.FloatState, widget.FloatScreen?.Name, widget.FloatScreen?.Width)
+		);
+		var window = Assert.Single(loaded.Windows);
+		Assert.Equal(
+			(WindowPlacementState.Maximized, "DP-2", 2560d),
+			(window.State, window.Screen?.Name, window.Screen?.X)
+		);
+	}
 }

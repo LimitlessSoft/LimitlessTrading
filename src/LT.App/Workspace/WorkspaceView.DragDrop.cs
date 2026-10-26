@@ -189,6 +189,9 @@ public partial class WorkspaceView
 			}
 			widget.FloatX = position.X;
 			widget.FloatY = position.Y;
+			// A new spot: the screen it was on before no longer applies, nor maximized
+			widget.FloatScreen = null;
+			widget.FloatState = null;
 		}
 
 		// Leaving a floating window: close it first and dock only once it is gone. Moving a control

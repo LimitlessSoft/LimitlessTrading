@@ -21,6 +21,7 @@ namespace LT.App.Shell;
 public partial class WorkspaceWindow : AppWindow, IFullscreenHost
 {
 	private readonly WorkspaceWindows? _windows;
+	private readonly WindowPlacementTracker _placement;
 
 	// Set once the user chose to close it (or picked Close window in its menu): no more asking
 	private bool _closeConfirmed;
@@ -37,13 +38,14 @@ public partial class WorkspaceWindow : AppWindow, IFullscreenHost
 		MinHeight = WorkspaceConstants.WindowMinHeight;
 		AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
 		Closing += OnClosing;
+		_placement = new WindowPlacementTracker(this);
 	}
 
 	private WorkspaceWindowViewModel? ViewModel => DataContext as WorkspaceWindowViewModel;
 
 	/// <summary>
-	/// Opens the window of <paramref name="viewModel"/> at its saved bounds; a new one opens a
-	/// little down and right of <paramref name="near"/>.
+	/// Opens the window of <paramref name="viewModel"/> at its saved bounds, state and screen; a new
+	/// one opens a little down and right of <paramref name="near"/>.
 	/// </summary>
 	public static WorkspaceWindow Open(
 		WorkspaceWindows windows,
@@ -54,16 +56,13 @@ public partial class WorkspaceWindow : AppWindow, IFullscreenHost
 		var window = new WorkspaceWindow(windows)
 		{
 			DataContext = viewModel,
-			Width = viewModel.Width,
-			Height = viewModel.Height,
 			WindowStartupLocation = WindowStartupLocation.Manual,
 		};
 		var offset = (int)(WorkspaceConstants.FloatingCascadeOffset * near.RenderScaling);
-		window.Position = viewModel is { X: { } x, Y: { } y }
-			? new PixelPoint((int)x, (int)y)
-			: near.Position + new PixelPoint(offset, offset);
-		if (viewModel.IsMaximized)
-			window.WindowState = WindowState.Maximized;
+		window._placement.Restore(
+			viewModel.Placement,
+			near.Position + new PixelPoint(offset, offset)
+		);
 		window.Show();
 		return window;
 	}
@@ -74,19 +73,14 @@ public partial class WorkspaceWindow : AppWindow, IFullscreenHost
 		FullscreenLayer.IsVisible = frame != null;
 	}
 
-	/// <summary>Copies the live layout (panel sizes, floating and window bounds) into the view model.</summary>
+	/// <summary>
+	/// Copies the live layout (panel sizes, floating windows, this window's bounds, state and
+	/// screen) into the view model.
+	/// </summary>
 	public void StoreLayout()
 	{
 		Workspace.StoreLayout();
-		if (ViewModel is not { } viewModel)
-			return;
-		viewModel.IsMaximized = WindowState == WindowState.Maximized;
-		if (WindowState != WindowState.Normal)
-			return;
-		viewModel.X = Position.X;
-		viewModel.Y = Position.Y;
-		viewModel.Width = ClientSize.Width;
-		viewModel.Height = ClientSize.Height;
+		ViewModel?.Placement = _placement.Capture();
 	}
 
 	/// <summary>

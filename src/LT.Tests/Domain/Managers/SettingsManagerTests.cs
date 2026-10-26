@@ -3,6 +3,7 @@ using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Entities;
 using LT.Contracts.Enums;
+using LT.Contracts.Helpers;
 using LT.Contracts.Requests.Settings;
 using LT.Domain.Managers;
 using LT.Tests.Fakes;
@@ -340,6 +341,139 @@ public class SettingsManagerTests
 		Assert.Equal("Chart", Assert.Single(window.Views).Root?.WidgetId);
 		// The main window's own workspace is untouched
 		Assert.Equal(layout.Widgets.Select(x => x.Id), saved.Widgets.Select(x => x.Id));
+	}
+
+	[Fact]
+	public void Window_placements_round_trip_for_the_main_workspace_and_floating_windows()
+	{
+		var manager = new SettingsManager(_settings, _ibkr);
+		var layout = manager.GetLayout();
+		var screen = new WindowScreenDto
+		{
+			Name = "HDMI-1",
+			X = 1920,
+			Width = 2560,
+			Height = 1440,
+		};
+		WindowPlacementHelpers.SetMain(
+			layout,
+			new WindowPlacementDto
+			{
+				X = 2000,
+				Y = 100,
+				Width = 1400,
+				Height = 900,
+				State = WindowPlacementState.Maximized,
+				Screen = screen,
+			}
+		);
+		layout.Widgets =
+		[
+			new WidgetPlacementDto
+			{
+				Id = "News",
+				Tool = WorkspaceTool.News,
+				Dock = WidgetDock.Floating,
+				FloatX = 2100,
+				FloatY = 200,
+				FloatWidth = 500,
+				FloatHeight = 400,
+				FloatState = WindowPlacementState.Maximized,
+				FloatScreen = screen,
+			},
+		];
+		var window = new WorkspaceWindowDto { Id = "w2", Name = "Window 2" };
+		WindowPlacementHelpers.SetWindow(
+			window,
+			new WindowPlacementDto
+			{
+				X = 40,
+				Y = 30,
+				Width = 1000,
+				Height = 700,
+				State = WindowPlacementState.FullScreen,
+				Screen = new WindowScreenDto
+				{
+					Name = "DP-1",
+					Width = 1920,
+					Height = 1080,
+				},
+			}
+		);
+		layout.Windows = [window];
+
+		manager.SaveLayout(layout);
+
+		var saved = manager.GetLayout();
+		var main = WindowPlacementHelpers.GetMain(saved);
+		Assert.Equal(
+			(2000d, 100d, 1400d, 900d, WindowPlacementState.Maximized, true),
+			(main.X, main.Y, main.Width, main.Height, main.State, saved.IsMaximized)
+		);
+		Assert.Equal(
+			("HDMI-1", 1920d, 0d, 2560d, 1440d),
+			(
+				main.Screen?.Name,
+				main.Screen?.X,
+				main.Screen?.Y,
+				main.Screen?.Width,
+				main.Screen?.Height
+			)
+		);
+		var floating = Assert.Single(saved.Widgets);
+		Assert.Equal(
+			(2100d, 200d, 500d, 400d, WindowPlacementState.Maximized, "HDMI-1"),
+			(
+				floating.FloatX,
+				floating.FloatY,
+				floating.FloatWidth,
+				floating.FloatHeight,
+				floating.FloatState,
+				floating.FloatScreen?.Name
+			)
+		);
+		var other = WindowPlacementHelpers.GetWindow(Assert.Single(saved.Windows));
+		Assert.Equal(
+			(40d, 30d, 1000d, 700d, WindowPlacementState.FullScreen, "DP-1"),
+			(other.X, other.Y, other.Width, other.Height, other.State, other.Screen?.Name)
+		);
+	}
+
+	[Fact]
+	public void A_layout_saved_before_window_placement_loads_with_the_old_default_placement()
+	{
+		_settings.Settings.Layout = new LayoutEntity
+		{
+			WindowWidth = 1300,
+			WindowHeight = 850,
+			IsMaximized = true,
+			Windows =
+			[
+				new WorkspaceWindowEntity
+				{
+					Id = "w2",
+					Name = "Window 2",
+					X = 1920,
+					Y = 40,
+					Width = 1200,
+					Height = 760,
+				},
+			],
+		};
+
+		var layout = new SettingsManager(_settings, _ibkr).GetLayout();
+
+		// Main: centered (no position) and maximized as IsMaximized said; no screen to look for
+		var main = WindowPlacementHelpers.GetMain(layout);
+		Assert.Equal(
+			(null, null, 1300d, 850d, WindowPlacementState.Maximized, null),
+			(main.X, main.Y, main.Width, main.Height, main.State, main.Screen)
+		);
+		var window = WindowPlacementHelpers.GetWindow(Assert.Single(layout.Windows));
+		Assert.Equal(
+			(1920d, 40d, 1200d, 760d, WindowPlacementState.Normal, null),
+			(window.X, window.Y, window.Width, window.Height, window.State, window.Screen)
+		);
 	}
 
 	[Fact]

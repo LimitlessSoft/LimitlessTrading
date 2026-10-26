@@ -4,6 +4,7 @@ using LT.App.ViewModels;
 using LT.App.Workspace;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
+using LT.Contracts.Helpers;
 
 namespace LT.App.Shell;
 
@@ -25,11 +26,7 @@ public partial class WorkspaceWindowViewModel : ViewModelBase
 		Workspace = workspace;
 		Id = layout.Id;
 		Name = layout.Name;
-		X = layout.X;
-		Y = layout.Y;
-		Width = layout.Width;
-		Height = layout.Height;
-		IsMaximized = layout.IsMaximized;
+		Placement = WindowPlacementHelpers.GetWindow(layout);
 	}
 
 	public string Id { get; }
@@ -41,12 +38,10 @@ public partial class WorkspaceWindowViewModel : ViewModelBase
 	/// <summary>Cards or flush: the window carries the flush class the styles key on.</summary>
 	public AppearanceStore? Appearance => Workspace.Appearance;
 
-	// Bounds, written by the window before the layout is saved
-	public double? X { get; set; }
-	public double? Y { get; set; }
-	public double Width { get; set; }
-	public double Height { get; set; }
-	public bool IsMaximized { get; set; }
+	/// <summary>
+	/// Normal bounds, state and screen; written by the window before the layout is saved.
+	/// </summary>
+	public WindowPlacementDto Placement { get; set; }
 
 	[RelayCommand]
 	public void NewWindow() => _windows.Open();
@@ -66,16 +61,8 @@ public partial class WorkspaceWindowViewModel : ViewModelBase
 
 	public WorkspaceWindowDto GetLayout()
 	{
-		var layout = new WorkspaceWindowDto
-		{
-			Id = Id,
-			Name = Name,
-			X = X,
-			Y = Y,
-			Width = Width,
-			Height = Height,
-			IsMaximized = IsMaximized,
-		};
+		var layout = new WorkspaceWindowDto { Id = Id, Name = Name };
+		WindowPlacementHelpers.SetWindow(layout, Placement);
 		Workspace.FillLayout(layout);
 		return layout;
 	}
