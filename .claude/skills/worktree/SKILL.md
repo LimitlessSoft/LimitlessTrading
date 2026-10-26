@@ -54,14 +54,13 @@ git -C "$W" commit -F - <<'EOF'
 <subject>
 
 <body>
-
-Co-Authored-By: ...
 EOF
 git -C "$W" push -u origin <branch>
 gh pr create --repo LimitlessSoft/LimitlessTrading --base master --head <branch> --title "..." --body "..."
 ```
 
-The `code` agent (`.claude/agents/code.md`) has the message and PR conventions.
+No `Co-Authored-By` trailer and no "Generated with Claude Code" line, ever. The `code` agent
+(`.claude/agents/code.md`) has the message and PR conventions.
 
 **Stacked PRs:** a change too big for one PR is split into branches that each build on the
 previous one — `./tools/worktree.sh --from feature/a feature/b`, and the PR for `feature/b` targets
