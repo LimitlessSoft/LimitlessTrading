@@ -58,6 +58,9 @@ public class FakeIbkrApiClient : IIbkrApiClient
 
 	/// <summary>Statuses every placed order streams; the next order id is 100, 101 …</summary>
 	public List<OrderStatusDto> OrderStatuses { get; set; } = [];
+
+	/// <summary>When set, the status stream of every placed order instead of <see cref="OrderStatuses"/>.</summary>
+	public Func<IAsyncEnumerable<OrderStatusDto>>? OrderStatusSource { get; set; }
 	public List<int> CancelledOrderIds { get; } = [];
 
 	public List<NewsProviderDto> NewsProviders { get; set; } = [];
@@ -232,7 +235,7 @@ public class FakeIbkrApiClient : IIbkrApiClient
 			new PlacedOrderDto
 			{
 				OrderId = 99 + PlacedOrders.Count,
-				Statuses = OrderStatuses.ToAsyncEnumerable(),
+				Statuses = OrderStatusSource?.Invoke() ?? OrderStatuses.ToAsyncEnumerable(),
 			}
 		);
 	}

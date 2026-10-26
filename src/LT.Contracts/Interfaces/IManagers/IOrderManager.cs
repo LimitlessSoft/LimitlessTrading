@@ -1,5 +1,6 @@
 using LT.Contracts.Dtos.Cache;
 using LT.Contracts.Dtos.Orders;
+using LT.Contracts.Dtos.Positions;
 using LT.Contracts.Requests.Orders;
 
 namespace LT.Contracts.Interfaces.IManagers;
@@ -28,6 +29,18 @@ public interface IOrderManager
 	/// <summary>Validates and sends an order; this trades for real on a live account.</summary>
 	Task<PlacedOrderDto> PlaceOrderAsync(
 		PlaceOrderRequest request,
+		CancellationToken cancellationToken = default
+	);
+
+	/// <summary>
+	/// Quick exit: sends a market order for the whole of <paramref name="position"/> right away,
+	/// with no review (<see cref="Helpers.OrderHelpers.GetQuickExitRequest"/>); this trades for
+	/// real on a live account. Throws a bad request for a flat position, and while an earlier exit
+	/// of the same position is still working: that lasts until its
+	/// <see cref="PlacedOrderDto.Statuses"/> end, so read them to the end (or stop reading).
+	/// </summary>
+	Task<PlacedOrderDto> ExitPositionAsync(
+		PositionDto position,
 		CancellationToken cancellationToken = default
 	);
 

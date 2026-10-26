@@ -42,6 +42,13 @@ public partial class PositionRowViewModel(PositionDto position) : ViewModelBase
 	[ObservableProperty]
 	public partial string RealizedPnl { get; set; } = FormatHelpers.Empty;
 
+	/// <summary>Set from a quick exit's click until it fails or the position next changes.</summary>
+	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(CanQuickExit))]
+	public partial bool IsExiting { get; set; }
+
+	public bool CanQuickExit => !IsExiting;
+
 	[ObservableProperty]
 	public partial bool UnrealizedUp { get; set; }
 
@@ -57,6 +64,7 @@ public partial class PositionRowViewModel(PositionDto position) : ViewModelBase
 	public void Update(PositionDto update)
 	{
 		Position = update;
+		IsExiting = false;
 		Quantity = FormatHelpers.Quantity(update.Quantity);
 		AverageCost = FormatHelpers.Price(update.AverageCost);
 	}

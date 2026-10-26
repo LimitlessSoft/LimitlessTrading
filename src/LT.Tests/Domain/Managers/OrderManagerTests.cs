@@ -1,6 +1,8 @@
+using System.Threading.Channels;
 using LSCore.Exceptions;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Orders;
+using LT.Contracts.Dtos.Positions;
 using LT.Contracts.Enums;
 using LT.Contracts.Requests.Orders;
 using LT.Domain.Managers;
@@ -104,5 +106,98 @@ public class OrderManagerTests
 		await _manager.CancelOrderAsync(100, TestContext.Current.CancellationToken);
 
 		Assert.Equal([100], _ibkr.CancelledOrderIds);
+	}
+
+	private static PositionDto Position(decimal quantity, int conId = 265598) =>
+		new()
+		{
+			Account = "U0000001",
+			ContractId = conId,
+			Symbol = "AAPL",
+			SecurityType = "STK",
+			Quantity = quantity,
+			Contract = new ContractDto
+			{
+				ConId = conId,
+				Symbol = "AAPL",
+				SecurityType = "STK",
+				Exchange = "SMART",
+			},
+		};
+
+	[Theory]
+	[InlineData(100, OrderAction.Sell, 100)]
+	[InlineData(-40, OrderAction.Buy, 40)]
+	public async Task Exit_sends_the_whole_position_at_market(
+		int quantity,
+		OrderAction action,
+		int expected
+	)
+	{
+		var placed = await _manager.ExitPositionAsync(
+			Position(quantity),
+			TestContext.Current.CancellationToken
+		);
+
+		var (contract, order) = Assert.Single(_ibkr.PlacedOrders);
+		Assert.Equal(265598, contract.ConId);
+		Assert.Equal(
+			(action, OrderType.Market, (decimal)expected, (decimal?)null, "U0000001"),
+			(order.Action, order.OrderType, order.Quantity, order.CashQuantity, order.Account)
+		);
+		Assert.Equal(100, placed.OrderId);
+	}
+
+	[Fact]
+	public async Task Exit_of_a_flat_position_sends_nothing()
+	{
+		await Assert.ThrowsAsync<LSCoreBadRequestException>(() =>
+			_manager.ExitPositionAsync(Position(0), TestContext.Current.CancellationToken)
+		);
+		Assert.Empty(_ibkr.PlacedOrders);
+	}
+
+	[Fact]
+	public async Task A_second_exit_is_refused_while_the_first_is_working()
+	{
+		var working = Channel.CreateUnbounded<OrderStatusDto>();
+		_ibkr.OrderStatusSource = () => working.Reader.ReadAllAsync();
+		var cancellationToken = TestContext.Current.CancellationToken;
+
+		var first = await _manager.ExitPositionAsync(Position(100), cancellationToken);
+		var following = first.Statuses.ToListAsync(cancellationToken).AsTask();
+
+		await Assert.ThrowsAsync<LSCoreBadRequestException>(() =>
+			_manager.ExitPositionAsync(Position(100), cancellationToken)
+		);
+		Assert.Single(_ibkr.PlacedOrders);
+
+		// Another position isn't held up by it
+		await _manager.ExitPositionAsync(Position(10, conId: 76792991), cancellationToken);
+		Assert.Equal(2, _ibkr.PlacedOrders.Count);
+
+		working.Writer.Complete();
+		await following;
+	}
+
+	[Fact]
+	public async Task An_exit_can_be_sent_again_once_the_first_is_done()
+	{
+		_ibkr.OrderStatuses =
+		[
+			new OrderStatusDto
+			{
+				OrderId = 100,
+				Status = "Cancelled",
+				IsDone = true,
+			},
+		];
+		var cancellationToken = TestContext.Current.CancellationToken;
+
+		var first = await _manager.ExitPositionAsync(Position(100), cancellationToken);
+		await first.Statuses.ToListAsync(cancellationToken);
+		await _manager.ExitPositionAsync(Position(100), cancellationToken);
+
+		Assert.Equal(2, _ibkr.PlacedOrders.Count);
 	}
 }

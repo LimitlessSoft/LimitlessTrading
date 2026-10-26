@@ -146,7 +146,8 @@ Limits / caveats:
 ## Orders
 
 - `IIbkrApiClient.PlaceOrderAsync` / `CancelOrderAsync`, used by `IOrderManager` and the Order
-  ticket widget. IBKR.Net places orders only at protocol version **178** (the only order layout
+  ticket widget (also the option chain's quick orders and the Positions quick exit, which send
+  without a ticket). IBKR.Net places orders only at protocol version **178** (the only order layout
   recorded), so `IbkrApiClient` opens a **second connection** for orders on the first order:
   same host and port, client id `OrderHelpers.GetOrderClientId` (main + 100), capped at 178.
 - Cancelling: the Order ticket (orders sent this session) and the Orders widget (any working

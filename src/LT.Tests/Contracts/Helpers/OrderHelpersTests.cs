@@ -97,7 +97,7 @@ public class OrderHelpersTests
 		Assert.Null(OrderHelpers.Estimate(1, null, null));
 	}
 
-	private static PositionDto Position(decimal quantity) =>
+	private static PositionDto Position(decimal quantity, string securityType = "STK") =>
 		new()
 		{
 			Account = "U1234567",
@@ -108,7 +108,7 @@ public class OrderHelpersTests
 			{
 				ConId = 265598,
 				Symbol = "AAPL",
-				SecurityType = "STK",
+				SecurityType = securityType,
 			},
 		};
 
@@ -162,4 +162,49 @@ public class OrderHelpersTests
 		Assert.Equal(expected, text);
 		Assert.Equal((decimal)value, OrderHelpers.ParseNumber(text));
 	}
+
+	[Theory]
+	[InlineData(100, OrderAction.Sell, 100)]
+	[InlineData(-2.5, OrderAction.Buy, 2.5)]
+	public void Quick_exit_is_a_market_order_for_the_whole_position(
+		double quantity,
+		OrderAction action,
+		double expected
+	)
+	{
+		var request = OrderHelpers.GetQuickExitRequest(Position((decimal)quantity));
+
+		Assert.NotNull(request);
+		Assert.Equal(
+			(
+				action,
+				OrderType.Market,
+				(decimal?)expected,
+				(decimal?)null,
+				TimeInForce.Day,
+				"U1234567",
+				265598
+			),
+			(
+				request.Action,
+				request.OrderType,
+				request.Quantity,
+				request.CashAmount,
+				request.TimeInForce,
+				request.Account,
+				request.Contract!.ConId
+			)
+		);
+	}
+
+	[Fact]
+	public void Quick_exit_of_crypto_is_ioc() =>
+		Assert.Equal(
+			TimeInForce.Ioc,
+			OrderHelpers.GetQuickExitRequest(Position(0.5m, "CRYPTO"))!.TimeInForce
+		);
+
+	[Fact]
+	public void A_flat_position_has_no_quick_exit() =>
+		Assert.Null(OrderHelpers.GetQuickExitRequest(Position(0)));
 }

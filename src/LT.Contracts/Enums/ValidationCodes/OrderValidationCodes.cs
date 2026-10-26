@@ -30,4 +30,10 @@ public enum OrderValidationCodes
 
 	[LSCoreValidationMessage("Amount must be between {0} and {1}.")]
 	OVC_009,
+
+	[LSCoreValidationMessage("The position is flat: there is nothing to exit.")]
+	OVC_010,
+
+	[LSCoreValidationMessage("An exit of this position is already working.")]
+	OVC_011,
 }
