@@ -543,6 +543,11 @@ null = default; an invalid saved value loads as the default). The order is sent
 immediately through `IOrderManager.PlaceOrderAsync` (same validation as the ticket); there is no
 review step. Only bid / ask cells are clickable: they show a hand cursor and a translucent green
 (buy) / red (sell) tint on hover over the ITM shade; last, volume and strike cells don't react.
+Hovering an ask cell shows the estimated cost of the click, quantity × ask × the contract's
+multiplier (`OptionChainHelpers.GetQuickOrderCost`, multiplier from `ContractHelpers.GetMultiplier`),
+e.g. "≈ 2 × 1.35 × 100 = 270.00 USD at the ask" — an estimate, the order goes at market. It
+follows the quote and the Qty box live, and shows while the cell is disabled
+(`ToolTip.ShowOnDisabled`) to say "No price", "multiplier unknown" or why the quantity is invalid.
 A cell is disabled while disconnected, when its side has no contract or that column has no price,
 and while its own order is in flight. Repeat clicks on the same cell within 500 ms
 (`OrderConstants.QuickOrderRepeatWindow`) are dropped, so a double click sends one order. The

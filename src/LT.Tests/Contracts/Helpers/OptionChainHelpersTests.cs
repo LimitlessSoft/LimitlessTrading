@@ -345,6 +345,50 @@ public class OptionChainHelpersTests
 		Assert.Equal(expected, OptionChainHelpers.GetQuickOrderQuantityOrDefault(saved));
 
 	[Fact]
+	public void Quick_order_price_is_the_ask_for_a_buy_and_the_bid_for_a_sell()
+	{
+		var quote = new QuoteDto
+		{
+			Bid = 1.2,
+			Ask = 1.35,
+			Last = 1.3,
+		};
+
+		Assert.Equal(1.35, OptionChainHelpers.GetQuickOrderPrice(quote, OptionQuoteColumn.Ask));
+		Assert.Equal(1.2, OptionChainHelpers.GetQuickOrderPrice(quote, OptionQuoteColumn.Bid));
+		Assert.Null(OptionChainHelpers.GetQuickOrderPrice(quote, OptionQuoteColumn.Last));
+		Assert.Null(OptionChainHelpers.GetQuickOrderPrice(null, OptionQuoteColumn.Ask));
+	}
+
+	[Fact]
+	public void Quick_order_cost_is_quantity_times_price_times_multiplier() =>
+		Assert.Equal(270, OptionChainHelpers.GetQuickOrderCost(2, 1.35, 100)!.Value, 6);
+
+	[Theory]
+	[InlineData(null, 1.35, 100d)]
+	[InlineData(0d, 1.35, 100d)]
+	[InlineData(2.5, 1.35, 100d)]
+	[InlineData(2d, null, 100d)]
+	[InlineData(2d, 1.35, null)]
+	public void No_quick_order_cost_without_a_valid_quantity_price_and_multiplier(
+		double? quantity,
+		double? price,
+		double? multiplier
+	) => Assert.Null(OptionChainHelpers.GetQuickOrderCost((decimal?)quantity, price, multiplier));
+
+	[Theory]
+	[InlineData("100", 100d)]
+	[InlineData("10", 10d)]
+	[InlineData("", null)]
+	[InlineData("0", null)]
+	[InlineData("x", null)]
+	public void Contract_multiplier_parses_or_is_unknown(string multiplier, double? expected) =>
+		Assert.Equal(
+			expected,
+			ContractHelpers.GetMultiplier(new ContractDto { Multiplier = multiplier })
+		);
+
+	[Fact]
 	public void Quick_trade_needs_a_price_in_the_clicked_column()
 	{
 		var strike = TradableStrike();

@@ -216,7 +216,8 @@
 				</Style>
 				<!-- One-click trading: ask cells buy, bid cells sell. Only they get the hand cursor
 				     and a translucent buy / sell tint on hover, drawn over the ITM shade; disabled
-				     (no connection, contract or price) they look like plain text -->
+				     (no connection, contract or price) they look like plain text. Ask cells'
+				     tooltips show the estimated cost, and also show while disabled ("No price") -->
 				<Style Selector="Button.quickTrade">
 					<Setter Property="HorizontalAlignment" Value="Stretch" />
 					<Setter Property="VerticalAlignment" Value="Stretch" />
@@ -285,7 +286,8 @@
 								<Button
 									Classes="quickTrade buy"
 									Command="{Binding BuyCallCommand}"
-									ToolTip.Tip="Buy 1 call at market — sends on click"
+									ToolTip.Tip="{Binding CallBuyTip}"
+									ToolTip.ShowOnDisabled="True"
 								>
 									<TextBlock Text="{Binding CallAsk}" />
 								</Button>
@@ -352,7 +354,8 @@
 								<Button
 									Classes="quickTrade buy"
 									Command="{Binding BuyPutCommand}"
-									ToolTip.Tip="Buy 1 put at market — sends on click"
+									ToolTip.Tip="{Binding PutBuyTip}"
+									ToolTip.ShowOnDisabled="True"
 								>
 									<TextBlock Text="{Binding PutAsk}" />
 								</Button>
