@@ -54,7 +54,15 @@ public static class WidgetCatalog
 	public static WorkspaceTool? FromFocusKey(Key key) =>
 		Definitions.FirstOrDefault(x => x.FocusKey == key)?.Tool;
 
-	/// <summary>"Ctrl+Alt+W", for tooltips; null when the widget has no focus shortcut.</summary>
-	public static string? GetFocusGesture(WorkspaceTool tool) =>
-		GetFocusKey(tool) is { } key ? $"Ctrl+Alt+{key}" : null;
+	/// <summary>
+	/// The widget's shortcut for its dock icon's tooltip: Ctrl+Alt+key for single-instance widgets,
+	/// else its Ctrl+1…9 hotkey (the chart's "Ctrl+7"); null when it has neither.
+	/// </summary>
+	public static string? GetShortcut(WorkspaceTool tool)
+	{
+		if (GetFocusKey(tool) is { } key)
+			return $"Ctrl+Alt+{key}";
+		var index = (int)tool;
+		return index < 9 ? $"Ctrl+{index + 1}" : null;
+	}
 }

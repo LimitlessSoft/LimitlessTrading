@@ -679,6 +679,10 @@ subscription and frees the market-data line.
 
 Ctrl+Shift+*key* combos act on a widget.
 
+Menu → Widgets lists the widgets without shortcut labels; a widget's shortcut shows in its dock
+icon's tooltip ("Chart (Ctrl+7)", "Watchlist (Ctrl+Alt+W)", `WidgetCatalog.GetShortcut`), and
+Ctrl+Shift+F in the fullscreen button's.
+
 The window handles them in a tunnelling `KeyDown` handler (`MainWindow.axaml.cs`, and
 `WorkspaceWindow.axaml.cs` for its own workspace — everything but Ctrl+,), so they work
 while a text box has focus. On macOS, Cmd works in place of Ctrl.
