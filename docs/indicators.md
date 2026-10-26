@@ -6,8 +6,8 @@ moment they are saved. Both are written against the same SDK, `LT.Indicators.Sdk
 
 ## Using them on a chart
 
-- **Add:** the **ƒx** button in the chart header (`ChartTitleView`) opens the picker: built-ins
-  first, then scripts, searchable by name or file name (Enter adds the first match). A script
+- **Add:** right-click the chart → **Add indicator…** (`ChartView`) opens the picker at the
+  pointer: built-ins first, then scripts, searchable by name or file name (Enter adds the first match). A script
   that doesn't compile is listed with its error. "Open the scripts folder…" opens the folder in
   the file manager. At most `IndicatorConstants.MaxIndicatorsPerChart` (16) per chart.
 - **Legend:** every pane has one at its top left — overlays under the OHLC readout, volume
