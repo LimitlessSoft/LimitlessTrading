@@ -18,7 +18,7 @@ namespace LT.App.Shell;
 /// menu that spawns widgets into it. Not owned by the main window, so it can sit on another
 /// screen. Closing it discards it; closing the main window keeps it for the next start.
 /// </summary>
-public partial class WorkspaceWindow : Window, IFullscreenHost
+public partial class WorkspaceWindow : AppWindow, IFullscreenHost
 {
 	private readonly WorkspaceWindows? _windows;
 

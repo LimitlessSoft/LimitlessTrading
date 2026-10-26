@@ -1,12 +1,13 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using LT.App.Controls;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LT.App.Widgets.Gateway;
 
 /// <summary>Closing the window doesn't stop a start in progress — the manager owns it.</summary>
-public partial class GatewayWindow : Window
+public partial class GatewayWindow : AppWindow
 {
 	public GatewayWindow() => InitializeComponent();
 

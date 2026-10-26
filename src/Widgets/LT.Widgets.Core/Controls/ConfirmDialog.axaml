@@ -1,10 +1,12 @@
-<Window
+<controls:AppWindow
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:controls="using:LT.App.Controls"
 	x:Class="LT.App.Controls.ConfirmDialog"
 	Width="440"
 	SizeToContent="Height"
 	CanResize="False"
+	CanMinimize="False"
 	ShowInTaskbar="False"
 	WindowStartupLocation="CenterOwner"
 >
@@ -24,4 +26,4 @@
 			<Button x:Name="ConfirmButton" IsDefault="True" Click="OnConfirmClick" />
 		</StackPanel>
 	</StackPanel>
-</Window>
+</controls:AppWindow>

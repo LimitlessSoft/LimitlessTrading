@@ -4,11 +4,13 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 
-namespace LT.App.Shell;
+namespace LT.App.Controls;
 
 /// <summary>
-/// Title bar of an <c>appChrome</c> window (the main window, settings): title, optional content
-/// left and right, and minimize / maximize / close acting on the window it sits in.
+/// Title bar of an <see cref="AppWindow"/>, part of its template: title, optional content left and
+/// right, and minimize / maximize / close acting on the window it sits in. Which window buttons
+/// show follows the window: minimize needs <c>CanMinimize</c> and a taskbar entry to come back
+/// from, maximize needs <c>CanMaximize</c> and <c>CanResize</c>.
 /// </summary>
 public partial class WindowTitleBar : UserControl
 {
@@ -26,17 +28,6 @@ public partial class WindowTitleBar : UserControl
 		WindowTitleBar,
 		object?
 	>(nameof(RightContent));
-
-	/// <summary>Dialogs that can't be resized hide maximize (and double-click does nothing).</summary>
-	public static readonly StyledProperty<bool> CanMaximizeProperty = AvaloniaProperty.Register<
-		WindowTitleBar,
-		bool
-	>(nameof(CanMaximize), true);
-
-	public static readonly StyledProperty<bool> CanMinimizeProperty = AvaloniaProperty.Register<
-		WindowTitleBar,
-		bool
-	>(nameof(CanMinimize), true);
 
 	private Window? _window;
 	private DateTime _lastPress = DateTime.MinValue;
@@ -66,17 +57,7 @@ public partial class WindowTitleBar : UserControl
 		set => SetValue(RightContentProperty, value);
 	}
 
-	public bool CanMaximize
-	{
-		get => GetValue(CanMaximizeProperty);
-		set => SetValue(CanMaximizeProperty, value);
-	}
-
-	public bool CanMinimize
-	{
-		get => GetValue(CanMinimizeProperty);
-		set => SetValue(CanMinimizeProperty, value);
-	}
+	private bool CanMaximize => _window is { CanMaximize: true, CanResize: true };
 
 	protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
 	{
@@ -87,10 +68,6 @@ public partial class WindowTitleBar : UserControl
 			LeftHost.Content = LeftContent;
 		else if (change.Property == RightContentProperty)
 			RightHost.Content = RightContent;
-		else if (change.Property == CanMaximizeProperty)
-			MaximizeButton.IsVisible = CanMaximize;
-		else if (change.Property == CanMinimizeProperty)
-			MinimizeButton.IsVisible = CanMinimize;
 	}
 
 	protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -100,7 +77,7 @@ public partial class WindowTitleBar : UserControl
 		if (_window is null)
 			return;
 		_window.PropertyChanged += OnWindowPropertyChanged;
-		UpdateMaximizeButton();
+		UpdateButtons();
 	}
 
 	protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -112,13 +89,21 @@ public partial class WindowTitleBar : UserControl
 
 	private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
 	{
-		if (e.Property == Window.WindowStateProperty)
-			UpdateMaximizeButton();
+		if (
+			e.Property == Window.WindowStateProperty
+			|| e.Property == Window.CanMinimizeProperty
+			|| e.Property == Window.CanMaximizeProperty
+			|| e.Property == Window.CanResizeProperty
+			|| e.Property == Window.ShowInTaskbarProperty
+		)
+			UpdateButtons();
 	}
 
 	// The maximize button shows restore while maximized
-	private void UpdateMaximizeButton()
+	private void UpdateButtons()
 	{
+		MinimizeButton.IsVisible = _window is { CanMinimize: true, ShowInTaskbar: true };
+		MaximizeButton.IsVisible = CanMaximize;
 		var maximized = _window?.WindowState == WindowState.Maximized;
 		MaximizeIcon.Data = (Geometry)
 			this.FindResource(maximized ? "WindowRestoreIcon" : "WindowMaximizeIcon")!;

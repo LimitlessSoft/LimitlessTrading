@@ -1,10 +1,11 @@
 <UserControl
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-	x:Class="LT.App.Shell.WindowTitleBar"
+	x:Class="LT.App.Controls.WindowTitleBar"
 >
-	<!-- The app's title bar for appChrome windows: drag it to move the window, double-click to
-	     maximize. LeftContent / RightContent hold the window's own buttons (menu, update). -->
+	<!-- The app's title bar, part of every AppWindow's template: drag it to move the window,
+	     double-click to maximize. LeftContent / RightContent hold the window's own buttons (menu,
+	     update). -->
 	<Border
 		x:Name="Bar"
 		Classes="toolbar"

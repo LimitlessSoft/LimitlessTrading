@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using LT.App.Controls;
 using LT.Contracts.Dtos.Orders;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -8,7 +9,7 @@ namespace LT.App.Widgets.OrderTicket;
 /// An order ticket in a popup, opened through <c>OrderTicketNavigator</c> with a draft. It is the
 /// widget's own view and view model, so it reviews and sends exactly like the Order ticket.
 /// </summary>
-public partial class OrderTicketWindow : Window
+public partial class OrderTicketWindow : AppWindow
 {
 	public OrderTicketWindow() => InitializeComponent();
 
