@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using LT.App.Controls;
 using LT.App.Workspace;
 using LT.Contracts.Enums;
 
@@ -24,5 +25,6 @@ public class NewsWidget : IWidgetDefinition
 
 	public Control CreateView() => new NewsView();
 
-	public Control? CreateTitle() => WidgetTitles.Bound(nameof(NewsViewModel.Title));
+	// Clicking away from the ticker box opens what was typed
+	public Control? CreateTitle() => new TickerTitle { CommitOnLostFocus = true };
 }

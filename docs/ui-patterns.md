@@ -212,7 +212,7 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   first listing (`IContractManager.ResolveTickerAsync`); an empty box (or the chevron) lists the
   last 10 tickers (`SettingsEntity.RecentContracts`, shared by all widgets). Esc or clicking away
   cancels.
-- **Click-to-edit ticker titles** (chart, option chain) are one control, `Controls/TickerTitle`
+- **Click-to-edit ticker titles** (chart, option chain, news) are one control, `Controls/TickerTitle`
   in `LT.Widgets.Core`. Its view model implements `ITickerTitled` (`Title` plus a
   `TickerTitleEditor`, which holds the editing state, trims and upper-cases typed text, ignores a
   blank one and hands the ticker or picked listing to the widget's own open path).
@@ -287,7 +287,9 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
 - **News** (`LT.Widgets.News`, bottom, Ctrl+Alt+N): two modes, saved per widget with the provider
   selection (`WidgetPlacementDto.NewsMode` / `NewsProviders`, keys `source:code`, null = all).
   *Linked* follows the link group's contract: the latest 100 past headlines, then live ones
-  (Load older pages back). *All news* subscribes to the broad tape of each selected provider that
+  (Load older pages back). The header title ("News · AAPL") is a `TickerTitle`: a ticker typed
+  there (Enter or clicking away) becomes the contract, moves the link group along and switches
+  All news back to Linked; Esc cancels. *All news* subscribes to the broad tape of each selected provider that
   has one (chips without one are dimmed in that mode). Provider chips choose what is asked for
   (changes within 400 ms restart the feed once); the text box filters the list locally. Rows:
   time, provider badge, headline, sentiment ▲/▼ when the provider scores it; newest first, at
