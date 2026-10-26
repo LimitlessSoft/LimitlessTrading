@@ -152,6 +152,62 @@ public class TradeMatchingHelpersTests
 		Assert.Equal(Start.AddMinutes(2), trades[0].CloseTime);
 	}
 
+	[Fact]
+	public void Legs_pair_each_exit_with_the_fifo_entry_lots_it_closed()
+	{
+		var legs = TradeMatchingHelpers.MatchLegs([
+			Fill("BOT", 50, 10, 0, commission: 1),
+			Fill("BOT", 50, 10.2, 1),
+			Fill("SLD", 30, 11, 2, commission: 3),
+			Fill("SLD", 70, 9.9, 3),
+		]);
+
+		Assert.Equal(3, legs.Count);
+		Assert.Equal(["e001", "e001", "e002"], legs.Select(x => x.EntryExecId));
+		Assert.Equal(["e003", "e004", "e004"], legs.Select(x => x.ExitExecId));
+		Assert.Equal([30m, 20m, 50m], legs.Select(x => x.Quantity));
+		Assert.All(legs, x => Assert.Equal(TradeSide.Long, x.Side));
+
+		// 30 × (11 - 10), commission 30/50 of 1 + all of 3
+		Assert.Equal(Start, legs[0].EntryTime);
+		Assert.Equal(Start.AddMinutes(2), legs[0].ExitTime);
+		Assert.Equal(10, legs[0].EntryPrice, 6);
+		Assert.Equal(11, legs[0].ExitPrice, 6);
+		Assert.Equal(30, legs[0].GrossPnl, 6);
+		Assert.Equal(3.6, legs[0].Commission, 6);
+		// 20 × (9.9 - 10) and 50 × (9.9 - 10.2)
+		Assert.Equal(-2, legs[1].GrossPnl, 6);
+		Assert.Equal(-15, legs[2].NetPnl, 6);
+	}
+
+	[Fact]
+	public void Legs_sum_to_the_trades_pnl_through_zero_and_skip_open_quantity()
+	{
+		var fills = new[]
+		{
+			Fill("BOT", 100, 10, 0, 1),
+			Fill("SLD", 150, 12, 1, 3),
+			Fill("BOT", 20, 11, 2, 1),
+		};
+
+		var legs = TradeMatchingHelpers.MatchLegs(fills);
+		var trades = TradeMatchingHelpers.Match(fills);
+
+		Assert.Equal(2, legs.Count);
+		Assert.Equal(TradeSide.Long, legs[0].Side);
+		Assert.Equal(100, legs[0].Quantity);
+		Assert.Equal(TradeSide.Short, legs[1].Side);
+		Assert.Equal(20, legs[1].Quantity);
+		Assert.Equal(legs[1].EntryExecId, legs[0].ExitExecId);
+		Assert.Equal(trades.Sum(x => x.GrossPnl), legs.Sum(x => x.GrossPnl), 6);
+	}
+
+	[Fact]
+	public void An_open_position_has_no_legs() =>
+		Assert.Empty(
+			TradeMatchingHelpers.MatchLegs([Fill("BOT", 10, 1, 0), Fill("BOT", 10, 2, 1)])
+		);
+
 	[Theory]
 	[InlineData("BOT", 1)]
 	[InlineData("buy", 1)]

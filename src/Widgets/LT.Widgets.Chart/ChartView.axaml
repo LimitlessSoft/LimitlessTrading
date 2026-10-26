@@ -8,7 +8,14 @@
 	<!-- The ticker and timeframe are picked in the frame header (ChartTitleView). RTH / Reload
 	     controls are hidden until they are redesigned; the view model keeps their state. -->
 	<Panel>
-		<vm:CandlestickChart Bars="{Binding Bars}" IsIntraday="{Binding IsIntraday}" />
+		<vm:CandlestickChart
+			Bars="{Binding Bars}"
+			IsIntraday="{Binding IsIntraday}"
+			Timeframe="{Binding SelectedTimeframe.Value}"
+			Fills="{Binding Fills}"
+			TradeLegs="{Binding TradeLegs}"
+			BreakEvenPrice="{Binding BreakEvenPrice}"
+		/>
 		<StackPanel
 			HorizontalAlignment="Left"
 			VerticalAlignment="Top"

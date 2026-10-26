@@ -414,6 +414,21 @@ library): candles, volume, price grid, last-price line, crosshair + OHLCV readou
 drag pans, double-click resets. The account performance widget's `EquityCurveChart` and
 `DailyPnlBarChart` are drawn the same way (same palette, `ChartDrawing`).
 
+**Your trades on the chart.** The chart draws the selected account's (all accounts when none is
+selected) recorded fills of the charted contract from the trade journal
+(`ITradeJournalManager.GetContractTrades`: socket executions and IB Flex history, so only what
+was recorded or imported): a green ▲ for a buy and a red ▼ for a sell, its tip at the fill
+price, on the bar that contains the fill's time (`ChartTradeHelpers.FindBarIndex`; daily and
+weekly bars by the New York date). Fills outside the loaded bars or in a gap (outside RTH)
+are not drawn. Each closed quantity is joined entry → exit by a dashed line per FIFO match
+(`TradeMatchingHelpers.MatchLegs`), green when it made money net of commission, red when not;
+a match with an end outside the loaded bars is not drawn. Hovering a bar lists its fills under
+the OHLC readout. With a live open position in the contract an amber dashed **Break-even**
+line sits at IB's average cost per unit (divided by the multiplier for options and futures,
+commissions included) with its price on the axis; it is hidden while disconnected (no stale
+positions) and when off the visible price range. Each chart follows positions on its own
+`reqPositions` stream; new fills appear when the journal records them (every 30 s).
+
 ## Styling
 
 - Colours/brushes as resources in `App.axaml`; positive/negative P/L via the `positive` /

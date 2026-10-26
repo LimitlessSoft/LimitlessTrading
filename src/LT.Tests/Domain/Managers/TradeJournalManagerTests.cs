@@ -157,6 +157,71 @@ public class TradeJournalManagerTests
 	}
 
 	[Fact]
+	public void Contract_trades_span_every_recorded_day_of_that_contract_and_account()
+	{
+		_repository.Fills[Yesterday] =
+		[
+			new FillEntity
+			{
+				ExecId = "y1",
+				Time = Now.AddDays(-3),
+				Account = "DU1",
+				ConId = 1,
+				Symbol = "AAPL",
+				Side = "BOT",
+				Shares = 10,
+				Price = 100,
+			},
+		];
+		_repository.Fills[Today] =
+		[
+			new FillEntity
+			{
+				ExecId = "t1",
+				Time = Now,
+				Account = "DU1",
+				ConId = 1,
+				Symbol = "AAPL",
+				Side = "SLD",
+				Shares = 10,
+				Price = 90,
+			},
+			new FillEntity
+			{
+				ExecId = "t2",
+				Time = Now,
+				Account = "DU1",
+				ConId = 2,
+				Symbol = "MSFT",
+				Side = "BOT",
+				Shares = 1,
+				Price = 400,
+			},
+			new FillEntity
+			{
+				ExecId = "t3",
+				Time = Now.AddMinutes(1),
+				Account = "DU2",
+				ConId = 1,
+				Symbol = "AAPL",
+				Side = "BOT",
+				Shares = 5,
+				Price = 91,
+			},
+		];
+
+		var trades = _manager.GetContractTrades(1, "DU1");
+
+		Assert.Equal(["y1", "t1"], trades.Fills.Select(x => x.ExecId));
+		var leg = Assert.Single(trades.Legs);
+		Assert.Equal("y1", leg.EntryExecId);
+		Assert.Equal("t1", leg.ExitExecId);
+		Assert.Equal(-100, leg.NetPnl, 6);
+		Assert.Equal(3, _manager.GetContractTrades(1, null).Fills.Count);
+		Assert.Empty(_manager.GetContractTrades(3, null).Fills);
+	}
+
+	[Fact]
 	public void Pnl_is_sampled_and_saved_at_most_every_save_interval()
 	{
 		_manager.RecordPnl("DU1", new AccountPnlDto { DailyPnl = 10 });

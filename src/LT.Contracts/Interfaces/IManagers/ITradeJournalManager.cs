@@ -62,4 +62,11 @@ public interface ITradeJournalManager
 	/// carried overnight closes against its recorded entry.
 	/// </summary>
 	DayPerformanceDto GetDayPerformance(DateOnly day, string? account);
+
+	/// <summary>
+	/// Every recorded fill of the contract <paramref name="contractId"/> by
+	/// <paramref name="account"/> (null: every account), over all recorded days, and the entry →
+	/// exit pairs of its closed quantity (FIFO, <c>TradeMatchingHelpers.MatchLegs</c>).
+	/// </summary>
+	ContractTradesDto GetContractTrades(int contractId, string? account);
 }

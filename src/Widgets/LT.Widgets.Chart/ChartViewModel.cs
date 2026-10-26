@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LT.App.Controls;
@@ -9,6 +11,9 @@ using LT.App.Workspace;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
+using LT.Contracts.Dtos.Executions;
+using LT.Contracts.Dtos.Performance;
+using LT.Contracts.Dtos.Positions;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
@@ -20,13 +25,20 @@ namespace LT.App.Widgets.Chart;
 
 /// <summary>
 /// One chart. Several can be open; each has its own timeframe and either follows the selected
-/// contract (linked) or stays on the contract it shows (pinned).
+/// contract (linked) or stays on the contract it shows (pinned). The selected account's recorded
+/// fills of the contract are drawn on it (trade journal: socket executions and IB Flex), closed
+/// quantity joined entry → exit, and the break-even of an open position (live positions only).
 /// </summary>
 public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILinkable
 {
 	private readonly IChartManager _chartManager;
 	private readonly IContractManager _contractManager;
 	private readonly IMessageLogManager _messageLogManager;
+	private readonly ITradeJournalManager _tradeJournalManager;
+	private readonly IPositionManager _positionManager;
+	private readonly AccountStore _accountStore;
+	private readonly Dictionary<(string Account, int ContractId), PositionDto> _positions = [];
+	private int _tradesQueued;
 	private CancellationTokenSource? _load;
 	private ContractDto? _contract;
 
@@ -36,6 +48,9 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 		IConnectionManager connectionManager,
 		IMessageLogManager messageLogManager,
 		ISettingsManager settingsManager,
+		ITradeJournalManager tradeJournalManager,
+		IPositionManager positionManager,
+		AccountStore accountStore,
 		LinkGroupStore linkGroupStore
 	)
 		: base(connectionManager)
@@ -43,6 +58,11 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 		_chartManager = chartManager;
 		_contractManager = contractManager;
 		_messageLogManager = messageLogManager;
+		_tradeJournalManager = tradeJournalManager;
+		_positionManager = positionManager;
+		_accountStore = accountStore;
+		tradeJournalManager.FillsChanged += OnFillsChanged;
+		accountStore.PropertyChanged += OnAccountChanged;
 		Link = new ContractLink(linkGroupStore, () => _contract);
 		Link.ContractReceived += OnContractReceived;
 
@@ -129,6 +149,8 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 
 	public override void Dispose()
 	{
+		_tradeJournalManager.FillsChanged -= OnFillsChanged;
+		_accountStore.PropertyChanged -= OnAccountChanged;
 		Link.Dispose();
 		_load?.Cancel();
 		_load?.Dispose();
@@ -149,6 +171,18 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 
 	[ObservableProperty]
 	public partial bool IsIntraday { get; set; }
+
+	/// <summary>The account's recorded fills of the charted contract, oldest first.</summary>
+	[ObservableProperty]
+	public partial IReadOnlyList<ExecutionDto> Fills { get; set; } = [];
+
+	/// <summary>Entry → exit pairs of the closed quantity (FIFO).</summary>
+	[ObservableProperty]
+	public partial IReadOnlyList<TradeLegDto> TradeLegs { get; set; } = [];
+
+	/// <summary>Break-even price of the open position in the charted contract; null when flat.</summary>
+	[ObservableProperty]
+	public partial double? BreakEvenPrice { get; set; }
 
 	[ObservableProperty]
 	public partial string Title { get; set; } = "Chart";
@@ -171,17 +205,103 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 
 	partial void OnUseRegularTradingHoursChanged(bool value) => Reload();
 
-	protected override void OnConnected(CancellationToken session) => Reload();
+	protected override void OnConnected(CancellationToken session)
+	{
+		Reload();
+		_ = StreamPositionsAsync(session);
+	}
 
-	protected override void OnDisconnected() => _load?.Cancel();
+	protected override void OnDisconnected()
+	{
+		_load?.Cancel();
+		_positions.Clear();
+		UpdateBreakEven();
+	}
 
 	[RelayCommand]
 	public void Reload()
 	{
+		LoadTrades();
+		UpdateBreakEven();
 		_load?.Cancel();
 		_load?.Dispose();
 		_load = new CancellationTokenSource();
 		_ = LoadAsync(_load.Token);
+	}
+
+	private void OnAccountChanged(object? sender, PropertyChangedEventArgs e)
+	{
+		if (e.PropertyName != nameof(AccountStore.SelectedAccount))
+			return;
+		LoadTrades();
+		UpdateBreakEven();
+	}
+
+	// From the trade journal's threads; coalesced to one UI update per burst
+	private void OnFillsChanged()
+	{
+		if (Interlocked.Exchange(ref _tradesQueued, 1) == 0)
+			Dispatcher.UIThread.Post(() =>
+			{
+				Interlocked.Exchange(ref _tradesQueued, 0);
+				LoadTrades();
+			});
+	}
+
+	private void LoadTrades()
+	{
+		if (_contract is not { } contract)
+		{
+			Fills = [];
+			TradeLegs = [];
+			return;
+		}
+		var trades = _tradeJournalManager.GetContractTrades(
+			contract.ConId,
+			_accountStore.SelectedAccount
+		);
+		Fills = trades.Fills;
+		TradeLegs = trades.Legs;
+	}
+
+	// Low-frequency stream: consumed on the UI thread (the continuation comes back on it)
+	private async Task StreamPositionsAsync(CancellationToken cancellationToken)
+	{
+		try
+		{
+			await foreach (
+				var position in _positionManager.SubscribePositionsAsync(cancellationToken)
+			)
+			{
+				var key = (position.Account, position.ContractId);
+				if (position.Quantity == 0)
+					_positions.Remove(key);
+				else
+					_positions[key] = position;
+				if (position.ContractId == _contract?.ConId)
+					UpdateBreakEven();
+			}
+		}
+		catch (OperationCanceledException) { }
+		catch (Exception ex)
+		{
+			_messageLogManager.Add(
+				MessageSeverity.Info,
+				MessageLogConstants.SourceChart,
+				$"Break-even line unavailable: positions failed ({ErrorMessageHelpers.ToUserMessage(ex)})"
+			);
+		}
+	}
+
+	private void UpdateBreakEven()
+	{
+		var account = _accountStore.SelectedAccount;
+		var position = _contract is { } contract
+			? _positions.Values.FirstOrDefault(x =>
+				x.ContractId == contract.ConId && (account == null || x.Account == account)
+			)
+			: null;
+		BreakEvenPrice = position != null ? ChartTradeHelpers.GetBreakEvenPrice(position) : null;
 	}
 
 	private async Task LoadAsync(CancellationToken cancellationToken)
