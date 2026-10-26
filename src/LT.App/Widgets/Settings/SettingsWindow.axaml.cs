@@ -12,6 +12,7 @@ public partial class SettingsWindow : Window
 		// Typing starts a search right away; Ctrl+F comes back to it
 		Opened += (_, _) => SearchBox.Focus();
 		AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
+		Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
 	}
 
 	private void OnPreviewKeyDown(object? sender, KeyEventArgs e)

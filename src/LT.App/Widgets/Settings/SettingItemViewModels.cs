@@ -48,6 +48,27 @@ public partial class ChoiceSettingViewModel(
 	public partial object? Value { get; set; }
 }
 
+/// <summary>A line of text; a secret one (a token) is masked.</summary>
+public partial class TextSettingViewModel(
+	string title,
+	bool isSecret = false,
+	string? placeholder = null,
+	string? description = null,
+	string? keywords = null
+) : SettingItemViewModel(title, description, keywords)
+{
+	public bool IsSecret { get; } = isSecret;
+	public char PasswordChar => IsSecret ? '•' : '\0';
+	public string? Placeholder { get; } = placeholder;
+
+	[ObservableProperty]
+	public partial string Value { get; set; } = string.Empty;
+}
+
+/// <summary>A paragraph of guidance (no value), like setup steps.</summary>
+public class NoteSettingViewModel(string title, string text, string? keywords = null)
+	: SettingItemViewModel(title, text, keywords);
+
 /// <summary>A whole number within limits (a spin box).</summary>
 public partial class NumberSettingViewModel(
 	string title,

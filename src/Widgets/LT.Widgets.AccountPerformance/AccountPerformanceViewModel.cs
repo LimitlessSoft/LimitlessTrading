@@ -15,23 +15,28 @@ namespace LT.App.Widgets.AccountPerformance;
 
 /// <summary>
 /// Equity curve, return stats, daily P&amp;L calendar and bars of the selected account, from the
-/// history IAccountPerformanceManager records while the app is connected. Today follows the live
-/// values. Recorded history shows while disconnected too, once an account has been picked.
+/// history IAccountPerformanceManager records while the app is connected and imports from IB Flex
+/// (IFlexImportManager). Today follows the live values. History shows while disconnected too,
+/// once an account has been picked.
 /// </summary>
 public partial class AccountPerformanceViewModel : ConnectedViewModelBase
 {
 	private readonly IAccountPerformanceManager _performanceManager;
+	private readonly IFlexImportManager _flexImport;
 	private IReadOnlyList<AccountDaySnapshotDto> _history = [];
 	private int _reloadPending;
 
 	public AccountPerformanceViewModel(
 		IAccountPerformanceManager performanceManager,
+		IFlexImportManager flexImport,
 		IConnectionManager connectionManager,
 		AccountStore accountStore
 	)
 		: base(connectionManager)
 	{
 		_performanceManager = performanceManager;
+		_flexImport = flexImport;
+		flexImport.StatusChanged += OnFlexStatusChanged;
 		Store = accountStore;
 		CalendarMonth = AccountPerformanceHelpers.GetMonthStart(performanceManager.GetToday());
 		accountStore.PropertyChanged += OnStoreChanged;
@@ -136,12 +141,18 @@ public partial class AccountPerformanceViewModel : ConnectedViewModelBase
 	[ObservableProperty]
 	public partial bool HasAccount { get; set; }
 
-	public void Refresh() => Reload();
+	/// <summary>F5: reloads, and starts a Flex import if one is due (its days reload the view).</summary>
+	public void Refresh()
+	{
+		Reload();
+		_ = Task.Run(() => _flexImport.ImportNowAsync());
+	}
 
 	public override void Dispose()
 	{
 		Store.PropertyChanged -= OnStoreChanged;
 		_performanceManager.HistoryChanged -= OnHistoryChanged;
+		_flexImport.StatusChanged -= OnFlexStatusChanged;
 		base.Dispose();
 	}
 
@@ -194,6 +205,8 @@ public partial class AccountPerformanceViewModel : ConnectedViewModelBase
 			DispatcherPriority.Background
 		);
 	}
+
+	private void OnFlexStatusChanged() => Dispatcher.UIThread.Post(UpdateHistoryNote);
 
 	private void Reload()
 	{
@@ -266,10 +279,26 @@ public partial class AccountPerformanceViewModel : ConnectedViewModelBase
 			.Select(x => new CalendarDayViewModel(x))
 			.ToList();
 
-		HistoryNote =
-			_history.Count == 0
-				? $"No history yet. IB's API has no account history, so it is recorded while the app is running and connected — starts {FormatDate(today)}."
-				: $"Recorded while the app is running and connected, since {FormatDate(_history[0].Date)}. Days the app didn't run are missing; IB's API has no earlier history.";
+		UpdateHistoryNote();
+	}
+
+	private void UpdateHistoryNote()
+	{
+		var today = _performanceManager.GetToday();
+		var flex = _flexImport.GetStatus();
+		var firstFlex = _history.FirstOrDefault(x => x.Source == AccountDaySource.Flex);
+		var source =
+			firstFlex != null
+				? $"From IB Flex since {FormatDate(firstFlex.Date)}: end-of-day NAV, with deposits and withdrawals left out of P&L. Today is live."
+			: flex.IsConfigured ? "Waiting for the IB Flex import."
+			: _history.Count == 0
+				? $"No history yet: recorded while the app is running and connected, from {FormatDate(today)}. Set up IB Flex in Settings → Account history to import earlier history."
+			: $"Recorded while the app is running and connected, since {FormatDate(_history[0].Date)}; days it didn't run are missing. Set up IB Flex in Settings → Account history to import the rest.";
+		var state =
+			flex.Activity is { } activity ? $" {activity}…"
+			: flex.LastError is { } error ? $" Last IB Flex import failed: {error}"
+			: "";
+		HistoryNote = source + state;
 	}
 
 	private static string FormatDate(DateOnly date) =>

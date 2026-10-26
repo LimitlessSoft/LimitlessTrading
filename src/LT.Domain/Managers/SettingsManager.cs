@@ -1,10 +1,12 @@
 using LSCore.Mapper.Domain;
 using LSCore.Validation.Domain;
+using LT.Contracts.Dtos.Flex;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Entities;
 using LT.Contracts.Interfaces.IApiClients;
 using LT.Contracts.Interfaces.IManagers;
 using LT.Contracts.Interfaces.IRepositories;
+using LT.Contracts.Requests.Flex;
 using LT.Contracts.Requests.Settings;
 
 namespace LT.Domain.Managers;
@@ -14,6 +16,7 @@ public class SettingsManager(ISettingsRepository settingsRepository, IIbkrApiCli
 	: ISettingsManager
 {
 	public event Action<AppSettingsDto>? AppSettingsChanged;
+	public event Action<FlexSettingsDto>? FlexSettingsChanged;
 
 	public AppSettingsDto GetAppSettings() =>
 		settingsRepository.Get().General.ToMapped<GeneralSettingsEntity, AppSettingsDto>();
@@ -41,6 +44,31 @@ public class SettingsManager(ISettingsRepository settingsRepository, IIbkrApiCli
 		AppSettingsChanged?.Invoke(
 			settings.General.ToMapped<GeneralSettingsEntity, AppSettingsDto>()
 		);
+	}
+
+	public FlexSettingsDto GetFlexSettings() =>
+		settingsRepository.Get().Flex.ToMapped<FlexSettingsEntity, FlexSettingsDto>();
+
+	public void SaveFlexSettings(SaveFlexSettingsRequest request)
+	{
+		request.Token = request.Token.Trim();
+		request.ActivityQueryId = request.ActivityQueryId.Trim();
+		request.TradeConfirmQueryId = request.TradeConfirmQueryId.Trim();
+		request.Validate();
+
+		var settings = settingsRepository.Get();
+		var flex = settings.Flex;
+		if (
+			flex.Token == request.Token
+			&& flex.ActivityQueryId == request.ActivityQueryId
+			&& flex.TradeConfirmQueryId == request.TradeConfirmQueryId
+		)
+			return;
+		flex.Token = request.Token;
+		flex.ActivityQueryId = request.ActivityQueryId;
+		flex.TradeConfirmQueryId = request.TradeConfirmQueryId;
+		settingsRepository.Save(settings);
+		FlexSettingsChanged?.Invoke(flex.ToMapped<FlexSettingsEntity, FlexSettingsDto>());
 	}
 
 	public LayoutDto GetLayout() =>

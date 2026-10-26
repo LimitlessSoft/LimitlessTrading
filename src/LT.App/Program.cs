@@ -18,6 +18,7 @@ using LT.Contracts.Interfaces.IRepositories;
 using LT.Domain.Managers;
 using LT.Domain.NewsSources;
 using LT.Ibkr;
+using LT.Ibkr.Flex;
 using LT.Ibkr.Gateway;
 using LT.Repository.Repositories;
 using Microsoft.Extensions.DependencyInjection;
@@ -79,7 +80,13 @@ public static class Program
 		builder.Services.AddSingleton<ICacheRepository, FileCacheRepository>();
 		builder.Services.AddSingleton<IAccountHistoryRepository, AccountHistoryRepository>();
 		builder.Services.AddSingleton<ITradeJournalRepository, TradeJournalRepository>();
+		builder.Services.AddSingleton<IFlexImportStateRepository, FlexImportStateRepository>();
 		builder.Services.AddSingleton<IIbkrApiClient, IbkrApiClient>();
+		// One HttpClient and one pacing state for every Flex request (IB's limits are per token)
+		builder.Services.AddSingleton<IFlexApiClient>(services => new FlexApiClient(
+			FlexApiClient.CreateHttpClient(),
+			services.GetRequiredService<TimeProvider>()
+		));
 		builder.Services.AddSingleton<IMessageLogManager, MessageLogManager>();
 		builder.Services.AddSingleton<IConnectionManager, ConnectionManager>();
 		builder.Services.AddSingleton<IGatewayProcess, GatewayProcess>();
@@ -90,6 +97,7 @@ public static class Program
 		builder.Services.AddSingleton<IUpdateManager, UpdateManager>();
 		builder.Services.AddSingleton<IAccountPerformanceManager, AccountPerformanceManager>();
 		builder.Services.AddSingleton<ITradeJournalManager, TradeJournalManager>();
+		builder.Services.AddSingleton<IFlexImportManager, FlexImportManager>();
 
 		// News: every INewsSource is aggregated by the news manager (more sources go here)
 		builder.Services.AddSingleton<INewsSource, IbkrNewsSource>();
@@ -108,6 +116,7 @@ public static class Program
 		builder.Services.AddHostedService<CacheMaintenance>();
 		builder.Services.AddHostedService<AccountPerformanceRecorder>();
 		builder.Services.AddHostedService<TradeJournalRecorder>();
+		builder.Services.AddHostedService<FlexImportScheduler>();
 
 		// ViewModels have no interfaces, so the convention scan skips them
 		builder.Services.AddTransient<MainWindowViewModel>();

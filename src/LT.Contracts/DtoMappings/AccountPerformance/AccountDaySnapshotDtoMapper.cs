@@ -16,6 +16,8 @@ public class AccountDaySnapshotDtoMapper
 			DailyPnl = source.DailyPnl,
 			RealizedPnl = source.RealizedPnl,
 			UnrealizedPnl = source.UnrealizedPnl,
+			CashFlow = source.CashFlow,
+			Source = source.Source,
 			FirstUpdate = source.FirstUpdate,
 			LastUpdate = source.LastUpdate,
 		};

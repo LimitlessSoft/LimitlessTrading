@@ -3,6 +3,7 @@ using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Account;
 using LT.Contracts.Dtos.AccountPerformance;
 using LT.Contracts.Dtos.Connection;
+using LT.Contracts.Dtos.Flex;
 using LT.Contracts.Entities;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
@@ -81,6 +82,40 @@ public class AccountPerformanceManager : IAccountPerformanceManager
 		lock (_lock)
 			return GetHistoryEntity(account)
 				.Days.ToMappedList<AccountDaySnapshotEntity, AccountDaySnapshotDto>();
+	}
+
+	public int ImportFlexHistory(
+		IReadOnlyList<FlexNavDto> nav,
+		IReadOnlyList<FlexCashFlowDto> cashFlows
+	)
+	{
+		var now = _timeProvider.GetUtcNow();
+		var today = AccountPerformanceHelpers.GetTradingDate(now, _tradingDayZone);
+		var changedAccounts = new List<string>();
+		var changed = 0;
+		lock (_lock)
+		{
+			foreach (var account in nav.Select(x => x.Account).Distinct())
+			{
+				var history = GetHistoryEntity(account);
+				var count = AccountPerformanceHelpers.MergeFlexDays(
+					history.Days,
+					nav.Where(x => x.Account == account),
+					cashFlows.Where(x => x.Account == account),
+					today,
+					now
+				);
+				if (count == 0)
+					continue;
+				changed += count;
+				changedAccounts.Add(account);
+				_dirty.Add(account);
+			}
+		}
+		Save();
+		foreach (var account in changedAccounts)
+			HistoryChanged?.Invoke(account);
+		return changed;
 	}
 
 	public DateOnly GetToday() =>

@@ -1,3 +1,5 @@
+using LT.Contracts.Enums;
+
 namespace LT.Contracts.Entities;
 
 /// <summary>
@@ -13,6 +15,15 @@ public class AccountDaySnapshotEntity
 	public double? DailyPnl { get; set; }
 	public double? RealizedPnl { get; set; }
 	public double? UnrealizedPnl { get; set; }
+
+	/// <summary>
+	/// Net deposits (+) and withdrawals (-) of the day in the base currency, from Flex; already left
+	/// out of <see cref="DailyPnl"/>. Null when unknown (recorded days).
+	/// </summary>
+	public double? CashFlow { get; set; }
+
+	/// <summary>Recorded live, or imported from Flex (then net liquidation is the end-of-day NAV).</summary>
+	public AccountDaySource Source { get; set; }
 	public DateTimeOffset FirstUpdate { get; set; }
 	public DateTimeOffset LastUpdate { get; set; }
 }

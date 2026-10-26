@@ -88,5 +88,6 @@ csharpier format .
 |---|---|
 | [docs/vision.md](docs/vision.md) | Product goals, roadmap phases |
 | [docs/ibkr-tws-api.md](docs/ibkr-tws-api.md) | Anything touching IB: library surface, gaps, ports, limits, error codes |
+| [docs/ibkr-flex.md](docs/ibkr-flex.md) | Flex Web Service history import: query setup, endpoints, merge rules |
 | [docs/architecture.md](docs/architecture.md) | Project layout, dependency direction, DI, Termodom mapping |
 | [docs/ui-patterns.md](docs/ui-patterns.md) | Widgets/pages, MVVM, threading, styling |

@@ -1,4 +1,5 @@
 using LT.Contracts.Dtos.AccountPerformance;
+using LT.Contracts.Dtos.Flex;
 
 namespace LT.Contracts.Interfaces.IManagers;
 
@@ -21,6 +22,13 @@ public interface IAccountPerformanceManager
 
 	/// <summary>The recorded days of <paramref name="account"/>, oldest first, today included live.</summary>
 	IReadOnlyList<AccountDaySnapshotDto> GetHistory(string account);
+
+	/// <summary>
+	/// Merges end-of-day NAV and deposits / withdrawals from a Flex Activity statement into the
+	/// history and saves it. Flex wins for days before today; today stays live. A Flex day's daily
+	/// P&amp;L is its NAV change minus the day's cash flow. Returns the days added or changed.
+	/// </summary>
+	int ImportFlexHistory(IReadOnlyList<FlexNavDto> nav, IReadOnlyList<FlexCashFlowDto> cashFlows);
 
 	/// <summary>Today's trading day (the date in New York).</summary>
 	DateOnly GetToday();

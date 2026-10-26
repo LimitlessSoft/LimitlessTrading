@@ -7,6 +7,7 @@ using LT.Contracts.Constants;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IManagers;
+using LT.Contracts.Requests.Flex;
 using LT.Contracts.Requests.Settings;
 
 namespace LT.App.Widgets.Settings;
@@ -15,10 +16,44 @@ namespace LT.App.Widgets.Settings;
 /// The settings window: a searchable tree of pages on the left, the selected page's tabs on the
 /// right. Changes apply on Save.
 /// </summary>
-public partial class SettingsViewModel : ViewModelBase
+public partial class SettingsViewModel : ViewModelBase, IDisposable
 {
 	private readonly ISettingsManager _settingsManager;
 	private readonly ICacheManager _cacheManager;
+	private readonly IFlexImportManager _flexImportManager;
+
+	private readonly NoteSettingViewModel _flexSetup = new(
+		"Set up once in Client Portal",
+		"1. Performance & Reports → Flex Queries → Activity Flex Query → +: format XML, period Last 365 Calendar Days, date format yyyyMMdd, time format HHmmss, separator ; (semi-colon), account alias instead of ID: No. Sections: Account Information, Net Asset Value (NAV) in Base, Cash Transactions (Deposits & Withdrawals), Trades (Executions) — all fields. Save and copy its Query ID.\n"
+			+ "2. Optional, for today's trades: Trade Confirmation Flex Query → +: XML, period Today, same date / time format, section Trade Confirmations (Executions), all fields. Copy its Query ID.\n"
+			+ "3. Flex Queries → Flex Web Service Configuration: turn it on, generate a token (longest expiry, no IP restriction) and copy it.\n"
+			+ "The full guide is in the docs (docs/ibkr-flex.md).",
+		"flex history import ib client portal activity statement trade confirmation token setup"
+	);
+
+	private readonly TextSettingViewModel _flexToken = new(
+		"Flex Web Service token",
+		isSecret: true,
+		placeholder: "token from Flex Web Service Configuration",
+		description: "Stored in settings.json on this computer; it can only read reports, not trade. Leave all three empty to turn the import off.",
+		keywords: "flex token secret"
+	);
+
+	private readonly TextSettingViewModel _flexActivityQuery = new(
+		"Activity Flex query ID",
+		placeholder: "e.g. 123456",
+		description: "Daily NAV, deposits / withdrawals and trades. Imported back to the account's start once, then daily (it covers through the previous business day).",
+		keywords: "flex query activity nav history"
+	);
+
+	private readonly TextSettingViewModel _flexTradeConfirmQuery = new(
+		"Trade Confirmation Flex query ID (optional)",
+		placeholder: "e.g. 123457",
+		description: "Today's trades, a few minutes after each fill; imported every 5 minutes while the app runs and on F5.",
+		keywords: "flex query trade confirmation today fills executions"
+	);
+
+	private readonly ActionSettingViewModel _flexImport;
 
 	private readonly ChoiceSettingViewModel _marketDataType = new(
 		"Market data type",
@@ -105,10 +140,28 @@ public partial class SettingsViewModel : ViewModelBase
 
 	private readonly ActionSettingViewModel _clearCache;
 
-	public SettingsViewModel(ISettingsManager settingsManager, ICacheManager cacheManager)
+	public SettingsViewModel(
+		ISettingsManager settingsManager,
+		ICacheManager cacheManager,
+		IFlexImportManager flexImportManager
+	)
 	{
 		_settingsManager = settingsManager;
 		_cacheManager = cacheManager;
+		_flexImportManager = flexImportManager;
+		_flexImport = new ActionSettingViewModel(
+			"Flex import",
+			"Save & import now",
+			ImportFlexNow,
+			"Saves the three Flex fields right away and imports what is due, plus today's trades. The first import fetches a year at a time back to the account's start (IB allows 10 requests a minute), so it can take a few minutes.",
+			"flex import now test status last error"
+		);
+		var flex = settingsManager.GetFlexSettings();
+		_flexToken.Value = flex.Token;
+		_flexActivityQuery.Value = flex.ActivityQueryId;
+		_flexTradeConfirmQuery.Value = flex.TradeConfirmQueryId;
+		RefreshFlexStatus();
+		flexImportManager.StatusChanged += OnFlexStatusChanged;
 		_clearCache = new ActionSettingViewModel(
 			"Cache on disk",
 			"Clear cache",
@@ -147,6 +200,19 @@ public partial class SettingsViewModel : ViewModelBase
 				]
 			),
 			new SettingsPageViewModel("Market data", [new("Quotes", _marketDataType)]),
+			new SettingsPageViewModel(
+				"Account history",
+				[
+					new(
+						"IB Flex",
+						_flexSetup,
+						_flexToken,
+						_flexActivityQuery,
+						_flexTradeConfirmQuery,
+						_flexImport
+					),
+				]
+			),
 			new SettingsPageViewModel(
 				"Cache",
 				[
@@ -205,6 +271,7 @@ public partial class SettingsViewModel : ViewModelBase
 	{
 		try
 		{
+			_settingsManager.SaveFlexSettings(GetFlexRequest());
 			_settingsManager.SaveAppSettings(
 				new SaveAppSettingsRequest
 				{
@@ -233,6 +300,37 @@ public partial class SettingsViewModel : ViewModelBase
 			return false;
 		}
 	}
+
+	public void Dispose() => _flexImportManager.StatusChanged -= OnFlexStatusChanged;
+
+	private SaveFlexSettingsRequest GetFlexRequest() =>
+		new()
+		{
+			Token = _flexToken.Value,
+			ActivityQueryId = _flexActivityQuery.Value,
+			TradeConfirmQueryId = _flexTradeConfirmQuery.Value,
+		};
+
+	private void ImportFlexNow()
+	{
+		try
+		{
+			_settingsManager.SaveFlexSettings(GetFlexRequest());
+			ErrorMessage = null;
+		}
+		catch (Exception ex)
+		{
+			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
+			return;
+		}
+		// Errors land in the status line
+		_ = Task.Run(() => _flexImportManager.ImportNowAsync());
+	}
+
+	private void OnFlexStatusChanged() => Dispatcher.UIThread.Post(RefreshFlexStatus);
+
+	private void RefreshFlexStatus() =>
+		_flexImport.Status = FlexStatusHelpers.Describe(_flexImportManager.GetStatus());
 
 	private void ClearCache()
 	{

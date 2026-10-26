@@ -54,10 +54,21 @@ leaves its gap in cards and none in flush.
 (`SettingsPageViewModel`) has tabs (`SettingsTabViewModel`; the tab strip shows only with more than
 one); a group (no tabs) holds child pages and opens its first one. Each setting is a
 `SettingItemViewModel` (`BoolSettingViewModel`, `ChoiceSettingViewModel`,
-`NumberSettingViewModel`, one DataTemplate each) with a title, help text and search keywords.
+`NumberSettingViewModel`, `TextSettingViewModel` — masked when `isSecret` —, `NoteSettingViewModel`
+for guidance text, `ActionSettingViewModel` for a status line with a button that acts right away;
+one DataTemplate each) with a title, help text and search keywords.
 Search (`SettingsSearchHelpers.Matches`: every word, any order) keeps the pages, tabs and settings
 that match; a page, group or tab whose own title matches shows all of its settings. Changes apply
 on Save. Adding a setting: a field in `SettingsViewModel`, put it on a tab, read and save it there.
+
+**Account history → IB Flex**: short setup steps (the full guide is
+[ibkr-flex.md → Setup](ibkr-flex.md#setup-once-by-the-user)), the Flex token (masked; stored in
+`settings.json`), the Activity and the optional Trade Confirmation query ids, and **Save & import
+now**, which saves just these three fields (validated by `SaveFlexSettingsRequestValidator`,
+messages `FlexValidationCodes`) and runs `IFlexImportManager.ImportNowAsync`. Its status line
+(`FlexStatusHelpers.Describe`) follows `IFlexImportManager.StatusChanged`: what is running, the
+covered history, the last imports and the last error. Save also saves the three fields; the view
+model unsubscribes when the window closes.
 
 ## Workspace (`LT.App/Workspace`)
 
@@ -144,8 +155,11 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   chart; live for today) with session high / low and max drawdown from a peak; then net P&L,
   trades (W / L), win rate, average win / loss, profit factor, expectancy, largest win / loss,
   gross and commissions, and the day's closed trades newest first. Recording runs whether the
-  widget is open or not; recorded days show offline. Without executions (IBKR.Net, CVC_007) the
-  curve still works and the stats show why they are empty.
+  widget is open or not; recorded days show offline. Fills imported from IB Flex count like
+  recorded ones, and ‹ / › reach every day with fills, so the stats work although IBKR.Net can't
+  read executions yet; a small note says where today's trades come from ("via IB Flex, up to ~5
+  min delayed", `FlexStatusHelpers.DescribeTodayTrades`) or, without Flex, shows CVC_007 with a
+  pointer to Settings → Account history. F5 also starts a Flex import.
 - The frame (and the widget view inside it) is created once per instance and **moved** between
   hosts, so state and subscriptions survive docking, floating and collapsing. Widget view models
   are created on first open by `WidgetViewModelFactory`.
@@ -239,7 +253,9 @@ charts as Not linked.
 `LT.Widgets.AccountPerformance` (opens in the center; menu → Widgets, Ctrl+Alt+R) shows the
 account picked in `AccountStore`: return stats, an equity curve, daily P&L bars and a daily P&L
 calendar, with a 1W / 1M / YTD / All range for the two charts and the max drawdown. IB's socket
-API has no account history, so everything comes from what the app records itself:
+API has no account history: past days are imported from IB Flex (end-of-day NAV and deposits /
+withdrawals, back to the account's start — [ibkr-flex.md](ibkr-flex.md#merge-rules); such days
+have `Source = Flex` and win over recorded ones), today is recorded live:
 
 - **Recording** — `IAccountPerformanceManager` (singleton, run for the app's lifetime by the
   `AccountPerformanceRecorder` hosted service, so it records whether or not the widget is open)
@@ -253,16 +269,19 @@ API has no account history, so everything comes from what the app records itself
 - **Trading day** — the date in New York (`AccountPerformanceConstants.TradingDayTimeZoneId`), for
   every user: one US session never splits across two days. Late evening in Asia, or after
   midnight in Europe, is still the previous day.
-- **Returns** — from IB's daily P&L, not from net liquidation deltas: deposits and withdrawals
-  are invisible to the socket API and would show as gains or losses. A day's return is its daily
+- **Returns** — from each day's P&L, never from raw net liquidation deltas, so deposits and
+  withdrawals don't count: a recorded day uses IB's daily P&L, a Flex day its NAV change minus the
+  day's net deposits (`CashFlow`). A day's return is its daily
   P&L over the equity it started with (net liquidation minus the day's P&L); periods chain those
   (time-weighted). Money figures sum the daily P&L. Max drawdown: of the summed P&L curve (money)
   and of the chained returns (%), over the picked range. Days the app didn't run are missing,
   not interpolated. All of it is in `AccountPerformanceHelpers` (`LT.Contracts`).
 - **Live** — today's row follows every P&L tick (`HistoryChanged`, coalesced to one reload per
-  dispatcher pass). The widget's footnote says since when history exists.
-- The equity curve places days by date (gaps where the app didn't run); the P&L bars are spaced
-  evenly, one per recorded day; the calendar is six Monday-first weeks.
+  dispatcher pass). The widget's footnote says where history comes from and since when, and what
+  the Flex import is doing or why it failed. F5 also starts a Flex import if one is due.
+- The equity curve places days by date (gaps where there is no data) and plots net liquidation,
+  so a deposit shows as a step there (not in returns or P&L); the P&L bars are spaced evenly, one
+  per day with data; the calendar is six Monday-first weeks.
 
 ## Connected widgets
 

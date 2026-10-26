@@ -137,10 +137,11 @@
 		</Border>
 		<StackPanel Grid.Row="4" Spacing="2" Margin="0,0,0,6">
 			<TextBlock
-				Classes="warning"
+				Classes="secondary"
+				FontSize="11"
 				TextWrapping="Wrap"
-				Text="{Binding ExecutionsError}"
-				IsVisible="{Binding ExecutionsError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+				Text="{Binding TradesNote}"
+				IsVisible="{Binding TradesNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
 			/>
 			<TextBlock
 				Classes="secondary"

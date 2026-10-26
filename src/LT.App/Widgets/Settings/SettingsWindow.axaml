@@ -66,12 +66,44 @@
 				/>
 			</StackPanel>
 		</DataTemplate>
+		<DataTemplate DataType="vm:TextSettingViewModel">
+			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}">
+				<TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+				<TextBox
+					Width="360"
+					HorizontalAlignment="Left"
+					PasswordChar="{Binding PasswordChar}"
+					PlaceholderText="{Binding Placeholder}"
+					Text="{Binding Value}"
+				/>
+				<TextBlock
+					Classes="secondary settingHelp"
+					Text="{Binding Description}"
+					IsVisible="{Binding HasDescription}"
+				/>
+			</StackPanel>
+		</DataTemplate>
+		<DataTemplate DataType="vm:NoteSettingViewModel">
+			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}">
+				<TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+				<TextBlock Classes="secondary settingHelp" Text="{Binding Description}" />
+			</StackPanel>
+		</DataTemplate>
 		<DataTemplate DataType="vm:ActionSettingViewModel">
 			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}">
 				<TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
 				<StackPanel Orientation="Horizontal" Spacing="12">
-					<TextBlock VerticalAlignment="Center" Text="{Binding Status}" />
-					<Button Content="{Binding ButtonText}" Command="{Binding RunCommand}" />
+					<TextBlock
+						VerticalAlignment="Center"
+						MaxWidth="460"
+						TextWrapping="Wrap"
+						Text="{Binding Status}"
+					/>
+					<Button
+						VerticalAlignment="Top"
+						Content="{Binding ButtonText}"
+						Command="{Binding RunCommand}"
+					/>
 				</StackPanel>
 				<TextBlock
 					Classes="secondary settingHelp"

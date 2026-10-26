@@ -17,22 +17,27 @@ namespace LT.App.Widgets.DayTradePerformance;
 /// A trading day of the selected account from the local trade journal: the intraday P&amp;L curve
 /// (live for today) and the day's closed trades with their statistics. Recording runs in the
 /// background (TradeJournalRecorder) whether this widget is open or not; recorded days stay
-/// viewable offline.
+/// viewable offline. Fills imported from IB Flex (history and, with a Trade Confirmation query,
+/// today's) count like recorded ones, so the stats work while IB's socket executions don't.
 /// </summary>
 public partial class DayTradePerformanceViewModel : ConnectedViewModelBase
 {
 	private readonly ITradeJournalManager _journal;
+	private readonly IFlexImportManager _flexImport;
 	private int _curveQueued;
 	private int _tradesQueued;
 
 	public DayTradePerformanceViewModel(
 		ITradeJournalManager journal,
+		IFlexImportManager flexImport,
 		IConnectionManager connectionManager,
 		AccountStore accountStore
 	)
 		: base(connectionManager)
 	{
 		_journal = journal;
+		_flexImport = flexImport;
+		flexImport.StatusChanged += OnFlexStatusChanged;
 		Store = accountStore;
 		SelectedDay = journal.Today;
 		accountStore.PropertyChanged += OnStoreChanged;
@@ -123,9 +128,12 @@ public partial class DayTradePerformanceViewModel : ConnectedViewModelBase
 	[ObservableProperty]
 	public partial string? TradesText { get; set; }
 
-	/// <summary>Why executions can't be read (CVC_007 until IBKR.Net decodes them).</summary>
+	/// <summary>
+	/// Where the trades come from: IB Flex and how delayed today's are, or why IB's executions
+	/// can't be read (CVC_007 until IBKR.Net decodes them) when Flex isn't set up.
+	/// </summary>
 	[ObservableProperty]
-	public partial string? ExecutionsError { get; set; }
+	public partial string? TradesNote { get; set; }
 
 	[RelayCommand(CanExecute = nameof(CanGoPrevious))]
 	public void PreviousDay()
@@ -144,10 +152,14 @@ public partial class DayTradePerformanceViewModel : ConnectedViewModelBase
 	[RelayCommand]
 	public void Today() => SelectedDay = _journal.Today;
 
-	/// <summary>Asks IB for the day's executions now (F5 / the Refresh button), then reloads.</summary>
+	/// <summary>
+	/// Asks IB for the day's executions now (F5 / the Refresh button) and reloads; also starts a
+	/// Flex import (today's trades), whose fills reload the view when they arrive.
+	/// </summary>
 	[RelayCommand]
 	public async Task RefreshAsync()
 	{
+		_ = Task.Run(() => _flexImport.ImportNowAsync());
 		try
 		{
 			await _journal.RecordExecutionsAsync();
@@ -165,6 +177,7 @@ public partial class DayTradePerformanceViewModel : ConnectedViewModelBase
 		Store.PropertyChanged -= OnStoreChanged;
 		_journal.FillsChanged -= OnFillsChanged;
 		_journal.PnlChanged -= OnPnlChanged;
+		_flexImport.StatusChanged -= OnFlexStatusChanged;
 		base.Dispose();
 	}
 
@@ -206,6 +219,8 @@ public partial class DayTradePerformanceViewModel : ConnectedViewModelBase
 				LoadTrades();
 			});
 	}
+
+	private void OnFlexStatusChanged() => Dispatcher.UIThread.Post(LoadNote);
 
 	private void Reload()
 	{
@@ -271,12 +286,20 @@ public partial class DayTradePerformanceViewModel : ConnectedViewModelBase
 		GrossPnl = hasTrades ? FormatHelpers.SignedMoney(stats.GrossPnl) : FormatHelpers.Empty;
 		Commissions = hasTrades ? FormatHelpers.Money(stats.Commissions) : FormatHelpers.Empty;
 
-		ExecutionsError = _journal.ExecutionsError;
 		var open = day.OpenTrades > 0 ? $" · {day.OpenTrades} still open (not counted)" : "";
 		TradesText =
 			hasTrades ? $"{day.FillCount} fills{open}"
 			: day.FillCount > 0 ? $"No closed trades · {day.FillCount} fills{open}"
-			: ExecutionsError != null ? null
 			: "No fills recorded for this day.";
+		LoadNote();
 	}
+
+	private void LoadNote() =>
+		TradesNote =
+			FlexStatusHelpers.DescribeTodayTrades(_flexImport.GetStatus())
+			?? (
+				_journal.ExecutionsError is { } error
+					? $"{error} Set up IB Flex in Settings → Account history to import trades."
+					: null
+			);
 }
