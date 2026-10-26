@@ -43,9 +43,15 @@ public interface IIbkrApiClient
 		CancellationToken cancellationToken = default
 	);
 
+	/// <summary>
+	/// Streaming ticks of a contract (reqMktData); <paramref name="genericTicks"/> is IB's
+	/// comma-separated generic tick list (e.g. "106" for the underlying's option implied
+	/// volatility), empty for the default ticks.
+	/// </summary>
 	IAsyncEnumerable<MarketDataTickDto> SubscribeMarketDataAsync(
 		ContractDto contract,
-		CancellationToken cancellationToken = default
+		CancellationToken cancellationToken = default,
+		string genericTicks = ""
 	);
 
 	Task<IReadOnlyList<BarDto>> GetHistoricalBarsAsync(

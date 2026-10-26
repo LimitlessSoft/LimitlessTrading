@@ -132,11 +132,16 @@ public class FakeIbkrApiClient : IIbkrApiClient
 			: Task.FromResult<IReadOnlyList<ContractDetailsDto>>(SearchResults);
 	}
 
+	/// <summary>Generic tick lists asked for, in order.</summary>
+	public List<string> GenericTicksRequested { get; } = [];
+
 	public async IAsyncEnumerable<MarketDataTickDto> SubscribeMarketDataAsync(
 		ContractDto contract,
-		[EnumeratorCancellation] CancellationToken cancellationToken = default
+		[EnumeratorCancellation] CancellationToken cancellationToken = default,
+		string genericTicks = ""
 	)
 	{
+		GenericTicksRequested.Add(genericTicks);
 		foreach (var tick in Ticks)
 		{
 			await Task.Yield();

@@ -33,6 +33,30 @@ public class MarketDataManagerTests
 	}
 
 	[Fact]
+	public async Task Generic_ticks_ride_on_the_same_line()
+	{
+		_ibkr.Ticks =
+		[
+			new MarketDataTickDto { Field = TickTypeHelpers.Last, Price = 200 },
+			new MarketDataTickDto { Field = TickTypeHelpers.OptionImpliedVolatility, Value = 0.25 },
+		];
+		var manager = new MarketDataManager(_ibkr);
+		var maxLines = 0;
+
+		await foreach (
+			var _ in manager.SubscribeQuotesAsync(
+				Aapl,
+				TestContext.Current.CancellationToken,
+				MarketDataConstants.OptionImpliedVolatilityGenericTick
+			)
+		)
+			maxLines = Math.Max(maxLines, manager.ActiveLines);
+
+		Assert.Equal(["106"], _ibkr.GenericTicksRequested);
+		Assert.Equal(1, maxLines);
+	}
+
+	[Fact]
 	public async Task Releases_the_line_when_the_stream_ends()
 	{
 		var manager = new MarketDataManager(_ibkr);

@@ -272,7 +272,44 @@ with the current one. Widgets in the same group show the same contract:
 The option chain has no ticker input of its own: its underlying comes from its group, and the
 frame header shows that ticker (`WidgetViewFactory.CreateTitle` binds `OptionChainViewModel.Title`).
 It lists one tab per expiration (`IOptionChainManager.GetExpirationsAsync`, from
-`reqSecDefOptParams`); the selected tab loads that day's strikes around the money.
+`reqSecDefOptParams`); the selected tab loads that day's strikes around the money. Columns mirror
+around the strike with the bid next to it on both sides: call vol · last · ask · bid | strike |
+put bid · ask · last · vol. The
+underlying keeps streaming while a chain is shown: in-the-money cells are shaded per side (calls
+below the price, puts above it — `OptionChainHelpers.IsInTheMoney`, `ItmBrush`) and the strike
+nearest the price is marked ATM (`AtmBrush`); with no known price nothing is shaded. The
+window of strikes (8 each side) follows the price too: once the ATM strike is more than 3 strikes
+off its centre (`OptionStrikesRecenterThreshold`, so a price wobbling around a strike doesn't
+churn lines) it re-centres (`OptionChainHelpers.GetRecenterTarget`). Rows that stay keep their
+view models and quotes; the lines of rows leaving are released before the new rows subscribe, so
+the chain never holds more than a full window plus the underlying. The grid scrolls the new ATM
+row into view.
+
+Prices, strikes and the underlying in the info line always show 2 decimals
+(`FormatHelpers.FixedPrice`), volume a whole number. The strike column is coloured by distance
+from the live price in standard deviations of the expected move to the selected expiration:
+1σ = price × IV × √T (`OptionChainHelpers.GetExpectedMove`), T in calendar years to 16:00 New
+York on the expiry date (`GetExpirationTime`, via `TimeProvider`). Bands ≤ 1σ, ≤ 2σ, ≤ 3σ, > 3σ
+(`GetSigmaBand`, `SigmaOneBrush` … `SigmaBeyondBrush`) fade out with distance; the ATM strike
+keeps an accent outline on top and the strike tooltip shows the distance ("+1.4σ from the
+underlying"). IV is the underlying's 30-day option implied volatility — generic tick 106 →
+tick 24, asked for on the underlying's existing quote line, so no extra line — not the ATM
+option's own IV for that expiry: IBKR.Net doesn't decode option computation ticks
+(`tickOptionComputation`) yet. No IV, no price, or past expiry → no band colouring.
+
+**One-click trading (real orders, no confirmation).** In the option chain a single click on an
+**ask** cell buys and on a **bid** cell sells — calls and puts alike — 1 contract, market, DAY, on
+the account selected in `AccountStore` (the one the Order ticket starts on). The order is sent
+immediately through `IOrderManager.PlaceOrderAsync` (same validation as the ticket); there is no
+review step. Only bid / ask cells are clickable: they show a hand cursor and a translucent green
+(buy) / red (sell) tint on hover over the ITM shade; last, volume and strike cells don't react.
+A cell is disabled while disconnected, when its side has no contract or that column has no price,
+and while its own order is in flight. Repeat clicks on the same cell within 500 ms
+(`OrderConstants.QuickOrderRepeatWindow`) are dropped, so a double click sends one order. The
+chain's status line shows "Order n sent" for a few seconds and the fill; a failed send or a
+rejection shows in its error line, and everything is logged to Messages (Orders). Mapping and
+guard logic: `OptionChainHelpers.GetQuickOrderAction` / `BuildQuickOrder` / `CanQuickTrade` /
+`IsRepeatClick`.
 
 A linkable view model implements `ILinkable` (`LT.App/Workspace`) by holding a `ContractLink`
 (`src/Widgets/LT.Widgets.Core/Stores`): `Publish(contract)` to send, `ContractReceived` to follow; it never gets its

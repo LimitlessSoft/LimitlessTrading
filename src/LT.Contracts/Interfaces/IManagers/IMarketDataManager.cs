@@ -10,11 +10,13 @@ public interface IMarketDataManager
 
 	/// <summary>
 	/// Streams a cumulative quote after every tick. Counts against the market data line limit
-	/// until the enumeration ends.
+	/// until the enumeration ends. <paramref name="genericTicks"/> asks for extra IB generic
+	/// ticks on the same line (e.g. <c>MarketDataConstants.OptionImpliedVolatilityGenericTick</c>).
 	/// </summary>
 	IAsyncEnumerable<QuoteDto> SubscribeQuotesAsync(
 		ContractDto contract,
-		CancellationToken cancellationToken = default
+		CancellationToken cancellationToken = default,
+		string genericTicks = ""
 	);
 
 	/// <summary>

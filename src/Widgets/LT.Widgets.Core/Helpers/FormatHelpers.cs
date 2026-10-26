@@ -11,6 +11,14 @@ public static class FormatHelpers
 			? v.ToString(Math.Abs(v) < 1 ? "#,0.0000" : "#,0.00", CultureInfo.CurrentCulture)
 			: Empty;
 
+	/// <summary>Always two decimals, however small (the option chain's prices).</summary>
+	public static string FixedPrice(double? value) =>
+		value is { } v ? v.ToString("#,0.00", CultureInfo.CurrentCulture) : Empty;
+
+	/// <summary>A whole number with thousands separators: 1,234,567.</summary>
+	public static string WholeNumber(decimal? value) =>
+		value is { } v ? v.ToString("#,0", CultureInfo.CurrentCulture) : Empty;
+
 	public static string Money(double? value) =>
 		value is { } v ? v.ToString("#,0.00", CultureInfo.CurrentCulture) : Empty;
 

@@ -18,5 +18,11 @@ public class QuoteDto
 	public bool IsHalted { get; set; }
 	public bool IsDelayed { get; set; }
 
+	/// <summary>
+	/// The underlying's 30-day option implied volatility as a fraction (0.25 = 25%); only with
+	/// generic tick 106.
+	/// </summary>
+	public double? ImpliedVolatility { get; set; }
+
 	public QuoteDto Clone() => (QuoteDto)MemberwiseClone();
 }

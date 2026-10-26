@@ -156,12 +156,14 @@ public class IbkrApiClient : IIbkrApiClient
 
 	public IAsyncEnumerable<MarketDataTickDto> SubscribeMarketDataAsync(
 		ContractDto contract,
-		CancellationToken cancellationToken = default
+		CancellationToken cancellationToken = default,
+		string genericTicks = ""
 	) =>
 		StreamAsync<MarketDataTick, MarketDataTickDto>(
 			(client, ct) =>
 				client.SubscribeMarketDataAsync(
 					contract.ToMapped<ContractDto, Contract>(),
+					genericTicks,
 					cancellationToken: ct
 				),
 			cancellationToken

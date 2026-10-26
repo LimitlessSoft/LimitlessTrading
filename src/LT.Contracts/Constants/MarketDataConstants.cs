@@ -27,6 +27,26 @@ public static class MarketDataConstants
 	public const int TickerSuggestionsMax = 20;
 	public const int SymbolMaxLength = 32;
 	public const int OptionStrikesAroundAtm = 8;
+
+	/// <summary>
+	/// The chain's strike window re-centres once the ATM strike is more than this many strikes
+	/// from its centre, so a price wobbling around a strike doesn't churn subscriptions.
+	/// </summary>
+	public const int OptionStrikesRecenterThreshold = 3;
+
+	/// <summary>
+	/// Generic tick list for the underlying's option implied volatility (tick 24) on its quote
+	/// line; the option chain's standard deviation bands use it.
+	/// </summary>
+	public const string OptionImpliedVolatilityGenericTick = "106";
+
+	/// <summary>
+	/// Options are taken to expire at the US close (16:00 New York) of their expiry date when
+	/// working out the time left for the standard deviation bands.
+	/// </summary>
+	public static readonly TimeSpan OptionExpirationClose = TimeSpan.FromHours(16);
+	public const string OptionExpirationTimeZone = "America/New_York";
+	public const double DaysPerYear = 365;
 	public static readonly TimeSpan UnderlyingPriceTimeout = TimeSpan.FromSeconds(5);
 
 	public const string StockType = "STK";

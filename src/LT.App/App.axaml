@@ -12,7 +12,17 @@
 		<SolidColorBrush x:Key="PositiveBrush" Color="#26A69A" />
 		<SolidColorBrush x:Key="NegativeBrush" Color="#EF5350" />
 		<SolidColorBrush x:Key="WarningBrush" Color="#FFB74D" />
-		<SolidColorBrush x:Key="AtmBrush" Color="#2A3140" />
+		<!-- Option chain strikes by σ distance from the price: accent blue fading toward the panel -->
+		<SolidColorBrush x:Key="SigmaOneBrush" Color="#2E4566" />
+		<SolidColorBrush x:Key="SigmaTwoBrush" Color="#283850" />
+		<SolidColorBrush x:Key="SigmaThreeBrush" Color="#222B3A" />
+		<SolidColorBrush x:Key="SigmaBeyondBrush" Color="#1E2229" />
+		<SolidColorBrush x:Key="ItmBrush" Color="#212A36" />
+		<!-- Option chain one-click cells: translucent, so they tint the ITM shade underneath -->
+		<SolidColorBrush x:Key="BuyHoverBrush" Color="#4026A69A" />
+		<SolidColorBrush x:Key="BuyPressedBrush" Color="#7026A69A" />
+		<SolidColorBrush x:Key="SellHoverBrush" Color="#40EF5350" />
+		<SolidColorBrush x:Key="SellPressedBrush" Color="#70EF5350" />
 
 		<!-- Error badge (e.g. a watchlist row whose quotes failed), on a 12×12 grid -->
 		<StreamGeometry x:Key="ErrorIcon">
