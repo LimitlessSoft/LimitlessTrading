@@ -16,4 +16,10 @@ public class SettingsEntity
 	/// <summary>Contracts picked by ticker (newest first), offered in the chart's ticker box.</summary>
 	public List<ContractEntity> RecentContracts { get; set; } = [];
 	public string? SelectedAccount { get; set; }
+
+	/// <summary>Named chart setups (timeframe, indicators, …), applied from a chart's header.</summary>
+	public List<ChartTemplateEntity> ChartTemplates { get; set; } = [];
+
+	/// <summary>The template applied to every new chart; null: none.</summary>
+	public string? DefaultChartTemplateId { get; set; }
 }

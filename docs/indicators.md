@@ -25,6 +25,9 @@ moment they are saved. Both are written against the same SDK, `LT.Indicators.Sdk
   definition id, input values, visibility, optional plot colours). Layouts from before
   indicators have none. A saved value that no longer fits the definition (the script changed its
   range or dropped the input) falls back to the default (`IndicatorHelpers.ResolveInputs`).
+- **Templates:** a chart's indicators can be saved with its timeframe as a chart template and
+  applied to other charts, exported and imported — see
+  [ui-patterns.md → Chart templates](ui-patterns.md#chart-templates).
 
 ## How it is built
 

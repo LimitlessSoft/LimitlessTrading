@@ -92,6 +92,7 @@ public class ChartViewModelDropTests : IDisposable
 				new InMemoryIndicatorScriptRepository(),
 				new MessageLogManager()
 			),
+			new ChartTemplateManager(_cache.Settings),
 			new AccountStore(_connection, settings),
 			_links,
 			new DisplayTimeStore(settings, _cache.Time)

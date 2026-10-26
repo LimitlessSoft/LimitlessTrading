@@ -37,6 +37,10 @@ namespace LT.App.Widgets.Chart;
 /// change — at most every <see cref="IndicatorConstants.ComputeDebounce"/>, one compute at a
 /// time — and posted back to the UI thread.
 /// </para>
+/// <para>
+/// Its setup (timeframe, indicators, right margin) can be saved as a named template and applied
+/// from the header; see ChartViewModel.Templates.cs.
+/// </para>
 /// </summary>
 public partial class ChartViewModel
 	: ConnectedViewModelBase,
@@ -51,6 +55,7 @@ public partial class ChartViewModel
 	private readonly ITradeJournalManager _tradeJournalManager;
 	private readonly IPositionManager _positionManager;
 	private readonly IIndicatorManager _indicatorManager;
+	private readonly IChartTemplateManager _chartTemplateManager;
 	private readonly DispatcherTimer _computeTimer;
 	private List<IndicatorInstanceDto> _indicators = [];
 	private bool _computing;
@@ -72,6 +77,7 @@ public partial class ChartViewModel
 		ITradeJournalManager tradeJournalManager,
 		IPositionManager positionManager,
 		IIndicatorManager indicatorManager,
+		IChartTemplateManager chartTemplateManager,
 		AccountStore accountStore,
 		LinkGroupStore linkGroupStore,
 		DisplayTimeStore displayTime
@@ -87,6 +93,7 @@ public partial class ChartViewModel
 		_tradeJournalManager = tradeJournalManager;
 		_positionManager = positionManager;
 		_indicatorManager = indicatorManager;
+		_chartTemplateManager = chartTemplateManager;
 		_accountStore = accountStore;
 		_computeTimer = new DispatcherTimer { Interval = IndicatorConstants.ComputeDebounce };
 		_computeTimer.Tick += (_, _) => ComputeIndicators();
@@ -105,6 +112,9 @@ public partial class ChartViewModel
 		Timeframes = Enum.GetValues<ChartTimeframe>().Select(x => new TimeframeOption(x)).ToList();
 		var saved = settingsManager.GetLayout().ChartTimeframe;
 		SelectedTimeframe = Timeframes.FirstOrDefault(x => x.Value == saved) ?? Timeframes[1];
+		// A new chart starts from the default template; a restored one then loads its own state
+		if (chartTemplateManager.GetDefault() is { } template)
+			ApplyTemplateSettings(template.Settings);
 
 		_contract = linkGroupStore.Get(Link.Group);
 		Reload();

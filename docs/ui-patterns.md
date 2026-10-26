@@ -342,6 +342,39 @@ widget definitions' view models are registered from `WidgetCatalog.Definitions`.
 Row VMs (`WatchlistRowViewModel`, `PositionRowViewModel`, …) are constructed by their parent
 instead.
 
+### Chart templates
+
+The layers icon in a chart's header (`ChartTitleView`, after ƒx) opens its templates: named chart
+setups — timeframe, indicators (type, inputs, visibility, plot colours) and right margin. Click a
+template's name to apply it to that chart; the star makes it the **default**, applied to every new
+chart (restored charts keep their saved setup); the pencil renames it in place; the export icon
+writes it to a JSON file; ✕ deletes it after an inline confirmation. "Save this chart as…" saves
+the chart's current setup (a name already taken asks "Replace …?" first; replacing keeps its id
+and default). Import… adds the templates of a file (a taken name gets " (2)", " (3)" …; the whole
+file is refused, naming the template, when anything in it is invalid); Export all… writes every
+template to one file. Results and errors show at the bottom of the menu, which reopens after a
+file dialog.
+
+- `IChartTemplateManager` (`ChartTemplateManager`, stateless) keeps them in
+  `SettingsEntity.ChartTemplates` with `DefaultChartTemplateId`; validation messages are
+  `ChartTemplateValidationCodes`, limits `ChartTemplateConstants`, shared checks
+  `ChartTemplateHelpers.GetNameError` / `GetSettingsError`. The view picks the files (Avalonia
+  storage provider) and hands their text to `ChartViewModel.ImportTemplates` / takes
+  `ExportTemplates`; at most `MaxFileLength` (2 MB) is read.
+- **Format, versioned for later settings.** A template (`ChartTemplateEntity`) has a `Version`
+  (`ChartTemplateConstants.CurrentVersion`, 1) and its `Settings`, every one optional: a setting
+  a template doesn't hold (saved before it existed) leaves the chart's own when applied. An
+  exported file is `{ "format": "LimitlessTrading.ChartTemplates", "version": 1, "templates":
+  [...] }` in camelCase with timeframes by name; reading accepts any property case, enum numbers,
+  comments and trailing commas, and ignores fields it doesn't know, so files from newer versions
+  import with what this one understands (and are stored as the current version). Adding a
+  setting: an optional field in `ChartTemplateSettingsEntity` / `Dto` and both mappers, captured in
+  `ChartViewModel.GetTemplateSettings`, applied in `ApplyTemplateSettings`, checked in
+  `GetSettingsError`; raise `CurrentVersion` only when an existing field changes meaning.
+- Applying gives the chart its own copies of the indicators (new instance ids). Indicators whose
+  script isn't on this computer stay in the legend as missing, as in a layout.
+- Not in templates: the contract, link group and the hidden RTH switch (not saved per chart).
+
 ### Watchlists
 
 The watchlist widget shows one of several named watchlists. Its header (`WatchlistTitleView`) is

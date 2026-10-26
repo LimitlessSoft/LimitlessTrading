@@ -18,6 +18,7 @@ using LT.Contracts.Dtos.Performance;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Dtos.Watchlists;
 using LT.Contracts.Entities;
+using LT.Contracts.Requests.ChartTemplates;
 using LT.Contracts.Requests.Connection;
 using LT.Contracts.Requests.Contracts;
 using LT.Contracts.Requests.Flex;
@@ -29,6 +30,7 @@ using LT.Contracts.Requests.Options;
 using LT.Contracts.Requests.Orders;
 using LT.Contracts.Requests.Settings;
 using LT.Contracts.Requests.Watchlists;
+using LT.Domain.Validators.ChartTemplates;
 using LT.Domain.Validators.Connection;
 using LT.Domain.Validators.Contracts;
 using LT.Domain.Validators.Flex;
@@ -130,6 +132,18 @@ public static class LSCoreContainer
 				.AddSingleton<
 					LSCoreValidatorBase<ComputeIndicatorsRequest>,
 					ComputeIndicatorsRequestValidator
+				>()
+				.AddSingleton<
+					LSCoreValidatorBase<SaveChartTemplateRequest>,
+					SaveChartTemplateRequestValidator
+				>()
+				.AddSingleton<
+					LSCoreValidatorBase<RenameChartTemplateRequest>,
+					RenameChartTemplateRequestValidator
+				>()
+				.AddSingleton<
+					LSCoreValidatorBase<ImportChartTemplatesRequest>,
+					ImportChartTemplatesRequestValidator
 				>()
 				.BuildServiceProvider();
 		}
