@@ -45,5 +45,5 @@ SOFTWARE.
 
 Third-party components keep their own licenses and are not covered by the above. The app
 contains no Interactive Brokers code: it talks to IB Gateway through IBKR.Net (MIT,
-LimitlessSoft). IBC (GPL-3.0) and IB Gateway are not included; the app runs them as separate
-programs installed by the user.
+LimitlessSoft). IB Gateway is not included; the app runs it as a separate program installed by
+the user.

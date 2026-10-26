@@ -16,8 +16,8 @@ fixes and code are all welcome.
 
 ## Getting set up
 
-You need the **.NET SDK 10.0.4xx** (pinned in `global.json`) and, to run against IB,
-[IBC](https://github.com/IbcAlpha/IBC) plus the offline/stable **IB Gateway** installer.
+You need the **.NET SDK 10.0.4xx** (pinned in `global.json`) and, to run against IB, the
+offline/stable **IB Gateway** installer.
 A paper trading account is the safest way to try things out.
 
 ```bash

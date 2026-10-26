@@ -34,64 +34,64 @@ The socket API is a local bridge to a running Gateway, not a direct connection t
 supported setup is the IB Gateway the app starts itself** (next section) — there is no manual
 host/port connect and TWS (7496/7497) is not supported. The app *replaces* the TWS UI.
 
-The API settings TWS keeps under *Global Configuration → API* (socket port, read-only API) are
-set through IBC's `config.ini` instead, so the user never opens Gateway's own UI.
+The API settings Gateway keeps under *Configure → Settings → API → Settings* (socket port,
+Read-Only API) are stored encrypted in Gateway's own settings folder, so the app can't pre-set
+them. The user sets them **once** in Gateway: keep the socket port at the default 4001 (live) /
+4002 (paper) — the app only watches those two — and untick **Read-Only API** to trade from the
+app (with it ticked, orders are rejected by Gateway).
 
 Gateway **restarts daily** (configurable time, auto-logoff) and require a re-login weekly.
 The app must treat disconnects as normal, not exceptional.
 
-### Starting IB Gateway from the app (IBC)
+### Starting IB Gateway from the app
 
-**Log in…** (menu, status bar, or the dialog shown on start) starts IB Gateway for the user with the username / password they
-type, through **[IBC](https://github.com/IbcAlpha/IBC)** (GPL-3.0, run as a separate process — we
-don't link it). Gateway has no official CLI or API for credentials; IBC drives its login dialog.
+**Log in…** (menu, status bar, or the dialog shown on start) → **Start IB Gateway** runs Gateway's
+own launcher from the installed version folder. Gateway opens its normal login window and the
+user logs in there — username, password, live or paper, IB Key 2FA. The app never sees or stores
+credentials and drives no UI: it only waits for an API port to open and then connects. Pure C#, no
+IBC, no Java code of ours.
 
-Flow (`GatewayManager` → `IIbcGatewayProcess`, implemented by `LT.Ibkr/Ibc/IbcGatewayProcess`):
+Flow (`GatewayManager` → `IGatewayProcess`, implemented by `LT.Ibkr/Gateway/GatewayProcess`):
 
-1. Validate, check `<IBC>/scripts/ibcstart.sh` (`StartIBC.bat` on Windows) exists. If the API port
-   (4001 live / 4002 paper) is already open, a Gateway is running that this app run didn't start
-   (typically left over after the app was killed): mark it Running with `IsExternal`, connect to it
-   and stop here. Stop then only disconnects; the process is left alone.
-2. Write IBC's `config.ini` to `<app-data>/ibc-config.ini`, owner-only (0600 on Unix). It holds
-   `IbLoginId`/`IbPassword` — credentials never go on the command line (visible in the process list).
-3. Run `ibcstart.sh <ver> --gateway --tws-path=… --ibc-path=… --ibc-ini=… --mode=… --on2fatimeout=exit`
-   (optionally under `xvfb-run -a` on Linux to hide the window).
-4. Poll the API port every second for up to 5 minutes. IBC output is parsed best-effort to show
-   "approve in IB Key" (2FA) and to fail fast on a rejected login.
-5. Delete the config file, mark Running, connect `IConnectionManager` to `127.0.0.1:<port>`.
-6. Stop = disconnect, send `STOP` to IBC's command server (127.0.0.1:7462), kill the process tree
-   after 20 s. On exit the Gateway keeps running by default and the next Log in reuses it (step 1); with
-   Settings → Connection → "Stop IB Gateway when the app closes" on (off by default), the app stops
-   the Gateway it started.
+1. Validate, then find the launcher of the chosen version (`GatewayInstallHelpers.FindLauncher`).
+   If the live or paper API port is already open, a Gateway is running that this app run didn't
+   start (left over after the app was closed or killed): mark it Running with `IsExternal`,
+   connect to it and stop here. Stop then only disconnects; the process is left alone. The port
+   of the mode last connected to is tried first.
+2. Start the launcher in its own folder (`Starting` → `AwaitingLogin`). Its stdout / stderr are
+   read and dropped.
+3. Poll both API ports every second for up to 10 minutes (typing + 2FA). The first to open wins:
+   its mode is remembered, the state goes Running and `IConnectionManager` connects to
+   `127.0.0.1:<port>`.
+4. Gateway exiting before a port opens (the user closed the login window) goes back to Stopped,
+   no error; a non-zero exit code is shown as a hint. Cancel (Stop while waiting) closes Gateway
+   and ends in Stopped. The timeout closes Gateway and fails with a hint about the API port.
+5. Gateway exiting after login (window closed, crash) fails the session and shuts the connection.
+6. Stop = disconnect and kill the Gateway process tree (Gateway has no stop command). On exit the
+   Gateway keeps running by default and the next start reuses it (step 1); with Settings →
+   Connection → "Stop IB Gateway when the app closes" on (off by default), the app stops the
+   Gateway it started.
 
-What we set in `config.ini`: `OverrideTwsApiPort`, `ReadOnlyApi=no`,
-`AcceptIncomingConnectionAction=reject` (localhost is trusted anyway),
-`ExistingSessionDetectedAction=primary` (our session wins — this logs out another session of the
-same user, e.g. a desktop TWS), `MinimizeMainWindow=yes`, command server bound to 127.0.0.1.
+Launchers (`GatewayInstallHelpers.FindLauncher`):
+
+| OS | Install root (default) | Launcher |
+|---|---|---|
+| Linux | `~/Jts` | `ibgateway/<ver>/ibgateway` or `ibgateway1` (10.50 offline installer, verified) — an install4j script that `exec`s java, so the child process is Gateway itself |
+| Windows | `C:\Jts` | `ibgateway\<ver>\ibgateway.exe` (not verified on a real install) |
+| macOS | `~/Applications` | `IB Gateway 10.37/*.app/Contents/MacOS/<executable>` (not verified on a real install) |
 
 Limits / caveats:
 
-- **2FA**: live accounts still need the user to approve the IB Key push; paper usually doesn't.
-  IB forces a full re-login (with 2FA) about weekly.
-- **Not truly headless**: Gateway is a Swing app. Linux needs a display or Xvfb (`xvfb-run`);
-  on Windows/macOS the window exists, minimized.
-- **Install**: the user installs the *offline/stable* Gateway (IBC needs the versioned folder,
-  e.g. `~/Jts/ibgateway/1050`); we don't redistribute Gateway. IBC: the log-in dialog's
-  **Install IBC** downloads the latest release for the OS from the GitHub API
-  (`IbcAlpha/IBC`, assets `IBCLinux-/IBCMacos-/IBCWin-x.y.z.zip`, ~300 KB) into
-  `<app-data>/ibc` and marks its `*.sh` executable (the zip carries no permissions).
-- **Locate**: on open the dialog checks the saved folders, else searches the usual IBC / Gateway
-  locations and a bounded (depth 4, hidden folders skipped) part of home / Downloads / `/opt`.
-  **Browse…** accepts the IBC folder, its `scripts` folder, `Jts`, `ibgateway` or a version folder.
-- Verified against IBC 3.24.2: `ibcstart.sh` arguments, all `config.ini` keys we write, and the
-  log strings we parse (`Login has completed`, `Second Factor Authentication`, `Login failed`).
-- The password is **not persisted** — typed per start. A keychain-backed "remember" is future work.
-- The output patterns (`Second Factor Authentication`, `Login has completed`,
-  `Unrecognized Username or Password`) are not verified against a real IBC run yet; readiness only
-  depends on the port, so a mismatch just means a less specific status / a timeout instead of a
-  fast failure.
-- Windows: `cmd.exe /c StartIBC.bat` with paths containing spaces is untested.
-
+- **Install**: the user installs the *offline/stable* Gateway (the versioned folder, e.g.
+  `~/Jts/ibgateway/1050`); we don't redistribute Gateway. On open the dialog checks the saved
+  folder, else the usual roots; **Browse…** accepts `Jts`, `ibgateway` or a version folder.
+- Started with no arguments, Gateway uses its default settings folder (`~/Jts` on Linux).
+- Only ports 4001 / 4002 are watched; a Gateway configured to another port times out.
+- Stopping kills Gateway rather than closing it gracefully.
+- Leftovers from the IBC era: `<app-data>/ibc-config.ini` (could hold a password after a crash)
+  is deleted on start (`LegacyIbcCleanup`); `<app-data>/ibc` (IBC downloaded by the old Install
+  IBC button) is left for the user to delete, since a Gateway started by IBC may still use it.
+  Old `settings.json` files with `Username` / `IbcPath` / `UseVirtualDisplay` still load.
 
 
 - Every concurrent connection to the **same** TWS/Gateway needs a **distinct** `ClientId`.
@@ -211,7 +211,7 @@ New calls are added to IBKR.Net from a wire recording first (`tools/IbkrWireReco
 ## Testing against IB
 
 - **Paper account** (Gateway on 4002, usually no 2FA) for manual testing.
-- `ghcr.io/gnzsnz/ib-gateway` (Docker, IBC auto-login, 2FA off on paper) — useful for
+- `ghcr.io/gnzsnz/ib-gateway` (Docker, auto-login via IBC, 2FA off on paper) — useful for
   integration tests later.
 - Unit tests in `LT.Tests` never connect: managers depend on `IIbkrApiClient`, which tests fake.
 

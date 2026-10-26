@@ -27,7 +27,7 @@ Runs IB Gateway for you, keeps the connection alive and puts everything you watc
 <td width="50%" valign="top">
 
 **🔌 Connection that just works**
-- Logs in to IB Gateway for you (via IBC), including the IB Key 2FA step
+- Starts IB Gateway for you and connects as soon as you've logged in in its window
 - Heartbeat, automatic reconnect with backoff; a Gateway still running is reused on start
 - Reuses a Gateway that is already running — optionally keep it alive between runs
 
@@ -94,7 +94,6 @@ Modifying orders is not built.
 
 - An IBKR account — start with a **paper** account
 - The offline/stable **IB Gateway** installer from Interactive Brokers
-- [IBC](https://github.com/IbcAlpha/IBC) (the app can download it for you)
 
 **Linux: run a release**
 
@@ -121,12 +120,16 @@ cd LimitlessTrading
 dotnet run --project src/LT.App
 ```
 
-The log-in dialog opens on start (or the app reuses a Gateway that is already running). Pick paper
-or live, enter your IBKR username and password, and approve the login in IB Key if asked. The app
-starts IB Gateway, then connects to it on `127.0.0.1:4002` (paper) or `4001` (live).
+The log-in dialog opens on start (or the app reuses a Gateway that is already running). Click
+**Start IB Gateway**: Gateway's own login window opens. Log in there — username, password, paper
+or live, and IB Key if asked — and the app connects to it on `127.0.0.1:4002` (paper) or `4001`
+(live).
 
-> 🔐 Your username, trading mode and install folders are saved in `settings.json` in the app-data
-> folder. **The password is never saved**, and it never appears on a command line.
+> 🔐 Your credentials only ever go into IB Gateway's own window; the app never sees or stores
+> them. It saves the Gateway install folder in `settings.json` in the app-data folder.
+
+The first time, in Gateway: *Configure → Settings → API → Settings* — keep the socket port at 4001
+(live) / 4002 (paper) and untick **Read-Only API** if you want to trade from the app.
 
 **Develop**
 
@@ -148,7 +151,7 @@ flowchart LR
         Domain --> Repo["LT.Repository<br/>settings · bar cache"]
     end
     Ibkr -- "socket API (IBKR.Net)" --> GW["IB Gateway"]
-    Domain -. "starts via IBC" .-> GW
+    Domain -. "starts" .-> GW
     GW <--> IB(("Interactive<br/>Brokers"))
 ```
 
@@ -156,7 +159,7 @@ flowchart LR
 |---|---|
 | `LT.App` | Avalonia app — composition root, shell, workspace, widgets |
 | `LT.Domain` | Managers and validators — the app's logic |
-| `LT.Ibkr` | `IIbkrApiClient` over [IBKR.Net](https://github.com/LimitlessSoft/IBKR.Net) (our own IB client), IBC process control |
+| `LT.Ibkr` | `IIbkrApiClient` over [IBKR.Net](https://github.com/LimitlessSoft/IBKR.Net) (our own IB client), IB Gateway process control |
 | `LT.Repository` | Local persistence (JSON settings, bar cache) |
 | `LT.Contracts` | DTOs, requests, entities, enums, interfaces, helpers, constants |
 | `LT.Tests` | xUnit v3 tests with fakes — no IB connection needed |
@@ -207,7 +210,8 @@ that restriction it is *source-available* rather than open source in the OSI sen
 
 The app contains no Interactive Brokers code: it talks to IB Gateway through our own
 [IBKR.Net](https://github.com/LimitlessSoft/IBKR.Net) (MIT). Third-party components keep their own
-licenses — notably [IBC](https://github.com/IbcAlpha/IBC) (GPL-3.0), which you install separately.
+licenses. IB Gateway is not included: you install it from Interactive Brokers and the app starts
+it as a separate program.
 
 ---
 

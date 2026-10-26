@@ -2,26 +2,9 @@ using LSCore.Validation.Contracts;
 
 namespace LT.Contracts.Enums.ValidationCodes;
 
+/// <summary>Not persisted. Codes of the IBC-era log-in form (credentials, IBC) were removed.</summary>
 public enum GatewayValidationCodes
 {
-	[LSCoreValidationMessage("Username is required.")]
-	GVC_001,
-
-	[LSCoreValidationMessage("Username can be at most {0} characters long.")]
-	GVC_002,
-
-	[LSCoreValidationMessage("Password is required.")]
-	GVC_003,
-
-	[LSCoreValidationMessage("Password can be at most {0} characters long.")]
-	GVC_004,
-
-	[LSCoreValidationMessage("Password cannot contain line breaks.")]
-	GVC_005,
-
-	[LSCoreValidationMessage("IBC folder is required.")]
-	GVC_006,
-
 	[LSCoreValidationMessage("Gateway folder is required.")]
 	GVC_007,
 
@@ -33,40 +16,27 @@ public enum GatewayValidationCodes
 	)]
 	GVC_009,
 
-	[LSCoreValidationMessage("Unknown trading mode.")]
-	GVC_010,
-
 	[LSCoreValidationMessage("IB Gateway is already running. Stop it first.")]
 	GVC_011,
 
 	[LSCoreValidationMessage(
-		"IBC start script not found at {0}. Use Locate or Browse… under Install."
+		"IB Gateway did not open the API port within {0} minutes. In Gateway, Configure → Settings → API → Settings must keep the socket port at 4001 (live) or 4002 (paper)."
 	)]
-	GVC_012,
-
-	[LSCoreValidationMessage("IB Gateway did not open the API port within {0} minutes.")]
 	GVC_014,
-
-	[LSCoreValidationMessage("IB Gateway rejected the login — check username and password.")]
-	GVC_015,
-
-	[LSCoreValidationMessage("IBC exited with code {0} before login completed. {1}")]
-	GVC_016,
 
 	[LSCoreValidationMessage("IB Gateway exited unexpectedly (code {0}).")]
 	GVC_017,
-
-	[LSCoreValidationMessage("No IBC install in {0} — expected scripts/{1} inside it.")]
-	GVC_018,
 
 	[LSCoreValidationMessage(
 		"No IB Gateway install in {0} — expected an ibgateway/<version> folder inside it."
 	)]
 	GVC_019,
 
-	[LSCoreValidationMessage("IBC release {0} has no download for this OS (expected {1}*.zip).")]
-	GVC_020,
+	[LSCoreValidationMessage(
+		"No IB Gateway {1} launcher found in {0}. Use Locate or Browse… to pick the install."
+	)]
+	GVC_022,
 
-	[LSCoreValidationMessage("Downloaded IBC has no scripts/{0} — the release layout changed.")]
-	GVC_021,
+	[LSCoreValidationMessage("IB Gateway closed with code {0} before the login finished.")]
+	GVC_023,
 }

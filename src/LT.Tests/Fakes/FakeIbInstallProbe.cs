@@ -27,15 +27,12 @@ public class FakeIbInstallProbe : IIbInstallProbe
 			.ToList();
 	}
 
-	public IReadOnlyList<string> FindFiles(string root, string fileName, int maxDepth)
+	public IReadOnlyList<string> GetFileNames(string path)
 	{
-		var prefix = Normalize(root) + "/";
+		var prefix = Normalize(path) + "/";
 		return _files
-			.Where(x =>
-				x.StartsWith(prefix)
-				&& Path.GetFileName(x) == fileName
-				&& x[prefix.Length..].Count(c => c == '/') <= maxDepth
-			)
+			.Where(x => x.StartsWith(prefix) && !x[prefix.Length..].Contains('/'))
+			.Select(x => x[prefix.Length..])
 			.ToList();
 	}
 

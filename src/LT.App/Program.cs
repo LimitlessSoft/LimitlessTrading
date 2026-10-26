@@ -16,7 +16,7 @@ using LT.Contracts.Interfaces.IProcesses;
 using LT.Contracts.Interfaces.IRepositories;
 using LT.Domain.Managers;
 using LT.Ibkr;
-using LT.Ibkr.Ibc;
+using LT.Ibkr.Gateway;
 using LT.Repository.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -30,6 +30,7 @@ public static class Program
 	[STAThread]
 	public static void Main(string[] args)
 	{
+		LegacyIbcCleanup.Run();
 		using var host = BuildHost(args);
 		Services = host.Services;
 		host.Start();
@@ -77,7 +78,7 @@ public static class Program
 		builder.Services.AddSingleton<IIbkrApiClient, IbkrApiClient>();
 		builder.Services.AddSingleton<IMessageLogManager, MessageLogManager>();
 		builder.Services.AddSingleton<IConnectionManager, ConnectionManager>();
-		builder.Services.AddSingleton<IIbcGatewayProcess, IbcGatewayProcess>();
+		builder.Services.AddSingleton<IGatewayProcess, GatewayProcess>();
 		builder.Services.AddSingleton<IGatewayManager, GatewayManager>();
 		builder.Services.AddSingleton<IMarketDataManager, MarketDataManager>();
 		builder.Services.AddSingleton<ISettingsManager, SettingsManager>();
