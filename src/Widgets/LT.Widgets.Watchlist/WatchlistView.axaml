@@ -4,6 +4,7 @@
 	xmlns:vm="using:LT.App.Widgets.Watchlist"
 	xmlns:helpers="using:LT.App.Helpers"
 	xmlns:controls="using:LT.App.Controls"
+	xmlns:enums="using:LT.Contracts.Enums"
 	x:Class="LT.App.Widgets.Watchlist.WatchlistView"
 	x:DataType="vm:WatchlistViewModel"
 >
@@ -28,8 +29,10 @@
 			IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
 		/>
 
-		<!-- Rows drag onto a chart (TickerDragDrop) -->
+		<!-- Rows drag onto a chart (TickerDragDrop). Sorting is the view model's (OnGridSorting):
+		     pinned rows stay on top in pin order, the rest follow the clicked column -->
 		<DataGrid
+			x:Name="Grid"
 			helpers:TickerDragDrop.IsSource="True"
 			ItemsSource="{Binding Rows}"
 			SelectedItem="{Binding SelectedRow}"
@@ -38,18 +41,46 @@
 			GridLinesVisibility="Horizontal"
 			HeadersVisibility="Column"
 			KeyDown="OnGridKeyDown"
+			Sorting="OnGridSorting"
 		>
 			<DataGrid.ContextMenu>
 				<ContextMenu>
+					<MenuItem
+						Header="Pin to top"
+						Command="{Binding PinCommand}"
+						IsVisible="{Binding CanPin}"
+					/>
+					<MenuItem
+						Header="Unpin"
+						Command="{Binding UnpinCommand}"
+						IsVisible="{Binding CanUnpin}"
+					/>
 					<MenuItem Header="Remove from watchlist" Command="{Binding RemoveCommand}" />
 				</ContextMenu>
 			</DataGrid.ContextMenu>
 			<DataGrid.Columns>
-				<DataGridTemplateColumn Header="Symbol" Width="*" MinWidth="130" SortMemberPath="Symbol">
+				<DataGridTemplateColumn
+					Header="Symbol"
+					Width="*"
+					MinWidth="130"
+					SortMemberPath="Symbol"
+					Tag="{x:Static enums:WatchlistSortColumn.Symbol}"
+				>
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:WatchlistRowViewModel">
 							<StackPanel Margin="8,2" VerticalAlignment="Center">
 								<StackPanel Orientation="Horizontal" Spacing="4">
+									<!-- Pinned to the top -->
+									<PathIcon
+										Width="10"
+										Height="10"
+										VerticalAlignment="Center"
+										Background="Transparent"
+										Foreground="{DynamicResource SecondaryText}"
+										Data="{StaticResource FramePinIcon}"
+										IsVisible="{Binding IsPinned}"
+										ToolTip.Tip="Pinned to the top"
+									/>
 									<TextBlock FontWeight="SemiBold" Text="{Binding Symbol}" />
 									<TextBlock
 										Classes="warning"
@@ -76,7 +107,12 @@
 						</DataTemplate>
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
-				<DataGridTemplateColumn Header="Last" Width="Auto">
+				<DataGridTemplateColumn
+					Header="Last"
+					Width="Auto"
+					SortMemberPath="LastValue"
+					Tag="{x:Static enums:WatchlistSortColumn.Last}"
+				>
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:WatchlistRowViewModel">
 							<TextBlock
@@ -88,7 +124,12 @@
 						</DataTemplate>
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
-				<DataGridTemplateColumn Header="Chg %" Width="Auto">
+				<DataGridTemplateColumn
+					Header="Chg %"
+					Width="Auto"
+					SortMemberPath="ChangePercentValue"
+					Tag="{x:Static enums:WatchlistSortColumn.ChangePercent}"
+				>
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:WatchlistRowViewModel">
 							<StackPanel Margin="8,0" VerticalAlignment="Center">
@@ -109,7 +150,13 @@
 						</DataTemplate>
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
-				<DataGridTemplateColumn Header="Bid / Ask" Width="Auto">
+				<!-- Sorts by bid -->
+				<DataGridTemplateColumn
+					Header="Bid / Ask"
+					Width="Auto"
+					SortMemberPath="BidValue"
+					Tag="{x:Static enums:WatchlistSortColumn.Bid}"
+				>
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:WatchlistRowViewModel">
 							<StackPanel Margin="8,0" VerticalAlignment="Center">
@@ -119,7 +166,12 @@
 						</DataTemplate>
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
-				<DataGridTemplateColumn Header="Vol" Width="Auto">
+				<DataGridTemplateColumn
+					Header="Vol"
+					Width="Auto"
+					SortMemberPath="VolumeValue"
+					Tag="{x:Static enums:WatchlistSortColumn.Volume}"
+				>
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:WatchlistRowViewModel">
 							<TextBlock
@@ -132,7 +184,12 @@
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
 				<!-- SEC shares outstanding × last; US stocks only -->
-				<DataGridTemplateColumn Header="Mkt Cap" Width="Auto" SortMemberPath="MarketCapValue">
+				<DataGridTemplateColumn
+					Header="Mkt Cap"
+					Width="Auto"
+					SortMemberPath="MarketCapValue"
+					Tag="{x:Static enums:WatchlistSortColumn.MarketCap}"
+				>
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:WatchlistRowViewModel">
 							<TextBlock

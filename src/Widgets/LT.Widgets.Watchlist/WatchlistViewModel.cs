@@ -27,6 +27,15 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 	private readonly ISharesOutstandingManager _sharesOutstandingManager;
 	private CancellationToken _session = new(true);
 
+	// The rows in the watchlist's saved order: the base of every sort, and of no sort
+	private readonly List<WatchlistRowViewModel> _savedOrder = [];
+
+	// A quote (or share count) changed the sorted column; re-sorted on the next resort tick
+	private bool _resortPending;
+
+	// Rows are being moved: the grid drops and restores the selection, which isn't a new pick
+	private bool _reordering;
+
 	public WatchlistViewModel(
 		IWatchlistManager watchlistManager,
 		IContractManager contractManager,
@@ -56,10 +65,103 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 			DispatcherPriority.Background,
 			(_, _) =>
 			{
+				var changed = false;
 				foreach (var row in Rows)
-					row.Flush();
+					changed |= row.Flush();
+				if (changed && WatchlistSortHelpers.DependsOnQuotes(SortColumn))
+					_resortPending = true;
 			}
 		).Start();
+
+		new DispatcherTimer(
+			MarketDataConstants.WatchlistResortInterval,
+			DispatcherPriority.Background,
+			(_, _) =>
+			{
+				if (_resortPending)
+					ApplyOrder();
+			}
+		).Start();
+	}
+
+	/// <summary>The column the unpinned rows are sorted by (header click); pinned rows stay on top.</summary>
+	[ObservableProperty]
+	public partial WatchlistSortColumn SortColumn { get; private set; }
+
+	[ObservableProperty]
+	public partial ListSortDirection SortDirection { get; private set; }
+
+	/// <summary>A sortable column's header was clicked: sort by it, or flip its direction.</summary>
+	public void SortBy(WatchlistSortColumn column)
+	{
+		(SortColumn, SortDirection) = WatchlistSortHelpers.NextSort(
+			SortColumn,
+			SortDirection,
+			column
+		);
+		ApplyOrder();
+	}
+
+	/// <summary>The selected row can be pinned (context menu).</summary>
+	public bool CanPin => SelectedRow is { IsPinned: false };
+
+	/// <summary>The selected row can be unpinned (context menu).</summary>
+	public bool CanUnpin => SelectedRow is { IsPinned: true };
+
+	[RelayCommand]
+	private void Pin(WatchlistRowViewModel? row)
+	{
+		row ??= SelectedRow;
+		if (row != null && Run(() => _watchlistManager.Pin(row.Contract)))
+			LoadPins();
+	}
+
+	[RelayCommand]
+	private void Unpin(WatchlistRowViewModel? row)
+	{
+		row ??= SelectedRow;
+		if (row != null && Run(() => _watchlistManager.Unpin(row.Contract)))
+			LoadPins();
+	}
+
+	// Pin places from the saved watchlist, then the rows in display order
+	private void LoadPins()
+	{
+		var pinned = _watchlistManager.GetPinned();
+		foreach (var row in _savedOrder)
+		{
+			var index = pinned
+				.Select((contract, i) => (contract, i))
+				.FirstOrDefault(x => ContractHelpers.IsSameListing(x.contract, row.Contract));
+			row.PinIndex = index.contract != null ? index.i : null;
+		}
+		OnPropertyChanged(nameof(CanPin));
+		OnPropertyChanged(nameof(CanUnpin));
+		ApplyOrder();
+	}
+
+	// Moves rows where the pins and the sort want them; keeps the selection without republishing it
+	private void ApplyOrder()
+	{
+		_resortPending = false;
+		var order = WatchlistSortHelpers.Order(
+			_savedOrder,
+			row => row.PinIndex,
+			SortColumn,
+			SortDirection,
+			(row, column) => row.GetSortKey(column)
+		);
+		var selected = SelectedRow;
+		_reordering = true;
+		try
+		{
+			if (CollectionHelpers.ApplyOrder(Rows, order) > 0)
+				SelectedRow = selected;
+		}
+		finally
+		{
+			_reordering = false;
+		}
 	}
 
 	public ObservableCollection<WatchlistRowViewModel> Rows { get; } = [];
@@ -190,8 +292,14 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 		foreach (var row in Rows)
 			Stop(row);
 		Rows.Clear();
+		_savedOrder.Clear();
 		foreach (var contract in _watchlistManager.GetItems())
-			Rows.Add(new WatchlistRowViewModel(contract));
+		{
+			var row = new WatchlistRowViewModel(contract);
+			_savedOrder.Add(row);
+			Rows.Add(row);
+		}
+		LoadPins();
 		SelectedRow = Rows.FirstOrDefault();
 		if (IsConnected)
 			foreach (var row in Rows)
@@ -210,7 +318,9 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 
 	partial void OnSelectedRowChanged(WatchlistRowViewModel? value)
 	{
-		if (value != null)
+		OnPropertyChanged(nameof(CanPin));
+		OnPropertyChanged(nameof(CanUnpin));
+		if (value != null && !_reordering)
 			Link.Publish(value.Contract);
 	}
 
@@ -264,7 +374,9 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 		{
 			_watchlistManager.Add(contract);
 			var row = new WatchlistRowViewModel(contract);
+			_savedOrder.Add(row);
 			Rows.Add(row);
+			ApplyOrder();
 			SelectedRow = row;
 			if (IsConnected)
 				Start(row);
@@ -286,8 +398,11 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 
 		Stop(row);
 		_watchlistManager.Remove(row.Contract);
+		_savedOrder.Remove(row);
 		Rows.Remove(row);
 		LoadWatchlists();
+		if (row.IsPinned)
+			LoadPins();
 	}
 
 	private void Start(WatchlistRowViewModel row)
@@ -338,7 +453,12 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITi
 					var shares = await _sharesOutstandingManager
 						.GetSharesOutstandingAsync(row.Contract, token)
 						.ConfigureAwait(false);
-					Dispatcher.UIThread.Post(() => row.SetSharesOutstanding(shares));
+					Dispatcher.UIThread.Post(() =>
+					{
+						row.SetSharesOutstanding(shares);
+						if (SortColumn == WatchlistSortColumn.MarketCap)
+							_resortPending = true;
+					});
 				}
 				catch (OperationCanceledException) { }
 			},
