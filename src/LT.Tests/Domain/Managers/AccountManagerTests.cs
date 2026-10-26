@@ -95,6 +95,40 @@ public class AccountManagerTests
 	}
 
 	[Fact]
+	public async Task Only_orders_of_the_order_connection_can_be_cancelled()
+	{
+		_ibkr.OrderClientId = 101;
+		_ibkr.OpenOrders =
+		[
+			new OpenOrderDto
+			{
+				OrderId = 1,
+				ClientId = 101,
+				Status = "Submitted",
+			},
+			new OpenOrderDto
+			{
+				OrderId = 2,
+				ClientId = 0,
+				Status = "Submitted",
+			},
+			new OpenOrderDto
+			{
+				OrderId = 3,
+				ClientId = 101,
+				Status = "PendingCancel",
+			},
+		];
+
+		var orders = await new OrderManager(_ibkr).GetOpenOrdersAsync(
+			null,
+			TestContext.Current.CancellationToken
+		);
+
+		Assert.Equal([true, false, false], orders.Select(x => x.CanCancel));
+	}
+
+	[Fact]
 	public async Task Executions_are_newest_first()
 	{
 		var now = DateTimeOffset.Now;

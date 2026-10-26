@@ -1,4 +1,5 @@
 using LT.Contracts.Dtos.Contracts;
+using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 using LT.Contracts.Requests.Orders;
@@ -7,6 +8,26 @@ namespace LT.Tests.Contracts.Helpers;
 
 public class OrderHelpersTests
 {
+	[Fact]
+	public void Nothing_can_be_cancelled_while_disconnected() =>
+		Assert.False(
+			OrderHelpers.CanCancel(new OpenOrderDto { ClientId = 101, Status = "Submitted" }, null)
+		);
+
+	[Theory]
+	[InlineData("PreSubmitted", true)]
+	[InlineData("Submitted", true)]
+	[InlineData("PendingCancel", false)]
+	[InlineData("Filled", false)]
+	public void An_own_order_can_be_cancelled_until_a_cancel_or_fill(
+		string status,
+		bool expected
+	) =>
+		Assert.Equal(
+			expected,
+			OrderHelpers.CanCancel(new OpenOrderDto { ClientId = 101, Status = status }, 101)
+		);
+
 	[Theory]
 	[InlineData(1, 101)]
 	[InlineData(32700, 32)]

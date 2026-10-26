@@ -16,6 +16,7 @@ namespace LT.Tests.Fakes;
 public class FakeIbkrApiClient : IIbkrApiClient
 {
 	public bool IsConnected { get; set; }
+	public int? OrderClientId { get; set; }
 	public string? ManagedAccounts { get; set; } = "DU111,DU222";
 	public Exception? ConnectException { get; set; }
 	public Exception? ServerTimeException { get; set; }

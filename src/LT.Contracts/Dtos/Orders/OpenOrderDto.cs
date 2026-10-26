@@ -3,6 +3,9 @@ namespace LT.Contracts.Dtos.Orders;
 public class OpenOrderDto
 {
 	public int OrderId { get; set; }
+
+	/// <summary>The API client that placed it; 0 for TWS.</summary>
+	public int ClientId { get; set; }
 	public long PermId { get; set; }
 	public string Account { get; set; } = string.Empty;
 	public string Symbol { get; set; } = string.Empty;
@@ -15,4 +18,7 @@ public class OpenOrderDto
 	public double? AuxPrice { get; set; }
 	public string TimeInForce { get; set; } = string.Empty;
 	public string Status { get; set; } = string.Empty;
+
+	/// <summary>Placed by this app and still working: the Orders widget can cancel it.</summary>
+	public bool CanCancel { get; set; }
 }

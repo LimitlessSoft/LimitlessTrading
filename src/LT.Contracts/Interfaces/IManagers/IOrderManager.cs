@@ -3,9 +3,10 @@ using LT.Contracts.Requests.Orders;
 
 namespace LT.Contracts.Interfaces.IManagers;
 
-/// <summary>Open orders (read-only, not decoded yet) and placing / cancelling orders.</summary>
+/// <summary>Open orders of every client and TWS, and placing / cancelling orders.</summary>
 public interface IOrderManager
 {
+	/// <summary>Working orders, with <see cref="OpenOrderDto.CanCancel"/> set for this app's own.</summary>
 	Task<IReadOnlyList<OpenOrderDto>> GetOpenOrdersAsync(
 		string? account,
 		CancellationToken cancellationToken = default

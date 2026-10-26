@@ -36,8 +36,8 @@ TWS is powerful but:
 | 1 — Connectivity | Heartbeat + auto-reconnect with backoff, reuse of a Gateway still running on start, message log, account summary + P&L, account picker | **done** — the log holds app events only (IB notices are not routed to it yet) |
 | 2 — Market data | Contract search, watchlist with L1 quotes, request pacing, line limit, delayed-data fallback | **done** — search is by exact symbol (no `reqMatchingSymbols`) |
 | 3 — Charts | Candlestick chart, historical + 5 s real-time bars, local bar cache | **done** |
-| 4 — Trading | Live positions with P&L, open orders, executions | **read-only part done** — open orders and executions wait for IBKR.Net support |
-| 4 — Trading | Order ticket: market / limit, quantity or cash amount, review before send, status, cancel | **built, not yet traded** — no account had crypto permission to fill one; modify and what-if not started |
+| 4 — Trading | Live positions with P&L, open orders, executions | **read-only part done** — executions wait for IBKR.Net support (no fill recorded yet) |
+| 4 — Trading | Order ticket: market / limit, quantity or cash amount, review before send, status, cancel | **built, in use** — first live order (stock limit, 2026-10-26) worked; nothing filled yet; modify and what-if not started |
 | 5 — Workspaces | Settings dialog, workspace where every widget can be spawned (charts several times) and dragged into the center split layout (beside / above / below), a collapsible side strip or its own floating window, saved layout (window, open panels, widths, tab, timeframe), hotkeys | **done** |
 | 5 — Workspaces | Multiple named layouts, dragging strip icons | not started |
 | 6 — Advanced | Option chain (a tab per expiration, strikes around the money, L1 quotes) | **done** — no greeks yet |

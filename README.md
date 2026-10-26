@@ -179,12 +179,12 @@ Deeper reading:
 | ✅ | Shell, connectivity, auto-reconnect, account summary & P&L | done |
 | ✅ | Market data — search, watchlist, quotes, pacing | done |
 | ✅ | Charts — historical + real-time bars, cache | done |
-| ✅ | Positions, open orders, executions (read-only) | done |
+| ✅ | Positions, open orders (read-only) | done — executions wait for IBKR.Net |
 | ✅ | Workspace — docking, split layout, floating windows, saved layout | done |
 | ✅ | Option chain | done |
 | 🔜 | Named layouts | planned |
 | 🔜 | Order ticket with what-if preview, cancel / modify | planned — deliberately separate |
-| 🚧 | Open orders and executions on IBKR.Net, L2 depth, scanners, news, alerts | waiting on IBKR.Net support |
+| 🚧 | Executions on IBKR.Net, L2 depth, scanners, news, alerts | waiting on IBKR.Net support |
 
 Details in [docs/vision.md](docs/vision.md#roadmap-sketch).
 

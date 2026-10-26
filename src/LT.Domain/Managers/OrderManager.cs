@@ -18,6 +18,8 @@ public class OrderManager(IIbkrApiClient ibkrApiClient) : IOrderManager
 			return [];
 
 		var orders = await ibkrApiClient.GetOpenOrdersAsync(cancellationToken);
+		foreach (var order in orders)
+			order.CanCancel = OrderHelpers.CanCancel(order, ibkrApiClient.OrderClientId);
 		return orders
 			.Where(x => string.IsNullOrEmpty(account) || x.Account == account)
 			.OrderBy(x => x.OrderId)

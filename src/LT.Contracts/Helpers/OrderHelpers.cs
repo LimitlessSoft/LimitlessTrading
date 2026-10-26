@@ -13,6 +13,15 @@ public static class OrderHelpers
 		(clientId + OrderConstants.OrderClientIdOffset) % (ConnectionConstants.ClientIdMax + 1);
 
 	/// <summary>
+	/// Whether this app can cancel an open order: IB takes a cancel only from the client that
+	/// placed it (the order connection), and not again once one is under way.
+	/// </summary>
+	public static bool CanCancel(OpenOrderDto order, int? orderClientId) =>
+		orderClientId is { } clientId
+		&& order.ClientId == clientId
+		&& order.Status is not ("PendingCancel" or "Cancelled" or "ApiCancelled" or "Filled");
+
+	/// <summary>
 	/// Time in force values an order may use, the default first. Crypto takes GTC or IOC only
 	/// (IB error 10052), and a crypto market order fills now or never (IOC).
 	/// </summary>

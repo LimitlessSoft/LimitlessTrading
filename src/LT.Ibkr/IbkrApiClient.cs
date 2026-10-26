@@ -48,6 +48,11 @@ public class IbkrApiClient : IIbkrApiClient
 
 	public bool IsConnected => _client?.IsConnected == true;
 
+	public int? OrderClientId =>
+		IsConnected && _endpoint is { } endpoint
+			? OrderHelpers.GetOrderClientId(endpoint.ClientId)
+			: null;
+
 	public string? ManagedAccounts =>
 		_client is { } client ? string.Join(",", client.ManagedAccounts) : null;
 
@@ -235,11 +240,17 @@ public class IbkrApiClient : IIbkrApiClient
 			cancellationToken
 		);
 
-	// Not decoded by IBKR.Net yet: no open order or fill has been recorded from IB
-	public Task<IReadOnlyList<OpenOrderDto>> GetOpenOrdersAsync(
+	// Every client's orders: the ones placed here go out on the order connection's client id
+	public async Task<IReadOnlyList<OpenOrderDto>> GetOpenOrdersAsync(
 		CancellationToken cancellationToken = default
-	) => throw new NotSupportedException(ConnectionValidationCodes.CVC_006.GetValidationMessage());
+	)
+	{
+		await _messages.WaitAsync(cancellationToken);
+		var orders = await RequireClient().GetOpenOrdersAsync(cancellationToken);
+		return orders.ToMappedList<OpenOrder, OpenOrderDto>();
+	}
 
+	// Not decoded by IBKR.Net yet: no fill has been recorded from IB
 	public Task<IReadOnlyList<ExecutionDto>> GetExecutionsAsync(
 		CancellationToken cancellationToken = default
 	) => throw new NotSupportedException(ConnectionValidationCodes.CVC_007.GetValidationMessage());

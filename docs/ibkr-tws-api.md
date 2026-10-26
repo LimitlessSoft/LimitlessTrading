@@ -111,12 +111,13 @@ Limits / caveats:
 | `GetPositionsAsync` / `SubscribePositionsAsync` | `reqPositions` | Snapshot / stream |
 | `SubscribeAccountSummaryAsync` | `reqAccountSummary` | Stream — see error 322 below |
 | `SubscribeAccountPnlAsync` / `SubscribePositionPnlAsync` | `reqPnL` / `reqPnLSingle` | |
+| `GetOpenOrdersAsync` | `reqAllOpenOrders` | Every client's and TWS's orders (0.3.0); `reqOpenOrders` would only return the asking client id's, and LT places orders on the order connection's id |
 
 ### Not covered yet
 
-- **Open orders and executions** (`reqOpenOrders`, `reqExecutions`, commission reports): their
-  frames have not been recorded yet (no open order or fill when we recorded). Until then the
-  Orders and Executions widgets show "not supported yet" (`ConnectionValidationCodes.CVC_006/007`).
+- **Executions** (`reqExecutions`, commission reports): their frames have not been recorded yet
+  (no fill when we recorded). Until then the Executions widget shows "not supported yet"
+  (`ConnectionValidationCodes.CVC_007`).
 - Market depth / Level 2 (`reqMktDepth`), tick-by-tick (`reqTickByTickData`), option greeks
   (`tickOptionComputation`).
 - Scanners (`reqScannerSubscription`), news (`reqNewsProviders` / `reqHistoricalNews`).
@@ -132,6 +133,11 @@ Limits / caveats:
   ticket widget. IBKR.Net places orders only at protocol version **178** (the only order layout
   recorded), so `IbkrApiClient` opens a **second connection** for orders on the first order:
   same host and port, client id `OrderHelpers.GetOrderClientId` (main + 100), capped at 178.
+- Cancelling: the Order ticket (orders sent this session) and the Orders widget (any working
+  order whose client id is the order connection's, `OrderHelpers.CanCancel`). IB takes a cancel
+  only from the client that placed the order, so TWS's and other clients' orders are not
+  cancellable here; an order placed before an app restart still is, because the order connection
+  reconnects with the same client id.
 - An order is a quantity, or for a market order a **cash amount** (`cashQty`, e.g. $10 of BTC).
 - Status comes from orderStatus only; a rejection is an IB error for the order id (e.g. 460 "No
   trading permissions", 435 "You must specify an account" — so the ticket always sends one).

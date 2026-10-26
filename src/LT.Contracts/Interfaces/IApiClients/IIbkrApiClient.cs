@@ -20,6 +20,12 @@ public interface IIbkrApiClient
 {
 	bool IsConnected { get; }
 	string? ManagedAccounts { get; }
+
+	/// <summary>
+	/// Client id orders go out on while connected (<c>OrderHelpers.GetOrderClientId</c>); IB
+	/// cancels an order only for the client that placed it. Null when disconnected.
+	/// </summary>
+	int? OrderClientId { get; }
 	Task ConnectAsync(ConnectRequest request, CancellationToken cancellationToken = default);
 	Task DisconnectAsync();
 	Task<DateTimeOffset> GetServerTimeAsync(CancellationToken cancellationToken = default);

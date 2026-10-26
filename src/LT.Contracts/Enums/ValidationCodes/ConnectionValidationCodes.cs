@@ -20,11 +20,6 @@ public enum ConnectionValidationCodes
 	CVC_005,
 
 	[LSCoreValidationMessage(
-		"Open orders are not supported yet: IBKR.Net reads them once they have been recorded from IB."
-	)]
-	CVC_006,
-
-	[LSCoreValidationMessage(
 		"Executions are not supported yet: IBKR.Net reads them once they have been recorded from IB."
 	)]
 	CVC_007,

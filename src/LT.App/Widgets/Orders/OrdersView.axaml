@@ -17,7 +17,7 @@
 			<TextBlock
 				VerticalAlignment="Center"
 				Classes="secondary"
-				Text="Read-only: orders placed in TWS show up here."
+				Text="Working orders from this app, TWS and other API clients."
 			/>
 			<TextBlock
 				VerticalAlignment="Center"
@@ -34,6 +34,24 @@
 			HeadersVisibility="Column"
 		>
 			<DataGrid.Columns>
+				<!-- IB cancels an order only for the client that placed it: other clients' rows grey out -->
+				<DataGridTemplateColumn Header="">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="dto:OpenOrderDto">
+							<Button
+								Margin="4,0"
+								Padding="8,2"
+								VerticalAlignment="Center"
+								Content="Cancel"
+								Click="OnCancelClick"
+								IsEnabled="{Binding CanCancel}"
+								ToolTip.Tip="Only orders placed from this app can be cancelled here"
+								ToolTip.ServiceEnabled="{Binding !CanCancel}"
+								ToolTip.ShowOnDisabled="True"
+							/>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
 				<DataGridTextColumn x:DataType="dto:OpenOrderDto" Header="Id" Binding="{Binding OrderId}" />
 				<DataGridTextColumn
 					x:DataType="dto:OpenOrderDto"

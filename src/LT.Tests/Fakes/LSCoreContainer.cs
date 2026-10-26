@@ -24,6 +24,7 @@ using LT.Domain.Validators.Options;
 using LT.Domain.Validators.Orders;
 using LT.Domain.Validators.Settings;
 using LT.Domain.Validators.Watchlists;
+using LT.Ibkr.DtoMappings.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LT.Tests.Fakes;
@@ -67,6 +68,10 @@ public static class LSCoreContainer
 				>()
 				.AddSingleton<ILSCoreMapper<ContractDto, ContractEntity>, ContractEntityMapper>()
 				.AddSingleton<ILSCoreMapper<BarEntity, BarDto>, BarDtoMapper>()
+				.AddSingleton<
+					ILSCoreMapper<IBKR.Net.Contract, ContractDto>,
+					IbkrContractDtoMapper
+				>()
 				.AddSingleton<ILSCoreMapper<BarDto, BarEntity>, BarEntityMapper>()
 				.AddSingleton<ILSCoreMapper<LayoutEntity, LayoutDto>, LayoutDtoMapper>()
 				.AddSingleton<ILSCoreMapper<LayoutDto, LayoutEntity>, LayoutEntityMapper>()
