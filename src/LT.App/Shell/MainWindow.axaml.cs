@@ -8,6 +8,7 @@ using LT.App.Controls;
 using LT.App.Stores;
 using LT.App.Widgets.Gateway;
 using LT.App.Widgets.OrderTicket;
+using LT.App.Widgets.PatchNotes;
 using LT.App.Widgets.Settings;
 using LT.App.Workspace;
 using LT.Contracts.Dtos.Orders;
@@ -22,6 +23,7 @@ public partial class MainWindow : AppWindow, IFullscreenHost
 	private readonly SettingsNavigator? _settingsNavigator;
 	private readonly OrderTicketNavigator? _orderTicketNavigator;
 	private bool _settingsOpen;
+	private PatchNotesWindow? _patchNotesWindow;
 
 	// Set once closing means exiting the app (chosen, or an update restart): no more asking
 	private bool _closeConfirmed;
@@ -81,7 +83,7 @@ public partial class MainWindow : AppWindow, IFullscreenHost
 
 	// A Gateway still running from an earlier session is reused; otherwise Gateway is the only way
 	// in and the password isn't stored, so ask right away. The extra windows of the last session
-	// come back.
+	// come back, and after an update the patch notes open.
 	private void OnOpened(object? sender, EventArgs e)
 	{
 		if (ViewModel?.Windows is { } windows)
@@ -90,7 +92,7 @@ public partial class MainWindow : AppWindow, IFullscreenHost
 				OpenWorkspaceWindow(window);
 			windows.Windows.CollectionChanged += OnWorkspaceWindowsChanged;
 		}
-		_ = AttachOrLogInAsync();
+		_ = StartUpAsync();
 	}
 
 	private void OnWorkspaceWindowsChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -127,6 +129,25 @@ public partial class MainWindow : AppWindow, IFullscreenHost
 		if (await connectionBar.AttachRunningGatewayAsync())
 			return;
 		await GatewayWindow.ShowAsync(this);
+	}
+
+	// First start on a new version (after an update): what changed, after the log-in dialog
+	private async Task StartUpAsync()
+	{
+		await AttachOrLogInAsync();
+		if (ViewModel?.Update.TakeIsNewVersion() == true)
+			OpenPatchNotes();
+	}
+
+	private void OpenPatchNotes()
+	{
+		if (_patchNotesWindow != null)
+		{
+			_patchNotesWindow.Activate();
+			return;
+		}
+		_patchNotesWindow = PatchNotesWindow.Open(this);
+		_patchNotesWindow.Closed += (_, _) => _patchNotesWindow = null;
 	}
 
 	/// <summary>Exits the app without asking; every open window is kept for the next start.</summary>
@@ -285,6 +306,8 @@ public partial class MainWindow : AppWindow, IFullscreenHost
 		if (ViewModel?.Update.ReleasePageUrl is { } url)
 			_ = Launcher.LaunchUriAsync(new Uri(url));
 	}
+
+	private void OnPatchNotesClick(object? sender, RoutedEventArgs e) => OpenPatchNotes();
 
 	private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
 }

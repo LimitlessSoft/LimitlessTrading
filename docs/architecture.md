@@ -140,6 +140,13 @@ LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
   Gateway running so the new version reuses it. Builds from source have version `0.0.0-dev`
   (`Directory.Build.props`; the release workflow passes `-p:Version`): they never check by
   themselves and can't install.
+- Patch notes (menu → *Patch notes*) come from the same GitHub Releases: `IPatchNotesManager`
+  (singleton) fetches the release list through `IAppUpdater.GetReleasesAsync`, parses each body
+  with `PatchNotesHelpers.ParseEntries` (GitHub's generated "What's Changed" lines, author and
+  link dropped, PR number kept) and caches the raw releases in `patch-notes.json`
+  (`IPatchNotesRepository`), so the window opens at once and offline; it refreshes on every open.
+  The same file holds the last version run: the first start on a newer one opens the patch notes
+  after the log-in dialog (never on the very first start or from a source build).
 - `host.UseLSCoreDependencyInjection()` must run right after `Build()` — `request.Validate()`
   resolves validators through it.
 - ViewModels have no interfaces, so they're registered explicitly as transient.

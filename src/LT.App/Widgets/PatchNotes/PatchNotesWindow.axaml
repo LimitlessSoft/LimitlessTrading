@@ -1,0 +1,101 @@
+<controls:AppWindow
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.PatchNotes"
+	xmlns:controls="using:LT.App.Controls"
+	x:Class="LT.App.Widgets.PatchNotes.PatchNotesWindow"
+	x:DataType="vm:PatchNotesViewModel"
+	Title="Patch notes"
+	CanMinimize="False"
+	Width="620"
+	Height="680"
+	MinWidth="420"
+	MinHeight="320"
+	WindowStartupLocation="CenterOwner"
+>
+	<Window.Styles>
+		<!-- "You're here" next to the running version -->
+		<Style Selector="Border.currentBadge">
+			<Setter Property="Padding" Value="8,1" />
+			<Setter Property="CornerRadius" Value="9" />
+			<Setter Property="VerticalAlignment" Value="Center" />
+			<Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
+		</Style>
+		<Style Selector="TextBlock.error">
+			<Setter Property="Foreground" Value="{DynamicResource NegativeBrush}" />
+		</Style>
+		<Style Selector="HyperlinkButton.pullRequest">
+			<Setter Property="Padding" Value="0" />
+			<Setter Property="VerticalAlignment" Value="Top" />
+		</Style>
+	</Window.Styles>
+
+	<DockPanel Margin="20,12,20,16">
+		<DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+			<Button DockPanel.Dock="Right" Content="Refresh" Command="{Binding RefreshCommand}" />
+			<StackPanel VerticalAlignment="Center" Spacing="2">
+				<TextBlock
+					Classes="secondary"
+					TextWrapping="Wrap"
+					Text="What changed in each version of LimitlessTrading."
+				/>
+				<TextBlock
+					TextWrapping="Wrap"
+					Classes.secondary="{Binding !IsError}"
+					Classes.error="{Binding IsError}"
+					IsVisible="{Binding StatusText, Converter={x:Static ObjectConverters.IsNotNull}}"
+					Text="{Binding StatusText}"
+				/>
+			</StackPanel>
+		</DockPanel>
+
+		<ScrollViewer>
+			<ItemsControl ItemsSource="{Binding Releases}">
+				<ItemsControl.ItemTemplate>
+					<DataTemplate x:DataType="vm:PatchNotesReleaseItem">
+						<StackPanel Margin="0,0,12,20" Spacing="6">
+							<StackPanel Orientation="Horizontal" Spacing="10">
+								<TextBlock FontSize="16" FontWeight="SemiBold" Text="{Binding Version}" />
+								<Border Classes="currentBadge" IsVisible="{Binding IsCurrent}">
+									<TextBlock FontSize="11" Foreground="White" Text="You're here" />
+								</Border>
+								<TextBlock
+									VerticalAlignment="Center"
+									Classes="secondary"
+									Text="{Binding DateText}"
+								/>
+							</StackPanel>
+							<ItemsControl ItemsSource="{Binding Entries}">
+								<ItemsControl.ItemTemplate>
+									<DataTemplate x:DataType="vm:PatchNoteEntryItem">
+										<Grid Margin="0,2" ColumnDefinitions="14,*,Auto" ColumnSpacing="8">
+											<TextBlock Classes="secondary" Text="•" />
+											<TextBlock Grid.Column="1" TextWrapping="Wrap" Text="{Binding Text}" />
+											<HyperlinkButton
+												Grid.Column="2"
+												Classes="pullRequest"
+												IsVisible="{Binding PullRequestUri, Converter={x:Static ObjectConverters.IsNotNull}}"
+												Content="{Binding PullRequestText}"
+												NavigateUri="{Binding PullRequestUri}"
+												ToolTip.Tip="Open the pull request in the browser"
+											/>
+										</Grid>
+									</DataTemplate>
+								</ItemsControl.ItemTemplate>
+							</ItemsControl>
+							<StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasNoEntries}">
+								<TextBlock Classes="secondary" Text="No changes listed." />
+								<HyperlinkButton
+									Classes="pullRequest"
+									Content="Release page"
+									IsVisible="{Binding PageUri, Converter={x:Static ObjectConverters.IsNotNull}}"
+									NavigateUri="{Binding PageUri}"
+								/>
+							</StackPanel>
+						</StackPanel>
+					</DataTemplate>
+				</ItemsControl.ItemTemplate>
+			</ItemsControl>
+		</ScrollViewer>
+	</DockPanel>
+</controls:AppWindow>

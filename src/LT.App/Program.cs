@@ -6,6 +6,7 @@ using LT.App.Shell;
 using LT.App.Stores;
 using LT.App.Widgets.ConnectionBar;
 using LT.App.Widgets.Gateway;
+using LT.App.Widgets.PatchNotes;
 using LT.App.Widgets.Settings;
 using LT.App.Workspace;
 using LT.Contracts.Constants;
@@ -85,6 +86,7 @@ public static class Program
 		builder.Services.AddSingleton<ITradeJournalRepository, TradeJournalRepository>();
 		builder.Services.AddSingleton<IFlexImportStateRepository, FlexImportStateRepository>();
 		builder.Services.AddSingleton<ISharesOutstandingRepository, SharesOutstandingRepository>();
+		builder.Services.AddSingleton<IPatchNotesRepository, PatchNotesRepository>();
 		builder.Services.AddSingleton<IIbkrApiClient, IbkrApiClient>();
 		// One HttpClient and one pacing state for every Flex request (IB's limits are per token)
 		builder.Services.AddSingleton<IFlexApiClient>(services => new FlexApiClient(
@@ -105,6 +107,8 @@ public static class Program
 		builder.Services.AddSingleton<ISettingsManager, SettingsManager>();
 		builder.Services.AddSingleton<IAppUpdater, AppUpdater>();
 		builder.Services.AddSingleton<IUpdateManager, UpdateManager>();
+		// One cached list and one refresh at a time for every patch notes window
+		builder.Services.AddSingleton<IPatchNotesManager, PatchNotesManager>();
 		builder.Services.AddSingleton<IAccountPerformanceManager, AccountPerformanceManager>();
 		builder.Services.AddSingleton<ITradeJournalManager, TradeJournalManager>();
 		builder.Services.AddSingleton<IFlexImportManager, FlexImportManager>();
@@ -154,6 +158,7 @@ public static class Program
 		builder.Services.AddTransient<TradingPageViewModel>();
 		builder.Services.AddTransient<SettingsViewModel>();
 		builder.Services.AddTransient<GatewayViewModel>();
+		builder.Services.AddTransient<PatchNotesViewModel>();
 		foreach (var widget in WidgetCatalog.Definitions)
 			builder.Services.AddTransient(widget.ViewModelType);
 

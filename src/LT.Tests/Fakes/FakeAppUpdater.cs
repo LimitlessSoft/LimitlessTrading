@@ -10,6 +10,8 @@ public class FakeAppUpdater : IAppUpdater
 	public string AssetSuffix { get; set; } = "-linux-x64.tar.gz";
 	public string? CannotInstallReason { get; set; }
 	public Exception? CheckError { get; set; }
+	public Exception? ReleasesError { get; set; }
+	public int ReleasesRequests { get; private set; }
 	public Exception? DownloadError { get; set; }
 	public AppReleaseAssetDto? Downloaded { get; private set; }
 	public bool Restarted { get; private set; }
@@ -35,6 +37,17 @@ public class FakeAppUpdater : IAppUpdater
 		CheckError is null
 			? Task.FromResult(Release)
 			: Task.FromException<AppReleaseDto>(CheckError);
+
+	/// <summary>Served by <see cref="GetReleasesAsync"/> (the patch notes), newest first.</summary>
+	public List<AppReleaseDto> Releases { get; set; } = [];
+
+	public Task<List<AppReleaseDto>> GetReleasesAsync(CancellationToken cancellationToken = default)
+	{
+		ReleasesRequests++;
+		return ReleasesError is null
+			? Task.FromResult(Releases)
+			: Task.FromException<List<AppReleaseDto>>(ReleasesError);
+	}
 
 	public Task DownloadAsync(
 		AppReleaseAssetDto asset,

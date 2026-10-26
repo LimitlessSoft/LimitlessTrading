@@ -6,6 +6,10 @@ public class AppReleaseDto
 	/// <summary>The tag, e.g. "v0.2.0".</summary>
 	public string Tag { get; set; } = string.Empty;
 	public string PageUrl { get; set; } = string.Empty;
+	public DateTimeOffset? PublishedAt { get; set; }
+
+	/// <summary>The release notes, Markdown (GitHub's generated "What's Changed" list).</summary>
+	public string Body { get; set; } = string.Empty;
 	public List<AppReleaseAssetDto> Assets { get; set; } = [];
 }
 

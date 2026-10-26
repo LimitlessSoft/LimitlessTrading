@@ -17,11 +17,17 @@ public partial class UpdateViewModel : ViewModelBase
 {
 	private readonly IUpdateManager _updateManager;
 	private readonly IMessageLogManager _messageLogManager;
+	private readonly IPatchNotesManager _patchNotesManager;
 
-	public UpdateViewModel(IUpdateManager updateManager, IMessageLogManager messageLogManager)
+	public UpdateViewModel(
+		IUpdateManager updateManager,
+		IMessageLogManager messageLogManager,
+		IPatchNotesManager patchNotesManager
+	)
 	{
 		_updateManager = updateManager;
 		_messageLogManager = messageLogManager;
+		_patchNotesManager = patchNotesManager;
 		Apply(updateManager.Status);
 		updateManager.StatusChanged += status => Dispatcher.UIThread.Post(() => Apply(status));
 	}
@@ -72,6 +78,12 @@ public partial class UpdateViewModel : ViewModelBase
 				$"You're on the latest version ({_updateManager.Status.CurrentVersion})."
 			);
 	}
+
+	/// <summary>
+	/// True once if this is the first start on a newer version than the last one run (the main
+	/// window then opens the patch notes).
+	/// </summary>
+	public bool TakeIsNewVersion() => _patchNotesManager.TakeIsNewVersion();
 
 	private void Apply(UpdateStatusDto status)
 	{
