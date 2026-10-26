@@ -141,6 +141,8 @@ public class IbkrNewsSourceTests
 			.GetAsyncEnumerator(Ct);
 
 		Assert.True(await live.MoveNextAsync());
+		// The two tapes are pumped in parallel: the first headline can beat the other subscription
+		await _ibkr.WaitForNewsSubscriptionsAsync(2, Ct);
 		Assert.Equal(0, live.Current.ContractId);
 		Assert.Equal(2, _marketData.ActiveLines);
 		Assert.Equal([2, 3], _ibkr.NewsSubscriptions.Select(x => x.Contract.ConId).Order());
