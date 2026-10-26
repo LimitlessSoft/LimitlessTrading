@@ -33,10 +33,7 @@ public class IbkrApiClient : IIbkrApiClient
 		MarketDataConstants.MaxMessagesPerSecond,
 		TimeSpan.FromSeconds(1)
 	);
-	private readonly RequestThrottle _historical = new(
-		MarketDataConstants.MaxHistoricalRequests,
-		MarketDataConstants.HistoricalWindow
-	);
+	private readonly HistoricalPacing _historical = new();
 
 	private readonly SemaphoreSlim _orderConnect = new(1, 1);
 
@@ -216,7 +213,7 @@ public class IbkrApiClient : IIbkrApiClient
 		CancellationToken cancellationToken = default
 	)
 	{
-		await _historical.WaitAsync(cancellationToken);
+		await _historical.WaitAsync(barSize, cancellationToken);
 		await _messages.WaitAsync(cancellationToken);
 		var bars = await RequireClient()
 			.GetHistoricalBarsAsync(

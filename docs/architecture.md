@@ -46,7 +46,8 @@ src/
 │   ├── DtoMappings/               # IBKR.Net types ↔ LT.Contracts DTOs
 │   ├── Gateway/                   # GatewayProcess — starts / stops IB Gateway's launcher
 │   ├── Flex/                      # FlexApiClient (HTTPS, no IBKR.Net) + FlexStatementParser
-│   ├── RequestThrottle.cs         # IB pacing (messages/s, historical requests / 10 min)
+│   ├── RequestThrottle.cs         # IB pacing (messages/s, sliding window)
+│   ├── HistoricalPacing.cs        # historical requests / 10 min, bars of 30 s or less only
 │   └── IbkrApiClient.cs           # implements IIbkrApiClient over IBKR.Net (+ order connection)
 ├── LT.Indicators.Sdk/             # Series, Ta, Indicator — what indicators are written against;
 │                                  #   references nothing (scripts compile against it alone)
