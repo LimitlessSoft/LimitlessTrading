@@ -289,6 +289,13 @@ on the shown watchlist. `IWatchlistManager` keeps them in `SettingsEntity.Watchl
 (`WatchlistHelpers.EnsureWatchlists`). A fresh install (no settings file) starts with a "US" list
 of SPY, MSFT, NVDA and TSLA (`WatchlistHelpers.CreateFirstRunSettings`).
 
+The **Mkt Cap** column is the SEC's shares outstanding × the row's last price (previous close
+before the first trade), recomputed on every UI flush and sortable by its numeric value
+(`MarketCapValue`). Only US stocks (STK in USD) get one; anything else, and stocks the SEC has no
+usable count for (ETFs, foreign filers), show "—". Starting a row's quote also starts its
+`ISharesOutstandingManager` lookup (cached on disk, so normally instant); the result is posted to
+the row on the UI thread. Columns are fixed: nothing about them is persisted.
+
 ### Pinned side widgets
 
 A widget docked on a side has a pin in its header. Pinned (the default) it stays expanded until

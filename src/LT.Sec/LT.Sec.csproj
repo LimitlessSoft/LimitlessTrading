@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<!-- SEC EDGAR's public JSON (shares outstanding for market cap); no IB code -->
+	<ItemGroup>
+		<ProjectReference Include="..\LT.Contracts\LT.Contracts.csproj" />
+	</ItemGroup>
+</Project>

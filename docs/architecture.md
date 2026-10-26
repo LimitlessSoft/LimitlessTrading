@@ -41,6 +41,7 @@ src/
 │   └── Validators/                # LSCoreValidatorBase<TRequest>
 ├── LT.Repository/
 │   └── Repositories/              # SettingsRepository (JSON in the user's app-data folder)
+├── LT.Sec/                       # SecApiClient + SecJsonParser: SEC EDGAR (shares outstanding)
 ├── LT.Ibkr/
 │   ├── DtoMappings/               # IBKR.Net types ↔ LT.Contracts DTOs
 │   ├── Gateway/                   # GatewayProcess — starts / stops IB Gateway's launcher
@@ -89,6 +90,8 @@ LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
   and resources (`App.axaml`) still apply to them; their `StaticResource`s resolve at runtime.
   Code moved out of `LT.App` kept its `LT.App.*` namespaces (`LT.App.Widgets.<Widget>`,
   `LT.App.Stores`, …).
+- `LT.Sec` is the typed client of SEC EDGAR (public JSON over HTTPS, no IB): the second external
+  API, in its own project like `LT.Ibkr`, referencing only `LT.Contracts`.
 - `LT.App` is the composition root: it references every layer only to wire DI. ViewModels inject
   **managers** (`IConnectionManager`), never repositories or `IIbkrApiClient` directly — same rule as
   Termodom controllers.
@@ -115,6 +118,9 @@ LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
 - `IFlexApiClient` is registered with a factory (`FlexApiClient.CreateHttpClient()` — timeout and
   the User-Agent IB requires — plus `TimeProvider`) as one singleton, so one `HttpClient` and one
   pacing state serve every Flex request.
+- `ISecApiClient` is registered the same way (`SecApiClient.CreateHttpClient()`: timeout, gzip,
+  and the User-Agent with a contact address the SEC requires), one singleton so one request gate
+  serves the app. `ISharesOutstandingManager` is a singleton so lookups are shared.
 - `UpdateScheduler` (also a `BackgroundService`) clears the previous version's folder left by an
   update, then has `IUpdateManager` check GitHub Releases ~10 s after start and every 6 h.
   `AppUpdater` (`LT.App/Services`) does the platform work: download, SHA-256 check against
@@ -177,6 +183,24 @@ never touch them. All live under the OS app-data folder
 (`Environment.SpecialFolder.ApplicationData`: `%APPDATA%\LimitlessTrading` on Windows,
 `~/.config/LimitlessTrading` on Linux and macOS). When we need queryable local data (layouts,
 journal) the plan is SQLite + EF Core behind the same repository interfaces.
+
+### External data: SEC EDGAR
+
+The watchlist's market cap needs shares outstanding, which IB only has behind the fundamentals
+entitlement (tick 258, [error 10358](ibkr-tws-api.md#fundamentals-10358)). `SharesOutstandingManager`
+gets them from SEC EDGAR instead: `company_tickers.json` maps the ticker to a CIK (loaded once per
+run; IB's `BRK B` is the SEC's `BRK-B`), then `companyconcept/…/dei/EntityCommonStockSharesOutstanding`
+gives the cover-page counts; when that has nothing usable, `companyfacts` (several MB) adds
+`us-gaap:CommonStockSharesOutstanding`, which multi-class companies (Alphabet) report undivided.
+`MarketCapHelpers.PickSharesOutstanding` takes the newest count from a 10-K / 10-Q no older than
+400 days: 20-F / 40-F counts are ordinary shares that an ADR's price doesn't match, and old counts
+(Berkshire's cover page stops in 2011) would be wrong.
+
+Results are kept in `shares-outstanding.json` (`SharesOutstandingRepository`, outside the data
+cache, so the Cache settings don't apply) keyed by SEC ticker: a count is looked up again after
+7 days, "nothing usable" after 3. One lookup per ticker runs at a time; `SecApiClient` sends one
+request at a time, 125 ms apart (the SEC allows 10/s). After a failure no lookup starts for
+5 minutes, the failure is logged once (source "SEC") and a stale count is used if there is one.
 
 ### Data cache
 

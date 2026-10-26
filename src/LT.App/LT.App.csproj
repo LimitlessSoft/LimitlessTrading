@@ -11,6 +11,7 @@
 		<ProjectReference Include="..\LT.Contracts\LT.Contracts.csproj" />
 		<ProjectReference Include="..\LT.Domain\LT.Domain.csproj" />
 		<ProjectReference Include="..\LT.Repository\LT.Repository.csproj" />
+		<ProjectReference Include="..\LT.Sec\LT.Sec.csproj" />
 		<ProjectReference Include="..\LT.Ibkr\LT.Ibkr.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.Core\LT.Widgets.Core.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.Account\LT.Widgets.Account.csproj" />

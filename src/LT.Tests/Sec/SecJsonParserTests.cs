@@ -1,0 +1,85 @@
+using LT.Contracts.Helpers;
+using LT.Sec;
+
+namespace LT.Tests.Sec;
+
+public class SecJsonParserTests
+{
+	[Fact]
+	public void Company_tickers_map_upper_case_tickers_to_ciks_first_listing_wins()
+	{
+		const string json = """
+			{"0":{"cik_str":1045810,"ticker":"NVDA","title":"NVIDIA CORP"},
+			 "1":{"cik_str":320193,"ticker":"AAPL","title":"Apple Inc."},
+			 "2":{"cik_str":1067983,"ticker":"BRK-B","title":"BERKSHIRE HATHAWAY INC"},
+			 "3":{"cik_str":999,"ticker":"aapl","title":"Duplicate"},
+			 "4":{"ticker":"NOCIK"}}
+			""";
+
+		var map = SecJsonParser.ParseCompanyTickers(json);
+
+		Assert.Equal(3, map.Count);
+		Assert.Equal(320193, map["AAPL"]);
+		Assert.Equal(1067983, map["BRK-B"]);
+	}
+
+	[Fact]
+	public void Concept_reads_share_values_and_the_newest_us_report_is_picked()
+	{
+		const string json = """
+			{"cik":320193,"taxonomy":"dei","tag":"EntityCommonStockSharesOutstanding",
+			 "units":{"shares":[
+			  {"end":"2026-04-17","val":14687356000,"accn":"a","fy":2026,"fp":"Q2","form":"10-Q","filed":"2026-05-01"},
+			  {"end":"2026-07-17","val":14594180000,"accn":"b","fy":2026,"fp":"Q3","form":"10-Q","filed":"2026-07-31"},
+			  {"end":"2026-01-16","val":14681140000,"accn":"c","fy":2026,"fp":"Q1","form":"10-Q","filed":"2026-01-30"}
+			 ]}}
+			""";
+
+		var facts = SecJsonParser.ParseConcept(json);
+		var picked = MarketCapHelpers.PickSharesOutstanding(facts, new DateOnly(2026, 10, 26));
+
+		Assert.Equal(3, facts.Count);
+		Assert.NotNull(picked);
+		Assert.Equal(14_594_180_000, picked.Shares);
+		Assert.Equal(new DateOnly(2026, 7, 17), picked.AsOf);
+	}
+
+	[Fact]
+	public void Company_facts_combine_the_cover_page_and_balance_sheet_counts()
+	{
+		const string json = """
+			{"cik":1652044,"entityName":"Alphabet Inc.","facts":{
+			 "dei":{"EntityPublicFloat":{"units":{"USD":[{"end":"2025-06-30","val":1,"form":"10-K","filed":"2026-02-01"}]}}},
+			 "us-gaap":{
+			  "CommonStockSharesOutstanding":{"units":{"shares":[
+			   {"end":"2026-03-31","val":12116000000,"form":"10-Q","filed":"2026-04-30"},
+			   {"end":"2026-06-30","val":12230000000,"form":"10-Q","filed":"2026-07-23"}]}},
+			  "Revenues":{"units":{"USD":[{"end":"2026-06-30","val":5,"form":"10-Q","filed":"2026-07-23"}]}}}}}
+			""";
+
+		var facts = SecJsonParser.ParseCompanyShareFacts(json);
+
+		Assert.Equal(2, facts.Count);
+		Assert.Equal(
+			12_230_000_000,
+			MarketCapHelpers.PickSharesOutstanding(facts, new DateOnly(2026, 10, 26))?.Shares
+		);
+	}
+
+	[Fact]
+	public void Missing_units_or_malformed_entries_are_skipped()
+	{
+		const string json = """
+			{"units":{"shares":[
+			  {"end":"not a date","val":1,"form":"10-Q","filed":"2026-01-01"},
+			  {"end":"2026-01-01","form":"10-Q","filed":"2026-01-01"},
+			  {"end":"2026-01-01","val":7,"form":"10-Q","filed":"2026-01-02"}]}}
+			""";
+
+		var facts = SecJsonParser.ParseConcept(json);
+
+		Assert.Equal(7, Assert.Single(facts).Value);
+		Assert.Empty(SecJsonParser.ParseConcept("""{"units":{"USD":[]}}"""));
+		Assert.Empty(SecJsonParser.ParseCompanyShareFacts("""{"cik":1}"""));
+	}
+}

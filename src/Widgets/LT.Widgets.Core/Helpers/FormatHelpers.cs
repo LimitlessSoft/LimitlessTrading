@@ -48,6 +48,17 @@ public static class FormatHelpers
 			_ => value.Value.ToString("#,0", CultureInfo.CurrentCulture),
 		};
 
+	/// <summary>Compact market cap: 2.41T, 182.3B, 950.2M, 12,345.</summary>
+	public static string MarketCap(double? value) =>
+		value switch
+		{
+			null => Empty,
+			>= 1e12 => (value.Value / 1e12).ToString("0.00", CultureInfo.CurrentCulture) + "T",
+			>= 1e9 => (value.Value / 1e9).ToString("0.0", CultureInfo.CurrentCulture) + "B",
+			>= 1e6 => (value.Value / 1e6).ToString("0.0", CultureInfo.CurrentCulture) + "M",
+			_ => value.Value.ToString("#,0", CultureInfo.CurrentCulture),
+		};
+
 	/// <summary>Date and time in <paramref name="zone"/> (the display zone).</summary>
 	public static string Time(DateTimeOffset? value, TimeZoneInfo zone) =>
 		value is { } v
