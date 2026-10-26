@@ -24,10 +24,12 @@ namespace LT.App.Widgets.News;
 /// contract, past headlines first, then live ones. All news: the broad tapes of the selected
 /// providers, live. Live headlines are read off the UI thread and added in batches; the list keeps
 /// <see cref="NewsConstants.MaxHeadlinesShown"/>, newest first. Selecting one loads its article.
+/// The header title is a ticker box: a ticker typed there becomes the linked contract.
 /// </summary>
-public partial class NewsViewModel : ConnectedViewModelBase, ILinkable, IWidgetState
+public partial class NewsViewModel : ConnectedViewModelBase, ILinkable, IWidgetState, ITickerTitled
 {
 	private readonly INewsManager _newsManager;
+	private readonly IContractManager _contractManager;
 	private readonly DisplayTimeStore _displayTime;
 	private readonly ZonedText _articleMeta;
 	private readonly List<NewsHeadlineDto> _all = [];
@@ -50,6 +52,7 @@ public partial class NewsViewModel : ConnectedViewModelBase, ILinkable, IWidgetS
 
 	public NewsViewModel(
 		INewsManager newsManager,
+		IContractManager contractManager,
 		IConnectionManager connectionManager,
 		LinkGroupStore linkGroupStore,
 		DisplayTimeStore displayTime
@@ -57,11 +60,18 @@ public partial class NewsViewModel : ConnectedViewModelBase, ILinkable, IWidgetS
 		: base(connectionManager)
 	{
 		_newsManager = newsManager;
+		_contractManager = contractManager;
 		_displayTime = displayTime;
 		_articleMeta = new ZonedText(x => ArticleMeta = x ?? string.Empty);
 		displayTime.ZoneChanged += OnZoneChanged;
 		Link = new ContractLink(linkGroupStore, () => _contract);
 		Link.ContractReceived += OnContractReceived;
+		TickerEditor = new TickerTitleEditor(
+			contractManager,
+			() => IsConnected,
+			OpenTickerAsync,
+			OpenContract
+		);
 		_contract = linkGroupStore.Get(Link.Group);
 		UpdateTitle();
 		InfoText = "Connect to IB to see news.";
@@ -69,6 +79,9 @@ public partial class NewsViewModel : ConnectedViewModelBase, ILinkable, IWidgetS
 
 	/// <summary>Linked mode follows the group's contract (watchlist, positions, a chart).</summary>
 	public ContractLink Link { get; }
+
+	/// <summary>The header title's ticker box: typing a ticker there shows its news.</summary>
+	public TickerTitleEditor TickerEditor { get; }
 
 	public ObservableCollection<NewsProviderChip> Providers { get; } = [];
 
@@ -190,6 +203,27 @@ public partial class NewsViewModel : ConnectedViewModelBase, ILinkable, IWidgetS
 
 	public void ShowDocumentError(string message) => ArticleError = message;
 
+	/// <summary>Ticker box: resolves the ticker and shows its news.</summary>
+	public async Task OpenTickerAsync(string ticker)
+	{
+		ErrorMessage = null;
+		try
+		{
+			ShowContract(await _contractManager.ResolveTickerAsync(ticker));
+		}
+		catch (Exception ex)
+		{
+			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
+		}
+	}
+
+	/// <summary>Ticker box: a recent or suggested listing, already resolved.</summary>
+	public void OpenContract(ContractDto contract)
+	{
+		_contractManager.AddRecentContract(contract);
+		ShowContract(contract);
+	}
+
 	public override void Dispose()
 	{
 		_displayTime.ZoneChanged -= OnZoneChanged;
@@ -288,6 +322,19 @@ public partial class NewsViewModel : ConnectedViewModelBase, ILinkable, IWidgetS
 			OnPropertyChanged(nameof(IsLinkedMode));
 			OnPropertyChanged(nameof(IsAllMode));
 		}
+	}
+
+	// A ticker typed here switches to Linked mode and moves the link group along, like a chart's
+	private void ShowContract(ContractDto contract)
+	{
+		var changed = contract.ConId != _contract?.ConId;
+		_contract = contract;
+		UpdateTitle();
+		Link.Publish(contract);
+		if (Mode != NewsMode.Linked)
+			Mode = NewsMode.Linked; // restarts the feed
+		else if (changed)
+			StartFeed();
 	}
 
 	private void OnContractReceived(ContractDto contract)
