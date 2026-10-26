@@ -29,7 +29,11 @@ namespace LT.App.Widgets.Chart;
 /// fills of the contract are drawn on it (trade journal: socket executions and IB Flex), closed
 /// quantity joined entry → exit, and the break-even of an open position (live positions only).
 /// </summary>
-public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILinkable
+public partial class ChartViewModel
+	: ConnectedViewModelBase,
+		IWidgetState,
+		ILinkable,
+		ITickerDropTarget
 {
 	private readonly IChartManager _chartManager;
 	private readonly IContractManager _contractManager;
@@ -118,6 +122,22 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 	{
 		_contractManager.AddRecentContract(contract);
 		ShowContract(contract);
+	}
+
+	/// <summary>
+	/// A ticker dragged onto this chart (from a watchlist, positions, orders or executions row):
+	/// shown here like a picked one and added to the recent tickers, but only this chart switches —
+	/// the link group keeps its contract, so other charts stay put. The chart stays in its group
+	/// and follows the group's next contract.
+	/// </summary>
+	public void DropContract(ContractDto contract)
+	{
+		ErrorMessage = null;
+		_contractManager.AddRecentContract(contract);
+		if (contract.ConId == _contract?.ConId)
+			return;
+		_contract = contract;
+		Reload();
 	}
 
 	// A ticker picked here moves every widget in this chart's link group along

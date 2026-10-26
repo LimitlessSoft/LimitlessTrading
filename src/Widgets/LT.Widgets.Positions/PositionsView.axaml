@@ -2,6 +2,7 @@
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:LT.App.Widgets.Positions"
+	xmlns:helpers="using:LT.App.Helpers"
 	x:Class="LT.App.Widgets.Positions.PositionsView"
 	x:DataType="vm:PositionsViewModel"
 >
@@ -32,7 +33,9 @@
 				IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
 			/>
 		</StackPanel>
+		<!-- Rows drag onto a chart (TickerDragDrop) -->
 		<DataGrid
+			helpers:TickerDragDrop.IsSource="True"
 			ItemsSource="{Binding Positions}"
 			SelectedItem="{Binding SelectedPosition}"
 			IsReadOnly="True"

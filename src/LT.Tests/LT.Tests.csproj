@@ -11,6 +11,8 @@
 		<ProjectReference Include="..\LT.Repository\LT.Repository.csproj" />
 		<!-- UI-free helpers only (FlexStatusHelpers); no view is created in tests -->
 		<ProjectReference Include="..\Widgets\LT.Widgets.Core\LT.Widgets.Core.csproj" />
+		<!-- Chart view model only (dropping a ticker); its view is never created -->
+		<ProjectReference Include="..\Widgets\LT.Widgets.Chart\LT.Widgets.Chart.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -17,7 +17,7 @@ using LT.Contracts.Interfaces.IManagers;
 namespace LT.App.Widgets.Orders;
 
 /// <summary>Working orders of every client and TWS; this app's own can be cancelled here.</summary>
-public partial class OrdersViewModel : ConnectedViewModelBase, ILinkable
+public partial class OrdersViewModel : ConnectedViewModelBase, ILinkable, ITickerDragSource
 {
 	private readonly IOrderManager _orderManager;
 	private readonly IMessageLogManager _messageLogManager;
@@ -171,6 +171,9 @@ public partial class OrdersViewModel : ConnectedViewModelBase, ILinkable
 			_restoringSelection = false;
 		}
 	}
+
+	/// <summary>An order row dragged onto a chart: the same contract a click sends to the group.</summary>
+	public ContractDto? GetDragContract(object? item) => GetLinkContract(item as OpenOrderDto);
 
 	// Remembered orders are for looking at only, like remembered positions; they drive no other widget
 	private ContractDto? GetLinkContract(OpenOrderDto? order) =>

@@ -362,6 +362,28 @@ own publish back. The frame shows the link button for any `ILinkable`, and the w
 the group in `WidgetPlacementEntity.LinkGroup`. Layouts from before link groups load pinned
 charts as Not linked.
 
+### Dragging a ticker onto a chart
+
+A row of the Watchlist, Positions, Orders or Executions can be dragged onto any chart: the
+chart the ticker is dropped on shows it, like one picked in its own ticker box (it also goes to
+the recent tickers). Only that chart switches: the drop doesn't touch the link group, so other
+charts keep their contract. The chart stays in its group and follows the group's next contract
+(the group store skips a contract it already holds, so re-clicking the group's current row
+doesn't pull the chart back). Remembered (stale) positions, orders and fills don't drag, like
+they don't link. The press still selects the row (and so sends it to the source's group).
+
+- A left press on a row turns into a drag once it moves 6 px (`WorkspaceHelpers.IsBeyondDragThreshold`,
+  like widget headers); clicks, double-clicks, scrolling and presses on buttons inside a row
+  (Close, Quick exit, Cancel) never start one.
+- While a ticker hovers a chart, the chart shows the `Border.dropTarget` highlight with
+  "Show AAPL"; anything else dragged over it is refused.
+- Plumbing in `LT.Widgets.Core`: `Helpers/TickerDragDrop` — attached `IsSource` on the list
+  (its view model implements `Workspace/ITickerDragSource`, which says what contract a row
+  item carries), `IsTarget` on the drop area (its view model implements `ITickerDropTarget`),
+  and `HoverText` for the highlight to bind to. The payload is the row's `ContractDto` in an
+  in-process `DataFormat` (Avalonia 12 `DataTransfer` / `DragDrop.DoDragDropAsync`), so it never
+  reaches other applications.
+
 ### Account performance
 
 `LT.Widgets.AccountPerformance` (opens in the center; menu → Widgets, Ctrl+Alt+R) shows the

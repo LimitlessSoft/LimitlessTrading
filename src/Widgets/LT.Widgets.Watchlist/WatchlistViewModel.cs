@@ -17,7 +17,7 @@ using LT.Contracts.Requests.Watchlists;
 
 namespace LT.App.Widgets.Watchlist;
 
-public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable
+public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable, ITickerDragSource
 {
 	private readonly IWatchlistManager _watchlistManager;
 	private readonly IContractManager _contractManager;
@@ -199,6 +199,10 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable
 
 	[ObservableProperty]
 	public partial WatchlistRowViewModel? SelectedRow { get; set; }
+
+	/// <summary>A watchlist row dragged onto a chart.</summary>
+	public ContractDto? GetDragContract(object? item) =>
+		item is WatchlistRowViewModel { Contract.ConId: > 0 } row ? row.Contract : null;
 
 	partial void OnSelectedRowChanged(WatchlistRowViewModel? value)
 	{

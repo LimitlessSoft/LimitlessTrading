@@ -2,6 +2,7 @@
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:LT.App.Widgets.Watchlist"
+	xmlns:helpers="using:LT.App.Helpers"
 	xmlns:controls="using:LT.App.Controls"
 	x:Class="LT.App.Widgets.Watchlist.WatchlistView"
 	x:DataType="vm:WatchlistViewModel"
@@ -25,7 +26,9 @@
 			IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
 		/>
 
+		<!-- Rows drag onto a chart (TickerDragDrop) -->
 		<DataGrid
+			helpers:TickerDragDrop.IsSource="True"
 			ItemsSource="{Binding Rows}"
 			SelectedItem="{Binding SelectedRow}"
 			IsReadOnly="True"
