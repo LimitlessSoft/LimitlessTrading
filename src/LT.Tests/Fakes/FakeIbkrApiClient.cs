@@ -77,11 +77,17 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	/// <summary>Headlines every news subscription streams; then it stays open until cancelled.</summary>
 	public List<NewsHeadlineDto> LiveNews { get; set; } = [];
 
-	/// <summary>Contracts subscribed to for news, with the providers asked for.</summary>
+	/// <summary>
+	/// Contracts subscribed to for news, with the providers asked for. Several subscriptions can
+	/// start on pool threads at once (merged broad tapes), so read it only after
+	/// <see cref="WaitForNewsSubscriptionsAsync"/>.
+	/// </summary>
 	public List<(
 		ContractDto Contract,
 		IReadOnlyList<string>? Providers
 	)> NewsSubscriptions { get; } = [];
+
+	private readonly List<(int Count, TaskCompletionSource Done)> _newsSubscriptionWaiters = [];
 
 	/// <summary>Provider code → its broad tape contracts; a provider missing here has none.</summary>
 	public Dictionary<string, List<ContractDto>> BroadTapes { get; set; } = [];
@@ -279,13 +285,32 @@ public class FakeIbkrApiClient : IIbkrApiClient
 		[EnumeratorCancellation] CancellationToken cancellationToken = default
 	)
 	{
-		NewsSubscriptions.Add((contract, providerCodes));
+		lock (NewsSubscriptions)
+		{
+			NewsSubscriptions.Add((contract, providerCodes));
+			foreach (var waiter in _newsSubscriptionWaiters)
+				if (NewsSubscriptions.Count >= waiter.Count)
+					waiter.Done.TrySetResult();
+		}
 		foreach (var headline in LiveNews)
 		{
 			await Task.Yield();
 			yield return Copy(headline);
 		}
 		await Task.Delay(Timeout.Infinite, cancellationToken);
+	}
+
+	/// <summary>Completes once <paramref name="count"/> news subscriptions have started.</summary>
+	public Task WaitForNewsSubscriptionsAsync(int count, CancellationToken cancellationToken)
+	{
+		var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		lock (NewsSubscriptions)
+		{
+			if (NewsSubscriptions.Count >= count)
+				return Task.CompletedTask;
+			_newsSubscriptionWaiters.Add((count, done));
+		}
+		return done.Task.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
 	}
 
 	public Task<IReadOnlyList<ContractDto>> GetBroadTapeContractsAsync(
