@@ -14,6 +14,10 @@ Detailed documentation lives in `/docs/`; open the relevant file when working on
 **Never commit changes automatically.** Commit only when the user asks; after finishing a task,
 say the changes are ready.
 
+**Every change starts in its own worktree off `origin/master`** — `./tools/worktree.sh
+<type>/<name>` (see the `worktree` skill). The main checkout may hold another session's work. Coding
+tasks go to the `code` agent (`.claude/agents/code.md`), which has the commit, push and PR rules.
+
 ## Code rules
 
 0. **Orders are real money** — `IIbkrApiClient.PlaceOrderAsync` / `CancelOrderAsync` trade on
