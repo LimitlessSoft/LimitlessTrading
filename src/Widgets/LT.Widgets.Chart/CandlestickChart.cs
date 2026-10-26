@@ -1,9 +1,11 @@
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
+using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Executions;
 using LT.Contracts.Dtos.Performance;
@@ -16,7 +18,9 @@ namespace LT.App.Widgets.Chart;
 /// Lightweight OHLC + volume chart. Wheel zooms, drag pans, double-click resets, hover shows the
 /// bar under the cursor. Optionally the user's fills (buy ▲ / sell ▼ at their price, on the bar
 /// that contains their time), lines from each entry to the exit that closed it (green: won, red:
-/// lost) and the open position's break-even line.
+/// lost) and the open position's break-even line. A handle in the time axis, at the end of the
+/// last bar, drags out empty space after it (<see cref="RightMargin"/>, in bars, so it keeps its
+/// place across zoom, new bars and timeframe switches); double-clicking the handle removes it.
 /// </summary>
 public class CandlestickChart : Control
 {
@@ -39,6 +43,11 @@ public class CandlestickChart : Control
 
 	public static readonly StyledProperty<double?> BreakEvenPriceProperty =
 		AvaloniaProperty.Register<CandlestickChart, double?>(nameof(BreakEvenPrice));
+
+	public static readonly StyledProperty<double> RightMarginProperty = AvaloniaProperty.Register<
+		CandlestickChart,
+		double
+	>(nameof(RightMargin), defaultBindingMode: BindingMode.TwoWay);
 
 	private const double PriceAxisWidth = 72;
 	private const double TimeAxisHeight = 22;
@@ -107,6 +116,12 @@ public class CandlestickChart : Control
 		1.5,
 		new ImmutableDashStyle([4, 3], 0)
 	);
+	private static readonly IPen MarginGuidePen = new ImmutablePen(
+		TextBrush,
+		1,
+		new ImmutableDashStyle([2, 3], 0)
+	);
+	private static readonly Cursor ResizeCursor = new(StandardCursorType.SizeWestEast);
 	private static readonly TimeZoneInfo TradeDayZone = TradeJournalHelpers.GetTradeDayTimeZone();
 
 	private double _barSpacing = DefaultBarSpacing;
@@ -114,6 +129,13 @@ public class CandlestickChart : Control
 	private Point? _pointer;
 	private Point? _dragStart;
 	private int _dragStartOffset;
+
+	// Margin handle: where it was last drawn (null: off the plot) and its drag
+	private Rect _plot;
+	private double? _handleX;
+	private bool _handleHovered;
+	private double? _marginDragStartX;
+	private double _marginDragStartValue;
 
 	// Bar index of each fill / leg end; rebuilt when the bars, fills or timeframe change
 	private (int Index, ExecutionDto Fill)[] _fillBars = [];
@@ -128,7 +150,8 @@ public class CandlestickChart : Control
 			TimeframeProperty,
 			FillsProperty,
 			TradeLegsProperty,
-			BreakEvenPriceProperty
+			BreakEvenPriceProperty,
+			RightMarginProperty
 		);
 		ClipToBoundsProperty.OverrideDefaultValue<CandlestickChart>(true);
 		FocusableProperty.OverrideDefaultValue<CandlestickChart>(true);
@@ -171,6 +194,13 @@ public class CandlestickChart : Control
 		set => SetValue(BreakEvenPriceProperty, value);
 	}
 
+	/// <summary>Empty bars after the latest one (fractions allowed).</summary>
+	public double RightMargin
+	{
+		get => GetValue(RightMarginProperty);
+		set => SetValue(RightMarginProperty, value);
+	}
+
 	protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
 	{
 		base.OnPropertyChanged(change);
@@ -211,6 +241,7 @@ public class CandlestickChart : Control
 				empty,
 				new Point((size.Width - empty.Width) / 2, (size.Height - empty.Height) / 2)
 			);
+			_handleX = null;
 			return;
 		}
 
@@ -224,10 +255,20 @@ public class CandlestickChart : Control
 		var priceRect = new Rect(plot.X, plot.Y, plot.Width, plot.Height - volumeHeight - 6);
 		var volumeRect = new Rect(plot.X, plot.Bottom - volumeHeight, plot.Width, volumeHeight);
 
-		var visible = Math.Max(1, (int)(plot.Width / _barSpacing));
+		_plot = plot;
 		_offset = Math.Clamp(_offset, 0, bars.Count - 1);
-		var end = bars.Count - _offset;
-		var start = Math.Max(0, end - visible);
+		var rightMargin = ChartViewportHelpers.ClampRightMargin(
+			RightMargin,
+			plot.Width,
+			_barSpacing
+		);
+		var rightEdge = ChartViewportHelpers.GetRightEdge(bars.Count, _offset, rightMargin);
+		var (start, end) = ChartViewportHelpers.GetVisibleRange(
+			bars.Count,
+			rightEdge,
+			plot.Width,
+			_barSpacing
+		);
 
 		var low = double.MaxValue;
 		var high = double.MinValue;
@@ -249,7 +290,8 @@ public class CandlestickChart : Control
 
 		double Y(double price) =>
 			priceRect.Bottom - (price - low) / (high - low) * priceRect.Height;
-		double X(int index) => plot.Right - (end - index - 0.5) * _barSpacing;
+		double X(int index) =>
+			ChartViewportHelpers.GetBarX(index, rightEdge, plot.Right, _barSpacing);
 
 		// price grid + axis labels
 		var step = NiceStep((high - low) / Math.Max(2, priceRect.Height / 48));
@@ -315,6 +357,7 @@ public class CandlestickChart : Control
 		}
 
 		DrawTrades(context, bars, priceRect, X, Y);
+		DrawMarginHandle(context, plot, bars.Count, rightEdge);
 
 		// break-even of the open position
 		if (BreakEvenPrice is { } breakEven)
@@ -370,7 +413,7 @@ public class CandlestickChart : Control
 			context.DrawLine(CrosshairPen, new Point(p.X, plot.Y), new Point(p.X, plot.Bottom));
 			context.DrawLine(CrosshairPen, new Point(plot.X, p.Y), new Point(plot.Right, p.Y));
 			hovered = Math.Clamp(
-				end - 1 - (int)Math.Floor((plot.Right - p.X) / _barSpacing),
+				ChartViewportHelpers.GetBarIndexAt(p.X, rightEdge, plot.Right, _barSpacing),
 				start,
 				end - 1
 			);
@@ -421,6 +464,47 @@ public class CandlestickChart : Control
 				text += $"   +{hoveredFills.Count - shown} more";
 			context.DrawText(Text(text, 11, LabelBrush), new Point(6, 4 + readout.Height));
 		}
+	}
+
+	// The break line between the last bar and the right margin: a grip in the time axis, and a
+	// guide through the plot while it is hovered or dragged. Hidden when panned past it.
+	private void DrawMarginHandle(DrawingContext context, Rect plot, int barCount, double rightEdge)
+	{
+		var x = Math.Round(
+			ChartViewportHelpers.GetMarginHandleX(barCount, rightEdge, plot.Right, _barSpacing)
+		);
+		if (x < plot.X || x > plot.Right)
+		{
+			_handleX = null;
+			return;
+		}
+		_handleX = x;
+		var active = _handleHovered || _marginDragStartX != null;
+		if (active)
+			context.DrawLine(
+				MarginGuidePen,
+				new Point(x + 0.5, plot.Y),
+				new Point(x + 0.5, plot.Bottom)
+			);
+		context.DrawRectangle(
+			active ? LabelBrush : TextBrush,
+			null,
+			new Rect(x - 1, plot.Bottom + 3, 3, TimeAxisHeight - 6),
+			1.5,
+			1.5
+		);
+	}
+
+	private bool IsOnMarginHandle(Point position) =>
+		_handleX is { } x
+		&& position.Y >= _plot.Bottom
+		&& position.Y <= Bounds.Height
+		&& Math.Abs(position.X - x) <= ChartConstants.MarginHandleHitWidth;
+
+	private void UpdateHandleHover(Point? position)
+	{
+		_handleHovered = position is { } p && _dragStart == null && IsOnMarginHandle(p);
+		Cursor = _handleHovered || _marginDragStartX != null ? ResizeCursor : null;
 	}
 
 	private void DrawTrades(
@@ -500,17 +584,44 @@ public class CandlestickChart : Control
 		base.OnPointerMoved(e);
 		var position = e.GetPosition(this);
 		_pointer = position;
-		if (_dragStart is { } start)
+		if (_marginDragStartX is { } marginStart)
+			RightMargin = ChartViewportHelpers.DragRightMargin(
+				_marginDragStartValue,
+				position.X - marginStart,
+				_plot.Width,
+				_barSpacing
+			);
+		else if (_dragStart is { } start)
 			_offset = Math.Max(
 				0,
 				_dragStartOffset + (int)Math.Round((position.X - start.X) / _barSpacing)
 			);
+		UpdateHandleHover(position);
 		InvalidateVisual();
 	}
 
 	protected override void OnPointerPressed(PointerPressedEventArgs e)
 	{
 		base.OnPointerPressed(e);
+		var position = e.GetPosition(this);
+		if (IsOnMarginHandle(position))
+		{
+			if (e.ClickCount == 2)
+				RightMargin = 0;
+			else
+			{
+				_marginDragStartX = position.X;
+				_marginDragStartValue = ChartViewportHelpers.ClampRightMargin(
+					RightMargin,
+					_plot.Width,
+					_barSpacing
+				);
+				e.Pointer.Capture(this);
+			}
+			UpdateHandleHover(position);
+			InvalidateVisual();
+			return;
+		}
 		if (e.ClickCount == 2)
 		{
 			_offset = 0;
@@ -518,7 +629,7 @@ public class CandlestickChart : Control
 			InvalidateVisual();
 			return;
 		}
-		_dragStart = e.GetPosition(this);
+		_dragStart = position;
 		_dragStartOffset = _offset;
 		e.Pointer.Capture(this);
 	}
@@ -527,13 +638,25 @@ public class CandlestickChart : Control
 	{
 		base.OnPointerReleased(e);
 		_dragStart = null;
+		_marginDragStartX = null;
 		e.Pointer.Capture(null);
+		UpdateHandleHover(e.GetPosition(this));
+		InvalidateVisual();
+	}
+
+	protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+	{
+		base.OnPointerCaptureLost(e);
+		_dragStart = null;
+		_marginDragStartX = null;
+		UpdateHandleHover(_pointer);
 	}
 
 	protected override void OnPointerExited(PointerEventArgs e)
 	{
 		base.OnPointerExited(e);
 		_pointer = null;
+		UpdateHandleHover(null);
 		InvalidateVisual();
 	}
 

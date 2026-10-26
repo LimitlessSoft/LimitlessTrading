@@ -30,6 +30,9 @@ public class WidgetPlacementDto
 	public bool ChartLinked { get; set; } = true;
 	public ContractDto? ChartContract { get; set; }
 
+	/// <summary>Chart instances: empty bars after the latest one (null: none).</summary>
+	public double? ChartRightMargin { get; set; }
+
 	// News instances: what they show and which providers (keys "ibkr:BRFG"; null: all of them)
 	public NewsMode? NewsMode { get; set; }
 	public List<string>? NewsProviders { get; set; }
