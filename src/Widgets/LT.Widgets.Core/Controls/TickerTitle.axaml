@@ -1,0 +1,31 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:controls="using:LT.App.Controls"
+	xmlns:ws="using:LT.App.Workspace"
+	x:Class="LT.App.Controls.TickerTitle"
+	x:DataType="ws:ITickerTitled"
+>
+	<!-- Header title showing the widget's ticker; click it to type another (IB listings are
+	     suggested) or pick a recent one. See TickerTitle.axaml.cs -->
+	<Panel>
+		<Button
+			x:Name="TitleButton"
+			Classes="tickerTitle"
+			Content="{Binding Title}"
+			IsVisible="{Binding !TickerEditor.IsEditing}"
+			ToolTip.Tip="Click to change the ticker"
+		/>
+		<StackPanel
+			x:Name="EditorPanel"
+			Orientation="Horizontal"
+			Spacing="2"
+			IsVisible="{Binding TickerEditor.IsEditing}"
+		>
+			<controls:ContractSearchBox x:Name="TickerBox" Width="360" Placeholder="Ticker, e.g. AAPL" />
+			<Button x:Name="RecentButton" Classes="frameAction" ToolTip.Tip="Recent tickers">
+				<PathIcon Data="{StaticResource ChevronDownIcon}" />
+			</Button>
+		</StackPanel>
+	</Panel>
+</UserControl>

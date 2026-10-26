@@ -33,6 +33,7 @@ public partial class ChartViewModel
 	: ConnectedViewModelBase,
 		IWidgetState,
 		ILinkable,
+		ITickerTitled,
 		ITickerDropTarget
 {
 	private readonly IChartManager _chartManager;
@@ -74,6 +75,12 @@ public partial class ChartViewModel
 		accountStore.PropertyChanged += OnAccountChanged;
 		Link = new ContractLink(linkGroupStore, () => _contract);
 		Link.ContractReceived += OnContractReceived;
+		TickerEditor = new TickerTitleEditor(
+			contractManager,
+			() => IsConnected,
+			OpenTickerAsync,
+			OpenContract
+		);
 
 		Timeframes = Enum.GetValues<ChartTimeframe>().Select(x => new TimeframeOption(x)).ToList();
 		var saved = settingsManager.GetLayout().ChartTimeframe;
@@ -88,20 +95,8 @@ public partial class ChartViewModel
 	/// <summary>The display time zone; the chart draws its time axis in it.</summary>
 	public DisplayTimeStore DisplayTime { get; }
 
-	/// <summary>Ticker box suggestions for an empty box: the recent contracts.</summary>
-	public IReadOnlyList<ContractSuggestionItem> GetRecentSuggestions() =>
-		_contractManager.GetRecentContracts().Select(x => new ContractSuggestionItem(x)).ToList();
-
-	/// <summary>Ticker box suggestions for typed text: IB's listings of the symbol.</summary>
-	public Task<IEnumerable<object>> GetTickerSuggestionsAsync(
-		string? text,
-		CancellationToken cancellationToken
-	) =>
-		string.IsNullOrWhiteSpace(text)
-			? Task.FromResult<IEnumerable<object>>(GetRecentSuggestions())
-		: IsConnected
-			? ContractSuggestionItem.SearchAsync(_contractManager, text, cancellationToken)
-		: Task.FromResult(Enumerable.Empty<object>());
+	/// <summary>The header title's ticker box (<see cref="LT.App.Controls.TickerTitle"/>).</summary>
+	public TickerTitleEditor TickerEditor { get; }
 
 	/// <summary>Ticker box: resolves the ticker and pins this chart to it.</summary>
 	public async Task OpenTickerAsync(string ticker)

@@ -310,8 +310,8 @@
 		<Style Selector="UserControl:pointerover StackPanel.frameActions">
 			<Setter Property="Opacity" Value="1" />
 		</Style>
-		<!-- Chart header title: reads as the title, hints it can be clicked -->
-		<Style Selector="Button.chartTitle">
+		<!-- Ticker header title (chart, option chain): reads as the title, hints it can be clicked -->
+		<Style Selector="Button.tickerTitle">
 			<Setter Property="Background" Value="Transparent" />
 			<Setter Property="BorderThickness" Value="0" />
 			<Setter Property="Padding" Value="4,1" />
@@ -319,7 +319,7 @@
 			<Setter Property="CornerRadius" Value="4" />
 			<Setter Property="FontWeight" Value="SemiBold" />
 		</Style>
-		<Style Selector="Button.chartTitle:pointerover /template/ ContentPresenter">
+		<Style Selector="Button.tickerTitle:pointerover /template/ ContentPresenter">
 			<Setter Property="Background" Value="{DynamicResource FrameActionHoverBrush}" />
 		</Style>
 		<!-- Chart header timeframe beside the title: quieter than the title, same hover hint -->

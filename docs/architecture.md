@@ -61,7 +61,7 @@ src/
 │   ├── LT.Widgets.Core/           # what widget projects build on (namespaces kept as LT.App.*)
 │   │   ├── Stores/                # app-wide UI state shared by widgets (≈ Termodom zStore)
 │   │   ├── ViewModels/            # ViewModelBase, ConnectedViewModelBase
-│   │   ├── Controls/              # shared controls (ContractSearchBox)
+│   │   ├── Controls/              # shared controls (ContractSearchBox, TickerTitle)
 │   │   ├── Helpers/               # UI-only helpers (formatting, LatestValue, error messages)
 │   │   └── Workspace/             # IWidgetDefinition, ILinkable, IWidgetState, WidgetTitles
 │   └── LT.Widgets.<Widget>/       # one per workspace widget: <Widget>View.axaml,

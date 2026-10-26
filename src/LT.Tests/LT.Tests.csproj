@@ -16,6 +16,8 @@
 		<ProjectReference Include="..\Widgets\LT.Widgets.Chart\LT.Widgets.Chart.csproj" />
 		<!-- Watchlist row view model only (market cap); its view is never created -->
 		<ProjectReference Include="..\Widgets\LT.Widgets.Watchlist\LT.Widgets.Watchlist.csproj" />
+		<!-- Option chain view model only (typing its underlying); its view is never created -->
+		<ProjectReference Include="..\Widgets\LT.Widgets.OptionChain\LT.Widgets.OptionChain.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
