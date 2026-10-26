@@ -105,14 +105,21 @@ Modifying orders is not built.
    [Releases](https://github.com/LimitlessSoft/LimitlessTrading/releases), then:
 
 ```bash
-tar -xzf LimitlessTrading-*-linux-x64.tar.gz
-./LimitlessTrading/LimitlessTrading
+mkdir -p ~/Apps ~/.local/bin
+tar -xzf LimitlessTrading-*-linux-x64.tar.gz -C ~/Apps
+ln -sfn ~/Apps/LimitlessTrading/LimitlessTrading ~/.local/bin/limitlesstrading
+limitlesstrading
 ```
+
+Unpack it into a folder you own (here `~/Apps`), not into `/usr/local/bin` or `/opt`: the
+self-updater swaps the whole folder, so its parent must be writable. Put only the link in a `bin`
+folder. `~/.local/bin` is on `PATH` in most distros; if `limitlesstrading` isn't found, add
+`export PATH="$HOME/.local/bin:$PATH"` to `~/.bashrc` and open a new terminal.
 
 The app checks for a newer release on start and every 6 hours (Settings → Check for updates). When
 one is out, an **Update** button shows in the title bar: one click downloads it, checks its SHA-256,
 swaps it into the folder and restarts, and the running IB Gateway is kept, so there's no new
-login. The folder's parent must be writable, so unpack it somewhere you own (e.g. `~/Apps`).
+login. The link keeps working after an update.
 
 Windows and macOS builds come later; until then, build from source (.NET SDK 10.0.4xx):
 
