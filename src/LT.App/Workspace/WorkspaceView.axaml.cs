@@ -7,6 +7,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using LT.App.Stores;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
@@ -26,7 +27,13 @@ public partial class WorkspaceView : UserControl
 	private const int BottomRow = 2;
 	private const double MinPanelWidth = 220;
 	private const double MinPanelHeight = 120;
-	private const double SplitterSize = 6;
+
+	// Cards: splitters are 6px gaps. Flush: 1px lines, grabbed over 3px on each side.
+	private const double CardsSplitterSize = 6;
+	private const double FlushSplitterSize = 1;
+	private const double FlushSplitterReach = 3;
+	private const double CardsCenterMargin = 8;
+	private const double CardsFloatingPadding = 6;
 
 	private readonly Dictionary<string, WidgetFrame> _frames = [];
 	private readonly Dictionary<string, FloatingWidgetWindow> _windows = [];
@@ -71,6 +78,7 @@ public partial class WorkspaceView : UserControl
 		if (_viewModel != null)
 		{
 			_viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+			_viewModel.Appearance?.PropertyChanged -= OnAppearanceChanged;
 			_viewModel.CenterChanged -= RebuildCenter;
 			_viewModel.Floating.CollectionChanged -= OnFloatingChanged;
 			_viewModel.Widgets.CollectionChanged -= OnWidgetsChanged;
@@ -81,6 +89,8 @@ public partial class WorkspaceView : UserControl
 		if (_viewModel is null)
 			return;
 		_viewModel.PropertyChanged += OnViewModelPropertyChanged;
+		_viewModel.Appearance?.PropertyChanged += OnAppearanceChanged;
+		ApplyLayoutStyle();
 		_viewModel.CenterChanged += RebuildCenter;
 		_viewModel.Floating.CollectionChanged += OnFloatingChanged;
 		_viewModel.Widgets.CollectionChanged += OnWidgetsChanged;
@@ -161,6 +171,56 @@ public partial class WorkspaceView : UserControl
 				ApplyFullscreen();
 				break;
 		}
+	}
+
+	private bool IsFlush => _viewModel?.Appearance?.IsFlush == true;
+
+	private double SplitterSize => IsFlush ? FlushSplitterSize : CardsSplitterSize;
+
+	private Thickness FloatingPadding => new(IsFlush ? 0 : CardsFloatingPadding);
+
+	private void OnAppearanceChanged(object? sender, PropertyChangedEventArgs e)
+	{
+		if (e.PropertyName != nameof(AppearanceStore.IsFlush) || _viewModel is null)
+			return;
+		ApplyLayoutStyle();
+		ApplySide(_viewModel.LeftActive, LeftHost, LeftColumn, LeftSplitter, true);
+		ApplySide(_viewModel.RightActive, RightHost, RightColumn, RightSplitter, false);
+		ApplyBottom(_viewModel.BottomActive);
+		RebuildCenter();
+	}
+
+	// Cards: rounded tiles with gaps around the center. Flush: no gaps, splitters are thin lines.
+	// Frame corners and borders follow the window's flush class (App.axaml).
+	private void ApplyLayoutStyle()
+	{
+		CenterHost.Margin = IsFlush ? default : new Thickness(0, CardsCenterMargin);
+		StyleSplitter(LeftSplitter, true);
+		StyleSplitter(RightSplitter, true);
+		StyleSplitter(BottomSplitter, false);
+		foreach (var window in _windows.Values)
+			StyleFloatingWindow(window);
+	}
+
+	private void StyleSplitter(GridSplitter splitter, bool columns)
+	{
+		var flush = IsFlush;
+		splitter.ZIndex = flush ? 1 : 0;
+		splitter.Margin =
+			!flush ? default
+			: columns ? new Thickness(-FlushSplitterReach, 0)
+			: new Thickness(0, -FlushSplitterReach);
+		var key = columns ? "FlushSplitterColumnBrush" : "FlushSplitterRowBrush";
+		// Before the view is attached only the application sees the app's resources
+		splitter.Background = flush
+			? (this.FindResource(key) ?? Application.Current?.FindResource(key)) as IBrush
+			: Brushes.Transparent;
+	}
+
+	private void StyleFloatingWindow(Window window)
+	{
+		window.Padding = FloatingPadding;
+		window.Classes.Set("flush", IsFlush);
 	}
 
 	private void OnFloatingChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
@@ -255,12 +315,17 @@ public partial class WorkspaceView : UserControl
 			host.Child = null;
 		}
 
+		// The splitter column next to the panel: the gap in cards (kept while collapsed), a line in
+		// flush (gone while collapsed)
+		var splitterColumn = LayoutGrid.ColumnDefinitions[isLeft ? column + 1 : column - 1];
 		if (active is null)
 		{
 			definition.Width = new GridLength(0);
+			splitterColumn.Width = new GridLength(IsFlush ? 0 : CardsSplitterSize);
 			splitter.IsVisible = false;
 			return;
 		}
+		splitterColumn.Width = new GridLength(SplitterSize);
 
 		var frame = GetFrame(active);
 		if (host.Child != frame && active != _fullscreen)
@@ -412,8 +477,8 @@ public partial class WorkspaceView : UserControl
 					ResizeDirection = horizontal
 						? GridResizeDirection.Columns
 						: GridResizeDirection.Rows,
-					Background = Brushes.Transparent,
 				};
+				StyleSplitter(splitter, horizontal);
 				// Sizes are read back right after a resize: by the next rebuild the tree may
 				// already have changed shape
 				splitter.DragCompleted += (_, _) => StoreCenterSizes();
@@ -508,6 +573,7 @@ public partial class WorkspaceView : UserControl
 		Detach(frame);
 		var window = new FloatingWidgetWindow
 		{
+			Padding = FloatingPadding,
 			Title = widget.Title,
 			Width = widget.FloatWidth ?? WorkspaceConstants.FloatingDefaultWidth,
 			Height = widget.FloatHeight ?? WorkspaceConstants.FloatingDefaultHeight,
@@ -544,6 +610,7 @@ public partial class WorkspaceView : UserControl
 				window.Content = null;
 		};
 
+		window.Classes.Set("flush", IsFlush);
 		window.AddHandler(
 			PointerPressedEvent,
 			(_, _) => CollapseUnpinnedOutside(null),

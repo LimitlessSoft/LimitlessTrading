@@ -24,6 +24,7 @@ public partial class MainWindowViewModel : ViewModelBase
 		IMarketDataManager marketDataManager,
 		ISettingsManager settingsManager,
 		AccountStore accountStore,
+		AppearanceStore appearance,
 		ConnectionBarViewModel connectionBar,
 		TradingPageViewModel tradingPage,
 		UpdateViewModel update
@@ -33,6 +34,7 @@ public partial class MainWindowViewModel : ViewModelBase
 		_settingsManager = settingsManager;
 		_accountStore = accountStore;
 		ConnectionBar = connectionBar;
+		Appearance = appearance;
 		Update = update;
 		CurrentPage = tradingPage;
 
@@ -51,6 +53,9 @@ public partial class MainWindowViewModel : ViewModelBase
 	public string Title => "LimitlessTrading";
 
 	public ConnectionBarViewModel ConnectionBar { get; }
+
+	/// <summary>Cards or flush: the window carries the flush class the styles key on.</summary>
+	public AppearanceStore Appearance { get; }
 
 	public UpdateViewModel Update { get; }
 

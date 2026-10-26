@@ -14,5 +14,6 @@ public class AppSettingsDtoMapper : ILSCoreMapper<GeneralSettingsEntity, AppSett
 			HeartbeatSeconds = source.HeartbeatSeconds,
 			StopGatewayOnExit = source.StopGatewayOnExit,
 			CheckForUpdates = source.CheckForUpdates,
+			LayoutStyle = source.LayoutStyle,
 		};
 }

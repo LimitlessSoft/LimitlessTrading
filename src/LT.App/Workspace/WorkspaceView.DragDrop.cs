@@ -22,7 +22,6 @@ public partial class WorkspaceView
 
 	private const double FloatBannerWidth = 320;
 	private const double FloatBannerHeight = 40;
-	private const double FloatingWindowPadding = 6;
 
 	/// <summary>
 	/// Where a drop lands: side drops carry the strip and icon <see cref="Index"/>, center drops the
@@ -99,7 +98,7 @@ public partial class WorkspaceView
 		{
 			// Put the window where the header was released, under the pointer
 			var scaling = TopLevel.GetTopLevel(frame)?.RenderScaling ?? 1;
-			var grab = frame.GrabOffset + new Point(FloatingWindowPadding, FloatingWindowPadding);
+			var grab = frame.GrabOffset + new Point(FloatingPadding.Left, FloatingPadding.Top);
 			var position =
 				screen - new PixelPoint((int)(grab.X * scaling), (int)(grab.Y * scaling));
 			if (_windows.TryGetValue(widget.Id, out var window))

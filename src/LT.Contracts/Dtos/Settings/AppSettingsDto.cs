@@ -9,4 +9,5 @@ public class AppSettingsDto
 	public int HeartbeatSeconds { get; set; }
 	public bool StopGatewayOnExit { get; set; }
 	public bool CheckForUpdates { get; set; }
+	public LayoutStyle LayoutStyle { get; set; }
 }

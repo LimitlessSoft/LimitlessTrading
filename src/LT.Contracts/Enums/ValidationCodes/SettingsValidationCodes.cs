@@ -9,4 +9,7 @@ public enum SettingsValidationCodes
 
 	[LSCoreValidationMessage("Unknown market data type.")]
 	SVC_002,
+
+	[LSCoreValidationMessage("Unknown layout style.")]
+	SVC_003,
 }

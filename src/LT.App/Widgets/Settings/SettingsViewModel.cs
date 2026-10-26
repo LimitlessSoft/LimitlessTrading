@@ -24,6 +24,13 @@ public partial class SettingsViewModel : ViewModelBase
 		"live frozen delayed quotes subscription"
 	);
 
+	private readonly ChoiceSettingViewModel _layoutStyle = new(
+		"Layout style",
+		[.. Enum.GetValues<LayoutStyle>().Cast<object>()],
+		"Cards: widgets are rounded tiles with gaps between them. Flush: widgets fill the window edge to edge, split by thin lines.",
+		"theme look appearance rounded corners gaps spacing compact edge"
+	);
+
 	private readonly BoolSettingViewModel _autoReconnect = new(
 		"Reconnect automatically when the connection drops",
 		keywords: "auto reconnect retry backoff"
@@ -58,6 +65,7 @@ public partial class SettingsViewModel : ViewModelBase
 		_heartbeatSeconds.Value = settings.HeartbeatSeconds;
 		_stopGatewayOnExit.Value = settings.StopGatewayOnExit;
 		_checkForUpdates.Value = settings.CheckForUpdates;
+		_layoutStyle.Value = settings.LayoutStyle;
 
 		Pages =
 		[
@@ -65,6 +73,7 @@ public partial class SettingsViewModel : ViewModelBase
 				"General",
 				children: [new SettingsPageViewModel("Updates", [new("Updates", _checkForUpdates)])]
 			),
+			new SettingsPageViewModel("Appearance", [new("Layout", _layoutStyle)]),
 			new SettingsPageViewModel(
 				"Connection",
 				[
@@ -124,6 +133,7 @@ public partial class SettingsViewModel : ViewModelBase
 					HeartbeatSeconds = (int)(_heartbeatSeconds.Value ?? 0),
 					StopGatewayOnExit = _stopGatewayOnExit.Value,
 					CheckForUpdates = _checkForUpdates.Value,
+					LayoutStyle = (LayoutStyle)_layoutStyle.Value!,
 				}
 			);
 			return true;
