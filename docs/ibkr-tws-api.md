@@ -60,8 +60,9 @@ Flow (`GatewayManager` → `IIbcGatewayProcess`, implemented by `LT.Ibkr/Ibc/Ibc
    "approve in IB Key" (2FA) and to fail fast on a rejected login.
 5. Delete the config file, mark Running, connect `IConnectionManager` to `127.0.0.1:<port>`.
 6. Stop = disconnect, send `STOP` to IBC's command server (127.0.0.1:7462), kill the process tree
-   after 20 s. On exit the app stops the Gateway it started, unless Settings → "Stop IB Gateway when
-   the app closes" is off; then the next Log in reuses it (step 1).
+   after 20 s. On exit the Gateway keeps running by default and the next Log in reuses it (step 1); with
+   Settings → Connection → "Stop IB Gateway when the app closes" on (off by default), the app stops
+   the Gateway it started.
 
 What we set in `config.ini`: `OverrideTwsApiPort`, `ReadOnlyApi=no`,
 `AcceptIncomingConnectionAction=reject` (localhost is trusted anyway),

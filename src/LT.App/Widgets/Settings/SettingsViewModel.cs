@@ -46,7 +46,7 @@ public partial class SettingsViewModel : ViewModelBase
 
 	private readonly BoolSettingViewModel _stopGatewayOnExit = new(
 		"Stop IB Gateway when the app closes",
-		"Turn off to keep the Gateway logged in between runs; the next Log in reuses it without 2FA.",
+		"Off by default: the Gateway stays logged in between runs and the next Log in reuses it without 2FA.",
 		"ibc login 2fa exit quit"
 	);
 

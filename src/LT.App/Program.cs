@@ -45,8 +45,8 @@ public static class Program
 	{
 		await host.StopAsync();
 		await host.Services.GetRequiredService<IConnectionManager>().ShutdownAsync();
-		// The Gateway we started lives and dies with the app, unless the user keeps it running or
-		// the app is restarting into an update (the new version reuses it, no new login)
+		// The Gateway we started keeps running after the app closes (the next Log in reuses it, no
+		// new login) unless the user turned on stopping it; never while restarting into an update
 		var restarting =
 			host.Services.GetRequiredService<IUpdateManager>().Status.State
 			== UpdateState.Restarting;
