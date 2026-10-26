@@ -41,4 +41,7 @@ public static class WorkspaceConstants
 
 	/// <summary>Extra windows are "Window 2", "Window 3", … (the main window counts as the first).</summary>
 	public const string NewWindowNamePrefix = "Window";
+
+	/// <summary>The main window's name where windows are listed (a view's "Move to window" menu).</summary>
+	public const string MainWindowName = "Main window";
 }

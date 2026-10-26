@@ -125,6 +125,50 @@ public static class CenterViewHelpers
 	public static int Cycle(int index, int count, int step) =>
 		count <= 0 ? 0 : ((index + step) % count + count) % count;
 
+	/// <summary>
+	/// Where a tab ends up when it is dragged from <paramref name="from"/> to the gap
+	/// <paramref name="slot"/> (0 = before the first tab, <paramref name="count"/> = after the last)
+	/// of a strip of <paramref name="count"/> tabs: a gap after the tab itself counts one less once
+	/// it is taken out.
+	/// </summary>
+	public static int GetMoveIndex(int from, int slot, int count)
+	{
+		if (count <= 0)
+			return 0;
+		var to = slot > from ? slot - 1 : slot;
+		return Math.Clamp(to, 0, count - 1);
+	}
+
+	/// <summary>
+	/// Ids for the widgets of a view moved into another workspace (<paramref name="takenIds"/> are
+	/// the ids already there): each keeps its id unless it is taken there, then gets a free one
+	/// (<see cref="WorkspaceHelpers.GetFreeId"/>). Every widget id is in the result.
+	/// </summary>
+	public static Dictionary<string, string> GetTransferIds(
+		IEnumerable<string> widgetIds,
+		IEnumerable<string> takenIds
+	)
+	{
+		var taken = takenIds.ToHashSet();
+		var result = new Dictionary<string, string>();
+		foreach (var id in widgetIds)
+		{
+			var newId = WorkspaceHelpers.GetFreeId(id, taken);
+			taken.Add(newId);
+			result[id] = newId;
+		}
+		return result;
+	}
+
+	/// <summary>The line under "Close view …?" in the confirmation: what else goes with it.</summary>
+	public static string GetCloseDetail(int widgetCount) =>
+		widgetCount switch
+		{
+			0 => "It has no widgets.",
+			1 => "Its widget will be closed too.",
+			_ => $"Its {widgetCount} widgets will be closed too.",
+		};
+
 	/// <summary>The tab selected after closing the one at <paramref name="closedIndex"/>: the next, else the previous.</summary>
 	public static int GetIndexAfterClose(int closedIndex, int remainingCount) =>
 		Math.Clamp(closedIndex, 0, Math.Max(remainingCount - 1, 0));

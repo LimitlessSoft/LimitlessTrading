@@ -7,10 +7,18 @@ using LT.Contracts.Enums;
 namespace LT.App.Pages.TradingPage;
 
 /// <summary>Default workspace: widget instances placed in the center, on a side or floating.</summary>
-public class TradingPageViewModel(WorkspaceWindows windows) : ViewModelBase
+public class TradingPageViewModel : ViewModelBase
 {
+	private readonly WorkspaceWindows _windows;
+
+	public TradingPageViewModel(WorkspaceWindows windows)
+	{
+		_windows = windows;
+		_windows.MainChanged += () => OnPropertyChanged(nameof(Workspace));
+	}
+
 	/// <summary>The main window's workspace; extra windows have their own.</summary>
-	public WorkspaceViewModel Workspace => windows.Main;
+	public WorkspaceViewModel Workspace => _windows.Main;
 
 	public void ShowTool(WorkspaceTool tool) => Workspace.Show(tool);
 
@@ -25,7 +33,7 @@ public class TradingPageViewModel(WorkspaceWindows windows) : ViewModelBase
 	public void FillLayout(LayoutDto layout)
 	{
 		Workspace.FillLayout(layout);
-		windows.FillLayout(layout);
+		_windows.FillLayout(layout);
 		// New charts start with the timeframe of the last chart
 		if (
 			Workspace.Widgets.Select(x => x.Content).OfType<ChartViewModel>().LastOrDefault() is
@@ -35,5 +43,5 @@ public class TradingPageViewModel(WorkspaceWindows windows) : ViewModelBase
 	}
 
 	/// <summary>F5: every open widget, in every window.</summary>
-	public void RefreshAll() => windows.RefreshAll();
+	public void RefreshAll() => _windows.RefreshAll();
 }

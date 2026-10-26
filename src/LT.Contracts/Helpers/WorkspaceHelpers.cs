@@ -52,6 +52,22 @@ public static class WorkspaceHelpers
 	public static string GetDefaultId(WorkspaceTool tool) => tool.ToString();
 
 	/// <summary>
+	/// <paramref name="id"/> when no widget in <paramref name="taken"/> has it, else the id with a
+	/// short random suffix ("Chart-1a2b3c4d").
+	/// </summary>
+	public static string GetFreeId(string id, IReadOnlyCollection<string> taken)
+	{
+		if (!taken.Contains(id))
+			return id;
+		while (true)
+		{
+			var candidate = $"{id}-{Guid.NewGuid():N}"[..(id.Length + 9)];
+			if (!taken.Contains(candidate))
+				return candidate;
+		}
+	}
+
+	/// <summary>
 	/// First-run workspace: the chart (SPY, 5m) in the center; the watchlist on the left; account,
 	/// messages, the option chain and the order ticket on the right, the first two pinned. The
 	/// others (positions, orders, executions, news, performance) are opened from the menu.

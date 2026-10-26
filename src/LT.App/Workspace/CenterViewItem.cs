@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Settings;
+using LT.Contracts.Helpers;
 
 namespace LT.App.Workspace;
 
@@ -28,6 +29,17 @@ public partial class CenterViewItem(WorkspaceViewModel workspace, string id, str
 	[ObservableProperty]
 	public partial bool CanClose { get; set; }
 
+	/// <summary>Not the first tab: Move left is offered.</summary>
+	[ObservableProperty]
+	public partial bool CanMoveLeft { get; set; }
+
+	/// <summary>Not the last tab: Move right is offered.</summary>
+	[ObservableProperty]
+	public partial bool CanMoveRight { get; set; }
+
+	/// <summary>Move to window and Detach are offered (the app's windows are known).</summary>
+	public bool CanMoveOut => workspace.CanMoveViewsOut;
+
 	[ObservableProperty]
 	public partial bool IsRenaming { get; set; }
 
@@ -44,6 +56,24 @@ public partial class CenterViewItem(WorkspaceViewModel workspace, string id, str
 
 	[RelayCommand]
 	private void Duplicate() => workspace.DuplicateView(this);
+
+	[RelayCommand]
+	private void MoveLeft() => workspace.MoveViewBy(this, -1);
+
+	[RelayCommand]
+	private void MoveRight() => workspace.MoveViewBy(this, 1);
+
+	[RelayCommand]
+	private void MoveTo(WorkspaceViewModel to) => workspace.MoveViewTo(this, to);
+
+	[RelayCommand]
+	private void Detach() => workspace.DetachView(this);
+
+	/// <summary>The windows this view can move to, for its right-click menu.</summary>
+	public IReadOnlyList<ViewMoveTarget> GetMoveTargets() => workspace.GetMoveTargets();
+
+	/// <summary>How many widgets go with it when it is closed.</summary>
+	public int WidgetCount => CenterLayoutHelpers.GetWidgetIds(Root).Count();
 
 	[RelayCommand]
 	private void BeginRename() => workspace.BeginRenameView(this);

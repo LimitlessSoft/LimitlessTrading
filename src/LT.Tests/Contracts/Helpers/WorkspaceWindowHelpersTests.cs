@@ -142,4 +142,23 @@ public class WorkspaceWindowHelpersTests
 			(windows[1].Width, windows[1].Height)
 		);
 	}
+
+	[Fact]
+	public void Closing_the_main_window_says_which_window_takes_its_place()
+	{
+		var detail = WorkspaceWindowHelpers.GetCloseDetail(true, "Window 2", 3);
+
+		Assert.Contains("Window 2 takes its place as the main window", detail);
+		Assert.Contains("keeps all 3 windows", detail);
+	}
+
+	[Fact]
+	public void Closing_an_extra_window_says_only_its_views_and_widgets_go()
+	{
+		var detail = WorkspaceWindowHelpers.GetCloseDetail(false, null, 2);
+
+		Assert.StartsWith("Close this window closes its views and widgets.", detail);
+		Assert.DoesNotContain("main window", detail);
+		Assert.Contains("keeps all 2 windows", detail);
+	}
 }

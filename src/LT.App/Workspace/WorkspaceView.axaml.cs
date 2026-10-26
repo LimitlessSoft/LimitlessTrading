@@ -97,6 +97,7 @@ public partial class WorkspaceView : UserControl
 			_viewModel.Widgets.CollectionChanged -= OnWidgetsChanged;
 			foreach (var widget in _viewModel.Widgets)
 				widget.FocusRequested -= OnFocusRequested;
+			ClearHosts();
 		}
 		_viewModel = DataContext as WorkspaceViewModel;
 		if (_viewModel is null)
@@ -115,12 +116,56 @@ public partial class WorkspaceView : UserControl
 		ApplySide(_viewModel.RightActive, RightHost, RightColumn, RightSplitter, false);
 		ApplyBottom(_viewModel.BottomActive);
 		RebuildCenter();
+		ApplyFullscreen();
+		SyncFloating();
+	}
+
+	/// <summary>
+	/// The workspace shown here is replaced (the main window takes over an extra window's) or
+	/// dropped (that extra window closes): every frame lets go of its widget view model, floating
+	/// windows close (the widgets stay floating) and the hosts empty out, so the next workspace
+	/// starts from nothing and its ids can't pick up a frame of the old one.
+	/// </summary>
+	private void ClearHosts()
+	{
+		EndDragFeedback();
+		EndViewDragFeedback();
+		if (_fullscreen != null)
+		{
+			_fullscreen = null;
+			(TopLevel.GetTopLevel(this) as IFullscreenHost)?.ShowFullscreen(null);
+		}
+		foreach (var (id, window) in _windows.ToList())
+		{
+			// Unregistered first: the Closing handler then knows the user didn't close it
+			_windows.Remove(id);
+			if (_viewModel?.Find(id) is { } widget)
+				StoreBounds(widget, window);
+			window.Content = null;
+			window.Close();
+		}
+		_opening.Clear();
+		LeftHost.Child = null;
+		RightHost.Child = null;
+		BottomHost.Child = null;
+		foreach (var grid in _splitGrids.Values)
+			grid.Children.Clear();
+		_splitGrids.Clear();
+		CenterViews.Children.Clear();
+		_viewHosts.Clear();
+		foreach (var frame in _frames.Values)
+		{
+			Detach(frame);
+			frame.Release();
+		}
+		_frames.Clear();
 	}
 
 	// Floating windows need the main window as owner, which exists only once attached
 	protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
 	{
 		base.OnAttachedToVisualTree(e);
+		Attached.Add(this);
 		SyncFloating();
 		// Unpinned side widgets collapse when a click or focus lands anywhere else in the window
 		if (TopLevel.GetTopLevel(this) is { } window)
@@ -137,6 +182,7 @@ public partial class WorkspaceView : UserControl
 
 	protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
 	{
+		Attached.Remove(this);
 		if (TopLevel.GetTopLevel(this) is { } window)
 		{
 			window.RemoveHandler(PointerPressedEvent, OnWindowInput);
@@ -510,7 +556,8 @@ public partial class WorkspaceView : UserControl
 	}
 
 	// A press on a view tab shows it; a double-click opens its name for editing. Presses on its ✕
-	// and in its name box are handled before they get here.
+	// and in its name box are handled before they get here. Registered after the tab's drag, which
+	// must see the press first (OnViewTabAttached).
 	private void OnViewTabPressed(object? sender, PointerPressedEventArgs e)
 	{
 		if (

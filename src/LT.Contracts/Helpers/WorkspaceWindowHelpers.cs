@@ -23,6 +23,19 @@ public static class WorkspaceWindowHelpers
 		}
 	}
 
+	/// <summary>
+	/// The line under "Close this window or the whole application?" when ✕ is clicked with
+	/// <paramref name="windowCount"/> workspace windows open (main included). Closing the main window
+	/// on its own hands it over to <paramref name="nextWindowName"/>.
+	/// </summary>
+	public static string GetCloseDetail(bool isMain, string? nextWindowName, int windowCount)
+	{
+		var thisWindow = isMain
+			? $"Close this window closes its views and widgets; {nextWindowName} takes its place as the main window."
+			: "Close this window closes its views and widgets.";
+		return $"{thisWindow} Close application keeps all {windowCount} windows for the next start.";
+	}
+
 	/// <summary>A new, empty window: no widgets, every side collapsed, the default size.</summary>
 	public static WorkspaceWindowDto CreateEmpty(IEnumerable<string> existingNames) =>
 		new()

@@ -17,7 +17,6 @@ public partial class WidgetItem : ObservableObject
 		Id = id;
 		Tool = tool;
 		Content = content;
-		Icon = Geometry.Parse(WidgetCatalog.GetIcon(tool));
 		Link = (content as ILinkable)?.Link;
 		if (Link != null)
 			Link.PropertyChanged += (_, _) =>
@@ -27,11 +26,16 @@ public partial class WidgetItem : ObservableObject
 			};
 	}
 
-	/// <summary>Instance id; unique in the workspace, kept in the saved layout.</summary>
-	public string Id { get; }
+	/// <summary>
+	/// Instance id; unique in the workspace, kept in the saved layout. A view moved to another
+	/// window gives a widget a new one when its id is taken there.
+	/// </summary>
+	public string Id { get; internal set; }
 	public WorkspaceTool Tool { get; }
 	public string Title => WidgetCatalog.GetTitle(Tool);
-	public Geometry Icon { get; }
+
+	// Parsed on first use: a geometry needs the platform's render interface
+	public Geometry Icon => field ??= Geometry.Parse(WidgetCatalog.GetIcon(Tool));
 	public string ToolTip =>
 		WidgetCatalog.GetFocusGesture(Tool) is { } gesture ? $"{Title} ({gesture})" : Title;
 
