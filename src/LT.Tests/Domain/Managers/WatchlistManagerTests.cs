@@ -1,3 +1,4 @@
+using System.Text.Json;
 using LSCore.Exceptions;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Entities;
@@ -183,4 +184,172 @@ public class WatchlistManagerTests
 
 		Assert.Equal("Watchlist 3", _manager.GetNewName());
 	}
+
+	[Fact]
+	public void Pins_are_kept_in_the_order_they_were_made()
+	{
+		_manager.Add(new ContractDto { ConId = 1, Symbol = "AAPL" });
+		_manager.Add(new ContractDto { ConId = 2, Symbol = "MSFT" });
+		_manager.Add(new ContractDto { ConId = 3, Symbol = "NVDA" });
+
+		_manager.Pin(new ContractDto { ConId = 3, Symbol = "NVDA" });
+		_manager.Pin(new ContractDto { ConId = 1, Symbol = "AAPL" });
+		_manager.Pin(new ContractDto { ConId = 3, Symbol = "NVDA" });
+
+		Assert.Equal(["NVDA", "AAPL"], _manager.GetPinned().Select(x => x.Symbol));
+		// Items keep their saved order
+		Assert.Equal(["AAPL", "MSFT", "NVDA"], _manager.GetItems().Select(x => x.Symbol));
+	}
+
+	[Fact]
+	public void Unpin_and_pin_again_puts_it_last()
+	{
+		_manager.Add(new ContractDto { ConId = 1, Symbol = "AAPL" });
+		_manager.Add(new ContractDto { ConId = 2, Symbol = "MSFT" });
+		_manager.Pin(new ContractDto { ConId = 1 });
+		_manager.Pin(new ContractDto { ConId = 2 });
+
+		_manager.Unpin(new ContractDto { ConId = 1 });
+		Assert.Equal(["MSFT"], _manager.GetPinned().Select(x => x.Symbol));
+
+		_manager.Pin(new ContractDto { ConId = 1 });
+		Assert.Equal(["MSFT", "AAPL"], _manager.GetPinned().Select(x => x.Symbol));
+	}
+
+	[Fact]
+	public void Pins_are_per_listing()
+	{
+		_manager.Add(
+			new ContractDto
+			{
+				ConId = 9,
+				Symbol = "BTC",
+				Exchange = "PAXOS",
+			}
+		);
+		_manager.Add(
+			new ContractDto
+			{
+				ConId = 9,
+				Symbol = "BTC",
+				Exchange = "ZEROHASH",
+			}
+		);
+
+		_manager.Pin(new ContractDto { ConId = 9, Exchange = "ZEROHASH" });
+
+		Assert.Equal(["ZEROHASH"], _manager.GetPinned().Select(x => x.Exchange));
+	}
+
+	[Fact]
+	public void Only_an_item_of_the_watchlist_can_be_pinned()
+	{
+		var ex = Assert.Throws<LSCoreBadRequestException>(() =>
+			_manager.Pin(new ContractDto { ConId = 1, Symbol = "AAPL" })
+		);
+
+		Assert.Contains("AAPL", ex.Message);
+		Assert.Empty(_manager.GetPinned());
+	}
+
+	[Fact]
+	public void Removing_an_item_drops_its_pin()
+	{
+		_manager.Add(new ContractDto { ConId = 1, Symbol = "AAPL" });
+		_manager.Pin(new ContractDto { ConId = 1 });
+
+		_manager.Remove(new ContractDto { ConId = 1 });
+		_manager.Add(new ContractDto { ConId = 1, Symbol = "AAPL" });
+
+		Assert.Empty(_manager.GetPinned());
+		Assert.Empty(WatchlistActive().Pinned);
+	}
+
+	[Fact]
+	public void Pins_belong_to_their_watchlist()
+	{
+		_manager.Add(new ContractDto { ConId = 1, Symbol = "AAPL" });
+		_manager.Pin(new ContractDto { ConId = 1 });
+		var main = _manager.GetActive();
+
+		_manager.SaveName(new SaveWatchlistNameRequest { Name = "Tech" });
+		_manager.Add(new ContractDto { ConId = 1, Symbol = "AAPL" });
+
+		Assert.Empty(_manager.GetPinned());
+		_manager.SetActive(main.Id);
+		Assert.Equal(["AAPL"], _manager.GetPinned().Select(x => x.Symbol));
+	}
+
+	[Fact]
+	public void A_pin_without_its_item_is_ignored()
+	{
+		_manager.Add(new ContractDto { ConId = 1, Symbol = "AAPL" });
+		WatchlistActive().Pinned.Add(new WatchlistPinEntity { ConId = 99, Exchange = "SMART" });
+
+		Assert.Empty(_manager.GetPinned());
+	}
+
+	[Fact]
+	public void Settings_saved_before_pinning_load_with_nothing_pinned()
+	{
+		const string json = """
+			{
+			  "Watchlists": [
+			    {
+			      "Id": "w1",
+			      "Name": "Main",
+			      "Items": [ { "ConId": 1, "Symbol": "AAPL", "Exchange": "SMART" } ]
+			    }
+			  ],
+			  "ActiveWatchlistId": "w1"
+			}
+			""";
+		var settings = new InMemorySettingsRepository();
+		settings.Save(JsonSerializer.Deserialize<SettingsEntity>(json)!);
+		var manager = new WatchlistManager(settings);
+
+		Assert.Empty(manager.GetPinned());
+		Assert.Equal(["AAPL"], manager.GetItems().Select(x => x.Symbol));
+
+		manager.Pin(new ContractDto { ConId = 1, Exchange = "SMART" });
+		Assert.Equal(["AAPL"], manager.GetPinned().Select(x => x.Symbol));
+	}
+
+	[Fact]
+	public void Pins_survive_a_save_and_load()
+	{
+		_manager.Add(
+			new ContractDto
+			{
+				ConId = 1,
+				Symbol = "AAPL",
+				Exchange = "SMART",
+			}
+		);
+		_manager.Add(
+			new ContractDto
+			{
+				ConId = 2,
+				Symbol = "MSFT",
+				Exchange = "SMART",
+			}
+		);
+		_manager.Pin(new ContractDto { ConId = 2, Exchange = "SMART" });
+		_manager.Pin(new ContractDto { ConId = 1, Exchange = "SMART" });
+
+		var reloaded = new InMemorySettingsRepository();
+		reloaded.Save(
+			JsonSerializer.Deserialize<SettingsEntity>(
+				JsonSerializer.Serialize(_settings.Settings)
+			)!
+		);
+
+		Assert.Equal(
+			["MSFT", "AAPL"],
+			new WatchlistManager(reloaded).GetPinned().Select(x => x.Symbol)
+		);
+	}
+
+	private WatchlistEntity WatchlistActive() =>
+		_settings.Settings.Watchlists.First(x => x.Id == _settings.Settings.ActiveWatchlistId);
 }

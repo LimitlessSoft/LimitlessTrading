@@ -397,6 +397,22 @@ usable count for (ETFs, foreign filers), show "—". Starting a row's quote also
 `ISharesOutstandingManager` lookup (cached on disk, so normally instant); the result is posted to
 the row on the UI thread. Columns are fixed: nothing about them is persisted.
 
+**Pinning and sorting.** Right-click a row > "Pin to top" (or "Unpin"). Pinned rows stay on top,
+with a small pin before the symbol, in the order they were pinned, whatever column is sorted;
+only the rows below follow the sort. Pins are kept per watchlist in `WatchlistEntity.Pinned`
+(conId + exchange, in pin order; settings from before pinning have none) through
+`IWatchlistManager.Pin` / `Unpin` / `GetPinned`; removing a row drops its pin. The DataGrid's own
+sort can't hold a group in place, so the view handles its `Sorting` event and the view model
+owns the sort (`SortColumn`, `SortDirection`, not persisted): a new column sorts ascending, the
+sorted one flips. Every sortable column sorts by a number (`LastValue`, `ChangePercentValue`,
+`BidValue` for Bid / Ask, `VolumeValue`, `MarketCapValue`), rows without one yet last in either
+direction, ties in saved order; Symbol sorts ignoring case. `WatchlistSortHelpers.Order` gives
+the order and `CollectionHelpers.ApplyOrder` moves only the rows that have to (remove + insert:
+the DataGrid ignores Move), keeping the selection without re-publishing it to the link group.
+The order is re-applied on a header click, pin / unpin and add; while sorted by a quote column,
+ticks mark it stale and it re-sorts at most once per `WatchlistResortInterval` (1 s). The view
+sets the header's sort arrow itself, as the grid only draws it for its own sort.
+
 ### Pinned side widgets
 
 A widget docked on a side has a pin in its header. Pinned (the default) it stays expanded until

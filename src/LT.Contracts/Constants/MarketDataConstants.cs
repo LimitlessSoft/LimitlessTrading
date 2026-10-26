@@ -15,6 +15,12 @@ public static class MarketDataConstants
 	/// <summary>How often coalesced quotes are pushed to the UI.</summary>
 	public static readonly TimeSpan UiFlushInterval = TimeSpan.FromMilliseconds(250);
 
+	/// <summary>
+	/// How often a watchlist sorted by a quote column re-sorts while quotes tick: at most once a
+	/// second, so rows don't jump on every flush.
+	/// </summary>
+	public static readonly TimeSpan WatchlistResortInterval = TimeSpan.FromSeconds(1);
+
 	public const int WatchlistMaxItems = 200;
 	public const int WatchlistNameMaxLength = 40;
 

@@ -25,6 +25,15 @@ public interface IWatchlistManager
 	/// <summary>Adds a listing; the same conId on another exchange is a separate item.</summary>
 	void Add(ContractDto contract);
 
-	/// <summary>Removes the item for this listing (conId and exchange).</summary>
+	/// <summary>Removes the item for this listing (conId and exchange), and its pin.</summary>
 	void Remove(ContractDto contract);
+
+	/// <summary>The pinned items, in the order they were pinned.</summary>
+	IReadOnlyList<ContractDto> GetPinned();
+
+	/// <summary>Pins an item to the top, after those already pinned; pinning it again does nothing.</summary>
+	void Pin(ContractDto contract);
+
+	/// <summary>Unpins an item; one that isn't pinned is left as it is.</summary>
+	void Unpin(ContractDto contract);
 }

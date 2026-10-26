@@ -1,4 +1,5 @@
 using LT.Contracts.Constants;
+using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Entities;
 using LT.Contracts.Interfaces.IRepositories;
 
@@ -67,6 +68,14 @@ public static class WatchlistHelpers
 
 	public static WatchlistEntity GetActive(SettingsEntity settings) =>
 		settings.Watchlists.First(x => x.Id == settings.ActiveWatchlistId);
+
+	/// <summary>Whether a pin is this listing's (conId and exchange, as <see cref="ContractHelpers.IsSameListing"/>).</summary>
+	public static bool IsPinOf(WatchlistPinEntity pin, ContractDto contract) =>
+		pin.ConId == contract.ConId
+		&& string.Equals(pin.Exchange, contract.Exchange, StringComparison.OrdinalIgnoreCase);
+
+	public static WatchlistPinEntity CreatePin(ContractDto contract) =>
+		new() { ConId = contract.ConId, Exchange = contract.Exchange };
 
 	/// <summary>The first free "Watchlist N" (N from 2: the first list is "Main").</summary>
 	public static string GetNewName(IEnumerable<string> existing)

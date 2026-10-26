@@ -24,4 +24,7 @@ public enum WatchlistValidationCodes
 
 	[LSCoreValidationMessage("That watchlist no longer exists.")]
 	WVC_007,
+
+	[LSCoreValidationMessage("{0} is not in the watchlist.")]
+	WVC_008,
 }

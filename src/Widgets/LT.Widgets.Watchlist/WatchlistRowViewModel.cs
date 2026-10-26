@@ -3,6 +3,7 @@ using LT.App.Helpers;
 using LT.App.ViewModels;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.MarketData;
+using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 
 namespace LT.App.Widgets.Watchlist;
@@ -48,6 +49,19 @@ public partial class WatchlistRowViewModel(ContractDto contract) : ViewModelBase
 	[ObservableProperty]
 	public partial double? MarketCapValue { get; set; }
 
+	// Sort keys of the quote columns (Bid / Ask sorts by bid); null until the first quote
+	public double? LastValue { get; private set; }
+	public double? ChangePercentValue { get; private set; }
+	public double? BidValue { get; private set; }
+	public decimal? VolumeValue { get; private set; }
+
+	/// <summary>Its place among the pinned rows (0 = pinned first); null when not pinned.</summary>
+	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(IsPinned))]
+	public partial int? PinIndex { get; set; }
+
+	public bool IsPinned => PinIndex is not null;
+
 	[ObservableProperty]
 	public partial bool IsUp { get; set; }
 
@@ -60,15 +74,20 @@ public partial class WatchlistRowViewModel(ContractDto contract) : ViewModelBase
 	[ObservableProperty]
 	public partial string? Error { get; set; }
 
-	public void Flush()
+	/// <summary>Applies the newest quote, if one came since the last flush; true when it did.</summary>
+	public bool Flush()
 	{
 		if (Pending.Take() is not { } quote)
-			return;
+			return false;
 
 		var change = TickTypeHelpers.GetChange(quote);
-		Last = FormatHelpers.Price(TickTypeHelpers.GetDisplayPrice(quote));
+		LastValue = TickTypeHelpers.GetDisplayPrice(quote);
+		ChangePercentValue = TickTypeHelpers.GetChangePercent(quote);
+		BidValue = quote.Bid;
+		VolumeValue = quote.Volume;
+		Last = FormatHelpers.Price(LastValue);
 		Change = change is { } c ? c.ToString("+#,0.00;-#,0.00;0.00") : FormatHelpers.Empty;
-		ChangePercent = FormatHelpers.SignedPercent(TickTypeHelpers.GetChangePercent(quote));
+		ChangePercent = FormatHelpers.SignedPercent(ChangePercentValue);
 		Bid = FormatHelpers.Price(quote.Bid);
 		Ask = FormatHelpers.Price(quote.Ask);
 		Volume = FormatHelpers.Volume(quote.Volume);
@@ -78,7 +97,21 @@ public partial class WatchlistRowViewModel(ContractDto contract) : ViewModelBase
 		Error = null;
 		_quote = quote;
 		UpdateMarketCap();
+		return true;
 	}
+
+	/// <summary>The row's value in a sorted column; null when it has none yet.</summary>
+	public IComparable? GetSortKey(WatchlistSortColumn column) =>
+		column switch
+		{
+			WatchlistSortColumn.Symbol => Symbol,
+			WatchlistSortColumn.Last => LastValue,
+			WatchlistSortColumn.ChangePercent => ChangePercentValue,
+			WatchlistSortColumn.Bid => BidValue,
+			WatchlistSortColumn.Volume => VolumeValue,
+			WatchlistSortColumn.MarketCap => MarketCapValue,
+			_ => null,
+		};
 
 	/// <summary>The SEC share count arrived (UI thread); market cap follows every price from now on.</summary>
 	public void SetSharesOutstanding(long? shares)

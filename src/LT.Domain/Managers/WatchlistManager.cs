@@ -129,15 +129,55 @@ public class WatchlistManager(ISettingsRepository settingsRepository) : IWatchli
 	public void Remove(ContractDto contract)
 	{
 		var settings = WatchlistHelpers.LoadSettings(settingsRepository);
+		var watchlist = WatchlistHelpers.GetActive(settings);
+		var removed = watchlist.Items.RemoveAll(x =>
+			ContractHelpers.IsSameListing(x.ToMapped<ContractEntity, ContractDto>(), contract)
+		);
+		var unpinned = watchlist.Pinned.RemoveAll(x => WatchlistHelpers.IsPinOf(x, contract));
+		if (removed + unpinned > 0)
+			settingsRepository.Save(settings);
+	}
+
+	public IReadOnlyList<ContractDto> GetPinned()
+	{
+		var watchlist = WatchlistHelpers.GetActive(
+			WatchlistHelpers.LoadSettings(settingsRepository)
+		);
+		var items = watchlist.Items.ToMappedList<ContractEntity, ContractDto>();
+		return watchlist
+			.Pinned.Select(pin => items.FirstOrDefault(x => WatchlistHelpers.IsPinOf(pin, x)))
+			.OfType<ContractDto>()
+			.ToList();
+	}
+
+	public void Pin(ContractDto contract)
+	{
+		var settings = WatchlistHelpers.LoadSettings(settingsRepository);
+		var watchlist = WatchlistHelpers.GetActive(settings);
+		if (
+			!watchlist.Items.Any(x =>
+				ContractHelpers.IsSameListing(x.ToMapped<ContractEntity, ContractDto>(), contract)
+			)
+		)
+			throw new LSCoreBadRequestException(
+				WatchlistValidationCodes.WVC_008.GetValidationMessage(
+					ContractHelpers.GetDisplayName(contract)
+				)
+			);
+		if (watchlist.Pinned.Any(x => WatchlistHelpers.IsPinOf(x, contract)))
+			return;
+
+		watchlist.Pinned.Add(WatchlistHelpers.CreatePin(contract));
+		settingsRepository.Save(settings);
+	}
+
+	public void Unpin(ContractDto contract)
+	{
+		var settings = WatchlistHelpers.LoadSettings(settingsRepository);
 		if (
 			WatchlistHelpers
 				.GetActive(settings)
-				.Items.RemoveAll(x =>
-					ContractHelpers.IsSameListing(
-						x.ToMapped<ContractEntity, ContractDto>(),
-						contract
-					)
-				) > 0
+				.Pinned.RemoveAll(x => WatchlistHelpers.IsPinOf(x, contract)) > 0
 		)
 			settingsRepository.Save(settings);
 	}
