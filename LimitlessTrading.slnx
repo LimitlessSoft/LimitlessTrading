@@ -1,4 +1,16 @@
 <Solution>
+	<Folder Name="/Widgets/">
+		<Project Path="src/Widgets/LT.Widgets.Core/LT.Widgets.Core.csproj" />
+		<Project Path="src/Widgets/LT.Widgets.Account/LT.Widgets.Account.csproj" />
+		<Project Path="src/Widgets/LT.Widgets.Chart/LT.Widgets.Chart.csproj" />
+		<Project Path="src/Widgets/LT.Widgets.Executions/LT.Widgets.Executions.csproj" />
+		<Project Path="src/Widgets/LT.Widgets.Messages/LT.Widgets.Messages.csproj" />
+		<Project Path="src/Widgets/LT.Widgets.OptionChain/LT.Widgets.OptionChain.csproj" />
+		<Project Path="src/Widgets/LT.Widgets.OrderTicket/LT.Widgets.OrderTicket.csproj" />
+		<Project Path="src/Widgets/LT.Widgets.Orders/LT.Widgets.Orders.csproj" />
+		<Project Path="src/Widgets/LT.Widgets.Positions/LT.Widgets.Positions.csproj" />
+		<Project Path="src/Widgets/LT.Widgets.Watchlist/LT.Widgets.Watchlist.csproj" />
+	</Folder>
 	<Project Path="src/LT.App/LT.App.csproj" />
 	<Project Path="src/LT.Contracts/LT.Contracts.csproj" />
 	<Project Path="src/LT.Domain/LT.Domain.csproj" />

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<!-- What every widget project builds on: base view models, stores, shared controls and helpers,
+	     and the interfaces the workspace hosts widgets through -->
+	<PropertyGroup>
+		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\LT.Contracts\LT.Contracts.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Avalonia" Version="12.1.4" />
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+		<PackageReference Include="LSCore.Exceptions" Version="10.0.0" />
+	</ItemGroup>
+</Project>

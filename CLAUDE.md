@@ -38,7 +38,7 @@ say the changes are ready.
    `Program.cs`; new ViewModels must be registered there too (the scan skips them).
 9. **Respect IB limits** — every request goes through `RequestThrottle` in `IbkrApiClient`;
    quotes go through `IMarketDataManager` (line limit). Never fire unbounded batches.
-12. **Shared UI state lives in `LT.App/Stores`**; widgets needing a connection derive from
+12. **Shared UI state lives in `src/Widgets/LT.Widgets.Core/Stores`**; widgets needing a connection derive from
     `ConnectedViewModelBase` and use its session token.
 13. **Time-dependent managers take `TimeProvider`**, tests use `FakeTimeProvider`.
 14. **Widgets are placed only through the workspace** (`LT.App/Workspace`) — never put a widget
@@ -62,7 +62,9 @@ Layers follow the Termodom ecosystem and use LSCore (`DependencyInjection`, `Val
 | `LT.Domain` | Managers, Validators |
 | `LT.Repository` | Local persistence (JSON settings) |
 | `LT.Ibkr` | `IIbkrApiClient` over IBKR.Net (our own IB client, no IB code) |
-| `LT.App` | Avalonia app — `Program.cs` composition root, Shell, Pages, Widgets |
+| `LT.App` | Avalonia app — `Program.cs` composition root, Shell, Pages, Workspace, Widgets |
+| `LT.Widgets.Core` | What widget projects build on: base VMs, Stores, shared controls, UI helpers |
+| `LT.Widgets.<Widget>` | One workspace widget per project, under `src/Widgets/` |
 | `LT.Tests` | xUnit v3 on Microsoft.Testing.Platform |
 
 ## Commands

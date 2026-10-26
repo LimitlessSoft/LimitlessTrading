@@ -4,18 +4,9 @@ using LT.App.Pages.TradingPage;
 using LT.App.Services;
 using LT.App.Shell;
 using LT.App.Stores;
-using LT.App.Widgets.Account;
-using LT.App.Widgets.Chart;
 using LT.App.Widgets.ConnectionBar;
-using LT.App.Widgets.Executions;
 using LT.App.Widgets.Gateway;
-using LT.App.Widgets.Messages;
-using LT.App.Widgets.OptionChain;
-using LT.App.Widgets.Orders;
-using LT.App.Widgets.OrderTicket;
-using LT.App.Widgets.Positions;
 using LT.App.Widgets.Settings;
-using LT.App.Widgets.Watchlist;
 using LT.App.Workspace;
 using LT.Contracts.Constants;
 using LT.Contracts.Enums;
@@ -108,17 +99,10 @@ public static class Program
 		builder.Services.AddTransient<UpdateViewModel>();
 		builder.Services.AddTransient<ConnectionBarViewModel>();
 		builder.Services.AddTransient<TradingPageViewModel>();
-		builder.Services.AddTransient<WatchlistViewModel>();
-		builder.Services.AddTransient<ChartViewModel>();
-		builder.Services.AddTransient<AccountViewModel>();
-		builder.Services.AddTransient<PositionsViewModel>();
-		builder.Services.AddTransient<OrdersViewModel>();
-		builder.Services.AddTransient<ExecutionsViewModel>();
-		builder.Services.AddTransient<OptionChainViewModel>();
-		builder.Services.AddTransient<OrderTicketViewModel>();
-		builder.Services.AddTransient<MessagesViewModel>();
 		builder.Services.AddTransient<SettingsViewModel>();
 		builder.Services.AddTransient<GatewayViewModel>();
+		foreach (var widget in WidgetCatalog.Definitions)
+			builder.Services.AddTransient(widget.ViewModelType);
 
 		var host = builder.Build();
 		host.UseLSCoreDependencyInjection();

@@ -113,6 +113,9 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable
 	{
 		if (!item.IsRenaming)
 			return;
+		// Close the box first: hiding it fires its LostFocus, which must not commit again while
+		// the list below is being rebuilt
+		item.IsRenaming = false;
 		if (
 			Run(() =>
 				_watchlistManager.SaveName(
@@ -121,6 +124,8 @@ public partial class WatchlistViewModel : ConnectedViewModelBase, ILinkable
 			)
 		)
 			LoadWatchlists();
+		else
+			item.IsRenaming = true;
 	}
 
 	[RelayCommand]

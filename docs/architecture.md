@@ -51,11 +51,18 @@ src/
 │   ├── Shell/                     # MainWindow: icon toolbar (hamburger menu), page host, status bar
 │   ├── Pages/<Page>/              # a page: its widgets placed in a workspace (TradingPage)
 │   ├── Workspace/                 # widget wrappers: center split layout, side strips, floating windows
-│   ├── Widgets/<Widget>/          # <Widget>View.axaml + <Widget>ViewModel.cs
-│   ├── Stores/                    # app-wide UI state shared by widgets (≈ Termodom zStore)
-│   ├── Services/                  # hosted services (ConnectionWatchdog)
-│   ├── ViewModels/                # ViewModelBase, ConnectedViewModelBase
-│   └── Helpers/                   # UI-only helpers (formatting, LatestValue, error messages)
+│   ├── Widgets/<Part>/            # shell parts that aren't workspace widgets: ConnectionBar,
+│   │                              #   Gateway and Settings windows
+│   └── Services/                  # hosted services (ConnectionWatchdog)
+├── Widgets/                       # "Widgets" solution folder
+│   ├── LT.Widgets.Core/           # what widget projects build on (namespaces kept as LT.App.*)
+│   │   ├── Stores/                # app-wide UI state shared by widgets (≈ Termodom zStore)
+│   │   ├── ViewModels/            # ViewModelBase, ConnectedViewModelBase
+│   │   ├── Controls/              # shared controls (ContractSearchBox)
+│   │   ├── Helpers/               # UI-only helpers (formatting, LatestValue, error messages)
+│   │   └── Workspace/             # IWidgetDefinition, ILinkable, IWidgetState, WidgetTitles
+│   └── LT.Widgets.<Widget>/       # one per workspace widget: <Widget>View.axaml,
+│                                  #   <Widget>ViewModel.cs, <Widget>Widget.cs (IWidgetDefinition)
 └── LT.Tests/                      # xUnit v3, never connects to IB
 ```
 
@@ -63,14 +70,20 @@ src/
 
 ```
 LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
-   │                          ▲
-   └──► LT.Ibkr ──────────────┘   (LT.Ibkr ──► IBKR.Net)
+   │  │                       ▲  ▲
+   │  └──► LT.Ibkr ───────────┘  │   (LT.Ibkr ──► IBKR.Net)
+   └──► LT.Widgets.<Widget> ──► LT.Widgets.Core
 ```
 
 - `LT.Contracts` references nothing of ours, and **never** `IBKR.Net` or Avalonia.
 - `LT.Domain` depends only on `LT.Contracts` interfaces — it doesn't know IBKR is behind
   `IIbkrApiClient`, so managers are unit-testable with fakes.
 - `LT.Ibkr` maps every IB type to a DTO at the boundary. IB types never reach the Domain or UI.
+- Widget projects reference only `LT.Widgets.Core` (and through it `LT.Contracts`): they reach
+  data through manager interfaces, never `LT.Domain`, `LT.Ibkr` or each other. App-wide styles
+  and resources (`App.axaml`) still apply to them; their `StaticResource`s resolve at runtime.
+  Code moved out of `LT.App` kept its `LT.App.*` namespaces (`LT.App.Widgets.<Widget>`,
+  `LT.App.Stores`, …).
 - `LT.App` is the composition root: it references every layer only to wire DI. ViewModels inject
   **managers** (`IConnectionManager`), never repositories or `IIbkrApiClient` directly — same rule as
   Termodom controllers.
@@ -123,7 +136,7 @@ LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
 
 ## Stores
 
-`LT.App/Stores` are singleton `ObservableObject`s for UI state several widgets share — the role
+`src/Widgets/LT.Widgets.Core/Stores` are singleton `ObservableObject`s for UI state several widgets share — the role
 Zustand stores play in Termodom FEs:
 
 - `AccountStore` — managed accounts and the selected one (persisted); positions, orders,

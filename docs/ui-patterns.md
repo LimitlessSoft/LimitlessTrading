@@ -83,7 +83,7 @@ Every widget is **independently spawnable** and lives in one of three wrappers:
 - A widget opens where it last was; a new chart opens where the last chart was. On first run:
   Watchlist, Positions, Orders and Executions on the left; Account and Messages on the right;
   Chart in the center; Option chain and Order ticket closed (`WorkspaceHelpers.GetDefaultPlacements`).
-- **Order ticket** (`Widgets/OrderTicket`, right side): takes its contract from the link group.
+- **Order ticket** (`LT.Widgets.OrderTicket`, right side): takes its contract from the link group.
   Account, side, market / limit, quantity or amount in $ (market only), limit price, time in force
   (crypto: GTC / IOC). "Review order" validates (`IOrderManager.ValidateOrder`) and spells the
   order out with the endpoint; any edit drops the review; only "Send order" sends. Orders sent
@@ -99,13 +99,20 @@ Every widget is **independently spawnable** and lives in one of three wrappers:
 - Saved in `LayoutEntity`: `Widgets` (id, kind, dock, floating bounds, chart settings of each open
   instance), `Center` (the split tree with sizes), the expanded widget per side and side widths.
 
-**Adding a widget:** a `WorkspaceTool` value (at the end), title and icon in `WidgetCatalog` /
-`WidgetIcons`, a case in `WidgetViewFactory` and `WidgetViewModelFactory`, a default dock in
-`WorkspaceHelpers.GetDefaultDock`, and a menu entry in `MainWindow.axaml`. Per-instance settings:
-implement `IWidgetState` on the view model.
+**Adding a widget** (in its own project, like `LT.Widgets.Watchlist`): a `WorkspaceTool` value
+(at the end); a `src/Widgets/LT.Widgets.<Widget>` project referencing `LT.Widgets.Core`, added to the
+solution's `Widgets` folder and referenced by `LT.App`; an `IWidgetDefinition` there (title, icon, focus key, view model type,
+view and optional header title) listed in `WidgetCatalog.Definitions` — that also registers its
+view model in DI; a default dock in `WorkspaceHelpers.GetDefaultDock`, and a menu entry in
+`MainWindow.axaml`. Per-instance settings: implement `IWidgetState` on the view model.
+
+`WidgetCatalog`, `WidgetViewFactory` and `WidgetViewModelFactory` only read the definitions; a
+widget's header title is its definition's `CreateTitle()` (`WidgetTitles.Bound` for plain text bound
+to the view model).
 
 ViewModels are resolved from DI. They have no interfaces, so the LSCore convention scan skips them —
-register each one as transient in `Program.cs` (`builder.Services.AddTransient<FooViewModel>()`).
+register each one as transient in `Program.cs` (`builder.Services.AddTransient<FooViewModel>()`);
+widget definitions' view models are registered from `WidgetCatalog.Definitions`.
 Row VMs (`WatchlistRowViewModel`, `PositionRowViewModel`, …) are constructed by their parent
 instead.
 
@@ -158,7 +165,7 @@ It lists one tab per expiration (`IOptionChainManager.GetExpirationsAsync`, from
 `reqSecDefOptParams`); the selected tab loads that day's strikes around the money.
 
 A linkable view model implements `ILinkable` (`LT.App/Workspace`) by holding a `ContractLink`
-(`LT.App/Stores`): `Publish(contract)` to send, `ContractReceived` to follow; it never gets its
+(`src/Widgets/LT.Widgets.Core/Stores`): `Publish(contract)` to send, `ContractReceived` to follow; it never gets its
 own publish back. The frame shows the link button for any `ILinkable`, and the workspace saves
 the group in `WidgetPlacementEntity.LinkGroup`. Layouts from before link groups load pinned
 charts as Not linked.

@@ -12,6 +12,16 @@
 		<ProjectReference Include="..\LT.Domain\LT.Domain.csproj" />
 		<ProjectReference Include="..\LT.Repository\LT.Repository.csproj" />
 		<ProjectReference Include="..\LT.Ibkr\LT.Ibkr.csproj" />
+		<ProjectReference Include="..\Widgets\LT.Widgets.Core\LT.Widgets.Core.csproj" />
+		<ProjectReference Include="..\Widgets\LT.Widgets.Account\LT.Widgets.Account.csproj" />
+		<ProjectReference Include="..\Widgets\LT.Widgets.Chart\LT.Widgets.Chart.csproj" />
+		<ProjectReference Include="..\Widgets\LT.Widgets.Executions\LT.Widgets.Executions.csproj" />
+		<ProjectReference Include="..\Widgets\LT.Widgets.Messages\LT.Widgets.Messages.csproj" />
+		<ProjectReference Include="..\Widgets\LT.Widgets.OptionChain\LT.Widgets.OptionChain.csproj" />
+		<ProjectReference Include="..\Widgets\LT.Widgets.OrderTicket\LT.Widgets.OrderTicket.csproj" />
+		<ProjectReference Include="..\Widgets\LT.Widgets.Orders\LT.Widgets.Orders.csproj" />
+		<ProjectReference Include="..\Widgets\LT.Widgets.Positions\LT.Widgets.Positions.csproj" />
+		<ProjectReference Include="..\Widgets\LT.Widgets.Watchlist\LT.Widgets.Watchlist.csproj" />
 	</ItemGroup>
 
 	<!-- Avalonia: same app on Windows, macOS and Linux -->
