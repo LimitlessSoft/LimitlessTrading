@@ -7,4 +7,7 @@ public static class WorkspaceConstants
 	public const double FloatingMinWidth = 260;
 	public const double FloatingMinHeight = 200;
 	public const double FloatingCascadeOffset = 40;
+
+	/// <summary>Movement (DIPs) before a press on a drag handle (frame header, strip icon) turns into a drag.</summary>
+	public const double DragThreshold = 6;
 }

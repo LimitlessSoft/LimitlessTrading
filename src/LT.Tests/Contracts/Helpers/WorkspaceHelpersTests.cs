@@ -1,3 +1,4 @@
+using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
@@ -66,4 +67,21 @@ public class WorkspaceHelpersTests
 				.Single()
 				.Dock
 		);
+
+	[Theory]
+	[InlineData(0, 0)]
+	[InlineData(5.9, 0)]
+	[InlineData(0, -5.9)]
+	[InlineData(-5.9, 5.9)]
+	public void A_press_moved_less_than_the_threshold_stays_a_click(double dx, double dy) =>
+		Assert.False(WorkspaceHelpers.IsBeyondDragThreshold(dx, dy));
+
+	[Theory]
+	[InlineData(WorkspaceConstants.DragThreshold, 0)]
+	[InlineData(0, WorkspaceConstants.DragThreshold)]
+	[InlineData(-WorkspaceConstants.DragThreshold, 0)]
+	[InlineData(0, -12)]
+	[InlineData(3, 7)]
+	public void A_press_moved_to_the_threshold_on_either_axis_is_a_drag(double dx, double dy) =>
+		Assert.True(WorkspaceHelpers.IsBeyondDragThreshold(dx, dy));
 }

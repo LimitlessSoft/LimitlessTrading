@@ -6,13 +6,14 @@
 	x:DataType="vm:WorkspaceViewModel"
 >
 	<UserControl.DataTemplates>
-		<!-- Strip icon of a side-docked widget -->
+		<!-- Strip icon of a side-docked widget: click toggles it, drag moves it like its header -->
 		<DataTemplate DataType="vm:WidgetItem">
 			<Button
 				Classes="tool"
 				Classes.active="{Binding IsActive}"
 				Command="{Binding ToggleCommand}"
 				ToolTip.Tip="{Binding ToolTip}"
+				AttachedToVisualTree="OnStripIconAttached"
 			>
 				<PathIcon Data="{Binding Icon}" />
 			</Button>
