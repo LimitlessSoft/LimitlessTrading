@@ -18,7 +18,7 @@ public enum ConfirmChoice
 /// <see cref="ShowChoiceAsync"/> adds a second, red way to go on (e.g. Close this window /
 /// Close application).
 /// </summary>
-public partial class ConfirmDialog : Window
+public partial class ConfirmDialog : AppWindow
 {
 	public ConfirmDialog() => InitializeComponent();
 

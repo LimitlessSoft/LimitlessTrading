@@ -1,7 +1,8 @@
-<Window
+<controls:AppWindow
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:LT.App.Shell"
+	xmlns:controls="using:LT.App.Controls"
 	xmlns:connectionBar="using:LT.App.Widgets.ConnectionBar"
 	xmlns:tradingPage="using:LT.App.Pages.TradingPage"
 	xmlns:workspace="using:LT.App.Workspace"
@@ -13,97 +14,87 @@
 	MinWidth="1100"
 	MinHeight="680"
 	WindowStartupLocation="CenterScreen"
-	Classes="appChrome"
 	Classes.flush="{Binding Appearance.IsFlush}"
 >
+	<!-- The app's title bar (AppWindow's template; the OS one is off). Everything lives under the
+	     hamburger for now. -->
+	<controls:AppWindow.TitleBarLeftContent>
+		<Button Classes="tool" ToolTip.Tip="Menu">
+			<PathIcon Data="M3,6H21V8H3Z M3,11H21V13H3Z M3,16H21V18H3Z" />
+			<Button.Flyout>
+				<MenuFlyout Placement="BottomEdgeAlignedLeft">
+					<MenuItem Header="Log in…" Click="OnGatewayClick" />
+					<MenuItem Header="Log out" Command="{Binding ConnectionBar.LogOutCommand}" />
+					<Separator />
+					<MenuItem Header="Refresh all" InputGesture="F5" Command="{Binding RefreshAllCommand}" />
+					<MenuItem
+						Header="New window"
+						InputGesture="Ctrl+Shift+N"
+						Command="{Binding NewWindowCommand}"
+					/>
+					<workspace:WidgetsMenuItem
+						ToolClicked="OnToolClicked"
+						FullscreenClicked="OnFullscreenClicked"
+					/>
+					<Separator />
+					<MenuItem Header="Check for updates" Command="{Binding Update.CheckCommand}" />
+					<MenuItem Header="Settings…" InputGesture="Ctrl+OemComma" Click="OnSettingsClick" />
+					<Separator />
+					<MenuItem Header="Exit" Click="OnExitClick" />
+				</MenuFlyout>
+			</Button.Flyout>
+		</Button>
+	</controls:AppWindow.TitleBarLeftContent>
+	<controls:AppWindow.TitleBarRightContent>
+		<Button
+			Classes="update"
+			Margin="0,0,8,0"
+			VerticalAlignment="Center"
+			IsVisible="{Binding Update.IsVisible}"
+			Content="{Binding Update.ButtonText}"
+		>
+			<Button.Flyout>
+				<Flyout Placement="BottomEdgeAlignedRight">
+					<StackPanel
+						Width="320"
+						Spacing="10"
+						DataContext="{Binding Update}"
+						x:DataType="vm:UpdateViewModel"
+					>
+						<TextBlock FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding VersionsText}" />
+						<HyperlinkButton
+							Padding="0"
+							Content="What's new"
+							IsVisible="{Binding ReleasePageUrl, Converter={x:Static ObjectConverters.IsNotNull}}"
+							Click="OnReleaseNotesClick"
+						/>
+						<ProgressBar IsVisible="{Binding IsDownloading}" Value="{Binding Progress}" />
+						<TextBlock
+							Foreground="{DynamicResource NegativeBrush}"
+							TextWrapping="Wrap"
+							IsVisible="{Binding ErrorText, Converter={x:Static ObjectConverters.IsNotNull}}"
+							Text="{Binding ErrorText}"
+						/>
+						<TextBlock
+							Classes="secondary"
+							TextWrapping="Wrap"
+							IsVisible="{Binding CannotInstallReason, Converter={x:Static ObjectConverters.IsNotNull}}"
+							Text="{Binding CannotInstallReason}"
+						/>
+						<Button
+							Classes="accent"
+							HorizontalAlignment="Right"
+							Content="Install and restart"
+							Command="{Binding InstallCommand}"
+						/>
+					</StackPanel>
+				</Flyout>
+			</Button.Flyout>
+		</Button>
+	</controls:AppWindow.TitleBarRightContent>
+
 	<Panel>
 		<DockPanel>
-			<!-- The app's title bar (the OS one is off). Everything lives under the hamburger for now. -->
-			<vm:WindowTitleBar DockPanel.Dock="Top" Title="{Binding Title}">
-				<vm:WindowTitleBar.LeftContent>
-					<Button Classes="tool" ToolTip.Tip="Menu">
-						<PathIcon Data="M3,6H21V8H3Z M3,11H21V13H3Z M3,16H21V18H3Z" />
-						<Button.Flyout>
-							<MenuFlyout Placement="BottomEdgeAlignedLeft">
-								<MenuItem Header="Log in…" Click="OnGatewayClick" />
-								<MenuItem Header="Log out" Command="{Binding ConnectionBar.LogOutCommand}" />
-								<Separator />
-								<MenuItem
-									Header="Refresh all"
-									InputGesture="F5"
-									Command="{Binding RefreshAllCommand}"
-								/>
-								<MenuItem
-									Header="New window"
-									InputGesture="Ctrl+Shift+N"
-									Command="{Binding NewWindowCommand}"
-								/>
-								<workspace:WidgetsMenuItem
-									ToolClicked="OnToolClicked"
-									FullscreenClicked="OnFullscreenClicked"
-								/>
-								<Separator />
-								<MenuItem Header="Check for updates" Command="{Binding Update.CheckCommand}" />
-								<MenuItem Header="Settings…" InputGesture="Ctrl+OemComma" Click="OnSettingsClick" />
-								<Separator />
-								<MenuItem Header="Exit" Click="OnExitClick" />
-							</MenuFlyout>
-						</Button.Flyout>
-					</Button>
-				</vm:WindowTitleBar.LeftContent>
-				<vm:WindowTitleBar.RightContent>
-					<Button
-						Classes="update"
-						Margin="0,0,8,0"
-						VerticalAlignment="Center"
-						IsVisible="{Binding Update.IsVisible}"
-						Content="{Binding Update.ButtonText}"
-					>
-						<Button.Flyout>
-							<Flyout Placement="BottomEdgeAlignedRight">
-								<StackPanel
-									Width="320"
-									Spacing="10"
-									DataContext="{Binding Update}"
-									x:DataType="vm:UpdateViewModel"
-								>
-									<TextBlock
-										FontWeight="SemiBold"
-										TextWrapping="Wrap"
-										Text="{Binding VersionsText}"
-									/>
-									<HyperlinkButton
-										Padding="0"
-										Content="What's new"
-										IsVisible="{Binding ReleasePageUrl, Converter={x:Static ObjectConverters.IsNotNull}}"
-										Click="OnReleaseNotesClick"
-									/>
-									<ProgressBar IsVisible="{Binding IsDownloading}" Value="{Binding Progress}" />
-									<TextBlock
-										Foreground="{DynamicResource NegativeBrush}"
-										TextWrapping="Wrap"
-										IsVisible="{Binding ErrorText, Converter={x:Static ObjectConverters.IsNotNull}}"
-										Text="{Binding ErrorText}"
-									/>
-									<TextBlock
-										Classes="secondary"
-										TextWrapping="Wrap"
-										IsVisible="{Binding CannotInstallReason, Converter={x:Static ObjectConverters.IsNotNull}}"
-										Text="{Binding CannotInstallReason}"
-									/>
-									<Button
-										Classes="accent"
-										HorizontalAlignment="Right"
-										Content="Install and restart"
-										Command="{Binding InstallCommand}"
-									/>
-								</StackPanel>
-							</Flyout>
-						</Button.Flyout>
-					</Button>
-				</vm:WindowTitleBar.RightContent>
-			</vm:WindowTitleBar>
-
 			<Border
 				DockPanel.Dock="Bottom"
 				Padding="10,4"
@@ -133,8 +124,8 @@
 
 			<tradingPage:TradingPageView x:Name="Page" DataContext="{Binding CurrentPage}" />
 		</DockPanel>
-		<!-- Fullscreen widget (Ctrl+Shift+F): its frame moves here, over the toolbar, workspace and
-		     status bar, and back on restore -->
+		<!-- Fullscreen widget (Ctrl+Shift+F): its frame moves here, over the workspace and status bar
+		     (the title bar stays), and back on restore -->
 		<Border
 			x:Name="FullscreenLayer"
 			Padding="8"
@@ -142,4 +133,4 @@
 			IsVisible="False"
 		/>
 	</Panel>
-</Window>
+</controls:AppWindow>

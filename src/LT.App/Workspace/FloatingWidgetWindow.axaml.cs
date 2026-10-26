@@ -1,11 +1,12 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using LT.App.Controls;
 
 namespace LT.App.Workspace;
 
 /// <summary>Detached host: one widget frame in its own window, owned by the main window.</summary>
-public partial class FloatingWidgetWindow : Window
+public partial class FloatingWidgetWindow : AppWindow
 {
 	public FloatingWidgetWindow()
 	{

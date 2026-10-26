@@ -2,10 +2,11 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
+using LT.App.Controls;
 
 namespace LT.App.Widgets.Settings;
 
-public partial class SettingsWindow : Window
+public partial class SettingsWindow : AppWindow
 {
 	public SettingsWindow()
 	{

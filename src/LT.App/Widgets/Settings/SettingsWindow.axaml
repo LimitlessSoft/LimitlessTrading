@@ -1,12 +1,12 @@
-<Window
+<controls:AppWindow
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:LT.App.Widgets.Settings"
-	xmlns:shell="using:LT.App.Shell"
+	xmlns:controls="using:LT.App.Controls"
 	x:Class="LT.App.Widgets.Settings.SettingsWindow"
 	x:DataType="vm:SettingsViewModel"
-	Classes="appChrome"
 	Title="Settings"
+	CanMinimize="False"
 	Width="880"
 	Height="580"
 	MinWidth="680"
@@ -166,8 +166,6 @@
 	</Window.DataTemplates>
 
 	<DockPanel>
-		<shell:WindowTitleBar DockPanel.Dock="Top" Title="Settings" CanMinimize="False" />
-
 		<!-- Error and the dialog buttons -->
 		<Border
 			DockPanel.Dock="Bottom"
@@ -280,4 +278,4 @@
 			</Panel>
 		</Grid>
 	</DockPanel>
-</Window>
+</controls:AppWindow>

@@ -19,20 +19,33 @@ Mirrors the Termodom FE split (`pages/` + `widgets/`):
   Connection state sits at the left of the status bar; clicking it opens the endpoint form
   (`Widgets/ConnectionBar`, a flyout).
 
-## Title bar
+## Windows and the title bar
 
-The main window and the settings window have no OS title bar: their top line is the app's own
-`Shell/WindowTitleBar` (title, `LeftContent` / `RightContent` for the window's own buttons,
-minimize / maximize / close; `CanMinimize` / `CanMaximize` hide those). A window opts in with
-`Classes="appChrome"` (App.axaml: `ExtendClientAreaToDecorationsHint` +
-`WindowDecorations="BorderOnly"`, Avalonia 12's client-side decorations, and the
-`AppWindowDecorations` theme with frame and shadow thickness 0, so the window ends at the app's
-own edges) and docks a `WindowTitleBar` on top. The bar moves the window itself: a press on an
-empty part calls `BeginMoveDrag`, a second press within the system double-click time maximizes /
-restores. The decoration roles (`ElementRole="TitleBar"`, the button roles) are not used: on Linux
-the drag role grabs the mouse (no double-click, clicks on buttons start a drag) and the button
-roles do nothing; a press on any button stays with the button. Other dialogs and floating widget
-windows keep the OS title bar.
+**Every window the app opens derives from `AppWindow`** (`LT.Widgets.Core/Controls`) — the main
+and workspace windows, Settings, dialogs (`ConfirmDialog`, Gateway log-in, the order ticket popup,
+chart indicator settings) and floating widget windows. Never derive from `Window` directly and
+never copy the chrome into a window: in XAML the root is `<controls:AppWindow>`
+(`xmlns:controls="using:LT.App.Controls"`), in code `: AppWindow`. Message boxes and "are you
+sure?" prompts go through `ConfirmDialog`, not a new window type.
+
+None of them has an OS title bar. The `AppWindow` ControlTheme (App.axaml) turns on
+`ExtendClientAreaToDecorationsHint` + `WindowDecorations="BorderOnly"` (Avalonia 12's client-side
+decorations) with the `AppWindowDecorations` theme (frame and shadow thickness 0, so the window
+ends at the app's own edges), and its template — Fluent's Window template with the bar added —
+docks a `WindowTitleBar` above the content. `Content` stays the window's own content and `Padding`
+pads only it. The bar shows `Title`, and `TitleBarLeftContent` / `TitleBarRightContent` for the
+window's own buttons (the main window's menu and update pill). Its buttons follow the window:
+minimize shows with `CanMinimize` and `ShowInTaskbar` (a window without a taskbar entry would have
+nothing to come back from), maximize — and double-click on the bar — with `CanMaximize` and
+`CanResize`; close always. Modal dialogs set `CanMinimize="False"`, fixed-size ones
+`CanResize="False"` with `SizeToContent`, which measures the bar too.
+
+The bar moves the window itself: a press on an empty part calls `BeginMoveDrag`, a second press
+within the system double-click time maximizes / restores. The decoration roles
+(`ElementRole="TitleBar"`, the button roles) are not used: on Linux the drag role grabs the mouse
+(no double-click, clicks on buttons start a drag) and the button roles do nothing; a press on any
+button stays with the button. In-window flyouts and menus are not windows and keep their
+popups.
 
 ## Layout style (Settings → Appearance)
 
@@ -368,7 +381,8 @@ counts — an open dropdown, a ticker box or a rename box keeps its own Esc
 ### Fullscreen
 
 The fullscreen button next to a widget's ✕, or Ctrl+Shift+F, shows the widget over the whole
-window (toolbar and status bar included), framed in orange; the same button or shortcut restores it.
+window below its title bar (status bar included; the title bar, part of `AppWindow`'s template,
+stays), framed in orange; the same button or shortcut restores it.
 One widget at a time. `WorkspaceViewModel.FullscreenWidget` holds it; `WorkspaceView` moves its frame into the
 window's fullscreen layer (`IFullscreenHost`, implemented by `MainWindow`) and back, so the widget
 keeps its state. A floating widget maximizes its own window instead. Moving or closing a

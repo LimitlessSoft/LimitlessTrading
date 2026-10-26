@@ -6,6 +6,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using LSCore.Exceptions;
+using LT.App.Controls;
 using LT.Contracts.Dtos.Indicators;
 using LT.Contracts.Enums;
 
@@ -17,7 +18,7 @@ namespace LT.App.Widgets.Chart;
 /// (with a button that opens it in the system's editor) and its compile errors. OK applies
 /// through <c>apply</c>, which validates; its error shows here and the dialog stays open.
 /// </summary>
-public sealed class IndicatorSettingsWindow : Window
+public sealed class IndicatorSettingsWindow : AppWindow
 {
 	private readonly IndicatorDefinitionDto _definition;
 	private readonly Action<Dictionary<string, double>> _apply;
@@ -38,6 +39,7 @@ public sealed class IndicatorSettingsWindow : Window
 		CanResize = false;
 		WindowStartupLocation = WindowStartupLocation.CenterOwner;
 		ShowInTaskbar = false;
+		CanMinimize = false;
 
 		var panel = new StackPanel { Margin = new Thickness(16), Spacing = 10 };
 		panel.Children.Add(

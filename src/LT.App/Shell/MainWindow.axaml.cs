@@ -17,7 +17,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace LT.App.Shell;
 
-public partial class MainWindow : Window, IFullscreenHost
+public partial class MainWindow : AppWindow, IFullscreenHost
 {
 	private readonly SettingsNavigator? _settingsNavigator;
 	private readonly OrderTicketNavigator? _orderTicketNavigator;

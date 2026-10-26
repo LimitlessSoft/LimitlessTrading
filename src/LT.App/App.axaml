@@ -2,6 +2,7 @@
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:chrome="using:Avalonia.Controls.Chrome"
+	xmlns:controls="using:LT.App.Controls"
 	x:Class="LT.App.App"
 	RequestedThemeVariant="Dark"
 >
@@ -91,7 +92,7 @@
 			<GradientStop Offset="0.5714" Color="Transparent" />
 		</LinearGradientBrush>
 
-		<!-- appChrome windows: no drawn border or shadow, the app's own panels frame them -->
+		<!-- AppWindow: no drawn border or shadow, the app's own panels frame them -->
 		<ControlTheme
 			x:Key="AppWindowDecorations"
 			TargetType="chrome:WindowDrawnDecorations"
@@ -100,18 +101,53 @@
 			<Setter Property="DefaultFrameThickness" Value="0" />
 			<Setter Property="DefaultShadowThickness" Value="0" />
 		</ControlTheme>
+
+		<!-- Every window (AppWindow and its subclasses): the OS title bar is off
+		     (ExtendClientAreaToDecorationsHint + BorderOnly, Avalonia's client-side decorations
+		     without frame or shadow) and the app's WindowTitleBar sits above the content. The
+		     template is Fluent's Window template with the bar added; Padding pads the content only. -->
+		<ControlTheme
+			x:Key="{x:Type controls:AppWindow}"
+			TargetType="controls:AppWindow"
+			BasedOn="{StaticResource {x:Type Window}}"
+		>
+			<Setter Property="ExtendClientAreaToDecorationsHint" Value="True" />
+			<Setter Property="WindowDecorations" Value="BorderOnly" />
+			<Setter Property="WindowDecorationsTheme" Value="{StaticResource AppWindowDecorations}" />
+			<Setter Property="Template">
+				<ControlTemplate>
+					<Panel>
+						<Border Name="PART_TransparencyFallback" IsHitTestVisible="False" />
+						<Border Background="{TemplateBinding Background}" IsHitTestVisible="False" />
+						<Panel Background="Transparent" Margin="{TemplateBinding WindowDecorationMargin}" />
+						<VisualLayerManager Name="PART_VisualLayerManager">
+							<DockPanel>
+								<controls:WindowTitleBar
+									Name="PART_TitleBar"
+									DockPanel.Dock="Top"
+									Title="{TemplateBinding Title}"
+									LeftContent="{TemplateBinding TitleBarLeftContent}"
+									RightContent="{TemplateBinding TitleBarRightContent}"
+								/>
+								<ContentPresenter
+									Name="PART_ContentPresenter"
+									ContentTemplate="{TemplateBinding ContentTemplate}"
+									Content="{TemplateBinding Content}"
+									Margin="{TemplateBinding Padding}"
+									HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+									VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+								/>
+							</DockPanel>
+						</VisualLayerManager>
+					</Panel>
+				</ControlTemplate>
+			</Setter>
+		</ControlTheme>
 	</Application.Resources>
 
 	<Application.Styles>
 		<FluentTheme />
 		<StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
-
-		<!-- The app's own window chrome (the OS title bar is off); put a WindowTitleBar on top -->
-		<Style Selector=":is(Window).appChrome">
-			<Setter Property="ExtendClientAreaToDecorationsHint" Value="True" />
-			<Setter Property="WindowDecorations" Value="BorderOnly" />
-			<Setter Property="WindowDecorationsTheme" Value="{StaticResource AppWindowDecorations}" />
-		</Style>
 
 		<Style Selector="Border.panel">
 			<Setter Property="Background" Value="{DynamicResource PanelBackground}" />
