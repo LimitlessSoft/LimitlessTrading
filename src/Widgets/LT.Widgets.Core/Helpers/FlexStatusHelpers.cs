@@ -7,8 +7,11 @@ namespace LT.App.Helpers;
 /// <summary>The Flex import status as short text for the Settings status line and the widgets' notes.</summary>
 public static class FlexStatusHelpers
 {
-	/// <summary>"Running: …", or the last imports and the covered history, plus the last error.</summary>
-	public static string Describe(FlexImportStatusDto status)
+	/// <summary>
+	/// "Running: …", or the last imports and the covered history, plus the last error. Times are
+	/// in <paramref name="zone"/> (the display zone); <paramref name="now"/> decides "today".
+	/// </summary>
+	public static string Describe(FlexImportStatusDto status, TimeZoneInfo zone, DateTimeOffset now)
 	{
 		if (!status.IsConfigured)
 			return "Not set up: enter the token and the Activity query ID.";
@@ -23,28 +26,35 @@ public static class FlexStatusHelpers
 			);
 		parts.Add(
 			status.LastActivityImport is { } activityImport
-				? $"daily import {Time(activityImport)}"
+				? $"daily import {Time(activityImport, zone, now)}"
 				: "no import yet"
 		);
 		if (status.HasTradeConfirmQuery)
 			parts.Add(
 				status.LastTradeConfirmImport is { } trades
-					? $"today's trades {Time(trades)}"
+					? $"today's trades {Time(trades, zone, now)}"
 					: "today's trades not imported yet"
 			);
 		var text = string.Join(" · ", parts);
 		return status.LastError is { } error
-			? $"{text}\nLast error{(status.LastErrorAt is { } at ? $" ({Time(at)})" : "")}: {error}"
+			? $"{text}\nLast error{(status.LastErrorAt is { } at ? $" ({Time(at, zone, now)})" : "")}: {error}"
 			: text;
 	}
 
-	/// <summary>The Day trade widget's note on where today's trades come from; null when Flex isn't set up.</summary>
-	public static string? DescribeTodayTrades(FlexImportStatusDto status) =>
+	/// <summary>
+	/// The Day trade widget's note on where today's trades come from; null when Flex isn't set
+	/// up. The last import's time is in <paramref name="zone"/> (the display zone).
+	/// </summary>
+	public static string? DescribeTodayTrades(
+		FlexImportStatusDto status,
+		TimeZoneInfo zone,
+		DateTimeOffset now
+	) =>
 		!status.IsConfigured ? null
 		: !status.HasTradeConfirmQuery
 			? "Trades come from IB Flex through yesterday; a Trade Confirmation query (Settings → Account history) adds today's."
 		: status.LastTradeConfirmImport is { } at
-			? $"Today's trades via IB Flex, up to ~{(int)FlexConstants.TradeConfirmInterval.TotalMinutes} min delayed (last import {Time(at)})."
+			? $"Today's trades via IB Flex, up to ~{(int)FlexConstants.TradeConfirmInterval.TotalMinutes} min delayed (last import {Time(at, zone, now)})."
 		: "Today's trades via IB Flex, not imported yet.";
 
 	/// <summary>
@@ -65,13 +75,8 @@ public static class FlexStatusHelpers
 	private static string Date(DateOnly date) =>
 		date.ToString("d MMM yyyy", CultureInfo.CurrentCulture);
 
-	private static string Time(DateTimeOffset time)
-	{
-		var local = time.ToLocalTime();
-		return local.Date == DateTime.Today
-			? local.ToString("HH:mm", CultureInfo.CurrentCulture)
-			: local.ToString("d MMM HH:mm", CultureInfo.CurrentCulture);
-	}
+	private static string Time(DateTimeOffset time, TimeZoneInfo zone, DateTimeOffset now) =>
+		FormatHelpers.DayTime(time, now, zone);
 }
 
 /// <summary>What the Flex setup banner says; <see cref="IsWarning"/> for an error rather than a missing setup.</summary>

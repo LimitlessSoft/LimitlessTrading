@@ -37,6 +37,7 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 	private readonly ITradeJournalManager _tradeJournalManager;
 	private readonly IPositionManager _positionManager;
 	private readonly AccountStore _accountStore;
+	private readonly ZonedText _status;
 	private readonly Dictionary<(string Account, int ContractId), PositionDto> _positions = [];
 	private int _tradesQueued;
 	private CancellationTokenSource? _load;
@@ -51,10 +52,14 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 		ITradeJournalManager tradeJournalManager,
 		IPositionManager positionManager,
 		AccountStore accountStore,
-		LinkGroupStore linkGroupStore
+		LinkGroupStore linkGroupStore,
+		DisplayTimeStore displayTime
 	)
 		: base(connectionManager)
 	{
+		DisplayTime = displayTime;
+		_status = new ZonedText(x => StatusText = x);
+		displayTime.ZoneChanged += _status.Rebuild;
 		_chartManager = chartManager;
 		_contractManager = contractManager;
 		_messageLogManager = messageLogManager;
@@ -75,6 +80,9 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 	}
 
 	public ContractLink Link { get; }
+
+	/// <summary>The display time zone; the chart draws its time axis in it.</summary>
+	public DisplayTimeStore DisplayTime { get; }
 
 	/// <summary>Ticker box suggestions for an empty box: the recent contracts.</summary>
 	public IReadOnlyList<ContractSuggestionItem> GetRecentSuggestions() =>
@@ -153,6 +161,7 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 	{
 		_tradeJournalManager.FillsChanged -= OnFillsChanged;
 		_accountStore.PropertyChanged -= OnAccountChanged;
+		DisplayTime.ZoneChanged -= _status.Rebuild;
 		Link.Dispose();
 		_load?.Cancel();
 		_load?.Dispose();
@@ -314,12 +323,12 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 	{
 		var contract = _contract;
 		ErrorMessage = null;
-		StatusText = null;
+		_status.Clear();
 		if (contract == null)
 		{
 			Title = "Chart";
 			Bars = [];
-			StatusText = "Select a contract in the watchlist or positions.";
+			_status.SetFixed("Select a contract in the watchlist or positions.");
 			return;
 		}
 
@@ -337,9 +346,11 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 		{
 			var result = await _chartManager.GetBarsAsync(request, cancellationToken);
 			Bars = result.Bars;
-			StatusText = result.IsStale
-				? $"Cached {result.FetchedAt.ToLocalTime():HH:mm} — {result.Error}"
-				: $"Loaded {result.FetchedAt.ToLocalTime():HH:mm:ss}";
+			_status.Set(() =>
+				result.IsStale
+					? $"Cached {DisplayTime.Format(result.FetchedAt, "HH:mm")} — {result.Error}"
+					: $"Loaded {DisplayTime.Format(result.FetchedAt)}"
+			);
 		}
 		catch (OperationCanceledException)
 		{
@@ -366,14 +377,15 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 			)
 			{
 				Bars = BarHelpers.Merge(Bars, update, timeframe);
-				StatusText = $"Live · {update.Time.ToLocalTime():HH:mm:ss}";
+				var time = update.Time;
+				_status.Set(() => $"Live · {DisplayTime.Format(time)}");
 			}
 		}
 		catch (OperationCanceledException) { }
 		catch (Exception ex)
 		{
 			var message = ErrorMessageHelpers.ToUserMessage(ex);
-			StatusText = $"{StatusText} · real-time updates unavailable";
+			_status.Append(" · real-time updates unavailable");
 			_messageLogManager.Add(
 				MessageSeverity.Info,
 				MessageLogConstants.SourceChart,

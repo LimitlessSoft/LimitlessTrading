@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using LT.App.Helpers;
+using LT.App.Stores;
 using LT.App.ViewModels;
 using LT.Contracts.Constants;
 using LT.Contracts.Enums;
@@ -21,6 +22,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 	private readonly ISettingsManager _settingsManager;
 	private readonly ICacheManager _cacheManager;
 	private readonly IFlexImportManager _flexImportManager;
+	private readonly DisplayTimeStore _displayTime;
 
 	private readonly GuideSettingViewModel _flexSetup = FlexSetupGuide.Create();
 
@@ -64,6 +66,8 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		"Cards: widgets are rounded tiles with gaps between them. Flush: widgets fill the window edge to edge, split by thin lines.",
 		"theme look appearance rounded corners gaps spacing compact edge"
 	);
+
+	private readonly ChoiceSettingViewModel _displayTimeZone;
 
 	private readonly BoolSettingViewModel _autoReconnect = new(
 		"Reconnect automatically when the connection drops",
@@ -139,12 +143,14 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 	public SettingsViewModel(
 		ISettingsManager settingsManager,
 		ICacheManager cacheManager,
-		IFlexImportManager flexImportManager
+		IFlexImportManager flexImportManager,
+		DisplayTimeStore displayTime
 	)
 	{
 		_settingsManager = settingsManager;
 		_cacheManager = cacheManager;
 		_flexImportManager = flexImportManager;
+		_displayTime = displayTime;
 		_flexImport = new ActionSettingViewModel(
 			"Flex import",
 			"Save & import now",
@@ -166,6 +172,16 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 			"cache clear delete size used disk space"
 		);
 		var settings = settingsManager.GetAppSettings();
+		var zones = TimeZoneOption.CreateAll(settings.DisplayTimeZoneId);
+		_displayTimeZone = new ChoiceSettingViewModel(
+			"Time zone",
+			zones,
+			"Every time the app shows (charts, news, fills, status lines) is in this zone. Exchange time is New York, where US markets trade. Trading days stay counted in New York time whatever is picked here.",
+			"time zone clock local exchange new york eastern utc display"
+		)
+		{
+			Value = zones.FirstOrDefault(x => x.Id == settings.DisplayTimeZoneId) ?? zones[0],
+		};
 		_marketDataType.Value = settings.MarketDataType;
 		_autoReconnect.Value = settings.AutoReconnect;
 		_heartbeatSeconds.Value = settings.HeartbeatSeconds;
@@ -185,7 +201,11 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		[
 			new SettingsPageViewModel(
 				"General",
-				children: [new SettingsPageViewModel("Updates", [new("Updates", _checkForUpdates)])]
+				children:
+				[
+					new SettingsPageViewModel("Updates", [new("Updates", _checkForUpdates)]),
+					new SettingsPageViewModel("Time zone", [new("Time zone", _displayTimeZone)]),
+				]
 			),
 			new SettingsPageViewModel("Appearance", [new("Layout", _layoutStyle)]),
 			new SettingsPageViewModel(
@@ -284,6 +304,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 					CacheExecutions = _cacheExecutions.Value,
 					CacheSnapshots = _cacheSnapshots.Value,
 					CacheMaxSizeMb = (int)(_cacheMaxSizeMb.Value ?? 0),
+					DisplayTimeZoneId = (_displayTimeZone.Value as TimeZoneOption)?.Id,
 				}
 			);
 			// a lowered limit applies now, not at the next cache write
@@ -357,7 +378,11 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 	private void RefreshFlexStatus()
 	{
 		var status = _flexImportManager.GetStatus();
-		_flexImport.Status = FlexStatusHelpers.Describe(status);
+		_flexImport.Status = FlexStatusHelpers.Describe(
+			status,
+			_displayTime.Zone,
+			_displayTime.Now
+		);
 		_flexImport.IsBusy = status.IsRunning;
 	}
 

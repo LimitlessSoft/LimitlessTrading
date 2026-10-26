@@ -16,6 +16,7 @@
 			TradeLegs="{Binding TradeLegs}"
 			BreakEvenPrice="{Binding BreakEvenPrice}"
 			RightMargin="{Binding RightMargin}"
+			TimeZone="{Binding DisplayTime.Zone}"
 		/>
 		<StackPanel
 			HorizontalAlignment="Left"

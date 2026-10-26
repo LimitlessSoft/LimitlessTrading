@@ -158,6 +158,8 @@ Zustand stores play in Termodom FEs:
 - `LinkGroupStore` — the contract of each link group (`LinkGroup`: ten colors). A
   linkable widget holds a `ContractLink` (its group, publish / receive); see
   [ui-patterns.md → Link groups](ui-patterns.md#link-groups).
+- `DisplayTimeStore` — the zone every shown time is in (Settings → General → Time zone); see
+  [ui-patterns.md → Display time zone](ui-patterns.md#display-time-zone-settings--general--time-zone).
 - `SettingsNavigator` / `OrderTicketNavigator` — let a widget ask the main window to open the
   Settings dialog on a page / an order ticket popup pre-filled with an `OrderDraftDto`.
 

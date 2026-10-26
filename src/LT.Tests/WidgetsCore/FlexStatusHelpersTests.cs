@@ -56,4 +56,27 @@ public class FlexStatusHelpersTests
 				}
 			)
 		);
+
+	[Fact]
+	public void Import_times_are_in_the_display_zone()
+	{
+		var tokyo = TimeZoneInfo.FindSystemTimeZoneById("Asia/Tokyo");
+		var import = new DateTimeOffset(2026, 10, 26, 16, 0, 0, TimeSpan.Zero); // 01:00 in Tokyo
+		var status = new FlexImportStatusDto
+		{
+			IsConfigured = true,
+			HasTradeConfirmQuery = true,
+			LastActivityImport = import,
+			LastTradeConfirmImport = import,
+		};
+
+		Assert.Equal(
+			"daily import 01:00 · today's trades 01:00",
+			FlexStatusHelpers.Describe(status, tokyo, import.AddHours(1))
+		);
+		Assert.Contains(
+			"(last import 01:00)",
+			FlexStatusHelpers.DescribeTodayTrades(status, tokyo, import.AddHours(1))
+		);
+	}
 }

@@ -31,6 +31,7 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 	private readonly IOrderManager _orderManager;
 	private readonly AccountStore _accountStore;
 	private readonly TimeProvider _timeProvider;
+	private readonly DisplayTimeStore _displayTime;
 	private readonly DispatcherTimer _tradeStatusTimer;
 
 	// Double-send guard for one-click orders, per cell (contract + side)
@@ -62,10 +63,12 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 		IOrderManager orderManager,
 		LinkGroupStore linkGroupStore,
 		AccountStore accountStore,
-		TimeProvider timeProvider
+		TimeProvider timeProvider,
+		DisplayTimeStore displayTime
 	)
 		: base(connectionManager)
 	{
+		_displayTime = displayTime;
 		_optionChainManager = optionChainManager;
 		_marketDataManager = marketDataManager;
 		_messageLogManager = messageLogManager;
@@ -194,7 +197,8 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 		try
 		{
 			var expirations = await _optionChainManager.GetExpirationsAsync(underlying, load);
-			var today = DateTime.Today;
+			// Days to expiry count from today in the display zone
+			var today = _displayTime.Now.Date;
 			foreach (var expiration in expirations)
 				Expirations.Add(new ExpirationTab(expiration, today));
 			SelectedExpiration = Expirations.FirstOrDefault();

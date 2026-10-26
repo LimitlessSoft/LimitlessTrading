@@ -15,4 +15,7 @@ public enum SettingsValidationCodes
 
 	[LSCoreValidationMessage("Maximum cache size must be between {0} and {1} MB.")]
 	SVC_004,
+
+	[LSCoreValidationMessage("Unknown time zone.")]
+	SVC_005,
 }

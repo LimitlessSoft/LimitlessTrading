@@ -1,11 +1,14 @@
 using System.Globalization;
+using CommunityToolkit.Mvvm.ComponentModel;
+using LT.App.Stores;
 using LT.Contracts.Dtos.News;
 using LT.Contracts.Helpers;
 
 namespace LT.App.Widgets.News;
 
 /// <summary>One headline in the list: time · provider · headline · sentiment.</summary>
-public class NewsRowViewModel(NewsHeadlineDto headline)
+public class NewsRowViewModel(NewsHeadlineDto headline, DisplayTimeStore displayTime)
+	: ObservableObject
 {
 	// Scores this close to 0 are shown as neutral
 	private const double NeutralSentiment = 0.05;
@@ -16,17 +19,11 @@ public class NewsRowViewModel(NewsHeadlineDto headline)
 
 	public DateTimeOffset Time => Headline.Time;
 
-	/// <summary>Local time; the date only when it isn't today.</summary>
-	public string TimeText
-	{
-		get
-		{
-			var local = Headline.Time.ToLocalTime();
-			return local.Date == DateTime.Today
-				? local.ToString("HH:mm", CultureInfo.CurrentCulture)
-				: local.ToString("MMM dd HH:mm", CultureInfo.CurrentCulture);
-		}
-	}
+	/// <summary>In the display time zone; the date only when it isn't today.</summary>
+	public string TimeText => displayTime.FormatDayTime(Headline.Time, "HH:mm", "MMM dd HH:mm");
+
+	/// <summary>The display time zone changed.</summary>
+	public void RefreshTime() => OnPropertyChanged(nameof(TimeText));
 
 	public string Provider => Headline.ProviderCode;
 

@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using LT.Contracts.Dtos.Performance;
+using LT.Contracts.Helpers;
 
 namespace LT.App.Widgets.DayTradePerformance;
 
@@ -17,6 +18,9 @@ public class PnlCurveChart : Control
 {
 	public static readonly StyledProperty<IReadOnlyList<PnlSampleDto>?> SamplesProperty =
 		AvaloniaProperty.Register<PnlCurveChart, IReadOnlyList<PnlSampleDto>?>(nameof(Samples));
+
+	public static readonly StyledProperty<TimeZoneInfo?> TimeZoneProperty =
+		AvaloniaProperty.Register<PnlCurveChart, TimeZoneInfo?>(nameof(TimeZone));
 
 	private const double ValueAxisWidth = 72;
 	private const double TimeAxisHeight = 22;
@@ -48,7 +52,7 @@ public class PnlCurveChart : Control
 
 	static PnlCurveChart()
 	{
-		AffectsRender<PnlCurveChart>(SamplesProperty);
+		AffectsRender<PnlCurveChart>(SamplesProperty, TimeZoneProperty);
 		ClipToBoundsProperty.OverrideDefaultValue<PnlCurveChart>(true);
 	}
 
@@ -56,6 +60,13 @@ public class PnlCurveChart : Control
 	{
 		get => GetValue(SamplesProperty);
 		set => SetValue(SamplesProperty, value);
+	}
+
+	/// <summary>Zone of the time axis and the readout (the display zone); null is the local zone.</summary>
+	public TimeZoneInfo? TimeZone
+	{
+		get => GetValue(TimeZoneProperty);
+		set => SetValue(TimeZoneProperty, value);
 	}
 
 	public override void Render(DrawingContext context)
@@ -115,7 +126,7 @@ public class PnlCurveChart : Control
 		{
 			var time = start.AddSeconds(span * i / labels);
 			var x = Math.Round(X(time)) + 0.5;
-			var label = Text(time.ToLocalTime().ToString("HH:mm"), 11, TextBrush);
+			var label = Text(ToShown(time).ToString("HH:mm"), 11, TextBrush);
 			var left = Math.Clamp(x - label.Width / 2, 0, plot.Right - label.Width);
 			context.DrawText(label, new Point(left, plot.Bottom + 4));
 		}
@@ -167,7 +178,7 @@ public class PnlCurveChart : Control
 			context.DrawLine(CrosshairPen, new Point(x, plot.Y), new Point(x, plot.Bottom));
 		}
 		var readout = Text(
-			$"{shown.Time.ToLocalTime():HH:mm:ss}   P&L {shown.Value.ToString("+#,0.00;-#,0.00;0.00", CultureInfo.CurrentCulture)}",
+			$"{ToShown(shown.Time):HH:mm:ss}   P&L {shown.Value.ToString("+#,0.00;-#,0.00;0.00", CultureInfo.CurrentCulture)}",
 			12,
 			shown.Value >= 0 ? UpBrush : DownBrush
 		);
@@ -187,6 +198,9 @@ public class PnlCurveChart : Control
 		_pointer = null;
 		InvalidateVisual();
 	}
+
+	private DateTimeOffset ToShown(DateTimeOffset time) =>
+		DisplayTimeHelpers.ToZone(time, TimeZone ?? TimeZoneInfo.Local);
 
 	private static FormattedText Text(string text, double size, IBrush brush) =>
 		new(

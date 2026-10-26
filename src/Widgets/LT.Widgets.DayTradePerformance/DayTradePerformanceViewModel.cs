@@ -33,10 +33,13 @@ public partial class DayTradePerformanceViewModel : ConnectedViewModelBase
 		IFlexImportManager flexImport,
 		IConnectionManager connectionManager,
 		AccountStore accountStore,
-		SettingsNavigator settingsNavigator
+		SettingsNavigator settingsNavigator,
+		DisplayTimeStore displayTime
 	)
 		: base(connectionManager)
 	{
+		DisplayTime = displayTime;
+		displayTime.ZoneChanged += LoadTrades;
 		_journal = journal;
 		_flexImport = flexImport;
 		_settingsNavigator = settingsNavigator;
@@ -49,6 +52,9 @@ public partial class DayTradePerformanceViewModel : ConnectedViewModelBase
 	}
 
 	public AccountStore Store { get; }
+
+	/// <summary>The display time zone; the P&amp;L curve draws its time axis in it.</summary>
+	public DisplayTimeStore DisplayTime { get; }
 
 	public ObservableCollection<TradeRowViewModel> Trades { get; } = [];
 
@@ -189,6 +195,7 @@ public partial class DayTradePerformanceViewModel : ConnectedViewModelBase
 	public override void Dispose()
 	{
 		Store.PropertyChanged -= OnStoreChanged;
+		DisplayTime.ZoneChanged -= LoadTrades;
 		_journal.FillsChanged -= OnFillsChanged;
 		_journal.PnlChanged -= OnPnlChanged;
 		_flexImport.StatusChanged -= OnFlexStatusChanged;
@@ -277,7 +284,7 @@ public partial class DayTradePerformanceViewModel : ConnectedViewModelBase
 
 		Trades.Clear();
 		foreach (var trade in day.Trades.Reverse())
-			Trades.Add(new TradeRowViewModel(trade));
+			Trades.Add(new TradeRowViewModel(trade, DisplayTime.Zone));
 
 		NetPnl = hasTrades ? FormatHelpers.SignedMoney(stats.NetPnl) : FormatHelpers.Empty;
 		NetUp = hasTrades && stats.NetPnl > 0;
@@ -315,6 +322,8 @@ public partial class DayTradePerformanceViewModel : ConnectedViewModelBase
 		var banner = FlexStatusHelpers.GetBanner(status);
 		FlexBanner = banner?.Text;
 		FlexBannerIsWarning = banner?.IsWarning ?? false;
-		TradesNote = FlexStatusHelpers.DescribeTodayTrades(status) ?? _journal.ExecutionsError;
+		TradesNote =
+			FlexStatusHelpers.DescribeTodayTrades(status, DisplayTime.Zone, DisplayTime.Now)
+			?? _journal.ExecutionsError;
 	}
 }

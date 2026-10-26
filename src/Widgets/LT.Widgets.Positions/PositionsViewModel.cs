@@ -18,6 +18,8 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 	private readonly IPositionManager _positionManager;
 	private readonly AccountStore _accountStore;
 	private readonly OrderTicketNavigator _orderTicketNavigator;
+	private readonly DisplayTimeStore _displayTime;
+	private readonly ZonedText _staleText;
 	private readonly Dictionary<(string Account, int ContractId), PositionRowViewModel> _all = [];
 
 	public PositionsViewModel(
@@ -25,11 +27,15 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 		IConnectionManager connectionManager,
 		AccountStore accountStore,
 		LinkGroupStore linkGroupStore,
-		OrderTicketNavigator orderTicketNavigator
+		OrderTicketNavigator orderTicketNavigator,
+		DisplayTimeStore displayTime
 	)
 		: base(connectionManager)
 	{
 		_positionManager = positionManager;
+		_displayTime = displayTime;
+		_staleText = new ZonedText(x => StaleText = x);
+		displayTime.ZoneChanged += _staleText.Rebuild;
 		_accountStore = accountStore;
 		_orderTicketNavigator = orderTicketNavigator;
 		Link = new ContractLink(linkGroupStore, () => SelectedPosition?.Contract);
@@ -101,6 +107,7 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 
 	public override void Dispose()
 	{
+		_displayTime.ZoneChanged -= _staleText.Rebuild;
 		Link.Dispose();
 		base.Dispose();
 	}
@@ -131,7 +138,7 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 	private void ShowSnapshot(string? error)
 	{
 		Positions.Clear();
-		StaleText = null;
+		_staleText.Clear();
 		UpdateTotals();
 		if (_accountStore.SnapshotAccount is not { } account)
 			return;
@@ -139,11 +146,13 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 			return;
 		foreach (var position in snapshot.Value.OrderBy(x => x.Symbol))
 			Positions.Add(new PositionRowViewModel(position));
-		StaleText = CacheHelpers.FormatStale(
-			snapshot.FetchedAt.ToLocalTime(),
-			DateTimeOffset.Now,
-			account,
-			error
+		_staleText.Set(() =>
+			CacheHelpers.FormatStale(
+				_displayTime.ToDisplay(snapshot.FetchedAt),
+				_displayTime.Now,
+				account,
+				error
+			)
 		);
 		TotalsText = Positions.Count == 0 ? string.Empty : $"{Positions.Count} positions";
 	}
@@ -159,7 +168,7 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 				if (IsStale)
 				{
 					Positions.Clear();
-					StaleText = null;
+					_staleText.Clear();
 				}
 				var key = (position.Account, position.ContractId);
 				if (position.Quantity == 0)
@@ -241,7 +250,7 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 
 	private void Clear()
 	{
-		StaleText = null;
+		_staleText.Clear();
 		foreach (var row in _all.Values)
 			row.PnlSubscription?.Cancel();
 		_all.Clear();
