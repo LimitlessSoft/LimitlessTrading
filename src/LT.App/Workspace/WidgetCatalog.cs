@@ -46,8 +46,9 @@ public static class WidgetCatalog
 	public static string GetIcon(WorkspaceTool tool) => Get(tool).Icon;
 
 	/// <summary>
-	/// Ctrl+Alt+key that shows and focuses a single-instance widget (null for charts, which can be
-	/// open several times). Mnemonic; avoids T, L, D and Delete, which desktops often reserve.
+	/// Ctrl+Alt+key that shows and focuses an open instance of the widget, spawning one when none
+	/// is open (null for charts, whose Ctrl+7 always opens a new one). Mnemonic; avoids T, L, D and
+	/// Delete, which desktops often reserve.
 	/// </summary>
 	public static Key? GetFocusKey(WorkspaceTool tool) => Get(tool).FocusKey;
 
@@ -55,7 +56,7 @@ public static class WidgetCatalog
 		Definitions.FirstOrDefault(x => x.FocusKey == key)?.Tool;
 
 	/// <summary>
-	/// The widget's shortcut for its dock icon's tooltip: Ctrl+Alt+key for single-instance widgets,
+	/// The widget's shortcut for its dock icon's tooltip: its Ctrl+Alt+key when it has one,
 	/// else its Ctrl+1…9 hotkey (the chart's "Ctrl+7"); null when it has neither.
 	/// </summary>
 	public static string? GetShortcut(WorkspaceTool tool)

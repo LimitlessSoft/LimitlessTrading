@@ -26,6 +26,7 @@ public class WatchlistViewModelPinTests : IDisposable
 		// Saved order, with the last prices pushed below
 		foreach (var (conId, symbol) in new[] { (1, "SPY"), (2, "AAPL"), (3, "MSFT"), (4, "NVDA") })
 			_watchlists.Add(
+				_watchlists.GetActive().Id,
 				new ContractDto
 				{
 					ConId = conId,
@@ -46,7 +47,10 @@ public class WatchlistViewModelPinTests : IDisposable
 
 		Assert.Equal(["NVDA", "AAPL", "SPY", "MSFT"], Symbols());
 		Assert.True(Row("NVDA").IsPinned);
-		Assert.Equal(["NVDA", "AAPL"], _watchlists.GetPinned().Select(x => x.Symbol));
+		Assert.Equal(
+			["NVDA", "AAPL"],
+			_watchlists.GetPinned(_watchlists.GetActive().Id).Select(x => x.Symbol)
+		);
 	}
 
 	[Fact]
@@ -78,7 +82,7 @@ public class WatchlistViewModelPinTests : IDisposable
 		TestUiThread.Invoke(() => _watchlist.UnpinCommand.Execute(null));
 
 		Assert.Equal(["AAPL", "MSFT", "SPY", "NVDA"], Symbols());
-		Assert.Empty(_watchlists.GetPinned());
+		Assert.Empty(_watchlists.GetPinned(_watchlists.GetActive().Id));
 		Assert.True(_watchlist.CanPin);
 	}
 

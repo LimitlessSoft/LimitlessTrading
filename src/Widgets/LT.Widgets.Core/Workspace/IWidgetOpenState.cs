@@ -1,9 +1,9 @@
 namespace LT.App.Workspace;
 
 /// <summary>
-/// A widget view model that holds scarce IB resources only while its widget is open. A closed
-/// single-instance widget keeps its view model, so it is told to let go (e.g. the Depth widget's
-/// depth subscription, one of IB's three) and to start again when reopened.
+/// A widget view model that holds scarce IB resources only while its widget is open (e.g. the
+/// Depth widget's depth subscription, one of IB's three): told to let go as soon as the widget is
+/// closed, before its view model is disposed.
 /// </summary>
 public interface IWidgetOpenState
 {

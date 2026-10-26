@@ -95,7 +95,7 @@ public static class CenterViewHelpers
 	/// <summary>
 	/// A copy of a view: a new id, <see cref="GetDuplicateName"/> and the source's split tree with
 	/// each widget swapped for its copy (<paramref name="widgetIds"/>: source id → copy id).
-	/// Widgets without a copy (single-instance ones) are left out of the tree.
+	/// Widgets without a copy (no longer in the workspace) are left out of the tree.
 	/// </summary>
 	public static CenterViewDto Duplicate(
 		string sourceName,

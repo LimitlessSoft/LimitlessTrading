@@ -23,8 +23,11 @@ public static class WorkspaceHelpers
 			_ => WidgetDock.Center,
 		};
 
-	/// <summary>Widgets that can be open several times at once; every other widget is single.</summary>
-	public static bool AllowsMultipleInstances(WorkspaceTool tool) => tool == WorkspaceTool.Chart;
+	/// <summary>
+	/// Whether the widget's Ctrl+1…9 hotkey opens a new instance every time (the chart's Ctrl+7),
+	/// like menu → Widgets, instead of showing or collapsing the open one.
+	/// </summary>
+	public static bool HotkeySpawns(WorkspaceTool tool) => tool == WorkspaceTool.Chart;
 
 	/// <summary>
 	/// Whether a press that has moved by (<paramref name="deltaX"/>, <paramref name="deltaY"/>)
@@ -48,7 +51,7 @@ public static class WorkspaceHelpers
 			: ids.FirstOrDefault();
 	}
 
-	/// <summary>Instance id of a single-instance widget (and of the first instance of the others).</summary>
+	/// <summary>Instance id of a widget's first instance; later ones get a suffix (<see cref="GetFreeId"/>).</summary>
 	public static string GetDefaultId(WorkspaceTool tool) => tool.ToString();
 
 	/// <summary>
@@ -116,7 +119,7 @@ public static class WorkspaceHelpers
 
 	/// <summary>
 	/// Cleans a saved layout: drops unknown widgets/docks, gives id-less entries (older layouts)
-	/// their default id, and drops duplicate ids and second instances of single-instance widgets.
+	/// their default id, and drops duplicate ids. Any widget can be there several times.
 	/// </summary>
 	public static List<WidgetPlacementDto> Normalize(IEnumerable<WidgetPlacementDto> placements)
 	{
@@ -128,11 +131,6 @@ public static class WorkspaceHelpers
 			if (string.IsNullOrWhiteSpace(placement.Id))
 				placement.Id = GetDefaultId(placement.Tool);
 			if (result.Any(x => x.Id == placement.Id))
-				continue;
-			if (
-				!AllowsMultipleInstances(placement.Tool)
-				&& result.Any(x => x.Tool == placement.Tool)
-			)
 				continue;
 			result.Add(placement);
 		}

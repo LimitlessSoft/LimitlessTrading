@@ -13,15 +13,12 @@ namespace LT.App.Workspace;
 /// <summary>
 /// Where every widget instance lives: in the split layout of one of the center's views (tabs), on a
 /// collapsible strip (left, right or bottom), or in its own floating window. Widgets are spawned,
-/// moved and closed independently; charts can be spawned several times. The main window and every
-/// extra workspace window have one each; a single-instance widget exists in only one of them.
+/// moved and closed independently, and every widget can be spawned any number of times. The main
+/// window and every extra workspace window have one each.
 /// </summary>
 public partial class WorkspaceViewModel : ViewModelBase
 {
 	private readonly Func<WorkspaceTool, object> _createContent;
-
-	// Takes a single-instance widget out of whichever other workspace holds it (null: none does)
-	private readonly Func<WorkspaceTool, WidgetItem?>? _claim;
 
 	// The other windows, where a view can move to (null: none, e.g. offline views)
 	private readonly IWorkspaceHost? _host;
@@ -36,12 +33,10 @@ public partial class WorkspaceViewModel : ViewModelBase
 		Func<WorkspaceTool, object> createContent,
 		WorkspaceLayoutDto layout,
 		AppearanceStore? appearance = null,
-		Func<WorkspaceTool, WidgetItem?>? claim = null,
 		IWorkspaceHost? host = null
 	)
 	{
 		_createContent = createContent;
-		_claim = claim;
 		_host = host;
 		Appearance = appearance;
 		Bottom.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasBottomWidgets));
@@ -86,7 +81,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 	/// </summary>
 	public AppearanceStore? Appearance { get; }
 
-	/// <summary>Every instance that exists: open ones and closed single-instance widgets.</summary>
+	/// <summary>Every open instance; a closed one is discarded.</summary>
 	public ObservableCollection<WidgetItem> Widgets { get; } = [];
 
 	public ObservableCollection<WidgetItem> Left { get; } = [];
@@ -142,7 +137,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 	/// <summary>
 	/// Right-click → Duplicate: a copy of the view right after it, shown at once. Its split tree is
 	/// the same, filled with new instances of the widgets carrying their settings (symbol, link
-	/// group, …); single-instance widgets can't be in two places, so their slots are left out.
+	/// group, …).
 	/// </summary>
 	public void DuplicateView(CenterViewItem source)
 	{
@@ -152,10 +147,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 		var widgetIds = new Dictionary<string, string>();
 		foreach (var id in CenterLayoutHelpers.GetWidgetIds(source.Root).ToList())
 		{
-			if (
-				Find(id) is not { } widget
-				|| !WorkspaceHelpers.AllowsMultipleInstances(widget.Tool)
-			)
+			if (Find(id) is not { } widget)
 				continue;
 			var copy = CreateItem(NewId(widget.Tool), widget.Tool);
 			LoadPlacement(copy, SavePlacement(widget));
@@ -442,84 +434,54 @@ public partial class WorkspaceViewModel : ViewModelBase
 		newValue?.IsFullscreen = true;
 	}
 
-	/// <summary>Brings the widget forward: an open instance, else reopens or spawns it.</summary>
 	/// <summary>
-	/// Ctrl+Alt+key: shows the widget (opening, expanding or raising it), makes it the current one
-	/// and moves keyboard focus into it.
+	/// Ctrl+Alt+key: shows the widget (<see cref="Show"/>), makes it the current one and moves
+	/// keyboard focus into it.
 	/// </summary>
 	public void Focus(WorkspaceTool tool)
 	{
-		Show(tool);
-		if (Widgets.FirstOrDefault(x => x.Tool == tool && x.IsOpen) is not { } widget)
-			return;
+		var widget = Show(tool);
 		CurrentWidget = widget;
 		widget.RequestFocus();
 	}
 
-	public void Show(WorkspaceTool tool)
+	/// <summary>
+	/// Brings an open instance of the widget forward (<see cref="FindShown"/>: expanding, raising
+	/// or switching to its view); spawns one when none is open.
+	/// </summary>
+	public WidgetItem Show(WorkspaceTool tool)
 	{
-		var widget =
-			Widgets.FirstOrDefault(x => x.Tool == tool && x.IsOpen)
-			?? Widgets.FirstOrDefault(x => x.Tool == tool);
-		// A multi-instance widget (chart) only in another view: open a new one in this view
-		// instead of switching away
-		if (WorkspaceHelpers.AllowsMultipleInstances(tool))
-			widget = Widgets.FirstOrDefault(x =>
-				x.Tool == tool
-				&& x.IsOpen
-				&& (x.Dock != WidgetDock.Center || SelectedView is { } view && IsInView(view, x.Id))
-			);
-		// A single-instance widget living in another window moves here
-		else
-			widget ??= Claim(tool);
-		if (widget is null)
-		{
-			Spawn(tool);
-			return;
-		}
-		if (widget.Dock is null)
-			Place(widget, widget.LastDock ?? GetSpawnDock(tool));
+		if (FindShown(tool) is not { } widget)
+			return Spawn(tool);
 		Reveal(widget);
-	}
-
-	/// <summary>Opens another instance (charts); single-instance widgets are just shown.</summary>
-	public void Spawn(WorkspaceTool tool)
-	{
-		if (!WorkspaceHelpers.AllowsMultipleInstances(tool) && Widgets.Any(x => x.Tool == tool))
-		{
-			Show(tool);
-			return;
-		}
-		if (!WorkspaceHelpers.AllowsMultipleInstances(tool) && Claim(tool) != null)
-		{
-			Show(tool);
-			return;
-		}
-		var widget = CreateItem(NewId(tool), tool);
-		Place(widget, GetSpawnDock(tool));
-		Reveal(widget);
+		return widget;
 	}
 
 	/// <summary>
-	/// Takes the instance of a single-instance widget out of this workspace (open or closed) so
-	/// another window can adopt it; its view model and settings go with it. Null when this
-	/// workspace doesn't hold it.
+	/// The instance of <paramref name="tool"/> that showing it acts on: the current widget when it
+	/// is one, else one on screen (docked, floating or in the shown view), else one in another
+	/// view; null when none is open.
 	/// </summary>
-	public WidgetItem? Release(WorkspaceTool tool)
+	public WidgetItem? FindShown(WorkspaceTool tool)
 	{
-		if (
-			WorkspaceHelpers.AllowsMultipleInstances(tool)
-			|| Widgets.FirstOrDefault(x => x.Tool == tool) is not { } widget
-		)
-			return null;
-		if (FullscreenWidget == widget)
-			FullscreenWidget = null;
-		if (CurrentWidget == widget)
-			CurrentWidget = null;
-		if (widget.Dock != null)
-			Remove(widget);
-		Widgets.Remove(widget);
-		widget.Workspace = null;
+		if (CurrentWidget is { IsOpen: true } current && current.Tool == tool)
+			return current;
+		var open = Widgets.Where(x => x.Tool == tool && x.IsOpen).ToList();
+		return open.FirstOrDefault(x => !x.IsCenter || IsInView(SelectedView, x.Id))
+			?? open.FirstOrDefault();
+	}
+
+	/// <summary>
+	/// Menu → Widgets: a new instance, where the last one of its kind was docked (in the shown
+	/// view for the center), made current and focused.
+	/// </summary>
+	public WidgetItem Spawn(WorkspaceTool tool)
+	{
+		var widget = CreateItem(NewId(tool), tool);
+		Place(widget, GetSpawnDock(tool));
+		Reveal(widget);
+		CurrentWidget = widget;
+		widget.RequestFocus();
 		return widget;
 	}
 
@@ -531,12 +493,12 @@ public partial class WorkspaceViewModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// Hotkey: collapses an expanded side widget, otherwise shows the widget. A multi-instance
-	/// widget (chart) always opens a new one in the current view.
+	/// Ctrl+1…9: collapses an expanded side widget of that kind, otherwise shows the widget. The
+	/// chart's hotkey always opens a new one in the current view (<see cref="WorkspaceHelpers.HotkeySpawns"/>).
 	/// </summary>
 	public void Toggle(WorkspaceTool tool)
 	{
-		if (WorkspaceHelpers.AllowsMultipleInstances(tool))
+		if (WorkspaceHelpers.HotkeySpawns(tool))
 		{
 			Spawn(tool);
 			return;
@@ -631,14 +593,12 @@ public partial class WorkspaceViewModel : ViewModelBase
 		Reveal(widget);
 	}
 
-	/// <summary>Closes the widget; extra instances (a second chart) are discarded.</summary>
+	/// <summary>Closes the widget and discards it (its view model is disposed); the others stay.</summary>
 	public void Close(WidgetItem widget)
 	{
 		if (widget.Dock != null)
 			Remove(widget);
 		(widget.Content as IWidgetOpenState)?.SetOpen(false);
-		if (!WorkspaceHelpers.AllowsMultipleInstances(widget.Tool))
-			return;
 		Widgets.Remove(widget);
 		(widget.Content as IDisposable)?.Dispose();
 	}
@@ -714,16 +674,6 @@ public partial class WorkspaceViewModel : ViewModelBase
 		(widget.Content as IWidgetState)?.LoadState(placement);
 	}
 
-	// Adopts a single-instance widget released by another workspace; it is still closed here
-	private WidgetItem? Claim(WorkspaceTool tool)
-	{
-		if (_claim?.Invoke(tool) is not { } widget)
-			return null;
-		widget.Workspace = this;
-		Widgets.Add(widget);
-		return widget;
-	}
-
 	private WidgetItem CreateItem(string id, WorkspaceTool tool)
 	{
 		var widget = new WidgetItem(id, tool, _createContent(tool)) { Workspace = this };
@@ -759,7 +709,6 @@ public partial class WorkspaceViewModel : ViewModelBase
 		widget.Dock = dock;
 		if (dock is not { } value)
 			return;
-		widget.LastDock = value;
 		_lastDock[widget.Tool] = value;
 	}
 

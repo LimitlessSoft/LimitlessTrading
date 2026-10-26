@@ -113,7 +113,8 @@ model unsubscribes when the window closes.
 
 ## Workspace (`LT.App/Workspace`)
 
-Every widget is **independently spawnable** and lives in one of four wrappers:
+Every widget is **independently spawnable, any number of times** (menu → Widgets always opens a
+new instance) and lives in one of four wrappers:
 
 | Wrapper | Behaviour |
 |---|---|
@@ -125,17 +126,15 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
 - **Workspace windows.** Menu → New window (Ctrl+Shift+N, from any workspace window) opens an
   empty "Window 2", "Window 3", … with a workspace of its own: its own center views, left /
   right / bottom docks and floating widgets, and its own menu (Refresh all, New window, Widgets,
-  Close window) and shortcuts, which act on that window. Widgets picked there open there. Charts
-  open independently in every window; a single-instance widget exists once in the app, so
-  picking it in window B while it lives in window A (open or closed) **moves** it to B, with its
-  settings and view model (`WorkspaceViewModel.Release` in A, adopted through the claim callback
-  `WorkspaceWindows` gives every workspace). Link groups and every store stay app-wide, so a
-  chart in one window follows a watchlist in another. The windows aren't owned by the main
+  Close window) and shortcuts, which act on that window. Widgets picked there open there, as new
+  instances of that window; every window can hold its own instances of any widget. Link groups
+  and every store stay app-wide, so a chart in one window follows a watchlist in another. The windows aren't owned by the main
   window (they can sit on another screen, with a taskbar entry); closing one discards it and
   disposes its widgets; closing the main window exits the app (`ShutdownMode.OnMainWindowClose`)
   and keeps the open windows, with their bounds and layouts, for the next start. Dragging a
   widget between windows is not supported: dropped outside its window, it floats (owned by that
-  window); move it by opening it from the other window's menu (single-instance widgets).
+  window); to have it in another window, open a new one from that window's menu (or move its
+  whole view there).
   **✕ with several workspace windows open** (main + extra; floating widget windows don't count)
   asks: Close this window (Enter), Close application, or Cancel. With one window, ✕ just exits.
   The extra window's menu → Close window doesn't ask. Close application exits like closing the
@@ -175,10 +174,9 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   Cancel and a red confirm button; Enter confirms, Esc cancels). Right-click a tab → Duplicate
   puts "<name> copy" right after it and shows it:
   the same split tree with new instances of its widgets carrying their saved settings (symbol,
-  timeframe, link group, …); single-instance widgets can't be in two views, so their slots are
-  left out (`CenterViewHelpers.Duplicate`). "+" adds an empty "View N" and shows it; Ctrl+Tab / Ctrl+Shift+Tab cycle
-  through them. New and reopened center widgets go to the shown view; showing a widget that sits
-  in another view (menu, Ctrl+1…9, Ctrl+Alt+key) switches to that view. Every view has its own
+  timeframe, link group, watchlist, …) (`CenterViewHelpers.Duplicate`). "+" adds an empty "View N" and shows it; Ctrl+Tab / Ctrl+Shift+Tab cycle
+  through them. New center widgets go to the shown view; showing a widget that sits only
+  in another view (Ctrl+1…9, Ctrl+Alt+key) switches to that view. Every view has its own
   host in `WorkspaceView`, built once per tree change and only hidden while another view is
   shown, so switching views moves no frame.
 - **Moving views.** Drag a tab (a press that moves 6 px, like a widget header; not while its name
@@ -197,10 +195,19 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   `AdoptView` (between workspaces), orchestrated by `WorkspaceWindows` through `IWorkspaceHost`
   (`MoveView`, `DetachView`); the drag is `WorkspaceView.ViewTabs.cs`. The saved layout follows
   (each window's `Views` and `Widgets`), so the order and placement come back on the next start.
-- Spawn or reveal a widget from menu → Widgets. Ctrl+1 … Ctrl+9 do the same, but collapse a side
-  widget that is already expanded.
-- **Charts can be open several times**: menu → Widgets → Chart (Ctrl+7) always opens a new one
-  in the current view. Each chart has its own timeframe, link group and contract, all saved per
+- **Spawning.** Menu → Widgets → any widget always opens a **new instance**
+  (`WorkspaceViewModel.Spawn`) where the last one of its kind was docked (the widget's default
+  dock at first; the shown view for the center) and makes it current with keyboard focus. Every
+  instance has its own view model (widget view models are transient, created by
+  `WidgetViewModelFactory`), its own id (`Orders`, then `Orders-1a2b3c4d`, …) and its own saved
+  placement and settings. Closing one discards it and disposes its view model; the others stay.
+  Ctrl+1 … Ctrl+9 and Ctrl+Alt+key don't spawn: they show an open instance of the widget
+  (`WorkspaceViewModel.FindShown`: the current widget if it is one, else one on screen, else one
+  in another view, which is then shown) and spawn one only when none is open; Ctrl+1 … Ctrl+9
+  collapse it when it is the expanded side widget. Ctrl+7 (Chart) is the exception
+  (`WorkspaceHelpers.HotkeySpawns`): it always opens a new chart in the current view, like the
+  menu.
+- **Charts**: each one opens in the current view. Each chart has its own timeframe, link group and contract, all saved per
   chart. New charts start at the last chart's timeframe (5m on first run). **Changing the
   timeframe:** click the timeframe beside the chart's header title (e.g. "5m"); a menu lists 1m,
   5m, 15m, 1h, 1D and 1W with the current one checked, and picking one reloads the bars
@@ -245,9 +252,7 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   A typed symbol is looked up as stock / ETF, index and crypto at once
   (`IContractManager.SearchSymbolAsync`, `MarketDataConstants.SymbolSearchTypes`), US-dollar
   listings first. Futures and forex are not searched (every contract month / currency pairs).
-  A ticker picked this way goes to the chart's link group. Closing an extra chart
-  discards it (its view model is disposed); single-instance widgets keep theirs while closed.
-  Which widgets allow several instances: `WorkspaceHelpers.AllowsMultipleInstances`.
+  A ticker picked this way goes to the chart's link group.
 - Every widget is wrapped in a `WidgetFrame`: icon, title, link, fullscreen, `✕` (close) and, on
   a side, the pin. **The header is the drag handle**, and so is the strip icon of a widget docked
   on a side or the bottom (no need to expand it first): a press becomes a drag once it moves
@@ -348,7 +353,8 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   rows are fixed view models refilled in place. IB's refusals (no depth subscription, three
   subscriptions already open) show as the widget's error. Closing the widget cancels its depth
   subscription at once (`IWidgetOpenState`, called by `WorkspaceViewModel.Close`; `DepthFeed`
-  owns the stream), so the slot is free; reopening subscribes again. Data from `IMarketDepthManager`
+  owns the stream), so the slot is free. Several Depth widgets can be open (each on its own link
+  group's contract); past IB's three subscriptions, the extra one shows IB's refusal. Data from `IMarketDepthManager`
   ([ibkr-tws-api.md → Market depth](ibkr-tws-api.md#market-depth)).
 - The frame (and the widget view inside it) is created once per instance and **moved** between
   hosts, so state and subscriptions survive docking, floating and collapsing. Widget view models
@@ -450,8 +456,14 @@ Esc cancels) or deleted with ✕ after an inline confirmation (disabled when onl
 last row, "+ New watchlist", adds "Watchlist N" and opens its name for editing. Rows are
 `WatchlistItemViewModel`s holding their own rename / confirm state; the list lives in a popup, so
 row buttons bind to `Owner` (the widget's view model) commands. Adding and removing symbols works
-on the shown watchlist. `IWatchlistManager` keeps them in `SettingsEntity.Watchlists` with
-`ActiveWatchlistId`; the single list of older settings becomes "Main" on first load
+on the shown watchlist. **Every watchlist widget shows its own watchlist**: picking one in a
+widget changes only that widget; it is saved in its placement (`WidgetPlacementEntity.WatchlistId`;
+older layouts and a deleted list fall back to the active one, `WatchlistHelpers.ResolveShownId`).
+`IWatchlistManager` (a singleton) takes the watchlist id for items and pins; its active watchlist
+(`ActiveWatchlistId`) is only the one picked last, where a new watchlist widget opens. Every change
+raises `IWatchlistManager.Changed`, so widgets showing the same list follow each other (added and
+removed symbols, pins, renames) and one whose list was deleted elsewhere shows the active one.
+`IWatchlistManager` keeps them in `SettingsEntity.Watchlists`; the single list of older settings becomes "Main" on first load
 (`WatchlistHelpers.EnsureWatchlists`). A fresh install (no settings file) starts with a "US" list
 of SPY, MSFT, NVDA and TSLA (`WatchlistHelpers.CreateFirstRunSettings`).
 
@@ -703,8 +715,8 @@ subscription and frees the market-data line.
 | Delete (watchlist) | Remove selected row |
 | F5 | Refresh chart, account, positions, orders, executions, day trade performance |
 | Ctrl+, | Settings |
-| Ctrl+1 … Ctrl+9 | Show Watchlist, Positions, Orders, Executions, Account, Messages, Chart, Option chain, Order ticket (collapses an expanded side widget); Ctrl+7 always opens a new chart in the current view |
-| Ctrl+Alt+W / P / O / E / A / M / C / B / N / R / J / K | Show and focus Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News, Account performance, Day trade performance, Depth (single-instance widgets; works from floating windows too) |
+| Ctrl+1 … Ctrl+9 | Show an open Watchlist, Positions, Orders, Executions, Account, Messages, Chart, Option chain, Order ticket, opening one if none is (collapses an expanded side widget); Ctrl+7 always opens a new chart in the current view |
+| Ctrl+Alt+W / P / O / E / A / M / C / B / N / R / J / K | Show and focus an open Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News, Account performance, Day trade performance, Depth, opening one if none is (works from floating windows too) |
 | Esc (side or bottom widget) | Back to the last focused center widget; an unpinned widget collapses |
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous center view |
 | Ctrl+Shift+F | Fullscreen the current widget (the one last clicked or typed in, framed in light blue), or restore it |

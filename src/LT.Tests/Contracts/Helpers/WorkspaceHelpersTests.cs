@@ -86,14 +86,14 @@ public class WorkspaceHelpersTests
 	}
 
 	[Fact]
-	public void Only_charts_allow_several_instances() =>
+	public void Only_the_chart_hotkey_opens_a_new_instance_every_time() =>
 		Assert.Equal(
 			[WorkspaceTool.Chart],
-			Enum.GetValues<WorkspaceTool>().Where(WorkspaceHelpers.AllowsMultipleInstances)
+			Enum.GetValues<WorkspaceTool>().Where(WorkspaceHelpers.HotkeySpawns)
 		);
 
 	[Fact]
-	public void Normalize_keeps_several_charts_but_one_of_everything_else()
+	public void Normalize_keeps_several_instances_of_any_widget_but_drops_duplicate_ids()
 	{
 		var result = WorkspaceHelpers.Normalize([
 			new WidgetPlacementDto { Id = "Chart", Tool = WorkspaceTool.Chart },
@@ -105,7 +105,7 @@ public class WorkspaceHelpersTests
 			new WidgetPlacementDto { Tool = WorkspaceTool.Account, Dock = (WidgetDock)99 },
 		]);
 
-		Assert.Equal(["Chart", "Chart-2", "Orders"], result.Select(x => x.Id));
+		Assert.Equal(["Chart", "Chart-2", "Orders", "Orders-2"], result.Select(x => x.Id));
 	}
 
 	[Fact]

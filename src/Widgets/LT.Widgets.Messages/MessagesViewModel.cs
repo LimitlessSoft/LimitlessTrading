@@ -9,7 +9,7 @@ using LT.Contracts.Interfaces.IManagers;
 
 namespace LT.App.Widgets.Messages;
 
-public partial class MessagesViewModel : ViewModelBase
+public partial class MessagesViewModel : ViewModelBase, IDisposable
 {
 	private readonly IMessageLogManager _messageLogManager;
 	private readonly DisplayTimeStore _displayTime;
@@ -20,13 +20,7 @@ public partial class MessagesViewModel : ViewModelBase
 		_displayTime = displayTime;
 		ShowAll();
 		displayTime.ZoneChanged += ShowAll;
-		messageLogManager.MessageAdded += message =>
-			Dispatcher.UIThread.Post(() =>
-			{
-				Messages.Insert(0, ToRow(message));
-				while (Messages.Count > MessageLogConstants.Capacity)
-					Messages.RemoveAt(Messages.Count - 1);
-			});
+		messageLogManager.MessageAdded += OnMessageAdded;
 	}
 
 	/// <summary>Newest first.</summary>
@@ -38,6 +32,22 @@ public partial class MessagesViewModel : ViewModelBase
 		_messageLogManager.Clear();
 		Messages.Clear();
 	}
+
+	/// <summary>The widget is closed: stops listening to the log and the display zone.</summary>
+	public void Dispose()
+	{
+		_displayTime.ZoneChanged -= ShowAll;
+		_messageLogManager.MessageAdded -= OnMessageAdded;
+		GC.SuppressFinalize(this);
+	}
+
+	private void OnMessageAdded(MessageDto message) =>
+		Dispatcher.UIThread.Post(() =>
+		{
+			Messages.Insert(0, ToRow(message));
+			while (Messages.Count > MessageLogConstants.Capacity)
+				Messages.RemoveAt(Messages.Count - 1);
+		});
 
 	// Also on a zone change: every time formatted again
 	private void ShowAll()

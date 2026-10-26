@@ -1,5 +1,6 @@
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Contracts;
+using LT.Contracts.Dtos.Watchlists;
 using LT.Contracts.Entities;
 using LT.Contracts.Interfaces.IRepositories;
 
@@ -68,6 +69,29 @@ public static class WatchlistHelpers
 
 	public static WatchlistEntity GetActive(SettingsEntity settings) =>
 		settings.Watchlists.First(x => x.Id == settings.ActiveWatchlistId);
+
+	/// <summary>The watchlist with this id; null when it doesn't exist (deleted meanwhile).</summary>
+	public static WatchlistEntity? Find(SettingsEntity settings, string id) =>
+		settings.Watchlists.FirstOrDefault(x => x.Id == id);
+
+	/// <summary>
+	/// The watchlist a watchlist widget shows: <paramref name="id"/> while it still exists, else
+	/// the active one (<paramref name="activeId"/>).
+	/// </summary>
+	public static string ResolveShownId(
+		string? id,
+		string activeId,
+		IEnumerable<WatchlistDto> watchlists
+	) => id != null && watchlists.Any(x => x.Id == id) ? id : activeId;
+
+	/// <summary>The same listings (<see cref="ContractHelpers.IsSameListing"/>) in the same order.</summary>
+	public static bool IsSameItems(IEnumerable<ContractDto> left, IEnumerable<ContractDto> right)
+	{
+		var a = left.ToList();
+		var b = right.ToList();
+		return a.Count == b.Count
+			&& a.Zip(b).All(x => ContractHelpers.IsSameListing(x.First, x.Second));
+	}
 
 	/// <summary>Whether a pin is this listing's (conId and exchange, as <see cref="ContractHelpers.IsSameListing"/>).</summary>
 	public static bool IsPinOf(WatchlistPinEntity pin, ContractDto contract) =>

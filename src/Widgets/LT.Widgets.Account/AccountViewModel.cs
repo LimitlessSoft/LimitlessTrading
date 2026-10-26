@@ -133,6 +133,13 @@ public partial class AccountViewModel : ConnectedViewModelBase
 		_ = StreamPnlAsync(account, session);
 	}
 
+	public override void Dispose()
+	{
+		_displayTime.ZoneChanged -= OnZoneChanged;
+		Store.PropertyChanged -= OnStoreChanged;
+		base.Dispose();
+	}
+
 	private void OnZoneChanged()
 	{
 		_updatedText.Rebuild();

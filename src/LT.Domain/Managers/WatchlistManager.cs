@@ -16,6 +16,8 @@ namespace LT.Domain.Managers;
 
 public class WatchlistManager(ISettingsRepository settingsRepository) : IWatchlistManager
 {
+	public event Action? Changed;
+
 	public IReadOnlyList<WatchlistDto> GetWatchlists() =>
 		WatchlistHelpers
 			.LoadSettings(settingsRepository)
@@ -69,6 +71,7 @@ public class WatchlistManager(ISettingsRepository settingsRepository) : IWatchli
 			watchlist.Name = name;
 		}
 		settingsRepository.Save(settings);
+		Changed?.Invoke();
 		return watchlist.ToMapped<WatchlistEntity, WatchlistDto>();
 	}
 
@@ -89,14 +92,18 @@ public class WatchlistManager(ISettingsRepository settingsRepository) : IWatchli
 		if (settings.ActiveWatchlistId == id)
 			settings.ActiveWatchlistId = settings.Watchlists[0].Id;
 		settingsRepository.Save(settings);
+		Changed?.Invoke();
 	}
 
-	public IReadOnlyList<ContractDto> GetItems() =>
-		WatchlistHelpers
-			.GetActive(WatchlistHelpers.LoadSettings(settingsRepository))
-			.Items.ToMappedList<ContractEntity, ContractDto>();
+	public IReadOnlyList<ContractDto> GetItems(string watchlistId) =>
+		(
+			WatchlistHelpers.Find(WatchlistHelpers.LoadSettings(settingsRepository), watchlistId)
+			?? throw new LSCoreBadRequestException(
+				WatchlistValidationCodes.WVC_007.GetValidationMessage()
+			)
+		).Items.ToMappedList<ContractEntity, ContractDto>();
 
-	public void Add(ContractDto contract)
+	public void Add(string watchlistId, ContractDto contract)
 	{
 		if (contract.ConId <= 0)
 			throw new LSCoreBadRequestException(
@@ -104,7 +111,12 @@ public class WatchlistManager(ISettingsRepository settingsRepository) : IWatchli
 			);
 
 		var settings = WatchlistHelpers.LoadSettings(settingsRepository);
-		var items = WatchlistHelpers.GetActive(settings).Items;
+		var items = (
+			WatchlistHelpers.Find(settings, watchlistId)
+			?? throw new LSCoreBadRequestException(
+				WatchlistValidationCodes.WVC_007.GetValidationMessage()
+			)
+		).Items;
 		if (
 			items.Any(x =>
 				ContractHelpers.IsSameListing(x.ToMapped<ContractEntity, ContractDto>(), contract)
@@ -124,25 +136,31 @@ public class WatchlistManager(ISettingsRepository settingsRepository) : IWatchli
 
 		items.Add(contract.ToMapped<ContractDto, ContractEntity>());
 		settingsRepository.Save(settings);
+		Changed?.Invoke();
 	}
 
-	public void Remove(ContractDto contract)
+	public void Remove(string watchlistId, ContractDto contract)
 	{
 		var settings = WatchlistHelpers.LoadSettings(settingsRepository);
-		var watchlist = WatchlistHelpers.GetActive(settings);
+		if (WatchlistHelpers.Find(settings, watchlistId) is not { } watchlist)
+			return;
 		var removed = watchlist.Items.RemoveAll(x =>
 			ContractHelpers.IsSameListing(x.ToMapped<ContractEntity, ContractDto>(), contract)
 		);
 		var unpinned = watchlist.Pinned.RemoveAll(x => WatchlistHelpers.IsPinOf(x, contract));
-		if (removed + unpinned > 0)
-			settingsRepository.Save(settings);
+		if (removed + unpinned == 0)
+			return;
+		settingsRepository.Save(settings);
+		Changed?.Invoke();
 	}
 
-	public IReadOnlyList<ContractDto> GetPinned()
+	public IReadOnlyList<ContractDto> GetPinned(string watchlistId)
 	{
-		var watchlist = WatchlistHelpers.GetActive(
-			WatchlistHelpers.LoadSettings(settingsRepository)
-		);
+		var watchlist =
+			WatchlistHelpers.Find(WatchlistHelpers.LoadSettings(settingsRepository), watchlistId)
+			?? throw new LSCoreBadRequestException(
+				WatchlistValidationCodes.WVC_007.GetValidationMessage()
+			);
 		var items = watchlist.Items.ToMappedList<ContractEntity, ContractDto>();
 		return watchlist
 			.Pinned.Select(pin => items.FirstOrDefault(x => WatchlistHelpers.IsPinOf(pin, x)))
@@ -150,10 +168,14 @@ public class WatchlistManager(ISettingsRepository settingsRepository) : IWatchli
 			.ToList();
 	}
 
-	public void Pin(ContractDto contract)
+	public void Pin(string watchlistId, ContractDto contract)
 	{
 		var settings = WatchlistHelpers.LoadSettings(settingsRepository);
-		var watchlist = WatchlistHelpers.GetActive(settings);
+		var watchlist =
+			WatchlistHelpers.Find(settings, watchlistId)
+			?? throw new LSCoreBadRequestException(
+				WatchlistValidationCodes.WVC_007.GetValidationMessage()
+			);
 		if (
 			!watchlist.Items.Any(x =>
 				ContractHelpers.IsSameListing(x.ToMapped<ContractEntity, ContractDto>(), contract)
@@ -169,16 +191,18 @@ public class WatchlistManager(ISettingsRepository settingsRepository) : IWatchli
 
 		watchlist.Pinned.Add(WatchlistHelpers.CreatePin(contract));
 		settingsRepository.Save(settings);
+		Changed?.Invoke();
 	}
 
-	public void Unpin(ContractDto contract)
+	public void Unpin(string watchlistId, ContractDto contract)
 	{
 		var settings = WatchlistHelpers.LoadSettings(settingsRepository);
 		if (
-			WatchlistHelpers
-				.GetActive(settings)
-				.Pinned.RemoveAll(x => WatchlistHelpers.IsPinOf(x, contract)) > 0
+			WatchlistHelpers.Find(settings, watchlistId) is not { } watchlist
+			|| watchlist.Pinned.RemoveAll(x => WatchlistHelpers.IsPinOf(x, contract)) == 0
 		)
-			settingsRepository.Save(settings);
+			return;
+		settingsRepository.Save(settings);
+		Changed?.Invoke();
 	}
 }

@@ -27,7 +27,7 @@ public class WatchlistHelpersTests
 				(4815747, "NVDA", "NASDAQ"),
 				(76792991, "TSLA", "NASDAQ"),
 			],
-			manager.GetItems().Select(x => (x.ConId, x.Symbol, x.PrimaryExchange))
+			manager.GetItems(watchlist.Id).Select(x => (x.ConId, x.Symbol, x.PrimaryExchange))
 		);
 	}
 
