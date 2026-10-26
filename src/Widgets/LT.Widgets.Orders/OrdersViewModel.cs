@@ -23,21 +23,29 @@ public partial class OrdersViewModel : ConnectedViewModelBase, ILinkable
 	private readonly IMessageLogManager _messageLogManager;
 	private readonly AccountStore _accountStore;
 	private bool _restoringSelection;
+	private readonly DisplayTimeStore _displayTime;
+	private readonly ZonedText _updatedText;
+	private readonly ZonedText _staleText;
 
 	public OrdersViewModel(
 		IOrderManager orderManager,
 		IConnectionManager connectionManager,
 		IMessageLogManager messageLogManager,
 		AccountStore accountStore,
-		LinkGroupStore linkGroupStore
+		LinkGroupStore linkGroupStore,
+		DisplayTimeStore displayTime
 	)
 		: base(connectionManager)
 	{
 		_orderManager = orderManager;
 		_messageLogManager = messageLogManager;
 		_accountStore = accountStore;
+		_displayTime = displayTime;
+		_updatedText = new ZonedText(x => UpdatedText = x);
+		_staleText = new ZonedText(x => StaleText = x);
 		Link = new ContractLink(linkGroupStore, () => GetLinkContract(SelectedOrder));
 		accountStore.PropertyChanged += OnAccountChanged;
+		displayTime.ZoneChanged += OnZoneChanged;
 		// After the base class has applied the connection state
 		Dispatcher.UIThread.Post(() =>
 		{
@@ -108,6 +116,12 @@ public partial class OrdersViewModel : ConnectedViewModelBase, ILinkable
 
 	protected override void OnDisconnected() => ShowSnapshot(null);
 
+	private void OnZoneChanged()
+	{
+		_updatedText.Rebuild();
+		_staleText.Rebuild();
+	}
+
 	private void OnAccountChanged(object? sender, PropertyChangedEventArgs e)
 	{
 		if (e.PropertyName != nameof(AccountStore.SelectedAccount))
@@ -134,12 +148,13 @@ public partial class OrdersViewModel : ConnectedViewModelBase, ILinkable
 			ShowSnapshot(ErrorMessageHelpers.ToUserMessage(ex));
 			throw;
 		}
-		StaleText = null;
+		_staleText.Clear();
 		var selected = SelectedOrder?.PermId;
 		Orders.Clear();
 		foreach (var order in orders)
 			Orders.Add(order);
-		UpdatedText = $"{orders.Count} open · updated {DateTime.Now:HH:mm:ss}";
+		var updatedAt = _displayTime.Now;
+		_updatedText.Set(() => $"{orders.Count} open · updated {_displayTime.Format(updatedAt)}");
 		RestoreSelection(selected);
 	}
 
@@ -165,20 +180,22 @@ public partial class OrdersViewModel : ConnectedViewModelBase, ILinkable
 	private void ShowSnapshot(string? error)
 	{
 		Orders.Clear();
-		StaleText = null;
-		UpdatedText = null;
+		_staleText.Clear();
+		_updatedText.Clear();
 		if (_accountStore.SnapshotAccount is not { } account)
 			return;
 		if (_orderManager.GetOpenOrdersSnapshot(account) is not { } snapshot)
 			return;
 		foreach (var order in snapshot.Value)
 			Orders.Add(order);
-		UpdatedText = $"{snapshot.Value.Count} open";
-		StaleText = CacheHelpers.FormatStale(
-			snapshot.FetchedAt.ToLocalTime(),
-			DateTimeOffset.Now,
-			account,
-			error
+		_updatedText.SetFixed($"{snapshot.Value.Count} open");
+		_staleText.Set(() =>
+			CacheHelpers.FormatStale(
+				_displayTime.ToDisplay(snapshot.FetchedAt),
+				_displayTime.Now,
+				account,
+				error
+			)
 		);
 	}
 }

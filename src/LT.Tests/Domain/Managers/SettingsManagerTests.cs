@@ -104,6 +104,40 @@ public class SettingsManagerTests
 		);
 
 	[Fact]
+	public void Display_time_zone_is_local_by_default_and_persisted_when_picked()
+	{
+		var manager = new SettingsManager(_settings, _ibkr);
+		Assert.Null(manager.GetAppSettings().DisplayTimeZoneId);
+
+		manager.SaveAppSettings(
+			new SaveAppSettingsRequest
+			{
+				MarketDataType = MarketDataType.Delayed,
+				HeartbeatSeconds = 10,
+				DisplayTimeZoneId = DisplayTimeConstants.ExchangeTimeZoneId,
+			}
+		);
+
+		Assert.Equal(
+			DisplayTimeConstants.ExchangeTimeZoneId,
+			manager.GetAppSettings().DisplayTimeZoneId
+		);
+	}
+
+	[Fact]
+	public void Unknown_display_time_zone_is_rejected() =>
+		Assert.Throws<LSCoreBadRequestException>(() =>
+			new SettingsManager(_settings, _ibkr).SaveAppSettings(
+				new SaveAppSettingsRequest
+				{
+					MarketDataType = MarketDataType.Delayed,
+					HeartbeatSeconds = 10,
+					DisplayTimeZoneId = "Not/AZone",
+				}
+			)
+		);
+
+	[Fact]
 	public void Invalid_heartbeat_is_rejected() =>
 		Assert.Throws<LSCoreBadRequestException>(() =>
 			new SettingsManager(_settings, _ibkr).SaveAppSettings(

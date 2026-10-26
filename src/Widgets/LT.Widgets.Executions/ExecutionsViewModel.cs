@@ -19,19 +19,30 @@ public partial class ExecutionsViewModel : ConnectedViewModelBase, ILinkable
 {
 	private readonly IExecutionManager _executionManager;
 	private readonly AccountStore _accountStore;
+	private readonly DisplayTimeStore _displayTime;
+	private readonly ZonedText _updatedText;
+	private readonly ZonedText _staleText;
 	private bool _restoringSelection;
 
 	public ExecutionsViewModel(
 		IExecutionManager executionManager,
 		IConnectionManager connectionManager,
 		AccountStore accountStore,
-		LinkGroupStore linkGroupStore
+		LinkGroupStore linkGroupStore,
+		DisplayTimeStore displayTime
 	)
 		: base(connectionManager)
 	{
 		_executionManager = executionManager;
 		_accountStore = accountStore;
-		Link = new ContractLink(linkGroupStore, () => GetLinkContract(SelectedExecution));
+		_displayTime = displayTime;
+		_updatedText = new ZonedText(x => UpdatedText = x);
+		_staleText = new ZonedText(x => StaleText = x);
+		Link = new ContractLink(
+			linkGroupStore,
+			() => GetLinkContract(SelectedExecution?.Execution)
+		);
+		displayTime.ZoneChanged += OnZoneChanged;
 		accountStore.PropertyChanged += OnAccountChanged;
 		// After the base class has applied the connection state
 		Dispatcher.UIThread.Post(ShowOffline);
@@ -40,10 +51,10 @@ public partial class ExecutionsViewModel : ConnectedViewModelBase, ILinkable
 	/// <summary>Clicking a fill sends its contract to the link group.</summary>
 	public ContractLink Link { get; }
 
-	public ObservableCollection<ExecutionDto> Executions { get; } = [];
+	public ObservableCollection<ExecutionRowViewModel> Executions { get; } = [];
 
 	[ObservableProperty]
-	public partial ExecutionDto? SelectedExecution { get; set; }
+	public partial ExecutionRowViewModel? SelectedExecution { get; set; }
 
 	[ObservableProperty]
 	public partial string? UpdatedText { get; set; }
@@ -55,10 +66,10 @@ public partial class ExecutionsViewModel : ConnectedViewModelBase, ILinkable
 
 	public bool IsStale => StaleText != null;
 
-	partial void OnSelectedExecutionChanged(ExecutionDto? value)
+	partial void OnSelectedExecutionChanged(ExecutionRowViewModel? value)
 	{
 		// A reload putting the same fill back selected must not pull the group back to it
-		if (!_restoringSelection && GetLinkContract(value) is { } contract)
+		if (!_restoringSelection && GetLinkContract(value?.Execution) is { } contract)
 			Link.Publish(contract);
 	}
 
@@ -67,6 +78,7 @@ public partial class ExecutionsViewModel : ConnectedViewModelBase, ILinkable
 
 	public override void Dispose()
 	{
+		_displayTime.ZoneChanged -= OnZoneChanged;
 		Link.Dispose();
 		base.Dispose();
 	}
@@ -78,6 +90,37 @@ public partial class ExecutionsViewModel : ConnectedViewModelBase, ILinkable
 	{
 		Executions.Clear();
 		ShowOffline();
+	}
+
+	// Every row's time formatted again; the selected fill stays selected
+	private void OnZoneChanged()
+	{
+		ShowExecutions(Executions.Select(x => x.Execution).ToList());
+		_updatedText.Rebuild();
+		_staleText.Rebuild();
+	}
+
+	// The list is rebuilt on every refresh; the same fill (by ExecId) stays selected
+	private void ShowExecutions(IEnumerable<ExecutionDto> executions)
+	{
+		var selectedId = SelectedExecution?.Execution.ExecId;
+		Executions.Clear();
+		foreach (var execution in executions)
+			Executions.Add(
+				new ExecutionRowViewModel(
+					execution,
+					execution.Time is { } time ? _displayTime.Format(time) : FormatHelpers.Empty
+				)
+			);
+		_restoringSelection = true;
+		try
+		{
+			SelectedExecution = Executions.FirstOrDefault(x => x.Execution.ExecId == selectedId);
+		}
+		finally
+		{
+			_restoringSelection = false;
+		}
 	}
 
 	private void OnAccountChanged(object? sender, PropertyChangedEventArgs e)
@@ -107,27 +150,26 @@ public partial class ExecutionsViewModel : ConnectedViewModelBase, ILinkable
 	{
 		var account = IsConnected ? _accountStore.SelectedAccount : _accountStore.SnapshotAccount;
 		var result = await _executionManager.GetExecutionsAsync(account, cancellationToken);
-		var selectedId = SelectedExecution?.ExecId;
-		Executions.Clear();
-		foreach (var execution in result.Value)
-			Executions.Add(execution);
-		var fetchedAt = result.FetchedAt.ToLocalTime();
-		StaleText = result.IsStale
-			? CacheHelpers.FormatStale(fetchedAt, DateTimeOffset.Now, account ?? "", result.Error)
-			: null;
-		UpdatedText =
-			result.IsStale ? $"{result.Value.Count} fills"
-			: IsConnected ? $"{result.Value.Count} fills today · updated {fetchedAt:HH:mm:ss}"
-			: null;
-		_restoringSelection = true;
-		try
-		{
-			SelectedExecution = Executions.FirstOrDefault(x => x.ExecId == selectedId);
-		}
-		finally
-		{
-			_restoringSelection = false;
-		}
+		ShowExecutions(result.Value);
+		if (result.IsStale)
+			_staleText.Set(() =>
+				CacheHelpers.FormatStale(
+					_displayTime.ToDisplay(result.FetchedAt),
+					_displayTime.Now,
+					account ?? "",
+					result.Error
+				)
+			);
+		else
+			_staleText.Clear();
+		if (result.IsStale)
+			_updatedText.SetFixed($"{result.Value.Count} fills");
+		else if (IsConnected)
+			_updatedText.Set(() =>
+				$"{result.Value.Count} fills today · updated {_displayTime.Format(result.FetchedAt)}"
+			);
+		else
+			_updatedText.Clear();
 	}
 
 	// Cached fills are for looking at only, like remembered positions; they drive no other widget

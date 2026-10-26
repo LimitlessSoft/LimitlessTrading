@@ -49,6 +49,9 @@ public class CandlestickChart : Control
 		double
 	>(nameof(RightMargin), defaultBindingMode: BindingMode.TwoWay);
 
+	public static readonly StyledProperty<TimeZoneInfo?> TimeZoneProperty =
+		AvaloniaProperty.Register<CandlestickChart, TimeZoneInfo?>(nameof(TimeZone));
+
 	private const double PriceAxisWidth = 72;
 	private const double TimeAxisHeight = 22;
 	private const double TopPadding = 24;
@@ -151,7 +154,8 @@ public class CandlestickChart : Control
 			FillsProperty,
 			TradeLegsProperty,
 			BreakEvenPriceProperty,
-			RightMarginProperty
+			RightMarginProperty,
+			TimeZoneProperty
 		);
 		ClipToBoundsProperty.OverrideDefaultValue<CandlestickChart>(true);
 		FocusableProperty.OverrideDefaultValue<CandlestickChart>(true);
@@ -167,6 +171,13 @@ public class CandlestickChart : Control
 	{
 		get => GetValue(IsIntradayProperty);
 		set => SetValue(IsIntradayProperty, value);
+	}
+
+	/// <summary>Zone of the time axis and the readout (the display zone); null is the local zone.</summary>
+	public TimeZoneInfo? TimeZone
+	{
+		get => GetValue(TimeZoneProperty);
+		set => SetValue(TimeZoneProperty, value);
 	}
 
 	/// <summary>Bar size, to tell which bar a fill's time falls in.</summary>
@@ -315,7 +326,7 @@ public class CandlestickChart : Control
 		{
 			if ((bars.Count - 1 - i) % labelEvery != 0)
 				continue;
-			var time = bars[i].Time.ToLocalTime();
+			var time = ToShown(bars[i].Time);
 			var x = Math.Round(X(i)) + 0.5;
 			context.DrawLine(GridPen, new Point(x, plot.Y), new Point(x, plot.Bottom));
 			var label = Text(FormatTime(time, previous), 11, TextBrush);
@@ -441,7 +452,7 @@ public class CandlestickChart : Control
 
 		var b = bars[hovered];
 		var readout = Text(
-			$"{FormatTime(b.Time.ToLocalTime(), null)}   O {b.Open.ToString("N" + decimals)}   H {b.High.ToString("N" + decimals)}   L {b.Low.ToString("N" + decimals)}   C {b.Close.ToString("N" + decimals)}   V {b.Volume:#,0}",
+			$"{FormatTime(ToShown(b.Time), null)}   O {b.Open.ToString("N" + decimals)}   H {b.High.ToString("N" + decimals)}   L {b.Low.ToString("N" + decimals)}   C {b.Close.ToString("N" + decimals)}   V {b.Volume:#,0}",
 			12,
 			b.Close >= b.Open ? UpBrush : DownBrush
 		);
@@ -671,6 +682,11 @@ public class CandlestickChart : Control
 		e.Handled = true;
 		InvalidateVisual();
 	}
+
+	// Intraday bar times in the display zone; daily and weekly bars carry a calendar date
+	// (midnight UTC), shown as it is so the date doesn't shift with the zone
+	private DateTimeOffset ToShown(DateTimeOffset time) =>
+		IsIntraday ? DisplayTimeHelpers.ToZone(time, TimeZone ?? TimeZoneInfo.Local) : time;
 
 	private string FormatTime(DateTimeOffset time, DateTimeOffset? previous)
 	{

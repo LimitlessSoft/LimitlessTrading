@@ -2,7 +2,6 @@
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:LT.App.Widgets.Executions"
-	xmlns:dto="using:LT.Contracts.Dtos.Executions"
 	x:Class="LT.App.Widgets.Executions.ExecutionsView"
 	x:DataType="vm:ExecutionsViewModel"
 >
@@ -37,60 +36,65 @@
 		>
 			<DataGrid.Columns>
 				<DataGridTextColumn
-					x:DataType="dto:ExecutionDto"
+					x:DataType="vm:ExecutionRowViewModel"
 					Header="Time"
-					Binding="{Binding Time, StringFormat='{}{0:HH:mm:ss}'}"
+					Binding="{Binding TimeText}"
+					SortMemberPath="Execution.Time"
 				/>
 				<DataGridTextColumn
-					x:DataType="dto:ExecutionDto"
+					x:DataType="vm:ExecutionRowViewModel"
 					Header="Account"
-					Binding="{Binding Account}"
+					Binding="{Binding Execution.Account}"
 				/>
 				<DataGridTextColumn
-					x:DataType="dto:ExecutionDto"
+					x:DataType="vm:ExecutionRowViewModel"
 					Header="Symbol"
-					Binding="{Binding Symbol}"
+					Binding="{Binding Execution.Symbol}"
 				/>
 				<DataGridTextColumn
-					x:DataType="dto:ExecutionDto"
+					x:DataType="vm:ExecutionRowViewModel"
 					Header="Type"
-					Binding="{Binding SecurityType}"
+					Binding="{Binding Execution.SecurityType}"
 				/>
-				<DataGridTextColumn x:DataType="dto:ExecutionDto" Header="Side" Binding="{Binding Side}" />
 				<DataGridTextColumn
-					x:DataType="dto:ExecutionDto"
+					x:DataType="vm:ExecutionRowViewModel"
+					Header="Side"
+					Binding="{Binding Execution.Side}"
+				/>
+				<DataGridTextColumn
+					x:DataType="vm:ExecutionRowViewModel"
 					Header="Shares"
-					Binding="{Binding Shares, StringFormat='{}{0:#,0.####}'}"
+					Binding="{Binding Execution.Shares, StringFormat='{}{0:#,0.####}'}"
 				/>
 				<DataGridTextColumn
-					x:DataType="dto:ExecutionDto"
+					x:DataType="vm:ExecutionRowViewModel"
 					Header="Price"
-					Binding="{Binding Price, StringFormat='{}{0:#,0.00##}'}"
+					Binding="{Binding Execution.Price, StringFormat='{}{0:#,0.00##}'}"
 				/>
 				<DataGridTextColumn
-					x:DataType="dto:ExecutionDto"
+					x:DataType="vm:ExecutionRowViewModel"
 					Header="Exchange"
-					Binding="{Binding Exchange}"
+					Binding="{Binding Execution.Exchange}"
 				/>
 				<DataGridTextColumn
-					x:DataType="dto:ExecutionDto"
+					x:DataType="vm:ExecutionRowViewModel"
 					Header="Commission"
-					Binding="{Binding Commission, StringFormat='{}{0:#,0.00##}'}"
+					Binding="{Binding Execution.Commission, StringFormat='{}{0:#,0.00##}'}"
 				/>
 				<DataGridTextColumn
-					x:DataType="dto:ExecutionDto"
+					x:DataType="vm:ExecutionRowViewModel"
 					Header="Ccy"
-					Binding="{Binding CommissionCurrency}"
+					Binding="{Binding Execution.CommissionCurrency}"
 				/>
 				<DataGridTextColumn
-					x:DataType="dto:ExecutionDto"
+					x:DataType="vm:ExecutionRowViewModel"
 					Header="Realized P&amp;L"
-					Binding="{Binding RealizedPnl, StringFormat='{}{0:+#,0.00;-#,0.00;0.00}'}"
+					Binding="{Binding Execution.RealizedPnl, StringFormat='{}{0:+#,0.00;-#,0.00;0.00}'}"
 				/>
 				<DataGridTextColumn
-					x:DataType="dto:ExecutionDto"
+					x:DataType="vm:ExecutionRowViewModel"
 					Header="Order"
-					Binding="{Binding OrderId}"
+					Binding="{Binding Execution.OrderId}"
 				/>
 			</DataGrid.Columns>
 		</DataGrid>

@@ -18,6 +18,8 @@ public partial class MainWindowViewModel : ViewModelBase
 	private readonly IMarketDataManager _marketDataManager;
 	private readonly ISettingsManager _settingsManager;
 	private readonly AccountStore _accountStore;
+	private readonly IConnectionManager _connectionManager;
+	private readonly DisplayTimeStore _displayTime;
 
 	public MainWindowViewModel(
 		IConnectionManager connectionManager,
@@ -25,6 +27,7 @@ public partial class MainWindowViewModel : ViewModelBase
 		ISettingsManager settingsManager,
 		AccountStore accountStore,
 		AppearanceStore appearance,
+		DisplayTimeStore displayTime,
 		ConnectionBarViewModel connectionBar,
 		TradingPageViewModel tradingPage,
 		UpdateViewModel update
@@ -33,6 +36,8 @@ public partial class MainWindowViewModel : ViewModelBase
 		_marketDataManager = marketDataManager;
 		_settingsManager = settingsManager;
 		_accountStore = accountStore;
+		_connectionManager = connectionManager;
+		_displayTime = displayTime;
 		ConnectionBar = connectionBar;
 		Appearance = appearance;
 		Update = update;
@@ -41,6 +46,7 @@ public partial class MainWindowViewModel : ViewModelBase
 		Apply(connectionManager.Status);
 		connectionManager.StatusChanged += status => Dispatcher.UIThread.Post(() => Apply(status));
 		accountStore.PropertyChanged += (_, _) => UpdateAccountText();
+		displayTime.ZoneChanged += () => Apply(_connectionManager.Status);
 		settingsManager.AppSettingsChanged += _ => Dispatcher.UIThread.Post(UpdateStatusBar);
 		new DispatcherTimer(
 			TimeSpan.FromSeconds(1),
@@ -105,7 +111,7 @@ public partial class MainWindowViewModel : ViewModelBase
 	{
 		ServerTimeText =
 			status.State == ConnectionState.Connected && status.ServerTime is { } serverTime
-				? $"Server time at connect {serverTime.ToLocalTime():HH:mm:ss}"
+				? $"Server time at connect {_displayTime.Format(serverTime)}"
 				: string.Empty;
 		UpdateAccountText();
 	}

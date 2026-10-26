@@ -18,4 +18,7 @@ public class SaveAppSettingsRequest
 	public bool CacheExecutions { get; set; } = true;
 	public bool CacheSnapshots { get; set; } = true;
 	public int CacheMaxSizeMb { get; set; } = CacheConstants.DefaultMaxSizeMb;
+
+	/// <summary>Zone times are shown in; null = the system's local zone.</summary>
+	public string? DisplayTimeZoneId { get; set; }
 }

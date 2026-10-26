@@ -48,6 +48,26 @@ splitters — a 6 px transparent gap in cards, a 1 px line in flush that is grab
 side (`FlushSplitterColumnBrush` / `RowBrush`, ZIndex 1 over its neighbours). A collapsed side
 leaves its gap in cards and none in flush.
 
+## Display time zone (Settings → General → Time zone)
+
+`DisplayTimeZoneId` (`GeneralSettingsEntity`, a system time zone id): null — the default, also
+for settings files saved without the field — is the system's local zone. The picker
+(`TimeZoneOption`) lists System local, **Exchange time** (`DisplayTimeConstants.ExchangeTimeZoneId`,
+New York) and every zone of the computer; Save validates the id (`SVC_005`).
+`DisplayTimeStore` (a store in `LT.Widgets.Core`) holds the resolved `Zone` and `Now` (from
+`TimeProvider`), formats times in it, and follows the saved setting: `ZoneChanged` fires on the UI
+thread and open widgets format their times again — no restart.
+
+Every shown time goes through it — never `ToLocalTime()` / `DateTime.Now` in display code.
+Conversion is `DisplayTimeHelpers.ToZone`; `FormatHelpers.DayTime` gives "14:05" today, the date
+another day, "today" counted in the zone. A status text that holds a time is a `ZonedText` (it
+keeps how it was built and `Rebuild`s on `ZoneChanged`); rows format their time when built and
+are rebuilt or refreshed on `ZoneChanged`; the charts bind `TimeZone="{Binding DisplayTime.Zone}"`.
+Daily and weekly chart bars carry a calendar date (midnight UTC) and are shown unconverted.
+Business rules keep their fixed zones whatever is picked: trading days
+(`TradeJournalConstants.TradeDayTimeZoneId`, `AccountPerformanceConstants.TradingDayTimeZoneId`)
+and Flex statements (`FlexConstants.StatementTimeZoneId`).
+
 ## Settings window
 
 `Widgets/Settings`: a searchable tree of pages on the left, the selected page on the right. A page

@@ -18,4 +18,10 @@ public class GeneralSettingsEntity
 	public bool CacheExecutions { get; set; } = true;
 	public bool CacheSnapshots { get; set; } = true;
 	public int CacheMaxSizeMb { get; set; } = CacheConstants.DefaultMaxSizeMb;
+
+	/// <summary>
+	/// Zone every shown time is converted to (a system time zone id); null, the default and what
+	/// older settings files load as, is the system's local zone.
+	/// </summary>
+	public string? DisplayTimeZoneId { get; set; }
 }

@@ -60,7 +60,12 @@
 			</StackPanel>
 
 			<!-- intraday P&L curve -->
-			<vm:PnlCurveChart Grid.Row="1" MinHeight="120" Samples="{Binding Curve}" />
+			<vm:PnlCurveChart
+				Grid.Row="1"
+				MinHeight="120"
+				Samples="{Binding Curve}"
+				TimeZone="{Binding DisplayTime.Zone}"
+			/>
 			<WrapPanel Grid.Row="2" Classes="stats" Margin="0,6,0,0">
 				<StackPanel>
 					<TextBlock Classes="secondary" Text="Daily P&amp;L" />

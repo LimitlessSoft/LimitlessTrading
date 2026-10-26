@@ -1,4 +1,5 @@
 using System.Globalization;
+using LT.Contracts.Helpers;
 
 namespace LT.App.Helpers;
 
@@ -47,8 +48,32 @@ public static class FormatHelpers
 			_ => value.Value.ToString("#,0", CultureInfo.CurrentCulture),
 		};
 
-	public static string Time(DateTimeOffset? value) =>
+	/// <summary>Date and time in <paramref name="zone"/> (the display zone).</summary>
+	public static string Time(DateTimeOffset? value, TimeZoneInfo zone) =>
 		value is { } v
-			? v.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.CurrentCulture)
+			? DisplayTimeHelpers
+				.ToZone(v, zone)
+				.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.CurrentCulture)
 			: Empty;
+
+	/// <summary>
+	/// <paramref name="time"/> in <paramref name="zone"/> (the display zone): in
+	/// <paramref name="todayFormat"/> when it falls on <paramref name="now"/>'s day there, else in
+	/// <paramref name="otherDayFormat"/> ("14:05" / "26 Oct 14:05").
+	/// </summary>
+	public static string DayTime(
+		DateTimeOffset time,
+		DateTimeOffset now,
+		TimeZoneInfo zone,
+		string todayFormat = "HH:mm",
+		string otherDayFormat = "d MMM HH:mm"
+	)
+	{
+		var shown = DisplayTimeHelpers.ToZone(time, zone);
+		var today = DisplayTimeHelpers.ToZone(now, zone).Date;
+		return shown.ToString(
+			shown.Date == today ? todayFormat : otherDayFormat,
+			CultureInfo.CurrentCulture
+		);
+	}
 }

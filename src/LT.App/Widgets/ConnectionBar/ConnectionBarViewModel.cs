@@ -1,6 +1,7 @@
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LT.App.Stores;
 using LT.App.ViewModels;
 using LT.Contracts.Dtos.Connection;
 using LT.Contracts.Dtos.Gateway;
@@ -17,18 +18,22 @@ public partial class ConnectionBarViewModel : ViewModelBase
 {
 	private readonly IConnectionManager _connectionManager;
 	private readonly IGatewayManager _gatewayManager;
+	private readonly DisplayTimeStore _displayTime;
 
 	public ConnectionBarViewModel(
 		IConnectionManager connectionManager,
-		IGatewayManager gatewayManager
+		IGatewayManager gatewayManager,
+		DisplayTimeStore displayTime
 	)
 	{
 		_connectionManager = connectionManager;
 		_gatewayManager = gatewayManager;
+		_displayTime = displayTime;
 
 		Apply();
 		connectionManager.StatusChanged += _ => Dispatcher.UIThread.Post(Apply);
 		gatewayManager.StatusChanged += _ => Dispatcher.UIThread.Post(Apply);
+		displayTime.ZoneChanged += Apply;
 	}
 
 	[ObservableProperty]
@@ -99,14 +104,14 @@ public partial class ConnectionBarViewModel : ViewModelBase
 		ErrorMessage = gateway.State == GatewayState.Running ? connection.Error : gateway.Error;
 	}
 
-	private static string FormatConnection(ConnectionStatusDto status) =>
+	private string FormatConnection(ConnectionStatusDto status) =>
 		status.State switch
 		{
 			ConnectionState.Connecting => $"Connecting to {status.Endpoint}…",
 			ConnectionState.Connected => $"Connected — {status.Endpoint}",
 			ConnectionState.Failed => $"Connection failed — {status.Endpoint}",
 			ConnectionState.Reconnecting =>
-				$"Reconnecting to {status.Endpoint} (attempt {status.ReconnectAttempt + 1}, next at {status.NextAttemptAt?.ToLocalTime():HH:mm:ss})",
+				$"Reconnecting to {status.Endpoint} (attempt {status.ReconnectAttempt + 1}, next at {(status.NextAttemptAt is { } next ? _displayTime.Format(next) : "")})",
 			_ => "Gateway running — not connected",
 		};
 }

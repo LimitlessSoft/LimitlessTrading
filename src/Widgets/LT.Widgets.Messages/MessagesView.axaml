@@ -2,7 +2,6 @@
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:LT.App.Widgets.Messages"
-	xmlns:dto="using:LT.Contracts.Dtos.Messages"
 	x:Class="LT.App.Widgets.Messages.MessagesView"
 	x:DataType="vm:MessagesViewModel"
 >
@@ -23,24 +22,24 @@
 		>
 			<DataGrid.Columns>
 				<DataGridTextColumn
-					x:DataType="dto:MessageDto"
+					x:DataType="vm:MessageRowViewModel"
 					Header="Time"
-					Binding="{Binding Time, StringFormat='{}{0:HH:mm:ss}'}"
+					Binding="{Binding TimeText}"
 				/>
 				<DataGridTextColumn
-					x:DataType="dto:MessageDto"
+					x:DataType="vm:MessageRowViewModel"
 					Header="Level"
-					Binding="{Binding Severity}"
+					Binding="{Binding Message.Severity}"
 				/>
 				<DataGridTextColumn
-					x:DataType="dto:MessageDto"
+					x:DataType="vm:MessageRowViewModel"
 					Header="Source"
-					Binding="{Binding Source}"
+					Binding="{Binding Message.Source}"
 				/>
 				<DataGridTextColumn
-					x:DataType="dto:MessageDto"
+					x:DataType="vm:MessageRowViewModel"
 					Header="Message"
-					Binding="{Binding Text}"
+					Binding="{Binding Message.Text}"
 					Width="*"
 				/>
 			</DataGrid.Columns>

@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Globalization;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -29,6 +28,8 @@ namespace LT.App.Widgets.News;
 public partial class NewsViewModel : ConnectedViewModelBase, ILinkable, IWidgetState
 {
 	private readonly INewsManager _newsManager;
+	private readonly DisplayTimeStore _displayTime;
+	private readonly ZonedText _articleMeta;
 	private readonly List<NewsHeadlineDto> _all = [];
 	private readonly HashSet<string> _keys = [];
 	private readonly ConcurrentQueue<(CancellationToken Feed, NewsHeadlineDto Headline)> _incoming =
@@ -50,11 +51,15 @@ public partial class NewsViewModel : ConnectedViewModelBase, ILinkable, IWidgetS
 	public NewsViewModel(
 		INewsManager newsManager,
 		IConnectionManager connectionManager,
-		LinkGroupStore linkGroupStore
+		LinkGroupStore linkGroupStore,
+		DisplayTimeStore displayTime
 	)
 		: base(connectionManager)
 	{
 		_newsManager = newsManager;
+		_displayTime = displayTime;
+		_articleMeta = new ZonedText(x => ArticleMeta = x ?? string.Empty);
+		displayTime.ZoneChanged += OnZoneChanged;
 		Link = new ContractLink(linkGroupStore, () => _contract);
 		Link.ContractReceived += OnContractReceived;
 		_contract = linkGroupStore.Get(Link.Group);
@@ -187,6 +192,7 @@ public partial class NewsViewModel : ConnectedViewModelBase, ILinkable, IWidgetS
 
 	public override void Dispose()
 	{
+		_displayTime.ZoneChanged -= OnZoneChanged;
 		Link.Dispose();
 		StopFeed();
 		CancelArticle();
@@ -562,7 +568,7 @@ public partial class NewsViewModel : ConnectedViewModelBase, ILinkable, IWidgetS
 		if (NewsHelpers.Matches(headline, FilterText))
 			Rows.Insert(
 				NewsHelpers.GetInsertIndex(Rows, x => x.Time, headline.Time),
-				new NewsRowViewModel(headline)
+				new NewsRowViewModel(headline, _displayTime)
 			);
 
 		while (trim && _all.Count > NewsConstants.MaxHeadlinesShown)
@@ -578,12 +584,19 @@ public partial class NewsViewModel : ConnectedViewModelBase, ILinkable, IWidgetS
 		return true;
 	}
 
+	private void OnZoneChanged()
+	{
+		foreach (var row in Rows)
+			row.RefreshTime();
+		_articleMeta.Rebuild();
+	}
+
 	private void RebuildRows()
 	{
 		var selected = SelectedRow?.Key;
 		Rows.Clear();
 		foreach (var headline in _all.Where(x => NewsHelpers.Matches(x, FilterText)))
-			Rows.Add(new NewsRowViewModel(headline));
+			Rows.Add(new NewsRowViewModel(headline, _displayTime));
 		SelectedRow = Rows.FirstOrDefault(x => x.Key == selected);
 	}
 
@@ -613,16 +626,18 @@ public partial class NewsViewModel : ConnectedViewModelBase, ILinkable, IWidgetS
 		_articleKey = row.Key;
 		_document = null;
 		ArticleTitle = row.Text;
-		ArticleMeta = string.Join(
-			" · ",
-			new[]
-			{
-				row
-					.Headline.Time.ToLocalTime()
-					.ToString("yyyy-MM-dd HH:mm", CultureInfo.CurrentCulture),
-				Providers.FirstOrDefault(x => x.Provider.Code == row.Provider)?.Tip ?? row.Provider,
-				row.Headline.Symbol,
-			}.Where(x => !string.IsNullOrEmpty(x))
+		var provider =
+			Providers.FirstOrDefault(x => x.Provider.Code == row.Provider)?.Tip ?? row.Provider;
+		_articleMeta.Set(() =>
+			string.Join(
+				" · ",
+				new[]
+				{
+					_displayTime.Format(row.Headline.Time, "yyyy-MM-dd HH:mm"),
+					provider,
+					row.Headline.Symbol,
+				}.Where(x => !string.IsNullOrEmpty(x))
+			)
 		);
 		ArticleText = string.Empty;
 		ArticleError = null;

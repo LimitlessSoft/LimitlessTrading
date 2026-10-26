@@ -39,6 +39,9 @@ public class SettingsManager(ISettingsRepository settingsRepository, IIbkrApiCli
 		settings.General.CacheExecutions = request.CacheExecutions;
 		settings.General.CacheSnapshots = request.CacheSnapshots;
 		settings.General.CacheMaxSizeMb = request.CacheMaxSizeMb;
+		settings.General.DisplayTimeZoneId = string.IsNullOrWhiteSpace(request.DisplayTimeZoneId)
+			? null
+			: request.DisplayTimeZoneId;
 		settingsRepository.Save(settings);
 		if (ibkrApiClient.IsConnected)
 			ibkrApiClient.SetMarketDataType(request.MarketDataType);

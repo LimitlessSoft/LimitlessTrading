@@ -3,6 +3,7 @@ using LSCore.Validation.Contracts;
 using LSCore.Validation.Domain;
 using LT.Contracts.Constants;
 using LT.Contracts.Enums.ValidationCodes;
+using LT.Contracts.Helpers;
 using LT.Contracts.Requests.Settings;
 
 namespace LT.Domain.Validators.Settings;
@@ -39,5 +40,9 @@ public class SaveAppSettingsRequestValidator : LSCoreValidatorBase<SaveAppSettin
 					CacheConstants.MaxSizeMbMax
 				)
 			);
+
+		RuleFor(x => x.DisplayTimeZoneId)
+			.Must(DisplayTimeHelpers.IsValidZoneId)
+			.WithMessage(SettingsValidationCodes.SVC_005.GetValidationMessage());
 	}
 }

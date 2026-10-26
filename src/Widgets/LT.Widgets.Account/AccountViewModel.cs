@@ -13,15 +13,23 @@ namespace LT.App.Widgets.Account;
 public partial class AccountViewModel : ConnectedViewModelBase
 {
 	private readonly IAccountManager _accountManager;
+	private readonly DisplayTimeStore _displayTime;
+	private readonly ZonedText _updatedText;
+	private readonly ZonedText _staleText;
 
 	public AccountViewModel(
 		IAccountManager accountManager,
 		IConnectionManager connectionManager,
-		AccountStore accountStore
+		AccountStore accountStore,
+		DisplayTimeStore displayTime
 	)
 		: base(connectionManager)
 	{
 		_accountManager = accountManager;
+		_displayTime = displayTime;
+		_updatedText = new ZonedText(x => UpdatedText = x);
+		_staleText = new ZonedText(x => StaleText = x);
+		displayTime.ZoneChanged += OnZoneChanged;
 		Store = accountStore;
 		accountStore.PropertyChanged += OnStoreChanged;
 		// After the base class has applied the connection state
@@ -125,13 +133,19 @@ public partial class AccountViewModel : ConnectedViewModelBase
 		_ = StreamPnlAsync(account, session);
 	}
 
+	private void OnZoneChanged()
+	{
+		_updatedText.Rebuild();
+		_staleText.Rebuild();
+	}
+
 	private void OnStoreChanged(object? sender, PropertyChangedEventArgs e)
 	{
 		if (e.PropertyName != nameof(AccountStore.SelectedAccount))
 			return;
 		Apply(new AccountSummaryDto());
 		ApplyPnl(new AccountPnlDto());
-		StaleText = null;
+		_staleText.Clear();
 		if (IsConnected)
 			RestartSession();
 		else
@@ -148,7 +162,7 @@ public partial class AccountViewModel : ConnectedViewModelBase
 			)
 			{
 				live = true;
-				StaleText = null;
+				_staleText.Clear();
 				Apply(summary);
 			}
 		}
@@ -186,25 +200,30 @@ public partial class AccountViewModel : ConnectedViewModelBase
 		MaintMargin = FormatHelpers.Money(summary.MaintMarginReq);
 		GrossPositionValue = FormatHelpers.Money(summary.GrossPositionValue);
 		Currency = summary.Currency;
-		UpdatedText = summary.Account.Length > 0 ? $"Updated {summary.UpdatedAt:HH:mm:ss}" : null;
+		if (summary.Account.Length > 0)
+			_updatedText.Set(() => $"Updated {_displayTime.Format(summary.UpdatedAt)}");
+		else
+			_updatedText.Clear();
 	}
 
 	// Display only, never for decisions (buying power for an order is always asked live)
 	private void ShowSnapshot(string? error)
 	{
-		StaleText = null;
+		_staleText.Clear();
 		Apply(new AccountSummaryDto());
 		if (Store.SnapshotAccount is not { } account)
 			return;
 		if (_accountManager.GetSummarySnapshot(account) is not { } snapshot)
 			return;
 		Apply(snapshot.Value);
-		UpdatedText = null;
-		StaleText = CacheHelpers.FormatStale(
-			snapshot.FetchedAt.ToLocalTime(),
-			DateTimeOffset.Now,
-			account,
-			error
+		_updatedText.Clear();
+		_staleText.Set(() =>
+			CacheHelpers.FormatStale(
+				_displayTime.ToDisplay(snapshot.FetchedAt),
+				_displayTime.Now,
+				account,
+				error
+			)
 		);
 	}
 

@@ -1,0 +1,39 @@
+using LT.App.Helpers;
+using LT.Contracts.Helpers;
+
+namespace LT.Tests.WidgetsCore;
+
+public class FormatHelpersTests
+{
+	private static readonly TimeZoneInfo Tokyo = DisplayTimeHelpers.ResolveZone("Asia/Tokyo");
+	private static readonly TimeZoneInfo NewYork = DisplayTimeHelpers.ResolveZone(
+		"America/New_York"
+	);
+
+	// 16:00 UTC is 01:00 the next day in Tokyo, 12:00 the same day in New York
+	private static readonly DateTimeOffset Time = new(2026, 10, 26, 16, 0, 0, TimeSpan.Zero);
+
+	[Fact]
+	public void Time_is_in_the_given_zone() =>
+		Assert.Equal("2026-10-27 01:00:00", FormatHelpers.Time(Time, Tokyo));
+
+	[Fact]
+	public void Day_time_counts_today_in_the_zone_not_in_utc()
+	{
+		var now = Time.AddHours(1); // still 26 Oct in UTC, 27 Oct in Tokyo
+
+		Assert.Equal("01:00", FormatHelpers.DayTime(Time, now, Tokyo));
+	}
+
+	[Fact]
+	public void Day_time_shows_the_date_when_the_zone_has_moved_to_another_day()
+	{
+		var now = Time.AddHours(9); // 01:00 UTC on 27 Oct: 27 Oct in UTC, 26 Oct 21:00 in New York
+
+		Assert.Equal("12:00", FormatHelpers.DayTime(Time, now, NewYork));
+		Assert.Equal(
+			"2026-10-27 01:00",
+			FormatHelpers.DayTime(Time, now.AddDays(1), Tokyo, otherDayFormat: "yyyy-MM-dd HH:mm")
+		);
+	}
+}
