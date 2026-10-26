@@ -14,6 +14,7 @@
 		<ProjectReference Include="..\LT.Ibkr\LT.Ibkr.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.Core\LT.Widgets.Core.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.Account\LT.Widgets.Account.csproj" />
+		<ProjectReference Include="..\Widgets\LT.Widgets.AccountPerformance\LT.Widgets.AccountPerformance.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.Chart\LT.Widgets.Chart.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.Executions\LT.Widgets.Executions.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.Messages\LT.Widgets.Messages.csproj" />

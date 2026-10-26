@@ -152,8 +152,10 @@ Zustand stores play in Termodom FEs:
 ## Persistence
 
 `LT.Repository` stores settings (connection, general settings, layout, watchlist, selected
-account) in `settings.json` and the data cache in `cache/<CacheType>/<sha256 of key>.json`,
-both under the OS app-data folder
+account) in `settings.json`, the data cache in `cache/<CacheType>/<sha256 of key>.json` and
+recorded account performance in `account-history/<account>.json` (one snapshot per trading day,
+see [ui-patterns.md → Account performance](ui-patterns.md#account-performance); not part of the
+cache, so Clear cache and the size limit never touch it), all under the OS app-data folder
 (`Environment.SpecialFolder.ApplicationData`: `%APPDATA%\LimitlessTrading` on Windows,
 `~/.config/LimitlessTrading` on Linux and macOS). When we need queryable local data (layouts,
 journal) the plan is SQLite + EF Core behind the same repository interfaces.

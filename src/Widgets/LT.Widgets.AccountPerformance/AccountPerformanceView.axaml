@@ -1,0 +1,225 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.AccountPerformance"
+	x:Class="LT.App.Widgets.AccountPerformance.AccountPerformanceView"
+	x:DataType="vm:AccountPerformanceViewModel"
+>
+	<UserControl.Styles>
+		<Style Selector="Grid.rows > TextBlock">
+			<Setter Property="Margin" Value="0,3" />
+		</Style>
+		<Style Selector="ToggleButton.range">
+			<Setter Property="MinWidth" Value="44" />
+			<Setter Property="Padding" Value="8,3" />
+			<Setter Property="HorizontalContentAlignment" Value="Center" />
+		</Style>
+		<Style Selector="TextBlock.sectionTitle">
+			<Setter Property="FontWeight" Value="SemiBold" />
+			<Setter Property="Margin" Value="0,6,0,0" />
+		</Style>
+		<Style Selector="Border.day">
+			<Setter Property="BorderBrush" Value="{DynamicResource PanelStroke}" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="CornerRadius" Value="3" />
+			<Setter Property="Margin" Value="1" />
+			<Setter Property="MinHeight" Value="38" />
+			<Setter Property="Background" Value="Transparent" />
+		</Style>
+		<Style Selector="Border.day.outside">
+			<Setter Property="Opacity" Value="0.35" />
+		</Style>
+		<Style Selector="Border.day.today">
+			<Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+		</Style>
+		<Style Selector="Rectangle.tint">
+			<Setter Property="Opacity" Value="0.22" />
+			<Setter Property="IsVisible" Value="False" />
+		</Style>
+		<Style Selector="Rectangle.tint.up">
+			<Setter Property="Fill" Value="{DynamicResource PositiveBrush}" />
+			<Setter Property="IsVisible" Value="True" />
+		</Style>
+		<Style Selector="Rectangle.tint.down">
+			<Setter Property="Fill" Value="{DynamicResource NegativeBrush}" />
+			<Setter Property="IsVisible" Value="True" />
+		</Style>
+	</UserControl.Styles>
+	<ScrollViewer>
+		<StackPanel Spacing="8">
+			<Grid ColumnDefinitions="*,Auto">
+				<ComboBox
+					HorizontalAlignment="Stretch"
+					PlaceholderText="Connect to load accounts"
+					ItemsSource="{Binding Store.Accounts}"
+					SelectedItem="{Binding Store.SelectedAccount}"
+				/>
+				<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" Margin="8,0,0,0">
+					<ToggleButton Classes="range" Content="1W" IsChecked="{Binding IsWeekRange}" />
+					<ToggleButton Classes="range" Content="1M" IsChecked="{Binding IsMonthRange}" />
+					<ToggleButton Classes="range" Content="YTD" IsChecked="{Binding IsYearToDateRange}" />
+					<ToggleButton Classes="range" Content="All" IsChecked="{Binding IsAllRange}" />
+				</StackPanel>
+			</Grid>
+
+			<TextBlock
+				Classes="secondary"
+				Text="Connect to TWS / IB Gateway to pick an account."
+				TextWrapping="Wrap"
+				IsVisible="{Binding !HasAccount}"
+			/>
+
+			<StackPanel Spacing="8" IsVisible="{Binding HasAccount}">
+				<!-- Return stats -->
+				<Border
+					BorderBrush="{DynamicResource PanelStroke}"
+					BorderThickness="0,0,0,1"
+					Padding="0,0,0,6"
+				>
+					<StackPanel>
+						<Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,2">
+							<TextBlock Classes="secondary" Text="{Binding Currency}" />
+							<TextBlock Grid.Column="1" Classes="secondary" Text="P&amp;L" />
+							<TextBlock
+								Grid.Column="2"
+								Classes="secondary"
+								Text="Return"
+								Width="80"
+								TextAlignment="Right"
+							/>
+						</Grid>
+						<ItemsControl ItemsSource="{Binding Stats}">
+							<ItemsControl.ItemTemplate>
+								<DataTemplate x:DataType="vm:ReturnStatViewModel">
+									<Grid ColumnDefinitions="*,Auto,Auto" Margin="0,3">
+										<TextBlock Classes="secondary" Text="{Binding Label}" />
+										<TextBlock
+											Grid.Column="1"
+											Classes="value"
+											FontWeight="SemiBold"
+											Classes.positive="{Binding IsUp}"
+											Classes.negative="{Binding IsDown}"
+											Text="{Binding Money}"
+										/>
+										<TextBlock
+											Grid.Column="2"
+											Classes="value"
+											Width="80"
+											TextAlignment="Right"
+											Classes.positive="{Binding IsUp}"
+											Classes.negative="{Binding IsDown}"
+											Text="{Binding Percent}"
+										/>
+									</Grid>
+								</DataTemplate>
+							</ItemsControl.ItemTemplate>
+						</ItemsControl>
+						<Grid ColumnDefinitions="*,Auto" Margin="0,3">
+							<TextBlock Classes="secondary" Text="Max drawdown (range)" />
+							<TextBlock
+								Grid.Column="1"
+								Classes="value"
+								Classes.negative="{Binding MaxDrawdownDown}"
+								Text="{Binding MaxDrawdown}"
+							/>
+						</Grid>
+					</StackPanel>
+				</Border>
+
+				<!-- Equity curve -->
+				<TextBlock Classes="sectionTitle" Text="Equity (net liquidation)" />
+				<vm:EquityCurveChart Height="180" Days="{Binding RangeDays}" />
+
+				<!-- Daily P&L bars -->
+				<TextBlock Classes="sectionTitle" Text="Daily P&amp;L" />
+				<vm:DailyPnlBarChart Height="140" Days="{Binding RangeDays}" />
+
+				<!-- Daily P&L calendar -->
+				<Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,6,0,0">
+					<Button Content="‹" Padding="8,2" Command="{Binding PreviousMonthCommand}" />
+					<TextBlock
+						Grid.Column="1"
+						Margin="8,0"
+						VerticalAlignment="Center"
+						FontWeight="SemiBold"
+						Text="{Binding MonthTitle}"
+					/>
+					<TextBlock
+						Grid.Column="2"
+						Margin="0,0,8,0"
+						VerticalAlignment="Center"
+						Classes="value"
+						Classes.positive="{Binding MonthUp}"
+						Classes.negative="{Binding MonthDown}"
+						Text="{Binding MonthTotal}"
+					/>
+					<Button
+						Grid.Column="3"
+						Content="›"
+						Padding="8,2"
+						IsEnabled="{Binding CanGoNextMonth}"
+						Command="{Binding NextMonthCommand}"
+					/>
+				</Grid>
+				<UniformGrid Columns="7">
+					<TextBlock Classes="secondary" FontSize="11" HorizontalAlignment="Center" Text="Mon" />
+					<TextBlock Classes="secondary" FontSize="11" HorizontalAlignment="Center" Text="Tue" />
+					<TextBlock Classes="secondary" FontSize="11" HorizontalAlignment="Center" Text="Wed" />
+					<TextBlock Classes="secondary" FontSize="11" HorizontalAlignment="Center" Text="Thu" />
+					<TextBlock Classes="secondary" FontSize="11" HorizontalAlignment="Center" Text="Fri" />
+					<TextBlock Classes="secondary" FontSize="11" HorizontalAlignment="Center" Text="Sat" />
+					<TextBlock Classes="secondary" FontSize="11" HorizontalAlignment="Center" Text="Sun" />
+				</UniformGrid>
+				<ItemsControl ItemsSource="{Binding CalendarDays}">
+					<ItemsControl.ItemsPanel>
+						<ItemsPanelTemplate>
+							<UniformGrid Columns="7" />
+						</ItemsPanelTemplate>
+					</ItemsControl.ItemsPanel>
+					<ItemsControl.ItemTemplate>
+						<DataTemplate x:DataType="vm:CalendarDayViewModel">
+							<Border
+								Classes="day"
+								Classes.outside="{Binding !IsInMonth}"
+								Classes.today="{Binding IsToday}"
+								ToolTip.Tip="{Binding ToolTipText}"
+							>
+								<Panel>
+									<Rectangle
+										Classes="tint"
+										Classes.up="{Binding IsUp}"
+										Classes.down="{Binding IsDown}"
+									/>
+									<StackPanel Margin="4,2">
+										<TextBlock Classes="secondary" FontSize="10" Text="{Binding DayText}" />
+										<TextBlock
+											FontSize="11"
+											HorizontalAlignment="Right"
+											Classes.positive="{Binding IsUp}"
+											Classes.negative="{Binding IsDown}"
+											Text="{Binding PnlText}"
+										/>
+									</StackPanel>
+								</Panel>
+							</Border>
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
+			</StackPanel>
+
+			<TextBlock
+				Classes="secondary"
+				FontSize="11"
+				TextWrapping="Wrap"
+				Text="{Binding HistoryNote}"
+			/>
+			<TextBlock
+				Classes="negative"
+				FontSize="12"
+				TextWrapping="Wrap"
+				Text="{Binding ErrorMessage}"
+				IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+			/>
+		</StackPanel>
+	</ScrollViewer>
+</UserControl>

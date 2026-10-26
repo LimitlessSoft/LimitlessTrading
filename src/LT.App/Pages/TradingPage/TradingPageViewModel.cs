@@ -1,6 +1,7 @@
 using LT.App.Stores;
 using LT.App.ViewModels;
 using LT.App.Widgets.Account;
+using LT.App.Widgets.AccountPerformance;
 using LT.App.Widgets.Chart;
 using LT.App.Widgets.Executions;
 using LT.App.Widgets.Orders;
@@ -54,6 +55,9 @@ public class TradingPageViewModel(
 					break;
 				case AccountViewModel account:
 					account.Refresh();
+					break;
+				case AccountPerformanceViewModel performance:
+					performance.Refresh();
 					break;
 				case PositionsViewModel positions:
 					positions.Refresh();

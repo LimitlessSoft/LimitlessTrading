@@ -72,6 +72,10 @@ public interface IIbkrApiClient
 		CancellationToken cancellationToken = default
 	);
 
+	/// <summary>
+	/// The account's daily / unrealized / realized P&amp;L: the latest value first, then each update.
+	/// All callers of one account share one IB subscription.
+	/// </summary>
 	IAsyncEnumerable<AccountPnlDto> SubscribeAccountPnlAsync(
 		string account,
 		CancellationToken cancellationToken = default

@@ -42,6 +42,13 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	public Exception? HistoricalException { get; set; }
 	public int HistoricalCalls { get; private set; }
 	public List<AccountValueDto> AccountValues { get; set; } = [];
+
+	/// <summary>Each account's P&amp;L stream; none by default.</summary>
+	public Func<
+		string,
+		CancellationToken,
+		IAsyncEnumerable<AccountPnlDto>
+	>? AccountPnlSource { get; set; }
 	public List<OptionChainParametersDto> OptionChainParameters { get; set; } = [];
 	public List<OpenOrderDto> OpenOrders { get; set; } = [];
 	public List<ExecutionDto> Executions { get; set; } = [];
@@ -171,7 +178,9 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	public IAsyncEnumerable<AccountPnlDto> SubscribeAccountPnlAsync(
 		string account,
 		CancellationToken cancellationToken = default
-	) => AsyncEnumerable.Empty<AccountPnlDto>();
+	) =>
+		AccountPnlSource?.Invoke(account, cancellationToken)
+		?? AsyncEnumerable.Empty<AccountPnlDto>();
 
 	public Task<IReadOnlyList<PositionDto>> GetPositionsAsync(
 		CancellationToken cancellationToken = default

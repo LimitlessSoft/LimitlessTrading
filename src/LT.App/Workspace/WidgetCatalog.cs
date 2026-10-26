@@ -1,5 +1,6 @@
 using Avalonia.Input;
 using LT.App.Widgets.Account;
+using LT.App.Widgets.AccountPerformance;
 using LT.App.Widgets.Chart;
 using LT.App.Widgets.Executions;
 using LT.App.Widgets.Messages;
@@ -29,6 +30,7 @@ public static class WidgetCatalog
 		new OptionChainWidget(),
 		new OrderTicketWidget(),
 		new NewsWidget(),
+		new AccountPerformanceWidget(),
 	];
 
 	public static IWidgetDefinition Get(WorkspaceTool tool) =>

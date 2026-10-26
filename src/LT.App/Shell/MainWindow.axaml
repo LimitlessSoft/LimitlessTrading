@@ -64,6 +64,12 @@
 										Tag="Account"
 									/>
 									<MenuItem
+										Header="Account performance"
+										InputGesture="Ctrl+Alt+R"
+										Click="OnToolClick"
+										Tag="AccountPerformance"
+									/>
+									<MenuItem
 										Header="Messages"
 										InputGesture="Ctrl+Alt+M"
 										Click="OnToolClick"

@@ -20,4 +20,8 @@ public static class AppPathHelpers
 
 	public static string GetLegacyBarCacheDirectory() =>
 		Path.Combine(GetAppDataDirectory(), CacheConstants.LegacyBarCacheDirectoryName);
+
+	/// <summary>Recorded account performance: one JSON file per account.</summary>
+	public static string GetAccountHistoryDirectory() =>
+		Path.Combine(GetAppDataDirectory(), AccountPerformanceConstants.HistoryDirectoryName);
 }

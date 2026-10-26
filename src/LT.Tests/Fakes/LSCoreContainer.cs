@@ -1,10 +1,12 @@
 using LSCore.DependencyInjection;
 using LSCore.Mapper.Contracts;
 using LSCore.Validation.Domain;
+using LT.Contracts.DtoMappings.AccountPerformance;
 using LT.Contracts.DtoMappings.Charts;
 using LT.Contracts.DtoMappings.Contracts;
 using LT.Contracts.DtoMappings.Settings;
 using LT.Contracts.DtoMappings.Watchlists;
+using LT.Contracts.Dtos.AccountPerformance;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Settings;
@@ -88,6 +90,10 @@ public static class LSCoreContainer
 				.AddSingleton<
 					ILSCoreMapper<GeneralSettingsEntity, AppSettingsDto>,
 					AppSettingsDtoMapper
+				>()
+				.AddSingleton<
+					ILSCoreMapper<AccountDaySnapshotEntity, AccountDaySnapshotDto>,
+					AccountDaySnapshotDtoMapper
 				>()
 				.BuildServiceProvider();
 		}

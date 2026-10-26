@@ -111,7 +111,7 @@ Limits / caveats:
 | `SubscribeRealtimeBarsAsync` | `reqRealTimeBars` | 5-second bars |
 | `GetPositionsAsync` / `SubscribePositionsAsync` | `reqPositions` | Snapshot / stream |
 | `SubscribeAccountSummaryAsync` | `reqAccountSummary` | Stream — see error 322 below |
-| `SubscribeAccountPnlAsync` / `SubscribePositionPnlAsync` | `reqPnL` / `reqPnLSingle` | |
+| `SubscribeAccountPnlAsync` / `SubscribePositionPnlAsync` | `reqPnL` / `reqPnLSingle` | `reqPnL` is shared per account — see below |
 | `GetOpenOrdersAsync` | `reqAllOpenOrders` | Every client's and TWS's orders (0.3.0); `reqOpenOrders` would only return the asking client id's, and LT places orders on the order connection's id |
 | `GetNewsProvidersAsync` | `reqNewsProviders` | The account's API providers (0.4.0) |
 | `GetHistoricalNewsAsync` | `reqHistoricalNews` | Newest first, max 300; `before` pages back (strictly older) |
@@ -209,6 +209,13 @@ merges every source for the News widget (see [ui-patterns.md](ui-patterns.md#wor
   `IbkrClient.SubscribeAccountSummaryAsync` per connection, keeps it until disconnect, and shares it:
   each subscriber gets the cached values, then every change (IB pushes changes about every 3
   minutes). Don't cancel and resubscribe it, e.g. on account change; filter by account instead.
+- **Account P&L (`reqPnL`) is one subscription per account**, shared by every caller
+  (`AccountPnlFeed` in `LT.Ibkr`): the Account widget and the account performance recorder
+  follow the same one. It opens with the first subscriber, is cancelled when the last leaves, and
+  a late subscriber gets the latest value first.
+- **No account history.** The socket API has no historical NAV or P&L (that needs Flex queries
+  or the Client Portal API, which the app doesn't use). The Account performance widget therefore
+  shows only what the app recorded itself while connected (`IAccountPerformanceManager`).
 - **Real-time bars need a live subscription** — there is no delayed `reqRealTimeBars`. The chart
   keeps historical bars and logs "real-time bars unavailable".
 

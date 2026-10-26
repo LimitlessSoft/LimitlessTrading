@@ -116,7 +116,8 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   no rounded border — `Border.panel.docked`); center tiles and floating widgets keep the card look.
 - A widget opens where it last was; a new chart opens where the last chart was. On first run:
   Watchlist, Positions, Orders and Executions on the left; Account and Messages on the right;
-  Chart in the center; Option chain, Order ticket and News closed (`WorkspaceHelpers.GetDefaultPlacements`).
+  Chart in the center; Option chain, Order ticket, News and Account performance closed
+  (`WorkspaceHelpers.GetDefaultPlacements`).
 - **Order ticket** (`LT.Widgets.OrderTicket`, right side): takes its contract from the link group.
   Account, side, market / limit, quantity or amount in $ (market only), limit price, time in force
   (crypto: GTC / IOC). "Review order" validates (`IOrderManager.ValidateOrder`) and spells the
@@ -223,6 +224,36 @@ own publish back. The frame shows the link button for any `ILinkable`, and the w
 the group in `WidgetPlacementEntity.LinkGroup`. Layouts from before link groups load pinned
 charts as Not linked.
 
+### Account performance
+
+`LT.Widgets.AccountPerformance` (opens in the center; menu → Widgets, Ctrl+Alt+R) shows the
+account picked in `AccountStore`: return stats, an equity curve, daily P&L bars and a daily P&L
+calendar, with a 1W / 1M / YTD / All range for the two charts and the max drawdown. IB's socket
+API has no account history, so everything comes from what the app records itself:
+
+- **Recording** — `IAccountPerformanceManager` (singleton, run for the app's lifetime by the
+  `AccountPerformanceRecorder` hosted service, so it records whether or not the widget is open)
+  follows the account summary and account P&L of every managed account while connected — the same
+  shared IB subscriptions as the Account widget — and keeps one `AccountDaySnapshotEntity` per
+  account and trading day: net liquidation, currency, daily / realized / unrealized P&L, first
+  and last update. Later values of the day overwrite earlier ones. Written to
+  `account-history/<account>.json` at most every 30 s (`AccountPerformanceConstants.SaveInterval`),
+  and on disconnect and exit. A new day starts with the last net liquidation seen (the summary only
+  arrives when it changes).
+- **Trading day** — the date in New York (`AccountPerformanceConstants.TradingDayTimeZoneId`), for
+  every user: one US session never splits across two days. Late evening in Asia, or after
+  midnight in Europe, is still the previous day.
+- **Returns** — from IB's daily P&L, not from net liquidation deltas: deposits and withdrawals
+  are invisible to the socket API and would show as gains or losses. A day's return is its daily
+  P&L over the equity it started with (net liquidation minus the day's P&L); periods chain those
+  (time-weighted). Money figures sum the daily P&L. Max drawdown: of the summed P&L curve (money)
+  and of the chained returns (%), over the picked range. Days the app didn't run are missing,
+  not interpolated. All of it is in `AccountPerformanceHelpers` (`LT.Contracts`).
+- **Live** — today's row follows every P&L tick (`HistoryChanged`, coalesced to one reload per
+  dispatcher pass). The widget's footnote says since when history exists.
+- The equity curve places days by date (gaps where the app didn't run); the P&L bars are spaced
+  evenly, one per recorded day; the calendar is six Monday-first weeks.
+
 ## Connected widgets
 
 Widgets that only work while connected derive from `ConnectedViewModelBase`. It gives them
@@ -267,7 +298,7 @@ subscription and frees the market-data line.
 | F5 | Refresh chart, account, positions, orders, executions |
 | Ctrl+, | Settings |
 | Ctrl+1 … Ctrl+9 | Show Watchlist, Positions, Orders, Executions, Account, Messages, Chart, Option chain, Order ticket (collapses an expanded side widget) |
-| Ctrl+Alt+W / P / O / E / A / M / C / B / N | Show and focus Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News (single-instance widgets; works from floating windows too) |
+| Ctrl+Alt+W / P / O / E / A / M / C / B / N / R | Show and focus Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News, Account performance (single-instance widgets; works from floating windows too) |
 | Esc (side or bottom widget) | Back to the last focused center widget; an unpinned widget collapses |
 | Ctrl+Shift+7 | New chart |
 | Ctrl+Shift+F | Fullscreen the current widget (the one last clicked or typed in, framed in light blue), or restore it |
@@ -281,7 +312,8 @@ while a text box has focus. On macOS, Cmd works in place of Ctrl.
 
 `Widgets/Chart/CandlestickChart` is a custom `Control` drawn with `DrawingContext` (no chart
 library): candles, volume, price grid, last-price line, crosshair + OHLCV readout. Wheel zooms,
-drag pans, double-click resets.
+drag pans, double-click resets. The account performance widget's `EquityCurveChart` and
+`DailyPnlBarChart` are drawn the same way (same palette, `ChartDrawing`).
 
 ## Styling
 
