@@ -7,7 +7,7 @@ this app's license. How each message looks on the wire is in that repo's `docs/p
 file covers how the app uses it, IB's limits and the quirks we have hit. Read it before touching
 `LT.Ibkr`.
 
-`IBKR.Net` comes from nuget.org (0.4.0).
+`IBKR.Net` comes from nuget.org (0.5.0).
 
 ### Extending IBKR.Net
 
@@ -18,8 +18,8 @@ API doesn't have at all: it comes from IB's Flex Web Service, see [ibkr-flex.md]
 `tools/IbkrWireRecorder` (in the IBKR.Net repo), implement it there from the recording only
 (clean-room: never from IB's own API source), publish a new IBKR.Net version to nuget.org, then
 bump the package here and map the new types in `LT.Ibkr/DtoMappings/`. Until then LT is built
-against its own DTO so the feature lights up with only the `LT.Ibkr` change (executions:
-`ExecutionDto`, used by the Executions widget and the trade journal).
+against its own DTO so the feature lights up with only the `LT.Ibkr` change (as executions did:
+`ExecutionDto`, used by the Executions widget and the trade journal, landed with 0.5.0).
 
 ## Connecting
 
@@ -125,6 +125,7 @@ Limits / caveats:
 | `SubscribeAccountSummaryAsync` | `reqAccountSummary` | Stream — see error 322 below |
 | `SubscribeAccountPnlAsync` / `SubscribePositionPnlAsync` | `reqPnL` / `reqPnLSingle` | `reqPnL` is shared per account — see below |
 | `GetOpenOrdersAsync` | `reqAllOpenOrders` | Every client's and TWS's orders (0.3.0); `reqOpenOrders` would only return the asking client id's, and LT places orders on the order connection's id |
+| `GetExecutionsAsync` | `reqExecutions` | The day's fills of every account, client and TWS, each with its commission report (0.5.0); side stays `BOT` / `SLD`, multiplier `null` for none |
 | `GetNewsProvidersAsync` | `reqNewsProviders` | The account's API providers (0.4.0) |
 | `GetHistoricalNewsAsync` | `reqHistoricalNews` | Newest first, max 300; `before` pages back (strictly older) |
 | `GetNewsArticleAsync` | `reqNewsArticle` | Text / HTML, or base64 binary (PDF) |
@@ -133,12 +134,6 @@ Limits / caveats:
 
 ### Not covered yet
 
-- **Executions** (`reqExecutions`, commission reports): their frames have not been recorded yet
-  (no fill when we recorded). Until then the Executions widget shows "not supported yet"
-  (`ConnectionValidationCodes.CVC_007`); Day trade performance takes its trades from IB Flex
-  ([ibkr-flex.md](ibkr-flex.md)) and shows CVC_007 only as a note when Flex isn't set up. The mapping must
-  fill `ExecutionDto.ConId`, `LocalSymbol` and `Multiplier` too (trade matching keys on the
-  conId, P&L uses the multiplier), and the commission report's commission by ExecId.
 - Market depth / Level 2 (`reqMktDepth`), tick-by-tick (`reqTickByTickData`), option greeks and per-option implied volatility
   (`tickOptionComputation`).
 - Scanners (`reqScannerSubscription`); news bulletins (`reqNewsBulletins`).

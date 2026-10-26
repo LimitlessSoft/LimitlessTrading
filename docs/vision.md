@@ -39,7 +39,7 @@ TWS is powerful but:
 | 3 — Charts | Candlestick chart, historical + 5 s real-time bars, local bar cache | **done** |
 | 4 — Trading | Live positions with P&L, open orders, executions | **done** — executions wait for IBKR.Net support (no fill recorded yet) |
 | 4 — Trading | Order ticket: market / limit, quantity or cash amount, review before send, status, cancel | **built, in use** — first live order (stock limit, 2026-10-26) worked; nothing filled yet; modify and what-if not started |
-| 4 — Trading | Day trade performance: local journal of fills and intraday P&L, curve with high / low / drawdown, FIFO round trips with win rate, profit factor, expectancy and a trades table per day | **built** — the P&L curve works; trades and stats come from IB Flex (all history, today's a few minutes late) until IBKR.Net decodes executions |
+| 4 — Trading | Day trade performance: local journal of fills and intraday P&L, curve with high / low / drawdown, FIFO round trips with win rate, profit factor, expectancy and a trades table per day | **built** — the P&L curve works; trades and stats come from the socket API's executions (today, while connected) and IB Flex (all history) |
 | 5 — Workspaces | Settings dialog, workspace where every widget can be spawned (charts several times) and dragged into the center split layout (beside / above / below), a collapsible side strip or its own floating window, saved layout (window, open panels, widths, tab, timeframe), hotkeys | **done** |
 | 5 — Workspaces | Multiple named layouts, dragging strip icons | not started |
 | 6 — Advanced | Option chain (a tab per expiration, strikes around the money, L1 quotes) | **done** — no greeks yet |

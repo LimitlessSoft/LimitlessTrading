@@ -181,11 +181,11 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   trades (W / L), win rate, average win / loss, profit factor, expectancy, largest win / loss,
   gross and commissions, and the day's closed trades newest first. Recording runs whether the
   widget is open or not; recorded days show offline. Fills imported from IB Flex count like
-  recorded ones, and ‹ / › reach every day with fills, so the stats work although IBKR.Net can't
-  read executions yet. The shared `FlexSetupBanner` (`LT.Widgets.Core/Controls`) sits on top while
+  recorded ones, and ‹ / › reach every day with fills, so the stats cover days before the app
+  first ran. The shared `FlexSetupBanner` (`LT.Widgets.Core/Controls`) sits on top while
   Flex isn't set up or needs the user, with Set up… opening Settings on its page; a small note
   says where today's trades come from ("via IB Flex, up to ~5 min delayed",
-  `FlexStatusHelpers.DescribeTodayTrades`) or, without Flex, why IB gives none (CVC_007). F5 also
+  `FlexStatusHelpers.DescribeTodayTrades`) or, without Flex, why IB's executions failed, if they did. F5 also
   starts a Flex import.
 - The frame (and the widget view inside it) is created once per instance and **moved** between
   hosts, so state and subscriptions survive docking, floating and collapsing. Widget view models
