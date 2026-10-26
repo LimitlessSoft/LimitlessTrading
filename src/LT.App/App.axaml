@@ -52,6 +52,10 @@
 		<StreamGeometry x:Key="FrameLinkIcon">
 			M3.9,12C3.9,10.29 5.29,8.9 7,8.9H11V7H7A5,5 0 0,0 2,12A5,5 0 0,0 7,17H11V15.1H7C5.29,15.1 3.9,13.71 3.9,12M8,13H16V11H8V13M17,7H13V8.9H17C18.71,8.9 20.1,10.29 20.1,12C20.1,13.71 18.71,15.1 17,15.1H13V17H17A5,5 0 0,0 22,12A5,5 0 0,0 17,7Z
 		</StreamGeometry>
+		<!-- Center view tab strip: add a view -->
+		<StreamGeometry x:Key="ViewAddIcon">
+			M5.3,1 H6.7 V5.3 H11 V6.7 H6.7 V11 H5.3 V6.7 H1 V5.3 H5.3 Z
+		</StreamGeometry>
 		<SolidColorBrush x:Key="FrameActionHoverBrush" Color="#2C323C" />
 		<SolidColorBrush x:Key="CurrentFrameBrush" Color="#7FA7E8" Opacity="0.55" />
 		<SolidColorBrush x:Key="FrameCloseHoverBrush" Color="#3A2326" />
@@ -223,6 +227,54 @@
 		<Style Selector="Button.tool.active:pointerover /template/ ContentPresenter">
 			<Setter Property="Background" Value="{DynamicResource SystemAccentColorLight1}" />
 			<Setter Property="Foreground" Value="White" />
+		</Style>
+		<!-- Center view tabs: quiet until hovered; the shown one is lit and underlined -->
+		<Style Selector="Border.viewTabs">
+			<Setter Property="Padding" Value="0,6,0,0" />
+		</Style>
+		<Style Selector=":is(Window).flush Border.viewTabs">
+			<Setter Property="Padding" Value="4,4,4,0" />
+			<Setter Property="Background" Value="{DynamicResource PanelBackground}" />
+			<Setter Property="BorderBrush" Value="{DynamicResource PanelStroke}" />
+			<Setter Property="BorderThickness" Value="0,0,0,1" />
+		</Style>
+		<Style Selector="Border.viewTab">
+			<Setter Property="Height" Value="30" />
+			<Setter Property="Padding" Value="12,0,6,0" />
+			<Setter Property="CornerRadius" Value="6,6,0,0" />
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="BorderBrush" Value="Transparent" />
+			<Setter Property="BorderThickness" Value="0,0,0,2" />
+			<Setter Property="TextElement.Foreground" Value="{DynamicResource SecondaryText}" />
+		</Style>
+		<Style Selector="Border.viewTab:pointerover">
+			<Setter Property="Background" Value="{DynamicResource FrameActionHoverBrush}" />
+		</Style>
+		<Style Selector="Border.viewTab.selected">
+			<Setter Property="Background" Value="{DynamicResource PanelBackground}" />
+			<Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+			<Setter Property="TextElement.Foreground" Value="White" />
+		</Style>
+		<Style Selector="Border.viewTab TextBlock">
+			<Setter Property="FontSize" Value="13" />
+			<Setter Property="Margin" Value="0,0,6,0" />
+		</Style>
+		<Style Selector="TextBox.viewName">
+			<Setter Property="MinHeight" Value="24" />
+			<Setter Property="MinWidth" Value="100" />
+			<Setter Property="FontSize" Value="13" />
+			<Setter Property="Padding" Value="6,2" />
+			<Setter Property="Margin" Value="0,0,6,0" />
+			<Setter Property="VerticalAlignment" Value="Center" />
+		</Style>
+		<Style Selector="Button.frameAction.viewClose">
+			<Setter Property="Width" Value="20" />
+			<Setter Property="Height" Value="20" />
+		</Style>
+		<Style Selector="Button.frameAction.viewAdd">
+			<Setter Property="Width" Value="28" />
+			<Setter Property="Height" Value="28" />
+			<Setter Property="Margin" Value="4,0,0,0" />
 		</Style>
 		<Style Selector="Border.dropTarget">
 			<Setter Property="Background" Value="#332F7BF6" />

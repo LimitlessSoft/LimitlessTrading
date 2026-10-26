@@ -84,19 +84,29 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
 
 | Wrapper | Behaviour |
 |---|---|
-| **Center** | A split layout: widgets side by side and/or stacked, nested to any depth, with a splitter between every pair. |
+| **Center** | One or more **views** (tabs above the center), each a split layout of its own: widgets side by side and/or stacked, nested to any depth, with a splitter between every pair. |
 | **Left / right side** | Each widget docked there gets an icon on that edge's strip. One is expanded at a time; expanding one (its icon, Ctrl+1…9, the menu) makes it current and gives it keyboard focus; clicking its icon again collapses the side and the center grows. Each widget keeps its own panel width (`WidgetItem.SideWidth`, saved in the layout); one without a width of its own starts at the side's last width. |
 | **Bottom** | Like a side, along the bottom of the center column (the side panels keep their full height): a horizontal icon strip, shown only while a widget is docked there, and above it one expanded widget at a time. Each widget keeps its own panel height (`WidgetItem.BottomHeight`); a collapsed bottom leaves no gap. |
 | **Floating** | The widget gets its own window (owned by the main window). Closing that window closes the widget. |
 
+- **Center views.** A tab strip above the center lists the views; left, right, bottom and
+  floating widgets are shared by all of them, a center widget sits in exactly one. Click a tab to
+  show it, double-click to rename it in place (Enter or clicking away saves, Esc cancels, a blank
+  name keeps the old one), ✕ closes the view together with its widgets (like ✕ on each; the last
+  view has no ✕). "+" adds an empty "View N" and shows it; Ctrl+Tab / Ctrl+Shift+Tab cycle
+  through them. New and reopened center widgets go to the shown view; showing a widget that sits
+  in another view (menu, Ctrl+1…9, Ctrl+Alt+key) switches to that view. Every view has its own
+  host in `WorkspaceView`, built once per tree change and only hidden while another view is
+  shown, so switching views moves no frame. Tabs can't be reordered yet.
 - Spawn or reveal a widget from menu → Widgets. Ctrl+1 … Ctrl+9 do the same, but collapse a side
   widget that is already expanded.
-- **Charts can be open several times** (menu → Widgets → New chart, Ctrl+Shift+7). Each chart has
-  its own timeframe, link group and contract, all saved per chart. New charts start at the last
-  chart's timeframe (5m on first run). **Changing the timeframe:** click the timeframe beside the
-  chart's header title (e.g. "5m"); a menu lists 1m, 5m, 15m, 1h, 1D and 1W with the current one
-  checked, and picking one reloads the bars (historical + real-time) at that size. The other
-  header controls (RTH, Reload) are hidden until they are redesigned; F5 reloads.
+- **Charts can be open several times**: menu → Widgets → Chart (Ctrl+7) always opens a new one
+  in the current view. Each chart has its own timeframe, link group and contract, all saved per
+  chart. New charts start at the last chart's timeframe (5m on first run). **Changing the
+  timeframe:** click the timeframe beside the chart's header title (e.g. "5m"); a menu lists 1m,
+  5m, 15m, 1h, 1D and 1W with the current one checked, and picking one reloads the bars
+  (historical + real-time) at that size. The other header controls (RTH, Reload) are hidden until
+  they are redesigned; F5 reloads.
 - **Picking a chart's ticker:** click the chart's header title (`ChartTitleView`, hosted in the
   frame header via `WidgetViewFactory.CreateTitle`). It turns into a ticker box: typing lists
   IB's listings of the symbol to pick from, Enter takes the highlighted one or the typed ticker's
@@ -125,6 +135,10 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
     (that half lights up). Dropping in the same direction as its row/column joins it; otherwise
     the widget's cell is split;
   - empty center → fill it;
+  - a view tab → into that view, right of everything, and the view is shown. Holding the drag
+    over another view's tab for 0.6 s (`WorkspaceConstants.ViewTabHoverSwitchMs`) shows that view
+    so the widget can be dropped anywhere in it; hidden hosts stay in the visual tree, so the
+    dragged frame keeps its pointer capture even when its own view is hidden;
   - outside the main window → float, with the window placed under the pointer (dragging a
     floating widget's header outside just moves its window).
 - Drag positions travel in screen pixels (`PointToScreen` / `PointToClient`), so a drag can start
@@ -176,12 +190,17 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
 - The frame (and the widget view inside it) is created once per instance and **moved** between
   hosts, so state and subscriptions survive docking, floating and collapsing. Widget view models
   are created on first open by `WidgetViewModelFactory`.
-- `WorkspaceViewModel` owns placement: the center split tree (`CenterRoot`, a `CenterNodeDto`
-  edited by `CenterLayoutHelpers`), the `Left` / `Right` / `Floating` collections and the
-  expanded widget per side. `WorkspaceView` only mirrors it: the center is rebuilt as nested
-  grids whenever the tree changes, splitter sizes are written back into the tree after a drag.
+- `WorkspaceViewModel` owns placement: the center views (`Views`, `CenterViewItem`s each holding
+  a split tree `Root`, a `CenterNodeDto` edited by `CenterLayoutHelpers`) and the shown one
+  (`SelectedView`; `CenterRoot` is its tree), the `Left` / `Right` / `Floating` collections and
+  the expanded widget per side. `WorkspaceView` only mirrors it: each view's host is rebuilt as
+  nested grids whenever a tree changes, splitter sizes are written back into the tree after a
+  drag.
 - Saved in `LayoutEntity`: `Widgets` (id, kind, dock, floating bounds, chart settings of each open
-  instance), `Center` (the split tree with sizes), the expanded widget per side and side widths.
+  instance), `Views` (id, name and split tree with sizes of each view) with `SelectedViewId`, the
+  expanded widget per side and side widths. Layouts from before views have only `Center` (one
+  split tree): it becomes the first view, "Main", on load and is saved as null afterwards
+  (`CenterViewHelpers.Normalize`, which also keeps each center widget in exactly one view).
 
 **Adding a widget** (in its own project, like `LT.Widgets.Watchlist`): a `WorkspaceTool` value
 (at the end); a `src/Widgets/LT.Widgets.<Widget>` project referencing `LT.Widgets.Core`, added to the
@@ -340,10 +359,10 @@ subscription and frees the market-data line.
 | Delete (watchlist) | Remove selected row |
 | F5 | Refresh chart, account, positions, orders, executions, day trade performance |
 | Ctrl+, | Settings |
-| Ctrl+1 … Ctrl+9 | Show Watchlist, Positions, Orders, Executions, Account, Messages, Chart, Option chain, Order ticket (collapses an expanded side widget) |
+| Ctrl+1 … Ctrl+9 | Show Watchlist, Positions, Orders, Executions, Account, Messages, Chart, Option chain, Order ticket (collapses an expanded side widget); Ctrl+7 always opens a new chart in the current view |
 | Ctrl+Alt+W / P / O / E / A / M / C / B / N / R / J | Show and focus Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News, Account performance, Day trade performance (single-instance widgets; works from floating windows too) |
 | Esc (side or bottom widget) | Back to the last focused center widget; an unpinned widget collapses |
-| Ctrl+Shift+7 | New chart |
+| Ctrl+Tab / Ctrl+Shift+Tab | Next / previous center view |
 | Ctrl+Shift+F | Fullscreen the current widget (the one last clicked or typed in, framed in light blue), or restore it |
 
 Ctrl+Shift+*key* combos act on a widget.

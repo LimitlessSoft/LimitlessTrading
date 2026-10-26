@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using LT.App.Stores;
 using LT.App.ViewModels;
 using LT.Contracts.Dtos.Settings;
@@ -9,9 +10,9 @@ using LT.Contracts.Helpers;
 namespace LT.App.Workspace;
 
 /// <summary>
-/// Where every widget instance lives: in the center split layout, on a collapsible strip (left,
-/// right or bottom), or in its own floating window. Widgets are spawned, moved and closed independently; charts can
-/// be spawned several times.
+/// Where every widget instance lives: in the split layout of one of the center's views (tabs), on a
+/// collapsible strip (left, right or bottom), or in its own floating window. Widgets are spawned,
+/// moved and closed independently; charts can be spawned several times.
 /// </summary>
 public partial class WorkspaceViewModel : ViewModelBase
 {
@@ -58,7 +59,18 @@ public partial class WorkspaceViewModel : ViewModelBase
 			else
 				Place(widget, placement.Dock);
 		}
-		CenterRoot = CenterLayoutHelpers.Normalize(layout.Center, centerIds);
+		var views = CenterViewHelpers.Normalize(
+			layout.Views,
+			layout.Center,
+			layout.SelectedViewId,
+			centerIds
+		);
+		foreach (var view in views)
+			Views.Add(new CenterViewItem(this, view.Id, view.Name) { Root = view.Root });
+		var selectedId = CenterViewHelpers.GetSelectedId(views, layout.SelectedViewId);
+		SelectedView = Views.First(x => x.Id == selectedId);
+		Views.CollectionChanged += (_, _) => UpdateCanCloseViews();
+		UpdateCanCloseViews();
 
 		LeftActive = Left.FirstOrDefault(x => x.Id == layout.LeftWidgetId);
 		RightActive = Right.FirstOrDefault(x => x.Id == layout.RightWidgetId);
@@ -79,13 +91,103 @@ public partial class WorkspaceViewModel : ViewModelBase
 	public ObservableCollection<WidgetItem> Bottom { get; } = [];
 	public ObservableCollection<WidgetItem> Floating { get; } = [];
 
-	/// <summary>Center split tree; null when the center is empty. See <see cref="CenterChanged"/>.</summary>
-	public CenterNodeDto? CenterRoot { get; private set; }
+	/// <summary>The center's tabs, each with its own split tree; never empty.</summary>
+	public ObservableCollection<CenterViewItem> Views { get; } = [];
 
-	/// <summary>Raised whenever the center tree changes shape.</summary>
+	/// <summary>The view shown in the center.</summary>
+	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(HasCenterWidgets))]
+	public partial CenterViewItem SelectedView { get; set; }
+
+	/// <summary>Split tree of the shown view; null when it is empty. See <see cref="CenterChanged"/>.</summary>
+	public CenterNodeDto? CenterRoot => SelectedView.Root;
+
+	/// <summary>Raised whenever a view's tree changes shape.</summary>
 	public event Action? CenterChanged;
 
 	public bool HasCenterWidgets => CenterRoot != null;
+
+	partial void OnSelectedViewChanged(CenterViewItem oldValue, CenterViewItem newValue)
+	{
+		// Null only on the first assignment, in the constructor
+		oldValue?.IsSelected = false;
+		newValue.IsSelected = true;
+		// The widget framed as current stays only if it is still on screen
+		if (CurrentWidget is { IsCenter: true } current && !IsInView(newValue, current.Id))
+			CurrentWidget = null;
+	}
+
+	public void SelectView(CenterViewItem view)
+	{
+		if (Views.Contains(view))
+			SelectedView = view;
+	}
+
+	/// <summary>"+": a new empty view after the others, shown at once.</summary>
+	[RelayCommand]
+	public void AddView()
+	{
+		var view = new CenterViewItem(
+			this,
+			CenterViewHelpers.NewId(),
+			CenterViewHelpers.GetNewName(Views.Select(x => x.Name))
+		);
+		Views.Add(view);
+		SelectedView = view;
+	}
+
+	/// <summary>Closes the view and, like ✕ on each of them, the widgets in it. The last view stays.</summary>
+	public void CloseView(CenterViewItem view)
+	{
+		var index = Views.IndexOf(view);
+		if (index < 0 || Views.Count <= 1)
+			return;
+		if (SelectedView == view)
+		{
+			var remaining = Views.Where(x => x != view).ToList();
+			SelectedView = remaining[CenterViewHelpers.GetIndexAfterClose(index, remaining.Count)];
+		}
+		foreach (var id in CenterLayoutHelpers.GetWidgetIds(view.Root).ToList())
+			if (Find(id) is { } widget)
+				Close(widget);
+		Views.Remove(view);
+		RaiseCenterChanged();
+	}
+
+	/// <summary>Ctrl+Tab / Ctrl+Shift+Tab: the next or previous view, wrapping around.</summary>
+	public void CycleView(int step)
+	{
+		// The fullscreen widget covers the tabs: switching underneath it would go unseen
+		if (Views.Count < 2 || FullscreenWidget != null)
+			return;
+		SelectedView = Views[
+			CenterViewHelpers.Cycle(Views.IndexOf(SelectedView), Views.Count, step)
+		];
+	}
+
+	public void BeginRenameView(CenterViewItem view)
+	{
+		foreach (var other in Views)
+			other.IsRenaming = false;
+		view.RenameText = view.Name;
+		view.IsRenaming = true;
+	}
+
+	/// <summary>Enter or clicking away: a blank name keeps the old one.</summary>
+	public void CommitRenameView(CenterViewItem view)
+	{
+		if (!view.IsRenaming)
+			return;
+		view.IsRenaming = false;
+		if (CenterViewHelpers.CleanName(view.RenameText) is { } name)
+			view.Name = name;
+	}
+
+	public void CancelRenameView(CenterViewItem view) => view.IsRenaming = false;
+
+	/// <summary>The view whose tree holds the widget; null when it isn't in the center.</summary>
+	public CenterViewItem? FindView(string widgetId) =>
+		Views.FirstOrDefault(x => IsInView(x, widgetId));
 
 	/// <summary>Expanded widget of each side, null when that side panel is collapsed.</summary>
 	[ObservableProperty]
@@ -194,6 +296,14 @@ public partial class WorkspaceViewModel : ViewModelBase
 		var widget =
 			Widgets.FirstOrDefault(x => x.Tool == tool && x.IsOpen)
 			?? Widgets.FirstOrDefault(x => x.Tool == tool);
+		// A multi-instance widget (chart) only in another view: open a new one in this view
+		// instead of switching away
+		if (WorkspaceHelpers.AllowsMultipleInstances(tool))
+			widget = Widgets.FirstOrDefault(x =>
+				x.Tool == tool
+				&& x.IsOpen
+				&& (x.Dock != WidgetDock.Center || SelectedView is { } view && IsInView(view, x.Id))
+			);
 		if (widget is null)
 		{
 			Spawn(tool);
@@ -217,9 +327,17 @@ public partial class WorkspaceViewModel : ViewModelBase
 		Reveal(widget);
 	}
 
-	/// <summary>Hotkey: collapses an expanded side widget, otherwise shows the widget.</summary>
+	/// <summary>
+	/// Hotkey: collapses an expanded side widget, otherwise shows the widget. A multi-instance
+	/// widget (chart) always opens a new one in the current view.
+	/// </summary>
 	public void Toggle(WorkspaceTool tool)
 	{
+		if (WorkspaceHelpers.AllowsMultipleInstances(tool))
+		{
+			Spawn(tool);
+			return;
+		}
 		var active = new[] { LeftActive, RightActive, BottomActive }.FirstOrDefault(x =>
 			x?.Tool == tool
 		);
@@ -249,30 +367,42 @@ public partial class WorkspaceViewModel : ViewModelBase
 
 	/// <summary>
 	/// Drag and drop result. Center: placed on <paramref name="edge"/> of the widget
-	/// <paramref name="targetId"/> (no target: right of everything). Strips (left, right, bottom):
-	/// inserted at icon position <paramref name="index"/> (null appends).
+	/// <paramref name="targetId"/> (no target: right of everything) in the shown view, or in view
+	/// <paramref name="viewId"/> (dropped on its tab), which is then shown. Strips (left, right,
+	/// bottom): inserted at icon position <paramref name="index"/> (null appends).
 	/// </summary>
 	public void Drop(
 		WidgetItem widget,
 		WidgetDock dock,
 		int? index = null,
 		string? targetId = null,
-		DropEdge edge = DropEdge.Right
+		DropEdge edge = DropEdge.Right,
+		string? viewId = null
 	)
 	{
 		if (dock == WidgetDock.Center)
 		{
+			var view =
+				(viewId is null ? null : Views.FirstOrDefault(x => x.Id == viewId)) ?? SelectedView;
 			if (targetId == widget.Id)
 				return;
-			if (widget.IsCenter)
-				CenterRoot = CenterLayoutHelpers.Remove(CenterRoot, widget.Id);
+			var from = widget.IsCenter ? FindView(widget.Id) : null;
+			// Dropped on the tab of the view it is already in: it stays where it is
+			if (viewId != null && from == view)
+			{
+				SelectedView = view;
+				return;
+			}
+			if (from != null)
+				from.Root = CenterLayoutHelpers.Remove(from.Root, widget.Id);
 			else
 			{
 				if (widget.Dock != null)
 					Remove(widget);
 				SetDock(widget, WidgetDock.Center);
 			}
-			CenterRoot = CenterLayoutHelpers.Insert(CenterRoot, widget.Id, targetId, edge);
+			view.Root = CenterLayoutHelpers.Insert(view.Root, widget.Id, targetId, edge);
+			SelectedView = view;
 			RaiseCenterChanged();
 			return;
 		}
@@ -317,9 +447,18 @@ public partial class WorkspaceViewModel : ViewModelBase
 		layout.LeftWidgetId = LeftActive?.Id;
 		layout.RightWidgetId = RightActive?.Id;
 		layout.BottomWidgetId = BottomActive?.Id;
-		layout.Center = CenterRoot;
-		layout.Widgets = CenterLayoutHelpers
-			.GetWidgetIds(CenterRoot)
+		layout.Views = Views
+			.Select(x => new CenterViewDto
+			{
+				Id = x.Id,
+				Name = x.Name,
+				Root = x.Root,
+			})
+			.ToList();
+		layout.SelectedViewId = SelectedView.Id;
+		layout.Center = null;
+		layout.Widgets = Views
+			.SelectMany(x => CenterLayoutHelpers.GetWidgetIds(x.Root))
 			.Select(Find)
 			.OfType<WidgetItem>()
 			.Concat(Left)
@@ -393,7 +532,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 		SetDock(widget, dock);
 		if (dock == WidgetDock.Center)
 		{
-			CenterRoot = CenterLayoutHelpers.Insert(CenterRoot, widget.Id);
+			SelectedView.Root = CenterLayoutHelpers.Insert(SelectedView.Root, widget.Id);
 			RaiseCenterChanged();
 			return;
 		}
@@ -409,7 +548,8 @@ public partial class WorkspaceViewModel : ViewModelBase
 		Collapse(widget);
 		if (widget.IsCenter)
 		{
-			CenterRoot = CenterLayoutHelpers.Remove(CenterRoot, widget.Id);
+			if (FindView(widget.Id) is { } view)
+				view.Root = CenterLayoutHelpers.Remove(view.Root, widget.Id);
 			widget.Dock = null;
 			RaiseCenterChanged();
 			return;
@@ -435,11 +575,25 @@ public partial class WorkspaceViewModel : ViewModelBase
 				break;
 			case WidgetDock.Floating:
 				break;
+			case WidgetDock.Center:
+				// A center widget in another view: show that view
+				if (FindView(widget.Id) is { } view)
+					SelectedView = view;
+				return;
 			default:
 				return;
 		}
 		CurrentWidget = widget;
 		widget.RequestFocus();
+	}
+
+	private static bool IsInView(CenterViewItem view, string widgetId) =>
+		CenterLayoutHelpers.Contains(view.Root, widgetId);
+
+	private void UpdateCanCloseViews()
+	{
+		foreach (var view in Views)
+			view.CanClose = Views.Count > 1;
 	}
 
 	private void RaiseCenterChanged()

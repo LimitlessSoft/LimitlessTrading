@@ -3,15 +3,18 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using LT.Contracts.Constants;
 using LT.Contracts.Enums;
+using LT.Contracts.Helpers;
 
 namespace LT.App.Workspace;
 
 /// <summary>
 /// Drag and drop docking: a widget is dragged by its frame header (or, docked on a strip, by its
 /// strip icon) and dropped on a strip (left, right or bottom, at an icon position), on a center
-/// tile, or outside the main window to float. Positions arrive in screen pixels because a drag can
-/// start in a floating window.
+/// tile, on a view tab, or outside the main window to float. Held over a view tab for a moment,
+/// the drag shows that view so the widget can be dropped into it. Positions arrive in screen
+/// pixels because a drag can start in a floating window.
 /// </summary>
 public partial class WorkspaceView
 {
@@ -28,7 +31,8 @@ public partial class WorkspaceView
 
 	/// <summary>
 	/// Where a drop lands: side drops carry the strip and icon <see cref="Index"/>, center drops the
-	/// widget dropped on (<see cref="TargetId"/>) and which <see cref="Edge"/> of it.
+	/// widget dropped on (<see cref="TargetId"/>) and which <see cref="Edge"/> of it, or the view
+	/// whose tab it was dropped on (<see cref="View"/>).
 	/// </summary>
 	private readonly record struct DropTarget(
 		WidgetDock Dock,
@@ -37,8 +41,13 @@ public partial class WorkspaceView
 		string Label,
 		ItemsControl? Strip = null,
 		string? TargetId = null,
-		DropEdge Edge = DropEdge.Right
+		DropEdge Edge = DropEdge.Right,
+		CenterViewItem? View = null
 	);
+
+	// The view tab a drag is held over, and the timer that shows its view
+	private CenterViewItem? _hoverView;
+	private DispatcherTimer? _hoverTimer;
 
 	// Strip icon pushed down to open a gap where the dropped icon will go
 	private Control? _gapContainer;
@@ -79,6 +88,7 @@ public partial class WorkspaceView
 		if (widget is null)
 			return;
 		var target = GetDropTarget(widget, screen);
+		SetHoverView(target.View);
 		// Strip icon tooltips would pop up over the drop slot
 		ToolTip.SetServiceEnabled(this, false);
 		SetStripGap(target.Strip, target.Index);
@@ -93,9 +103,42 @@ public partial class WorkspaceView
 
 	private void EndDragFeedback()
 	{
+		SetHoverView(null);
 		ToolTip.SetServiceEnabled(this, true);
 		SetStripGap(null, null);
 		DropOverlay.IsVisible = false;
+	}
+
+	/// <summary>
+	/// Holding a drag over the tab of another view shows that view after
+	/// <see cref="WorkspaceConstants.ViewTabHoverSwitchMs"/>. Only frame visibility changes, so the
+	/// dragged frame keeps its pointer capture even when it was in the view being hidden.
+	/// </summary>
+	private void SetHoverView(CenterViewItem? view)
+	{
+		if (view == _hoverView)
+			return;
+		_hoverView = view;
+		_hoverTimer?.Stop();
+		if (view is null || view == _viewModel?.SelectedView)
+			return;
+		_hoverTimer ??= CreateHoverTimer();
+		_hoverTimer.Start();
+	}
+
+	private DispatcherTimer CreateHoverTimer()
+	{
+		var timer = new DispatcherTimer
+		{
+			Interval = TimeSpan.FromMilliseconds(WorkspaceConstants.ViewTabHoverSwitchMs),
+		};
+		timer.Tick += (_, _) =>
+		{
+			timer.Stop();
+			if (_hoverView != null)
+				_viewModel?.SelectView(_hoverView);
+		};
+		return timer;
 	}
 
 	/// <summary>Opens a one-icon gap in a strip at <paramref name="index"/>, closing any other.</summary>
@@ -161,7 +204,8 @@ public partial class WorkspaceView
 							target.Dock,
 							target.Index,
 							target.TargetId,
-							target.Edge
+							target.Edge,
+							target.View?.Id
 						),
 					DispatcherPriority.Background
 				);
@@ -172,7 +216,14 @@ public partial class WorkspaceView
 
 		// The drop may re-host the frame; let the current pointer handling finish first
 		Dispatcher.UIThread.Post(() =>
-			_viewModel.Drop(widget, target.Dock, target.Index, target.TargetId, target.Edge)
+			_viewModel.Drop(
+				widget,
+				target.Dock,
+				target.Index,
+				target.TargetId,
+				target.Edge,
+				target.View?.Id
+			)
 		);
 	}
 
@@ -204,8 +255,16 @@ public partial class WorkspaceView
 		if (GetBottomTarget(point) is { } bottom)
 			return bottom;
 
-		// Over a center widget: the nearest edge decides beside / above / below it
-		foreach (var tile in _viewModel.Widgets.Where(x => x.IsCenter))
+		if (GetViewTabTarget(point) is { } tab)
+			return tab;
+
+		// Over a center widget of the shown view: the nearest edge decides beside / above / below it
+		foreach (
+			var tile in CenterLayoutHelpers
+				.GetWidgetIds(_viewModel.CenterRoot)
+				.Select(_viewModel.Find)
+				.OfType<WidgetItem>()
+		)
 		{
 			if (
 				!_frames.TryGetValue(tile.Id, out var tileFrame)
@@ -251,7 +310,32 @@ public partial class WorkspaceView
 			return new DropTarget(WidgetDock.Center, null, highlight, label, null, tile.Id, edge);
 		}
 
-		return new DropTarget(WidgetDock.Center, null, CenterHost.Bounds, "Dock in center");
+		// The center host's own bounds are relative to the center column, below the view tabs
+		var center = CenterHost.TranslatePoint(default, this) is { } hostOrigin
+			? new Rect(hostOrigin, CenterHost.Bounds.Size)
+			: CenterHost.Bounds;
+		return new DropTarget(WidgetDock.Center, null, center, "Dock in center");
+	}
+
+	/// <summary>
+	/// Over a view tab: dropping puts the widget in that view (right of everything) and shows it.
+	/// Null when the pointer isn't on a tab.
+	/// </summary>
+	private DropTarget? GetViewTabTarget(Point point)
+	{
+		for (var i = 0; i < ViewTabs.ItemCount; i++)
+		{
+			if (
+				ViewTabs.ContainerFromIndex(i) is not { } container
+				|| container.TranslatePoint(default, this) is not { } origin
+				|| container.DataContext is not CenterViewItem view
+			)
+				continue;
+			var rect = new Rect(origin, container.Bounds.Size);
+			if (rect.Contains(point))
+				return new DropTarget(WidgetDock.Center, null, rect, string.Empty, View: view);
+		}
+		return null;
 	}
 
 	/// <summary>

@@ -30,9 +30,9 @@ public class TradingPageViewModel(
 
 	public void ToggleTool(WorkspaceTool tool) => Workspace.Toggle(tool);
 
-	public void SpawnTool(WorkspaceTool tool) => Workspace.Spawn(tool);
-
 	public void ToggleFullscreen() => Workspace.ToggleFullscreen();
+
+	public void CycleView(int step) => Workspace.CycleView(step);
 
 	public void FillLayout(LayoutDto layout)
 	{

@@ -98,14 +98,14 @@ public partial class MainWindow : Window, IFullscreenHost
 			case Key.F when ctrl:
 				Page.FocusSearch();
 				break;
+			case Key.Tab when ctrl:
+				ViewModel?.CycleView(shift ? -1 : 1);
+				break;
 			case Key.F5:
 				ViewModel?.RefreshAll();
 				break;
 			case Key.OemComma when ctrl:
 				_ = OpenSettingsAsync();
-				break;
-			case Key.D7 when ctrl && shift:
-				ViewModel?.SpawnTool(WorkspaceTool.Chart);
 				break;
 			case >= Key.D1 and <= Key.D9 when ctrl:
 				ViewModel?.ToggleTool((WorkspaceTool)(e.Key - Key.D1));
@@ -141,9 +141,6 @@ public partial class MainWindow : Window, IFullscreenHost
 
 	private void OnGatewayClick(object? sender, RoutedEventArgs e) =>
 		_ = GatewayWindow.ShowAsync(this);
-
-	private void OnNewChartClick(object? sender, RoutedEventArgs e) =>
-		ViewModel?.SpawnTool(WorkspaceTool.Chart);
 
 	private void OnFullscreenClick(object? sender, RoutedEventArgs e) =>
 		ViewModel?.ToggleFullscreen();

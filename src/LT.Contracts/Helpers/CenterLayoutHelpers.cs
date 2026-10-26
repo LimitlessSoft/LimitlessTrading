@@ -114,7 +114,14 @@ public static class CenterLayoutHelpers
 		return root;
 	}
 
-	private static CenterNodeDto? Prune(
+	public static bool Contains(CenterNodeDto? root, string widgetId) =>
+		root != null && Find(root, widgetId) != null;
+
+	/// <summary>
+	/// Drops leaves of widgets not in <paramref name="centerIds"/> and of widgets already in
+	/// <paramref name="seen"/> (a widget lives in one place); the kept ones are added to it.
+	/// </summary>
+	public static CenterNodeDto? Prune(
 		CenterNodeDto? node,
 		IReadOnlyCollection<string> centerIds,
 		HashSet<string> seen
