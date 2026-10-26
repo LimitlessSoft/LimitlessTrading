@@ -137,4 +137,43 @@ public class SettingsManagerTests
 		var placement = Assert.Single(saved.Widgets);
 		Assert.Equal((WidgetDock.Bottom, 300d), (placement.Dock, placement.BottomHeight));
 	}
+
+	[Fact]
+	public void Layout_style_is_flush_by_default_and_saves_cards()
+	{
+		var manager = new SettingsManager(_settings, _ibkr);
+		Assert.Equal(LayoutStyle.Flush, manager.GetAppSettings().LayoutStyle);
+		LayoutStyle? raised = null;
+		manager.AppSettingsChanged += x => raised = x.LayoutStyle;
+
+		manager.SaveAppSettings(
+			new SaveAppSettingsRequest
+			{
+				MarketDataType = MarketDataType.Live,
+				HeartbeatSeconds = 10,
+				LayoutStyle = LayoutStyle.Cards,
+			}
+		);
+
+		Assert.Equal(LayoutStyle.Cards, manager.GetAppSettings().LayoutStyle);
+		Assert.Equal(LayoutStyle.Cards, raised);
+		// A saved Cards is not overridden by the Flush default when settings are read again
+		Assert.Equal(
+			LayoutStyle.Cards,
+			new SettingsManager(_settings, _ibkr).GetAppSettings().LayoutStyle
+		);
+	}
+
+	[Fact]
+	public void Unknown_layout_style_is_rejected() =>
+		Assert.Throws<LSCoreBadRequestException>(() =>
+			new SettingsManager(_settings, _ibkr).SaveAppSettings(
+				new SaveAppSettingsRequest
+				{
+					MarketDataType = MarketDataType.Live,
+					HeartbeatSeconds = 10,
+					LayoutStyle = (LayoutStyle)99,
+				}
+			)
+		);
 }

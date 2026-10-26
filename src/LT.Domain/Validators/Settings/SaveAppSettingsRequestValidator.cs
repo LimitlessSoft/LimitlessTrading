@@ -26,5 +26,9 @@ public class SaveAppSettingsRequestValidator : LSCoreValidatorBase<SaveAppSettin
 		RuleFor(x => x.MarketDataType)
 			.IsInEnum()
 			.WithMessage(SettingsValidationCodes.SVC_002.GetValidationMessage());
+
+		RuleFor(x => x.LayoutStyle)
+			.IsInEnum()
+			.WithMessage(SettingsValidationCodes.SVC_003.GetValidationMessage());
 	}
 }

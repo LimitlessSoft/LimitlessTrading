@@ -34,6 +34,20 @@ the drag role grabs the mouse (no double-click, clicks on buttons start a drag) 
 roles do nothing; a press on any button stays with the button. Other dialogs and floating widget
 windows keep the OS title bar.
 
+## Layout style (Settings → Appearance)
+
+`LayoutStyle` (`GeneralSettingsEntity`): **Flush** (default; also for settings files saved without
+the field) gives every widget the docked look (square, no border; the current one keeps its 1 px
+frame) and fills the window edge to edge; **Cards** draws center and floating widgets as rounded
+tiles with 6 px gaps between them and around the center. A `WorkspaceViewModel` without an
+`AppearanceStore` (offline views) draws cards. `AppearanceStore` follows the saved setting (`AppSettingsChanged`), so Save applies it at
+once. Corners and borders come from the `flush` class on the window (`:is(Window).flush
+Border.panel` in App.axaml; the main window binds it, `WorkspaceView` sets it on floating windows);
+the geometry is `WorkspaceView.ApplyLayoutStyle`: center margin, floating window padding, and
+splitters — a 6 px transparent gap in cards, a 1 px line in flush that is grabbed over 3 px on each
+side (`FlushSplitterColumnBrush` / `RowBrush`, ZIndex 1 over its neighbours). A collapsed side
+leaves its gap in cards and none in flush.
+
 ## Settings window
 
 `Widgets/Settings`: a searchable tree of pages on the left, the selected page on the right. A page

@@ -1,3 +1,4 @@
+using LT.App.Stores;
 using LT.App.ViewModels;
 using LT.App.Widgets.Account;
 using LT.App.Widgets.Chart;
@@ -14,11 +15,12 @@ namespace LT.App.Pages.TradingPage;
 /// <summary>Default workspace: widget instances placed in the center, on a side or floating.</summary>
 public class TradingPageViewModel(
 	WidgetViewModelFactory widgetViewModelFactory,
-	ISettingsManager settingsManager
+	ISettingsManager settingsManager,
+	AppearanceStore appearance
 ) : ViewModelBase
 {
 	public WorkspaceViewModel Workspace { get; } =
-		new(widgetViewModelFactory.Create, settingsManager.GetLayout());
+		new(widgetViewModelFactory.Create, settingsManager.GetLayout(), appearance);
 
 	public void ShowTool(WorkspaceTool tool) => Workspace.Show(tool);
 

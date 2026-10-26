@@ -13,6 +13,7 @@
 	MinHeight="680"
 	WindowStartupLocation="CenterScreen"
 	Classes="appChrome"
+	Classes.flush="{Binding Appearance.IsFlush}"
 >
 	<Panel>
 		<DockPanel>

@@ -87,6 +87,7 @@ public static class Program
 		// App-wide UI state shared between widgets (the zStore of this app)
 		builder.Services.AddSingleton<AccountStore>();
 		builder.Services.AddSingleton<LinkGroupStore>();
+		builder.Services.AddSingleton<AppearanceStore>();
 
 		// Creates widget view models per spawned instance (several charts)
 		builder.Services.AddSingleton<WidgetViewModelFactory>();

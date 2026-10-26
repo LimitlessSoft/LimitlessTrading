@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using LT.App.Stores;
 using LT.App.ViewModels;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
@@ -19,9 +20,14 @@ public partial class WorkspaceViewModel : ViewModelBase
 	// Last dock per widget kind, for spawning new instances where the previous one was
 	private readonly Dictionary<WorkspaceTool, WidgetDock> _lastDock = [];
 
-	public WorkspaceViewModel(Func<WorkspaceTool, object> createContent, LayoutDto layout)
+	public WorkspaceViewModel(
+		Func<WorkspaceTool, object> createContent,
+		LayoutDto layout,
+		AppearanceStore? appearance = null
+	)
 	{
 		_createContent = createContent;
+		Appearance = appearance;
 		Bottom.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasBottomWidgets));
 		LeftWidth = layout.LeftWidth;
 		RightWidth = layout.RightWidth;
@@ -55,6 +61,12 @@ public partial class WorkspaceViewModel : ViewModelBase
 		RightActive = Right.FirstOrDefault(x => x.Id == layout.RightWidgetId);
 		BottomActive = Bottom.FirstOrDefault(x => x.Id == layout.BottomWidgetId);
 	}
+
+	/// <summary>
+	/// Cards or flush look. Null (offline views, no store) is cards: without the store nothing sets
+	/// the window's flush class, so the geometry stays matched to the frames.
+	/// </summary>
+	public AppearanceStore? Appearance { get; }
 
 	/// <summary>Every instance that exists: open ones and closed single-instance widgets.</summary>
 	public ObservableCollection<WidgetItem> Widgets { get; } = [];

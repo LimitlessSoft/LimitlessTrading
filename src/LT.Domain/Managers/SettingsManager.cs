@@ -27,6 +27,7 @@ public class SettingsManager(ISettingsRepository settingsRepository, IIbkrApiCli
 		settings.General.HeartbeatSeconds = request.HeartbeatSeconds;
 		settings.General.StopGatewayOnExit = request.StopGatewayOnExit;
 		settings.General.CheckForUpdates = request.CheckForUpdates;
+		settings.General.LayoutStyle = request.LayoutStyle;
 		settingsRepository.Save(settings);
 		if (ibkrApiClient.IsConnected)
 			ibkrApiClient.SetMarketDataType(request.MarketDataType);

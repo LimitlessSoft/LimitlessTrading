@@ -56,6 +56,21 @@
 		<SolidColorBrush x:Key="CurrentFrameBrush" Color="#7FA7E8" Opacity="0.55" />
 		<SolidColorBrush x:Key="FrameCloseHoverBrush" Color="#3A2326" />
 
+		<!-- Flush layout: a splitter is a 7px grab area over its neighbours with a 1px line in the
+		     middle (stops at 3/7 and 4/7) -->
+		<LinearGradientBrush x:Key="FlushSplitterColumnBrush" StartPoint="0%,50%" EndPoint="100%,50%">
+			<GradientStop Offset="0.4285" Color="Transparent" />
+			<GradientStop Offset="0.4285" Color="#2C313A" />
+			<GradientStop Offset="0.5714" Color="#2C313A" />
+			<GradientStop Offset="0.5714" Color="Transparent" />
+		</LinearGradientBrush>
+		<LinearGradientBrush x:Key="FlushSplitterRowBrush" StartPoint="50%,0%" EndPoint="50%,100%">
+			<GradientStop Offset="0.4285" Color="Transparent" />
+			<GradientStop Offset="0.4285" Color="#2C313A" />
+			<GradientStop Offset="0.5714" Color="#2C313A" />
+			<GradientStop Offset="0.5714" Color="Transparent" />
+		</LinearGradientBrush>
+
 		<!-- appChrome windows: no drawn border or shadow, the app's own panels frame them -->
 		<ControlTheme
 			x:Key="AppWindowDecorations"
@@ -98,6 +113,16 @@
 			<Setter Property="BorderThickness" Value="1" />
 			<Setter Property="Padding" Value="9" />
 		</Style>
+		<!-- Flush layout (Settings → Appearance): every widget gets the docked look, square and
+		     borderless, filling its cell; the current one keeps its light frame -->
+		<Style Selector=":is(Window).flush Border.panel">
+			<Setter Property="CornerRadius" Value="0" />
+			<Setter Property="BorderThickness" Value="0" />
+		</Style>
+		<Style Selector=":is(Window).flush Border.panel.current">
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="Padding" Value="9" />
+		</Style>
 		<!-- Fullscreen widget: an orange frame says you're not looking at the normal layout.
 		     After .docked so it wins for side widgets too; 1px less padding keeps content put. -->
 		<Style Selector="Border.panel.fullscreen">
@@ -105,6 +130,9 @@
 			<Setter Property="BorderThickness" Value="2" />
 			<Setter Property="CornerRadius" Value="6" />
 			<Setter Property="Padding" Value="9" />
+		</Style>
+		<Style Selector=":is(Window).flush Border.panel.fullscreen">
+			<Setter Property="CornerRadius" Value="0" />
 		</Style>
 		<Style Selector="TextBlock.panelTitle">
 			<Setter Property="FontWeight" Value="SemiBold" />
