@@ -60,6 +60,21 @@ public static class ContractHelpers
 				: contract.LocalSymbol,
 		};
 
+	/// <summary>
+	/// The contract multiplier as IB reports it (100 for most equity options); null when IB sent
+	/// none or it isn't a positive number.
+	/// </summary>
+	public static double? GetMultiplier(ContractDto contract) =>
+		double.TryParse(
+			contract.Multiplier,
+			NumberStyles.Float,
+			CultureInfo.InvariantCulture,
+			out var value
+		)
+		&& value > 0
+			? value
+			: null;
+
 	/// <summary>Exchange to show: primary listing exchange when IB routes via SMART.</summary>
 	public static string GetListingExchange(ContractDto contract) =>
 		string.IsNullOrEmpty(contract.PrimaryExchange)

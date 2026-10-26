@@ -206,6 +206,28 @@ public static partial class OptionChainHelpers
 		&& q <= OrderConstants.QuickOrderQuantityMax
 		&& q == decimal.Truncate(q);
 
+	/// <summary>
+	/// The quote price a one-click order on <paramref name="column"/> would hit: the ask for a buy,
+	/// the bid for a sell; null for other columns or while the quote has none.
+	/// </summary>
+	public static double? GetQuickOrderPrice(QuoteDto? quote, OptionQuoteColumn column) =>
+		column switch
+		{
+			OptionQuoteColumn.Ask => quote?.Ask,
+			OptionQuoteColumn.Bid => quote?.Bid,
+			_ => null,
+		};
+
+	/// <summary>
+	/// What a one-click order would cost (or bring in): quantity × price × contract multiplier.
+	/// An estimate, since the order goes at market. Null when the quantity isn't a valid one-click
+	/// quantity, or the price or multiplier is unknown.
+	/// </summary>
+	public static double? GetQuickOrderCost(decimal? quantity, double? price, double? multiplier) =>
+		IsValidQuickOrderQuantity(quantity) && price is { } p && multiplier is { } m
+			? (double)quantity!.Value * p * m
+			: null;
+
 	/// <summary>Why a one-click quantity can't be sent; null when it can.</summary>
 	public static string? GetQuickOrderQuantityError(decimal? quantity) =>
 		IsValidQuickOrderQuantity(quantity)

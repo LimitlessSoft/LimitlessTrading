@@ -169,6 +169,12 @@ public partial class OptionChainViewModel
 			? (int)QuickOrderQuantity!.Value
 			: null;
 
+	partial void OnQuickOrderQuantityChanged(decimal? value)
+	{
+		foreach (var row in Rows)
+			row.SetQuickOrderQuantity(value);
+	}
+
 	partial void OnSelectedExpirationChanged(ExpirationTab? value)
 	{
 		if (value != null)
@@ -356,8 +362,12 @@ public partial class OptionChainViewModel
 			StartRowQuotes(row, _quotes.Token);
 	}
 
-	private OptionRowViewModel CreateRow(OptionStrikeDto strike) =>
-		new(strike, QuickTradeAsync, () => IsConnected);
+	private OptionRowViewModel CreateRow(OptionStrikeDto strike)
+	{
+		var row = new OptionRowViewModel(strike, QuickTradeAsync, () => IsConnected);
+		row.SetQuickOrderQuantity(QuickOrderQuantity);
+		return row;
+	}
 
 	/// <summary>
 	/// One click on a bid / ask cell: <see cref="QuickOrderQuantity"/> contracts at market, DAY, on
