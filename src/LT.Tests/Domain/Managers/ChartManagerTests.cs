@@ -1,7 +1,11 @@
 using LSCore.Exceptions;
+using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
+using LT.Contracts.Dtos.MarketData;
 using LT.Contracts.Enums;
+using LT.Contracts.Exceptions;
+using LT.Contracts.Helpers;
 using LT.Contracts.Requests.Charts;
 using LT.Domain.Managers;
 using LT.Tests.Fakes;
@@ -17,6 +21,7 @@ public class ChartManagerTests
 	private readonly FakeTimeProvider _time = new(
 		new DateTimeOffset(2026, 10, 23, 15, 0, 0, TimeSpan.Zero)
 	);
+	private readonly MarketDataManager _marketData;
 	private readonly ChartManager _manager;
 
 	private static readonly GetBarsRequest Request = new()
@@ -35,7 +40,12 @@ public class ChartManagerTests
 	public ChartManagerTests()
 	{
 		LSCoreContainer.EnsureInitialized();
-		_manager = new ChartManager(_ibkr, new CacheManager(_cache, _settings, _time), _time);
+		_manager = new ChartManager(
+			_ibkr,
+			new CacheManager(_cache, _settings, _time),
+			_marketData = new MarketDataManager(_ibkr),
+			_time
+		);
 		_ibkr.HistoricalBars =
 		[
 			new BarDto
@@ -195,4 +205,143 @@ public class ChartManagerTests
 			Timeframe = Request.Timeframe,
 			Period = period,
 		};
+
+	[Fact]
+	public async Task Quote_modes_stream_one_price_per_trade_on_a_market_data_line()
+	{
+		_ibkr.Ticks =
+		[
+			new MarketDataTickDto { Field = TickTypeHelpers.Bid, Price = 99.9 },
+			new MarketDataTickDto { Field = TickTypeHelpers.Last, Price = 100 },
+			new MarketDataTickDto { Field = TickTypeHelpers.Ask, Price = 100.1 },
+			new MarketDataTickDto { Field = TickTypeHelpers.Last, Price = 100.2 },
+			new MarketDataTickDto { Field = TickTypeHelpers.LastSize, Size = 3 },
+		];
+		var linesInUse = new List<int>();
+
+		var prices = new List<ChartPriceDto>();
+		await foreach (
+			var price in _manager.SubscribeLivePricesAsync(
+				Request,
+				ChartLiveUpdateMode.QuotesThrottled,
+				Ct
+			)
+		)
+		{
+			prices.Add(price);
+			linesInUse.Add(_marketData.ActiveLines);
+		}
+
+		Assert.Equal([100d, 100.2, 100.2], prices.Select(x => x.Price));
+		Assert.All(prices, x => Assert.Equal(_time.GetUtcNow(), x.Time));
+		Assert.All(linesInUse, x => Assert.Equal(1, x));
+		Assert.Equal(0, _marketData.ActiveLines);
+	}
+
+	[Fact]
+	public async Task Without_a_free_market_data_line_the_price_stream_fails()
+	{
+		for (var i = 0; i < MarketDataConstants.MaxLines; i++)
+			_marketData.AcquireLine();
+
+		await Assert.ThrowsAsync<LSCoreBadRequestException>(async () =>
+			await _manager
+				.SubscribeLivePricesAsync(Request, ChartLiveUpdateMode.Quotes, Ct)
+				.ToListAsync(Ct)
+		);
+	}
+
+	[Fact]
+	public async Task Five_second_bars_need_no_price_stream()
+	{
+		_ibkr.Ticks = [new MarketDataTickDto { Field = TickTypeHelpers.Last, Price = 100 }];
+
+		Assert.Empty(
+			await _manager
+				.SubscribeLivePricesAsync(Request, ChartLiveUpdateMode.RealtimeBars, Ct)
+				.ToListAsync(Ct)
+		);
+	}
+
+	[Fact]
+	public async Task Tick_by_tick_streams_trades_with_ibs_time_on_a_counted_subscription()
+	{
+		var ibTime = _time.GetUtcNow().AddSeconds(-2);
+		_ibkr.TickByTicks =
+		[
+			new TickByTickDto
+			{
+				Type = TickByTickType.Last,
+				Time = ibTime,
+				Price = 100,
+				Size = 5,
+			},
+			new TickByTickDto
+			{
+				Type = TickByTickType.Last,
+				Time = ibTime,
+				Price = 100.1,
+				Size = 1,
+			},
+		];
+		var inUse = new List<int>();
+
+		var prices = new List<ChartPriceDto>();
+		await foreach (
+			var price in _manager.SubscribeLivePricesAsync(
+				Request,
+				ChartLiveUpdateMode.TickByTickThrottled,
+				Ct
+			)
+		)
+		{
+			prices.Add(price);
+			inUse.Add(_marketData.ActiveTickByTick);
+		}
+
+		Assert.Equal([(ibTime, 100d), (ibTime, 100.1)], prices.Select(x => (x.Time, x.Price)));
+		Assert.Equal(TickByTickType.Last, Assert.Single(_ibkr.TickByTickRequests).Type);
+		Assert.All(inUse, x => Assert.Equal(1, x));
+		Assert.Equal(0, _marketData.ActiveTickByTick);
+		Assert.Equal(0, _marketData.ActiveLines);
+	}
+
+	[Fact]
+	public async Task Forex_tick_by_tick_asks_for_the_midpoint()
+	{
+		var eurUsd = new GetBarsRequest
+		{
+			Contract = new ContractDto
+			{
+				ConId = 12087792,
+				Symbol = "EUR",
+				SecurityType = MarketDataConstants.ForexType,
+			},
+			Timeframe = ChartTimeframe.OneMinute,
+		};
+
+		await _manager
+			.SubscribeLivePricesAsync(eurUsd, ChartLiveUpdateMode.TickByTick, Ct)
+			.ToListAsync(Ct);
+
+		Assert.Equal(TickByTickType.MidPoint, Assert.Single(_ibkr.TickByTickRequests).Type);
+	}
+
+	[Fact]
+	public async Task Ibs_tick_by_tick_refusal_ends_the_stream_with_its_code()
+	{
+		_ibkr.TickByTickException = new IbkrRequestException(
+			10190,
+			"Max number of tick-by-tick requests has been reached."
+		);
+
+		var ex = await Assert.ThrowsAsync<IbkrRequestException>(async () =>
+			await _manager
+				.SubscribeLivePricesAsync(Request, ChartLiveUpdateMode.TickByTick, Ct)
+				.ToListAsync(Ct)
+		);
+
+		Assert.Equal(10190, ex.Code);
+		Assert.Equal(0, _marketData.ActiveTickByTick);
+	}
 }

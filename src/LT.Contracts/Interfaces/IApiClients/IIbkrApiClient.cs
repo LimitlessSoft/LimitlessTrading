@@ -86,6 +86,19 @@ public interface IIbkrApiClient
 	);
 
 	/// <summary>
+	/// IB tick-by-tick data (<c>reqTickByTickData</c>), no historical ticks; ending the
+	/// enumeration cancels it. IB allows 5 at a time per account — count them through
+	/// <c>IMarketDataManager.SubscribeTickByTickAsync</c>. IB refusals end the stream with an
+	/// <c>IbkrRequestException</c> (10190 limit reached, 10189 no permission or Last on forex,
+	/// 354 not subscribed, 200 unknown contract).
+	/// </summary>
+	IAsyncEnumerable<TickByTickDto> SubscribeTickByTickAsync(
+		ContractDto contract,
+		TickByTickType tickType,
+		CancellationToken cancellationToken = default
+	);
+
+	/// <summary>
 	/// Account summary values (<c>AccountConstants.SummaryTags</c>) of every managed account: the
 	/// latest values first, then each change. All callers share one IB subscription per connection.
 	/// </summary>

@@ -214,12 +214,50 @@ public class FakeIbkrApiClient : IIbkrApiClient
 			: Task.FromResult<IReadOnlyList<OptionChainParametersDto>>(OptionChainParameters);
 	}
 
-	public IAsyncEnumerable<BarDto> SubscribeRealtimeBarsAsync(
+	/// <summary>Keep real-time bar streams open (without bars) until cancelled.</summary>
+	public bool KeepRealtimeBarsOpen { get; set; }
+
+	public async IAsyncEnumerable<BarDto> SubscribeRealtimeBarsAsync(
 		ContractDto contract,
 		string whatToShow,
 		bool useRegularTradingHours,
-		CancellationToken cancellationToken = default
-	) => AsyncEnumerable.Empty<BarDto>();
+		[EnumeratorCancellation] CancellationToken cancellationToken = default
+	)
+	{
+		if (!KeepRealtimeBarsOpen)
+			yield break;
+		await Task.Delay(Timeout.Infinite, cancellationToken);
+	}
+
+	/// <summary>Ticks every tick-by-tick subscription streams; then it ends, or throws.</summary>
+	public List<TickByTickDto> TickByTicks { get; set; } = [];
+
+	/// <summary>Thrown by a tick-by-tick stream after its ticks (an IB refusal).</summary>
+	public Exception? TickByTickException { get; set; }
+
+	/// <summary>Tick-by-tick subscriptions asked for, in order.</summary>
+	public List<(ContractDto Contract, TickByTickType Type)> TickByTickRequests { get; } = [];
+
+	public async IAsyncEnumerable<TickByTickDto> SubscribeTickByTickAsync(
+		ContractDto contract,
+		TickByTickType tickType,
+		[EnumeratorCancellation] CancellationToken cancellationToken = default
+	)
+	{
+		TickByTickRequests.Add((contract, tickType));
+		foreach (var tick in TickByTicks)
+		{
+			await Task.Yield();
+			yield return tick;
+		}
+		if (TickByTickException != null)
+			throw TickByTickException;
+		if (KeepTickByTickOpen)
+			await Task.Delay(Timeout.Infinite, cancellationToken);
+	}
+
+	/// <summary>Keep tick-by-tick streams open after their ticks until cancelled.</summary>
+	public bool KeepTickByTickOpen { get; set; }
 
 	public IAsyncEnumerable<AccountValueDto> SubscribeAccountSummaryAsync(
 		CancellationToken cancellationToken = default

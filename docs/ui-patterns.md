@@ -670,6 +670,10 @@ watchlist and the option chain:
 Low-frequency streams (positions, P&L, 5 s bars) are consumed directly on the UI thread — the
 `await foreach` continuation comes back on the Avalonia synchronization context.
 
+When every value matters (a chart's live trade prices, where a dropped tick would lose a high or
+low), queue them instead of keeping the newest: the thread pool enqueues and posts once per
+burst (an `Interlocked` flag), the UI thread drains the queue — see `ChartLiveBars`.
+
 ## Lifetime of subscriptions
 
 A widget that subscribes to a stream holds a `CancellationTokenSource`, cancels it when the
@@ -739,6 +743,40 @@ line sits at IB's average cost per unit (divided by the multiplier for options a
 commissions included) with its price on the axis; it is hidden while disconnected (no stale
 positions) and when off the visible price range. Each chart follows positions on its own
 `reqPositions` stream; new fills appear when the journal records them (every 30 s).
+
+**Live updates.** After its history loads, a connected chart follows IB's 5-second real-time
+bars (`IChartManager.SubscribeRealtimeBarsAsync`, merged with `BarHelpers.Merge`). Settings →
+General → Charts → *Chart live updates* (`ChartLiveUpdateMode`, saved in the app settings) can
+make it faster:
+
+- **5-second bars** (`RealtimeBars`, the default) — only the 5-second bars.
+- **Every trade (quotes)** (`Quotes`) — the 5-second bars plus the quote stream
+  (`IChartManager.SubscribeLivePricesAsync` over `IMarketDataManager`, one market data line per
+  chart): each last-trade price (midpoint for forex) moves the last bar's close and extends its
+  high / low, and a price past the bar's end starts the next intraday bar
+  (`BarHelpers.MergePrice`). Prices never add volume, the 5-second bars do. Prices count only while
+  5-second bars arrive (`ChartConstants.LivePriceMaxBarAge`), so extended-hours trades don't paint
+  bars on an RTH chart; a 5-second bar that ended before the newest price keeps that price as
+  the close, and one of the bar before a price-started bar is folded into it.
+- **Every trade (quotes), throttled redraw** (`QuotesThrottled`) — the same, but `Bars` is
+  assigned at most once per *Chart redraw interval* (250–5000 ms, default 1000;
+  `ChartConstants.RedrawIntervalMs*`, `RedrawThrottle` on `TimeProvider`). The interval setting
+  is greyed out for the unthrottled modes.
+- **Every trade (tick-by-tick)** (`TickByTick`) and its **throttled redraw** twin
+  (`TickByTickThrottled`) — the same as the quote modes, but the prices are IB's tick-by-tick
+  trades (`Last`; `MidPoint` for forex) stamped with IB's time, so no clock skew at bar
+  boundaries. IB allows 5 at a time per account (counted by `IMarketDataManager`); when none is
+  left or IB refuses (see [ibkr-tws-api.md](ibkr-tws-api.md#tick-by-tick)) the chart falls back
+  to quotes (`ChartLiveUpdateHelpers.GetFallback`, the throttle stays), then to 5-second bars.
+  Volume still comes only from the 5-second bars.
+
+`ChartLiveBars` holds the working bars of one load: 5-second bars are added on the UI thread, the
+price stream runs on the thread pool and queues prices, which are folded one burst per UI post
+(every trade counts, no post per tick). Prices count only while a 5-second bar arrived within
+`LivePriceMaxBarAge` on the app's clock. The status line names the price source in use
+("Live · 10:31:05 · tick-by-tick", "· quotes", "· 5-second bars only"); every fallback is logged
+to the message log.
+Saving a different mode (or interval, for the throttled modes) reloads every open chart.
 
 ## Styling
 

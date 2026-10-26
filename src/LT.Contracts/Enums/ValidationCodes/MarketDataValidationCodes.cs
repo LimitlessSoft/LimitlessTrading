@@ -9,4 +9,7 @@ public enum MarketDataValidationCodes
 
 	[LSCoreValidationMessage("Not connected to TWS / IB Gateway.")]
 	MDVC_002,
+
+	[LSCoreValidationMessage("Tick-by-tick subscription limit reached ({0}).")]
+	MDVC_003,
 }

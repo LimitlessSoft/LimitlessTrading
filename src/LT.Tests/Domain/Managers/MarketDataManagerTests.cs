@@ -2,6 +2,7 @@ using LSCore.Exceptions;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.MarketData;
+using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 using LT.Domain.Managers;
 using LT.Tests.Fakes;
@@ -106,5 +107,41 @@ public class MarketDataManagerTests
 				.SubscribeQuotesAsync(Aapl, TestContext.Current.CancellationToken)
 				.ToListAsync(TestContext.Current.CancellationToken)
 		);
+	}
+
+	[Fact]
+	public async Task Tick_by_tick_subscriptions_are_counted_against_ibs_limit_of_5()
+	{
+		var manager = new MarketDataManager(_ibkr);
+		_ibkr.KeepTickByTickOpen = true;
+		using var cts = CancellationTokenSource.CreateLinkedTokenSource(
+			TestContext.Current.CancellationToken
+		);
+		var open = Enumerable
+			.Range(0, MarketDataConstants.MaxTickByTick)
+			.Select(_ =>
+				manager
+					.SubscribeTickByTickAsync(Aapl, TickByTickType.Last, cts.Token)
+					.ToListAsync(cts.Token)
+					.AsTask()
+			)
+			.ToList();
+		while (manager.ActiveTickByTick < MarketDataConstants.MaxTickByTick)
+			await Task.Delay(5, TestContext.Current.CancellationToken);
+
+		await Assert.ThrowsAsync<LSCoreBadRequestException>(async () =>
+			await manager
+				.SubscribeTickByTickAsync(
+					Aapl,
+					TickByTickType.Last,
+					TestContext.Current.CancellationToken
+				)
+				.ToListAsync(TestContext.Current.CancellationToken)
+		);
+
+		await cts.CancelAsync();
+		foreach (var task in open)
+			await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
+		Assert.Equal(0, manager.ActiveTickByTick);
 	}
 }

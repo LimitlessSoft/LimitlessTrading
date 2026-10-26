@@ -7,7 +7,7 @@ this app's license. How each message looks on the wire is in that repo's `docs/p
 file covers how the app uses it, IB's limits and the quirks we have hit. Read it before touching
 `LT.Ibkr`.
 
-`IBKR.Net` comes from nuget.org (0.6.0).
+`IBKR.Net` comes from nuget.org (0.7.0).
 
 ### Extending IBKR.Net
 
@@ -132,12 +132,12 @@ Limits / caveats:
 | `SubscribeNewsAsync` | `reqMktData` `mdoff,292` | Live headlines of a contract (its providers) or a broad tape; one market data line |
 | `GetBroadTapeContractsAsync` | `reqContractDetails` (`NEWS`) | A provider's broad tape contracts; IB fails 321 / 200 when it has none |
 | `SubscribeMarketDepthAsync` | `reqMktDepth` | Order book changes (insert / update / delete per row and side), one exchange or SMART depth with each row's exchange (0.6.0) — see [Market depth](#market-depth) |
+| `SubscribeTickByTickAsync` | `reqTickByTickData` | Last / AllLast / BidAsk / MidPoint ticks, IB time in whole seconds (0.7.0); used by the chart's tick-by-tick live updates — see [Tick-by-tick](#tick-by-tick) |
 | `GetMarketDepthExchangesAsync` | `reqMktDepthExchanges` | The exchanges IB serves depth for (306 on the live account); not used by the app yet |
 
 ### Not covered yet
 
-- Tick-by-tick (`reqTickByTickData`), option greeks and per-option implied volatility
-  (`tickOptionComputation`).
+- Option greeks and per-option implied volatility (`tickOptionComputation`).
 - Scanners (`reqScannerSubscription`); news bulletins (`reqNewsBulletins`).
 - Matching symbols (`reqMatchingSymbols`): search is by exact symbol + type via
   `reqContractDetails`.
@@ -284,6 +284,23 @@ deduplicated by IB's execution id, so the same fill from either stays one:
   connected.
 - **Real-time bars need a live subscription** — there is no delayed `reqRealTimeBars`. The chart
   keeps historical bars and logs "real-time bars unavailable".
+- **`reqRealTimeBars` only does 5-second bars.** For TWS-like speed, the chart's "Every trade"
+  live update modes (`ChartLiveUpdateMode.Quotes` / `QuotesThrottled`, see
+  [ui-patterns.md](ui-patterns.md#charts)) also open a quote line through
+  `IMarketDataManager.SubscribeQuotesAsync` (one of the 100 lines per chart) and move the last
+  bar to each last-trade price (the midpoint for forex, which has no trades). The 5-second bars
+  keep running: they carry the volume and keep high / low exact (IB's last-price ticks are
+  sampled). Without a free line, or when the quote stream fails, the chart stays on 5-second bars
+  and logs "quotes unavailable, using 5-second bars".
+- <a id="tick-by-tick"></a>**Tick-by-tick (`reqTickByTickData`) is limited to 5 subscriptions
+  per account** (error 10190 beyond). `IMarketDataManager.SubscribeTickByTickAsync` counts them
+  (`MarketDataConstants.MaxTickByTick`) and refuses the sixth before asking IB. The chart's
+  tick-by-tick modes ask for `Last` (no odd lots; `AllLast` would add odd lots flagged
+  unreported) and `MidPoint` for forex — `Last` on forex fails with 10189. Other refusals: 10189
+  no permission, 354 not subscribed, 200 unknown contract; all end the stream with an
+  `IbkrRequestException` carrying the code. Tick times are IB's, in whole seconds (many ticks
+  share one). Any failure falls the chart back to quotes, then to 5-second bars, logged as
+  "tick-by-tick unavailable, using quotes".
 - <a id="fundamentals-10358"></a>**Generic tick 258 (fundamental ratios) without the
   fundamentals entitlement rejects the whole `reqMktData`**: `10358 Fundamentals data is not
   allowed` comes back for the request id within milliseconds and no tick follows, not even

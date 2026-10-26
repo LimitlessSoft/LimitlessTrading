@@ -22,6 +22,8 @@ public class AppSettingsDtoMapper : ILSCoreMapper<GeneralSettingsEntity, AppSett
 			CacheExecutions = source.CacheExecutions,
 			CacheSnapshots = source.CacheSnapshots,
 			CacheMaxSizeMb = source.CacheMaxSizeMb,
+			ChartLiveUpdateMode = source.ChartLiveUpdateMode,
+			ChartRedrawIntervalMs = source.ChartRedrawIntervalMs,
 			DisplayTimeZoneId = source.DisplayTimeZoneId,
 		};
 }

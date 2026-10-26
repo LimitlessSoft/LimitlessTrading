@@ -105,6 +105,70 @@ public class SettingsManagerTests
 		);
 
 	[Fact]
+	public void Charts_follow_5_second_bars_by_default()
+	{
+		var settings = new SettingsManager(_settings, _ibkr).GetAppSettings();
+
+		Assert.Equal(
+			(ChartLiveUpdateMode.RealtimeBars, ChartConstants.DefaultRedrawIntervalMs),
+			(settings.ChartLiveUpdateMode, settings.ChartRedrawIntervalMs)
+		);
+	}
+
+	[Fact]
+	public void Chart_live_update_settings_round_trip_and_are_announced()
+	{
+		var manager = new SettingsManager(_settings, _ibkr);
+		AppSettingsDto? raised = null;
+		manager.AppSettingsChanged += x => raised = x;
+
+		manager.SaveAppSettings(
+			new SaveAppSettingsRequest
+			{
+				MarketDataType = MarketDataType.Delayed,
+				HeartbeatSeconds = 10,
+				ChartLiveUpdateMode = ChartLiveUpdateMode.QuotesThrottled,
+				ChartRedrawIntervalMs = 500,
+			}
+		);
+
+		var settings = manager.GetAppSettings();
+		Assert.Equal(
+			(ChartLiveUpdateMode.QuotesThrottled, 500),
+			(settings.ChartLiveUpdateMode, settings.ChartRedrawIntervalMs)
+		);
+		Assert.Equal(ChartLiveUpdateMode.QuotesThrottled, raised?.ChartLiveUpdateMode);
+	}
+
+	[Theory]
+	[InlineData(ChartConstants.RedrawIntervalMsMin - 1)]
+	[InlineData(ChartConstants.RedrawIntervalMsMax + 1)]
+	public void Chart_redraw_interval_outside_the_limits_is_rejected(int intervalMs) =>
+		Assert.Throws<LSCoreBadRequestException>(() =>
+			new SettingsManager(_settings, _ibkr).SaveAppSettings(
+				new SaveAppSettingsRequest
+				{
+					MarketDataType = MarketDataType.Delayed,
+					HeartbeatSeconds = 10,
+					ChartRedrawIntervalMs = intervalMs,
+				}
+			)
+		);
+
+	[Fact]
+	public void Unknown_chart_live_update_mode_is_rejected() =>
+		Assert.Throws<LSCoreBadRequestException>(() =>
+			new SettingsManager(_settings, _ibkr).SaveAppSettings(
+				new SaveAppSettingsRequest
+				{
+					MarketDataType = MarketDataType.Delayed,
+					HeartbeatSeconds = 10,
+					ChartLiveUpdateMode = (ChartLiveUpdateMode)99,
+				}
+			)
+		);
+
+	[Fact]
 	public void Display_time_zone_is_local_by_default_and_persisted_when_picked()
 	{
 		var manager = new SettingsManager(_settings, _ibkr);
