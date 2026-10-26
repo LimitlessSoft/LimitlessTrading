@@ -21,7 +21,7 @@ public static class SecConstants
 	/// e-mail address.
 	/// </summary>
 	public const string UserAgentProduct = "LimitlessTrading";
-	public const string UserAgentContact = "contact@limitlesssoft.com";
+	public const string UserAgentContact = "office@limitlesssoft.com";
 
 	/// <summary>SEC fair access: at most 10 requests per second; kept to 8.</summary>
 	public static readonly TimeSpan RequestSpacing = TimeSpan.FromMilliseconds(125);
