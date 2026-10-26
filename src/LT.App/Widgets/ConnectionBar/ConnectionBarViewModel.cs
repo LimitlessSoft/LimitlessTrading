@@ -58,11 +58,10 @@ public partial class ConnectionBarViewModel : ViewModelBase
 	private Task LogOutAsync() => _gatewayManager.StopAsync();
 
 	/// <summary>
-	/// On start: uses a Gateway still running from an earlier session (last trading mode's port)
+	/// On start: uses a Gateway still running from an earlier session (live or paper port)
 	/// instead of asking to log in. True when one was found.
 	/// </summary>
-	public Task<bool> AttachRunningGatewayAsync() =>
-		_gatewayManager.AttachRunningAsync(_gatewayManager.GetLastStartRequest().TradingMode);
+	public Task<bool> AttachRunningGatewayAsync() => _gatewayManager.AttachRunningAsync();
 
 	private void Apply()
 	{
@@ -74,7 +73,7 @@ public partial class ConnectionBarViewModel : ViewModelBase
 		IsConnecting =
 			gateway.State
 				is GatewayState.Starting
-					or GatewayState.AwaitingSecondFactor
+					or GatewayState.AwaitingLogin
 					or GatewayState.Stopping
 			|| (
 				gateway.State == GatewayState.Running
@@ -90,8 +89,8 @@ public partial class ConnectionBarViewModel : ViewModelBase
 
 		StateText = gateway.State switch
 		{
-			GatewayState.Starting => $"Logging in to IB Gateway ({gateway.TradingMode})…",
-			GatewayState.AwaitingSecondFactor => "Approve the login in IB Key…",
+			GatewayState.Starting => "Starting IB Gateway…",
+			GatewayState.AwaitingLogin => "Log in in the IB Gateway window…",
 			GatewayState.Stopping => "Logging out…",
 			GatewayState.Failed => "Login failed — click to retry",
 			GatewayState.Running => FormatConnection(connection),

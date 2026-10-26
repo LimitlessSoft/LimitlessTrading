@@ -1,21 +1,14 @@
-using LT.Contracts.Enums;
-
 namespace LT.Contracts.Requests.Gateway;
 
+/// <summary>
+/// Which installed Gateway to start. Credentials and live / paper are entered in Gateway's own
+/// login window, never here.
+/// </summary>
 public class StartGatewayRequest
 {
-	public string Username { get; set; } = string.Empty;
-	public string Password { get; set; } = string.Empty;
-	public TradingMode TradingMode { get; set; }
-
-	/// <summary>IBC install folder (contains scripts/ibcstart.sh, scripts/StartIBC.bat).</summary>
-	public string IbcPath { get; set; } = string.Empty;
-
-	/// <summary>Root of the Gateway install, IBC's tws-path (e.g. ~/Jts, C:\Jts).</summary>
+	/// <summary>Root of the Gateway install (e.g. ~/Jts, C:\Jts, ~/Applications).</summary>
 	public string GatewayPath { get; set; } = string.Empty;
 
+	/// <summary>Major version folder, e.g. "1050" for 10.50.</summary>
 	public string GatewayVersion { get; set; } = string.Empty;
-
-	/// <summary>Linux only: run Gateway under xvfb-run so no window appears.</summary>
-	public bool UseVirtualDisplay { get; set; }
 }

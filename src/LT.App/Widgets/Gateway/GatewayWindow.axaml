@@ -14,52 +14,23 @@
 		<TextBlock
 			Classes="secondary"
 			TextWrapping="Wrap"
-			Text="LimitlessTrading runs IB Gateway for you (through IBC) and connects to it. The password is not saved. Live accounts still need IB Key approval on your phone."
+			Text="LimitlessTrading starts IB Gateway and connects to it once you have logged in. Log in in Gateway's own window: username, password, live or paper, and IB Key approval on your phone. None of that goes through this app."
 		/>
-
-		<Grid
-			ColumnDefinitions="Auto,*"
-			RowDefinitions="Auto,Auto,Auto"
-			ColumnSpacing="10"
-			RowSpacing="8"
-		>
-			<TextBlock Grid.Row="0" VerticalAlignment="Center" Text="Username" />
-			<TextBox
-				Grid.Row="0"
-				Grid.Column="1"
-				Text="{Binding Username}"
-				IsEnabled="{Binding CanEdit}"
-			/>
-
-			<TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Password" />
-			<TextBox
-				Grid.Row="1"
-				Grid.Column="1"
-				PasswordChar="•"
-				Text="{Binding Password}"
-				IsEnabled="{Binding CanEdit}"
-			/>
-
-			<TextBlock Grid.Row="2" VerticalAlignment="Center" Text="Mode" />
-			<ComboBox
-				Grid.Row="2"
-				Grid.Column="1"
-				HorizontalAlignment="Stretch"
-				ItemsSource="{Binding TradingModes}"
-				SelectedItem="{Binding TradingMode}"
-				IsEnabled="{Binding CanEdit}"
-			/>
-		</Grid>
+		<TextBlock
+			Classes="secondary"
+			TextWrapping="Wrap"
+			Text="First time only, in Gateway: Configure → Settings → API → Settings — keep the socket port at 4001 (live) / 4002 (paper) and untick Read-Only API to trade from this app."
+		/>
 
 		<Expander
 			Header="Install"
 			HorizontalAlignment="Stretch"
-			IsExpanded="{Binding !IsInstallReady, Mode=OneWay}"
+			IsExpanded="{Binding !IsGatewayFound, Mode=OneWay}"
 		>
 			<StackPanel Spacing="8">
 				<Grid
 					ColumnDefinitions="Auto,*,Auto"
-					RowDefinitions="Auto,Auto,Auto"
+					RowDefinitions="Auto,Auto"
 					ColumnSpacing="8"
 					RowSpacing="8"
 				>
@@ -67,45 +38,25 @@
 						Grid.Row="0"
 						VerticalAlignment="Center"
 						Classes="secondary"
-						Text="IBC folder"
-					/>
-					<TextBox
-						Grid.Row="0"
-						Grid.Column="1"
-						Text="{Binding IbcPath}"
-						IsEnabled="{Binding CanEdit}"
-					/>
-					<Button
-						Grid.Row="0"
-						Grid.Column="2"
-						Content="Browse…"
-						Click="OnBrowseIbcClick"
-						IsEnabled="{Binding CanEdit}"
-					/>
-
-					<TextBlock
-						Grid.Row="1"
-						VerticalAlignment="Center"
-						Classes="secondary"
 						Text="Gateway folder"
 					/>
 					<TextBox
-						Grid.Row="1"
+						Grid.Row="0"
 						Grid.Column="1"
 						Text="{Binding GatewayPath}"
 						IsEnabled="{Binding CanEdit}"
 					/>
 					<Button
-						Grid.Row="1"
+						Grid.Row="0"
 						Grid.Column="2"
 						Content="Browse…"
 						Click="OnBrowseGatewayClick"
 						IsEnabled="{Binding CanEdit}"
 					/>
 
-					<TextBlock Grid.Row="2" VerticalAlignment="Center" Classes="secondary" Text="Version" />
+					<TextBlock Grid.Row="1" VerticalAlignment="Center" Classes="secondary" Text="Version" />
 					<TextBox
-						Grid.Row="2"
+						Grid.Row="1"
 						Grid.Column="1"
 						Width="90"
 						HorizontalAlignment="Left"
@@ -114,13 +65,6 @@
 					/>
 				</Grid>
 
-				<TextBlock
-					TextWrapping="Wrap"
-					Classes="secondary"
-					Classes.positive="{Binding IsIbcFound}"
-					Classes.negative="{Binding !IsIbcFound}"
-					Text="{Binding IbcStatusText}"
-				/>
 				<TextBlock
 					TextWrapping="Wrap"
 					Classes="secondary"
@@ -135,24 +79,7 @@
 					IsVisible="{Binding InstallError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
 				/>
 
-				<DockPanel>
-					<StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
-						<Button
-							Classes="accent"
-							Content="Install IBC"
-							ToolTip.Tip="Download the latest IBC release from github.com/IbcAlpha/IBC"
-							Command="{Binding InstallIbcCommand}"
-							IsVisible="{Binding !IsIbcFound}"
-						/>
-						<Button Content="Locate" Command="{Binding LocateCommand}" />
-					</StackPanel>
-					<CheckBox
-						Content="Hide the Gateway window (Xvfb)"
-						IsChecked="{Binding UseVirtualDisplay}"
-						IsEnabled="{Binding CanEdit}"
-						IsVisible="{Binding IsLinux}"
-					/>
-				</DockPanel>
+				<Button HorizontalAlignment="Right" Content="Locate" Command="{Binding LocateCommand}" />
 			</StackPanel>
 		</Expander>
 
@@ -175,8 +102,13 @@
 
 		<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
 			<Button Content="Close" IsCancel="True" Click="OnCloseClick" />
-			<Button Content="Log out" Command="{Binding StopCommand}" />
-			<Button Classes="accent" Content="Log in" IsDefault="True" Command="{Binding StartCommand}" />
+			<Button Content="{Binding StopText}" Command="{Binding StopCommand}" />
+			<Button
+				Classes="accent"
+				Content="Start IB Gateway"
+				IsDefault="True"
+				Command="{Binding StartCommand}"
+			/>
 		</StackPanel>
 	</StackPanel>
 </Window>

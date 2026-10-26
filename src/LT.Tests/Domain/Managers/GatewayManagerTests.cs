@@ -4,14 +4,16 @@ using LT.Contracts.Enums;
 using LT.Contracts.Requests.Gateway;
 using LT.Domain.Managers;
 using LT.Tests.Fakes;
+using Microsoft.Extensions.Time.Testing;
 
 namespace LT.Tests.Domain.Managers;
 
 public class GatewayManagerTests
 {
-	private readonly FakeIbcGatewayProcess _process = new();
-	private readonly FakeIbInstallProbe _probe = new();
-	private readonly FakeIbcDownloader _downloader = new();
+	private const string Launcher = "/home/u/Jts/ibgateway/1037/ibgateway";
+
+	private readonly FakeGatewayProcess _process = new();
+	private readonly FakeIbInstallProbe _probe = new FakeIbInstallProbe().AddFile(Launcher);
 	private readonly FakeIbkrApiClient _ibkr = new();
 	private readonly InMemorySettingsRepository _settings = new();
 	private readonly MessageLogManager _messages = new();
@@ -19,111 +21,145 @@ public class GatewayManagerTests
 	private readonly GatewayManager _manager;
 
 	private static StartGatewayRequest ValidRequest() =>
-		new()
-		{
-			Username = "trader1",
-			Password = "s3cret",
-			TradingMode = TradingMode.Paper,
-			IbcPath = "/opt/ibc",
-			GatewayPath = "/home/u/Jts",
-			GatewayVersion = "1037",
-		};
+		new() { GatewayPath = "/home/u/Jts", GatewayVersion = "1037" };
 
 	public GatewayManagerTests()
 	{
 		LSCoreContainer.EnsureInitialized();
-		_downloader.Probe = _probe;
 		// Real time: the start loop polls the port once per second
 		_connection = new ConnectionManager(_ibkr, _settings, _messages, TimeProvider.System);
-		_manager = new GatewayManager(
-			_process,
-			_probe,
-			_downloader,
-			_connection,
-			_settings,
-			TimeProvider.System
-		);
+		_manager = CreateManager(TimeProvider.System);
 	}
 
+	private GatewayManager CreateManager(TimeProvider timeProvider) =>
+		new(_process, _probe, _connection, _settings, timeProvider);
+
 	[Fact]
-	public async Task Start_goes_to_running_and_connects_to_the_gateway_port()
+	public async Task Start_launches_gateway_and_connects_once_the_user_has_logged_in()
 	{
 		var states = new List<GatewayStatusDto>();
 		_manager.StatusChanged += states.Add;
 
 		await _manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken);
 
-		Assert.Equal([GatewayState.Starting, GatewayState.Running], states.Select(x => x.State));
-		Assert.Equal(4002, _manager.Status.ApiPort);
+		Assert.Equal(Launcher, _process.LastLauncher);
+		Assert.Equal(
+			[GatewayState.Starting, GatewayState.AwaitingLogin, GatewayState.Running],
+			states.Select(x => x.State)
+		);
+		Assert.Equal(
+			(TradingMode.Paper, 4002),
+			(_manager.Status.TradingMode, _manager.Status.ApiPort)
+		);
+		Assert.False(_manager.Status.IsExternal);
 		Assert.Equal(ConnectionState.Connected, _connection.Status.State);
 		Assert.Equal(4002, _connection.GetLastConnectRequest().Port);
 	}
 
 	[Fact]
-	public async Task Start_deletes_the_config_holding_the_password()
-	{
-		await _manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken);
-
-		Assert.Contains("IbPassword=s3cret", _process.LastLaunch!.ConfigContent);
-		Assert.True(_process.DeleteConfigCount > 0);
-	}
-
-	[Fact]
-	public async Task Start_remembers_settings_but_not_the_password()
-	{
-		await _manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken);
-
-		var last = _manager.GetLastStartRequest();
-		Assert.Equal(("trader1", "1037"), (last.Username, last.GatewayVersion));
-		Assert.Equal(string.Empty, last.Password);
-	}
-
-	[Fact]
-	public async Task Second_factor_prompt_is_reported_until_port_opens()
+	public async Task Start_waits_while_the_user_logs_in()
 	{
 		_process.PortOpensAfterProbes = 1;
-		_process.OnStart = p =>
-			p.EmitOutput("IBC: detected dialog entitled: Second Factor Authentication");
-		var states = new List<GatewayState>();
-		_manager.StatusChanged += x => states.Add(x.State);
+
+		await _manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken);
+
+		Assert.Equal(GatewayState.Running, _manager.Status.State);
+		Assert.Equal(ConnectionState.Connected, _connection.Status.State);
+	}
+
+	[Fact]
+	public async Task Logging_in_to_live_connects_to_the_live_port_and_remembers_the_mode()
+	{
+		_process.PortAfterLogin = 4001;
 
 		await _manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken);
 
 		Assert.Equal(
-			[GatewayState.Starting, GatewayState.AwaitingSecondFactor, GatewayState.Running],
-			states
+			(TradingMode.Live, 4001),
+			(_manager.Status.TradingMode, _manager.Status.ApiPort)
 		);
+		Assert.Equal(4001, _connection.GetLastConnectRequest().Port);
+		Assert.Equal(TradingMode.Live, _settings.Settings.Gateway.TradingMode);
 	}
 
 	[Fact]
-	public async Task Rejected_login_fails_and_stops_the_process()
+	public async Task Start_remembers_the_install()
+	{
+		var request = ValidRequest();
+		request.GatewayVersion = "1050";
+		_probe.AddFile("/home/u/Jts/ibgateway/1050/ibgateway1");
+
+		await _manager.StartAsync(request, TestContext.Current.CancellationToken);
+
+		var last = _manager.GetLastStartRequest();
+		Assert.Equal(("/home/u/Jts", "1050"), (last.GatewayPath, last.GatewayVersion));
+		Assert.Equal("/home/u/Jts/ibgateway/1050/ibgateway1", _process.LastLauncher);
+	}
+
+	[Fact]
+	public async Task Gateway_closed_before_login_goes_back_to_stopped_without_an_error()
 	{
 		_process.PortOpensAfterProbes = null;
-		_process.OnStart = p => p.EmitOutput("IBC: Unrecognized Username or Password");
+		_process.OnStart = p => p.Exit(0);
 
 		await _manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken);
 
-		Assert.Equal(GatewayState.Failed, _manager.Status.State);
-		Assert.Contains("rejected the login", _manager.Status.Error);
+		Assert.Equal(GatewayState.Stopped, _manager.Status.State);
+		Assert.Null(_manager.Status.Error);
+		Assert.Equal(ConnectionState.Disconnected, _connection.Status.State);
+	}
+
+	[Fact]
+	public async Task Gateway_failing_before_login_reports_its_exit_code()
+	{
+		_process.PortOpensAfterProbes = null;
+		_process.OnStart = p => p.Exit(1);
+
+		await _manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken);
+
+		Assert.Equal(GatewayState.Stopped, _manager.Status.State);
+		Assert.Contains("code 1", _manager.Status.Error);
+	}
+
+	[Fact]
+	public async Task Stop_while_waiting_for_login_cancels_and_closes_gateway()
+	{
+		_process.PortOpensAfterProbes = null;
+		var awaiting = new TaskCompletionSource();
+		_manager.StatusChanged += x =>
+		{
+			if (x.State == GatewayState.AwaitingLogin)
+				awaiting.TrySetResult();
+		};
+
+		var start = _manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken);
+		await awaiting.Task;
+		await _manager.StopAsync();
+		await start;
+
+		Assert.Equal(GatewayState.Stopped, _manager.Status.State);
 		Assert.Equal(1, _process.StopCount);
 		Assert.Equal(ConnectionState.Disconnected, _connection.Status.State);
 	}
 
 	[Fact]
-	public async Task Ibc_exiting_during_start_fails_with_its_last_line()
+	public async Task No_login_within_the_timeout_fails_and_closes_gateway()
 	{
+		var time = new FakeTimeProvider();
+		var manager = CreateManager(time);
 		_process.PortOpensAfterProbes = null;
-		_process.OnStart = p =>
+
+		var start = manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken);
+		while (!start.IsCompleted)
 		{
-			p.EmitOutput("Error: IB Gateway version 1037 is not installed");
-			p.Exit(1);
-		};
+			time.Advance(TimeSpan.FromMinutes(1));
+			await Task.Delay(1, TestContext.Current.CancellationToken);
+		}
+		await start;
 
-		await _manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken);
-
-		Assert.Equal(GatewayState.Failed, _manager.Status.State);
-		Assert.Contains("code 1", _manager.Status.Error);
-		Assert.Contains("is not installed", _manager.Status.Error);
+		Assert.Equal(GatewayState.Failed, manager.Status.State);
+		Assert.Contains("4001", manager.Status.Error);
+		Assert.Equal(1, _process.StopCount);
 	}
 
 	[Fact]
@@ -138,57 +174,73 @@ public class GatewayManagerTests
 	}
 
 	[Fact]
-	public async Task Missing_ibc_script_throws_before_starting()
+	public async Task Missing_launcher_throws_before_starting()
 	{
-		_process.ScriptPresent = false;
+		var request = ValidRequest();
+		request.GatewayVersion = "1099";
 
 		await Assert.ThrowsAsync<LSCoreBadRequestException>(() =>
-			_manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken)
+			_manager.StartAsync(request, TestContext.Current.CancellationToken)
 		);
-		Assert.Null(_process.LastLaunch);
+		Assert.Null(_process.LastLauncher);
 	}
 
 	[Fact]
 	public async Task Busy_api_port_uses_the_running_gateway_instead_of_starting_one()
 	{
-		_process.PortOpenBeforeStart = true;
+		_process.PortsOpenBeforeStart.Add(4001);
 
 		await _manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken);
 
-		Assert.Null(_process.LastLaunch);
-		Assert.Equal(
-			(GatewayState.Running, true, 4002),
-			(_manager.Status.State, _manager.Status.IsExternal, _manager.Status.ApiPort)
-		);
-		Assert.Equal(ConnectionState.Connected, _connection.Status.State);
-	}
-
-	[Fact]
-	public async Task Attach_connects_to_a_gateway_already_running_on_the_mode_port()
-	{
-		_process.PortOpenBeforeStart = true;
-
-		var attached = await _manager.AttachRunningAsync(
-			TradingMode.Live,
-			TestContext.Current.CancellationToken
-		);
-
-		Assert.True(attached);
+		Assert.Null(_process.LastLauncher);
 		Assert.Equal(
 			(GatewayState.Running, true, 4001),
 			(_manager.Status.State, _manager.Status.IsExternal, _manager.Status.ApiPort)
 		);
 		Assert.Equal(ConnectionState.Connected, _connection.Status.State);
-		Assert.Null(_process.LastLaunch);
+	}
+
+	[Theory]
+	[InlineData(4001, TradingMode.Live)]
+	[InlineData(4002, TradingMode.Paper)]
+	public async Task Attach_connects_to_a_gateway_running_on_either_port(
+		int port,
+		TradingMode mode
+	)
+	{
+		_process.PortsOpenBeforeStart.Add(port);
+
+		var attached = await _manager.AttachRunningAsync(TestContext.Current.CancellationToken);
+
+		Assert.True(attached);
+		Assert.Equal(
+			(GatewayState.Running, true, port, mode),
+			(
+				_manager.Status.State,
+				_manager.Status.IsExternal,
+				_manager.Status.ApiPort,
+				_manager.Status.TradingMode
+			)
+		);
+		Assert.Equal(ConnectionState.Connected, _connection.Status.State);
+		Assert.Null(_process.LastLauncher);
+	}
+
+	[Fact]
+	public async Task Attach_prefers_the_last_used_mode()
+	{
+		_process.PortsOpenBeforeStart.UnionWith([4001, 4002]);
+		_settings.Settings.Gateway.TradingMode = TradingMode.Live;
+
+		await _manager.AttachRunningAsync(TestContext.Current.CancellationToken);
+
+		Assert.Equal(4001, _manager.Status.ApiPort);
 	}
 
 	[Fact]
 	public async Task Attach_without_a_running_gateway_leaves_it_stopped()
 	{
-		var attached = await _manager.AttachRunningAsync(
-			TradingMode.Paper,
-			TestContext.Current.CancellationToken
-		);
+		var attached = await _manager.AttachRunningAsync(TestContext.Current.CancellationToken);
 
 		Assert.False(attached);
 		Assert.Equal(GatewayState.Stopped, _manager.Status.State);
@@ -197,7 +249,7 @@ public class GatewayManagerTests
 	[Fact]
 	public async Task Stopping_an_external_gateway_only_disconnects()
 	{
-		_process.PortOpenBeforeStart = true;
+		_process.PortsOpenBeforeStart.Add(4002);
 		await _manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken);
 
 		await _manager.StopAsync();
@@ -211,12 +263,12 @@ public class GatewayManagerTests
 	public async Task Invalid_request_throws_and_does_not_start()
 	{
 		var request = ValidRequest();
-		request.Password = "";
+		request.GatewayPath = "";
 
 		await Assert.ThrowsAsync<LSCoreBadRequestException>(() =>
 			_manager.StartAsync(request, TestContext.Current.CancellationToken)
 		);
-		Assert.Null(_process.LastLaunch);
+		Assert.Null(_process.LastLauncher);
 		Assert.Equal(GatewayState.Stopped, _manager.Status.State);
 	}
 
@@ -231,37 +283,7 @@ public class GatewayManagerTests
 	}
 
 	[Fact]
-	public async Task InstallIbc_installs_into_app_data_and_returns_the_ibc_folder()
-	{
-		var path = await _manager.InstallIbcAsync(TestContext.Current.CancellationToken);
-
-		Assert.Equal(_downloader.InstalledTo, path);
-		Assert.EndsWith("ibc", path);
-	}
-
-	[Fact]
-	public async Task InstallIbc_without_an_asset_for_this_os_throws()
-	{
-		_downloader.Release = new IbcReleaseDto { Version = "9.9", Assets = [] };
-
-		await Assert.ThrowsAsync<LSCoreBadRequestException>(() =>
-			_manager.InstallIbcAsync(TestContext.Current.CancellationToken)
-		);
-		Assert.Null(_downloader.InstalledTo);
-	}
-
-	[Fact]
-	public async Task InstallIbc_while_gateway_runs_throws()
-	{
-		await _manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken);
-
-		await Assert.ThrowsAsync<LSCoreBadRequestException>(() =>
-			_manager.InstallIbcAsync(TestContext.Current.CancellationToken)
-		);
-	}
-
-	[Fact]
-	public async Task Stop_disconnects_and_stops_the_process()
+	public async Task Stop_disconnects_and_closes_the_gateway_it_started()
 	{
 		await _manager.StartAsync(ValidRequest(), TestContext.Current.CancellationToken);
 

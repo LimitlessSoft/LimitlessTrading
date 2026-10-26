@@ -4,13 +4,15 @@ using LT.Contracts.Helpers;
 
 namespace LT.Contracts.Entities;
 
-/// <summary>The password is never persisted — only what's needed to prefill the form.</summary>
+/// <summary>
+/// The Gateway install to start and the mode last logged in to. Credentials are never stored:
+/// the user types them in Gateway's own window. Settings files from the IBC era also carry
+/// Username / IbcPath / UseVirtualDisplay; they are ignored when read.
+/// </summary>
 public class GatewaySettingsEntity
 {
-	public string Username { get; set; } = string.Empty;
+	/// <summary>Mode of the last Gateway connected to; its port is tried first when attaching.</summary>
 	public TradingMode TradingMode { get; set; } = TradingMode.Paper;
-	public string IbcPath { get; set; } = IbcHelpers.GetDefaultIbcPath();
-	public string GatewayPath { get; set; } = IbcHelpers.GetDefaultGatewayPath();
+	public string GatewayPath { get; set; } = GatewayHelpers.GetDefaultGatewayPath();
 	public string GatewayVersion { get; set; } = GatewayConstants.DefaultGatewayVersion;
-	public bool UseVirtualDisplay { get; set; }
 }

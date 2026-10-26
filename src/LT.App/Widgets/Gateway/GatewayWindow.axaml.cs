@@ -19,15 +19,6 @@ public partial class GatewayWindow : Window
 
 	private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
 
-	private async void OnBrowseIbcClick(object? sender, RoutedEventArgs e)
-	{
-		if (
-			DataContext is GatewayViewModel vm
-			&& await PickFolderAsync("IBC folder", vm.IbcPath) is { } path
-		)
-			vm.UseIbcFolder(path);
-	}
-
 	private async void OnBrowseGatewayClick(object? sender, RoutedEventArgs e)
 	{
 		if (

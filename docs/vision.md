@@ -1,7 +1,7 @@
 # Vision — TWS, but better
 
 LimitlessTrading is a cross-platform (**Windows, macOS, Linux**) desktop trading front-end for
-Interactive Brokers, built with **Avalonia** on **.NET 10**. It runs IB Gateway itself (via IBC) and talks to it through
+Interactive Brokers, built with **Avalonia** on **.NET 10**. It starts IB Gateway itself (the user logs in in Gateway's window) and talks to it through
 the socket API ([ibkr-tws-api.md](ibkr-tws-api.md)) and aims to replace the TWS UI for day-to-day use.
 
 ## Why

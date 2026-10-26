@@ -7,7 +7,7 @@ public static class AppConstants
 
 	/// <summary>
 	/// How long closing may take to disconnect and stop the Gateway before the process exits
-	/// anyway (IBC itself gives the Gateway up to 20 s to stop, then it is killed).
+	/// anyway.
 	/// </summary>
 	public static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(30);
 

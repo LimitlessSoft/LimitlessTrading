@@ -32,7 +32,7 @@ src/
 │   ├── Interfaces/
 │   │   ├── IApiClients/           # IIbkrApiClient — the broker boundary
 │   │   ├── IManagers/
-│   │   ├── IProcesses/            # IIbcGatewayProcess — child processes we own (IBC + Gateway)
+│   │   ├── IProcesses/            # IGatewayProcess — child processes we own (IB Gateway)
 │   │   └── IRepositories/
 │   └── Requests/<Feature>/
 ├── LT.Domain/
@@ -42,7 +42,7 @@ src/
 │   └── Repositories/              # SettingsRepository (JSON in the user's app-data folder)
 ├── LT.Ibkr/
 │   ├── DtoMappings/               # IBKR.Net types ↔ LT.Contracts DTOs
-│   ├── Ibc/                       # IbcGatewayProcess — starts / stops IB Gateway via IBC
+│   ├── Gateway/                   # GatewayProcess — starts / stops IB Gateway's launcher
 │   ├── RequestThrottle.cs         # IB pacing (messages/s, historical requests / 10 min)
 │   └── IbkrApiClient.cs           # implements IIbkrApiClient over IBKR.Net (+ order connection)
 ├── LT.App/                        # Avalonia (Fluent, dark)
