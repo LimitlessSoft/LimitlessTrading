@@ -28,4 +28,8 @@ public static class AppPathHelpers
 	/// <summary>Indicator scripts: one <c>*.cs</c> file per indicator, plus the editor project.</summary>
 	public static string GetIndicatorsDirectory() =>
 		Path.Combine(GetAppDataDirectory(), IndicatorConstants.DirectoryName);
+
+	/// <summary>Sounds the app generated for the system player (<c>SoundHelpers</c>).</summary>
+	public static string GetSoundsDirectory() =>
+		Path.Combine(GetAppDataDirectory(), SoundConstants.DirectoryName);
 }

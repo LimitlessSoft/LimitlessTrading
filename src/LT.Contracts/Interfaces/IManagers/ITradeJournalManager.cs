@@ -1,4 +1,5 @@
 using LT.Contracts.Dtos.Account;
+using LT.Contracts.Dtos.Executions;
 using LT.Contracts.Dtos.Flex;
 using LT.Contracts.Dtos.Performance;
 
@@ -17,6 +18,12 @@ public interface ITradeJournalManager
 	/// <summary>Raised on any thread after a P&amp;L update was recorded.</summary>
 	event Action? PnlChanged;
 
+	/// <summary>
+	/// Raised on the requesting thread with every execution of each successful executions answer
+	/// (<see cref="RecordExecutionsAsync"/>), recorded before or not. Handlers must not throw.
+	/// </summary>
+	event Action<IReadOnlyList<ExecutionDto>>? ExecutionsReceived;
+
 	/// <summary>Why the last executions request failed (e.g. an IB error); null when it worked.</summary>
 	string? ExecutionsError { get; }
 
@@ -31,6 +38,14 @@ public interface ITradeJournalManager
 	/// Saves pending samples when it ends.
 	/// </summary>
 	Task RecordAsync(CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Makes a running <see cref="RecordAsync"/> ask for executions
+	/// <c>TradeJournalConstants.FillRefreshDelay</c> from now rather than at its next poll (an
+	/// order reported a fill). Requests coalesce: any number made before that request starts, or
+	/// while it runs, add one more request at most. Nothing happens while not recording.
+	/// </summary>
+	void RequestExecutionsRefresh();
 
 	/// <summary>Asks IB for the day's executions once and merges them into the journal; returns the fills added or updated.</summary>
 	Task<int> RecordExecutionsAsync(CancellationToken cancellationToken = default);

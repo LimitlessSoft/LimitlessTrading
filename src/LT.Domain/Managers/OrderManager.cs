@@ -20,6 +20,8 @@ public class OrderManager(IIbkrApiClient ibkrApiClient, ICacheManager cacheManag
 	// Positions with a quick exit still working, so a second click can't send a second exit
 	private readonly ConcurrentDictionary<(string Account, int ContractId), byte> _exits = new();
 
+	public event Action<OrderStatusDto>? OrderFilled;
+
 	public async Task<IReadOnlyList<OpenOrderDto>> GetOpenOrdersAsync(
 		string? account,
 		CancellationToken cancellationToken = default
@@ -58,17 +60,22 @@ public class OrderManager(IIbkrApiClient ibkrApiClient, ICacheManager cacheManag
 
 	public void ValidateOrder(PlaceOrderRequest request) => request.Validate();
 
-	public Task<PlacedOrderDto> PlaceOrderAsync(
+	public async Task<PlacedOrderDto> PlaceOrderAsync(
 		PlaceOrderRequest request,
 		CancellationToken cancellationToken = default
 	)
 	{
 		request.Validate();
-		return ibkrApiClient.PlaceOrderAsync(
+		var placed = await ibkrApiClient.PlaceOrderAsync(
 			request.Contract!,
 			OrderHelpers.ToOrder(request),
 			cancellationToken
 		);
+		return new PlacedOrderDto
+		{
+			OrderId = placed.OrderId,
+			Statuses = OrderHelpers.OnFillsAsync(placed.Statuses, x => OrderFilled?.Invoke(x)),
+		};
 	}
 
 	public async Task<PlacedOrderDto> ExitPositionAsync(
@@ -98,7 +105,7 @@ public class OrderManager(IIbkrApiClient ibkrApiClient, ICacheManager cacheManag
 			{
 				OrderId = placed.OrderId,
 				Statuses = AsyncEnumerableHelpers.OnEndAsync(
-					placed.Statuses,
+					OrderHelpers.OnFillsAsync(placed.Statuses, x => OrderFilled?.Invoke(x)),
 					() => _exits.TryRemove(key, out _)
 				),
 			};

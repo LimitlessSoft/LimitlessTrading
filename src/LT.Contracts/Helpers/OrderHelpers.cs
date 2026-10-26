@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Dtos.Positions;
@@ -150,4 +151,45 @@ public static class OrderHelpers
 		)
 			? value
 			: null;
+
+	/// <summary>
+	/// Whether a status reports a fill the order's earlier statuses didn't: more filled quantity
+	/// than <paramref name="previousFilled"/>, or a first Filled status with no quantity reported
+	/// before. Submitted, or Cancelled with nothing filled, is not one.
+	/// </summary>
+	public static bool IsNewFill(OrderStatusDto status, decimal previousFilled, bool filledSeen) =>
+		status.Filled > previousFilled
+		|| (status.Status == OrderConstants.FilledStatus && previousFilled == 0 && !filledSeen);
+
+	/// <summary>
+	/// Passes an order's statuses through and calls <paramref name="onFill"/> for each that
+	/// reports a new fill (<see cref="IsNewFill"/>); an <paramref name="onFill"/> that throws never
+	/// ends the stream.
+	/// </summary>
+	public static async IAsyncEnumerable<OrderStatusDto> OnFillsAsync(
+		IAsyncEnumerable<OrderStatusDto> statuses,
+		Action<OrderStatusDto> onFill,
+		[EnumeratorCancellation] CancellationToken cancellationToken = default
+	)
+	{
+		decimal filled = 0;
+		var filledSeen = false;
+		await foreach (
+			var status in statuses.WithCancellation(cancellationToken).ConfigureAwait(false)
+		)
+		{
+			if (IsNewFill(status, filled, filledSeen))
+				try
+				{
+					onFill(status);
+				}
+				catch (Exception)
+				{
+					// Following the order matters more than what listens for its fills
+				}
+			filled = Math.Max(filled, status.Filled);
+			filledSeen |= status.Status == OrderConstants.FilledStatus;
+			yield return status;
+		}
+	}
 }

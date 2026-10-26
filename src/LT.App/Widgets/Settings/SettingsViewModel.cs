@@ -94,6 +94,12 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		"version release upgrade"
 	);
 
+	private readonly BoolSettingViewModel _playFillSound = new(
+		"Play a sound when an order fills",
+		"Every new fill (each partial fill too) on any account, from this app or TWS. Fills are checked every 30 seconds, so the sound can come up to that late; those IB replays on connect stay silent.",
+		"sound audio beep chime alert notification fill execution trade"
+	);
+
 	private readonly BoolSettingViewModel _cacheEnabled = new(
 		"Cache data on disk",
 		"Keeps data fetched from IB to open things faster and to show the last known values, marked as cached, while IB can't be reached. Off: nothing is read from or written to the cache.",
@@ -202,6 +208,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		_heartbeatSeconds.Value = settings.HeartbeatSeconds;
 		_stopGatewayOnExit.Value = settings.StopGatewayOnExit;
 		_checkForUpdates.Value = settings.CheckForUpdates;
+		_playFillSound.Value = settings.PlayFillSound;
 		_layoutStyle.Value = settings.LayoutStyle;
 		_cacheEnabled.Value = settings.CacheEnabled;
 		_cacheChartBars.Value = settings.CacheChartBars;
@@ -228,6 +235,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 				[
 					new SettingsPageViewModel("Updates", [new("Updates", _checkForUpdates)]),
 					new SettingsPageViewModel("Time zone", [new("Time zone", _displayTimeZone)]),
+					new SettingsPageViewModel("Sounds", [new("Fills", _playFillSound)]),
 					new SettingsPageViewModel(
 						"Charts",
 						[new("Live updates", _chartLiveUpdates, _chartRedrawInterval)]
@@ -334,6 +342,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 					ChartLiveUpdateMode = SelectedChartLiveUpdateMode,
 					ChartRedrawIntervalMs = (int)(_chartRedrawInterval.Value ?? 0),
 					DisplayTimeZoneId = (_displayTimeZone.Value as TimeZoneOption)?.Id,
+					PlayFillSound = _playFillSound.Value,
 				}
 			);
 			// a lowered limit applies now, not at the next cache write
