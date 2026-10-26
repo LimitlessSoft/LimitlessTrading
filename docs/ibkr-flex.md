@@ -45,8 +45,9 @@ and then.
 1. **Activity Flex Query** — Client Portal → **Performance & Reports → Flex Queries** → in
    *Activity Flex Query* click **+**.
    - Query name: anything, e.g. `LimitlessTrading activity`.
-   - **Sections** — tick each and choose **Select All** fields (simplest; the app ignores what it
-     doesn't use). The fields the app reads are listed in brackets.
+   - **Sections** — click each; a field list pops up with the section's options (checkboxes at
+     the top) and its fields: pick the options below, tick **Select All**, Save. Only these four
+     are needed; extra sections are ignored. The fields the app reads are listed in brackets.
      - **Account Information** [Account ID, Currency, Date Opened]
      - **Net Asset Value (NAV) in Base** [Account ID, Currency, Report Date, Total]
      - **Cash Transactions** — options: **Deposits & Withdrawals** (others may stay on), level
@@ -61,8 +62,9 @@ and then.
      365 Calendar Days** (the app always sends its own from / to dates, but IB needs a period).
    - **General configuration**: **Date Format: yyyyMMdd**, **Time Format: HHmmss**,
      **Date/Time Separator: ; (semi-colon)** (IB's defaults); **Display Account Alias in Place
-     of Account ID: No** (the ids must match the Gateway's); **Include Canceled Trades: No**;
-     Profit and Loss: Default; the other options as they are.
+     of Account ID: No** (the ids must match the Gateway's); **Include Offsetting Trade/Cancel
+     Pairs?: No**; **Breakout by Day?: No**; Profit and Loss: Default; the other options as they
+     are. Then **Continue** and **Create**.
    - **Save**, then note the **Query ID** shown for it in the Activity Flex Query list.
 2. **Trade Confirmation Flex Query** (optional — today's trades, a few minutes after each fill) —
    in *Trade Confirmation Flex Query* click **+**: section **Trade Confirmations**, option

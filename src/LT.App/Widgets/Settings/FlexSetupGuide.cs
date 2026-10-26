@@ -17,7 +17,7 @@ public static class FlexSetupGuide
 			[
 				new GuideStepViewModel(
 					1,
-					"Create an Activity Flex Query: Flex Queries page → Activity Flex Query → +. Tick these sections and choose Select All fields in each, then set the options below. Save, and copy the Query ID shown next to it in the list.",
+					"Create an Activity Flex Query: Flex Queries page → Activity Flex Query → +. Click each of these sections; a field list opens where you pick the options shown and Select All, then Save it. Set the options below under Delivery and General Configuration, then Continue. Save, and copy the Query ID shown next to it in the list.",
 					[
 						new("Query name", "LimitlessTrading activity"),
 						new("Section", "Account Information"),
@@ -33,7 +33,8 @@ public static class FlexSetupGuide
 						new("Time Format", "HHmmss"),
 						new("Date/Time Separator", "; (semi-colon)"),
 						new("Display Account Alias in Place of Account ID", "No"),
-						new("Include Canceled Trades", "No"),
+						new("Include Offsetting Trade/Cancel Pairs?", "No"),
+						new("Breakout by Day?", "No"),
 					],
 					OpenFlexQueries,
 					FlexConstants.ClientPortalFlexQueriesUrl
