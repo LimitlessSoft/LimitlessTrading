@@ -19,6 +19,9 @@ public interface IAppUpdater
 
 	Task<AppReleaseDto> GetLatestReleaseAsync(CancellationToken cancellationToken = default);
 
+	/// <summary>Every published release, newest first as GitHub lists them (patch notes).</summary>
+	Task<List<AppReleaseDto>> GetReleasesAsync(CancellationToken cancellationToken = default);
+
 	/// <summary>Downloads and unpacks the release next to the app folder, ready to apply.</summary>
 	Task DownloadAsync(
 		AppReleaseAssetDto asset,

@@ -38,6 +38,7 @@
 					/>
 					<Separator />
 					<MenuItem Header="Check for updates" Command="{Binding Update.CheckCommand}" />
+					<MenuItem Header="Patch notes" Click="OnPatchNotesClick" />
 					<MenuItem Header="Settings…" InputGesture="Ctrl+OemComma" Click="OnSettingsClick" />
 					<Separator />
 					<MenuItem Header="Exit" Click="OnExitClick" />

@@ -70,22 +70,26 @@ public class AppUpdater : IAppUpdater
 			cancellationToken: cancellationToken
 		);
 
-		var root = json.RootElement;
-		return new AppReleaseDto
-		{
-			Tag = root.GetProperty("tag_name").GetString() ?? string.Empty,
-			PageUrl = root.GetProperty("html_url").GetString() ?? string.Empty,
-			Assets = root.GetProperty("assets")
-				.EnumerateArray()
-				.Select(x => new AppReleaseAssetDto
-				{
-					Name = x.GetProperty("name").GetString() ?? string.Empty,
-					DownloadUrl = x.GetProperty("browser_download_url").GetString() ?? string.Empty,
-					Size = x.GetProperty("size").GetInt64(),
-					Digest = x.TryGetProperty("digest", out var digest) ? digest.GetString() : null,
-				})
-				.ToList(),
-		};
+		return ReadRelease(json.RootElement);
+	}
+
+	public async Task<List<AppReleaseDto>> GetReleasesAsync(
+		CancellationToken cancellationToken = default
+	)
+	{
+		using var response = await Http.GetAsync(AppConstants.ReleasesApiUrl, cancellationToken);
+		response.EnsureSuccessStatusCode();
+		await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+		using var json = await JsonDocument.ParseAsync(
+			stream,
+			cancellationToken: cancellationToken
+		);
+		// Drafts are only listed to the repository's members; never shown as released
+		return json
+			.RootElement.EnumerateArray()
+			.Where(x => !(x.TryGetProperty("draft", out var draft) && draft.GetBoolean()))
+			.Select(ReadRelease)
+			.ToList();
 	}
 
 	public async Task DownloadAsync(
@@ -255,6 +259,35 @@ public class AppUpdater : IAppUpdater
 		}
 		return hash.GetHashAndReset();
 	}
+
+	// One release of GitHub's REST API
+	private static AppReleaseDto ReadRelease(JsonElement release) =>
+		new()
+		{
+			Tag = release.GetProperty("tag_name").GetString() ?? string.Empty,
+			PageUrl = release.GetProperty("html_url").GetString() ?? string.Empty,
+			PublishedAt =
+				release.TryGetProperty("published_at", out var published)
+				&& published.ValueKind == JsonValueKind.String
+					? published.GetDateTimeOffset()
+					: null,
+			Body =
+				release.TryGetProperty("body", out var body)
+				&& body.ValueKind == JsonValueKind.String
+					? body.GetString() ?? string.Empty
+					: string.Empty,
+			Assets = release
+				.GetProperty("assets")
+				.EnumerateArray()
+				.Select(x => new AppReleaseAssetDto
+				{
+					Name = x.GetProperty("name").GetString() ?? string.Empty,
+					DownloadUrl = x.GetProperty("browser_download_url").GetString() ?? string.Empty,
+					Size = x.GetProperty("size").GetInt64(),
+					Digest = x.TryGetProperty("digest", out var digest) ? digest.GetString() : null,
+				})
+				.ToList(),
+		};
 
 	private static HttpClient CreateHttpClient()
 	{
