@@ -312,9 +312,6 @@
 		<Style Selector="Border.strip.horizontal">
 			<Setter Property="Padding" Value="8,4" />
 		</Style>
-		<Style Selector="Border.strip.horizontal Button.tool">
-			<Setter Property="Margin" Value="0,0,4,0" />
-		</Style>
 		<Style Selector="Border.toolbar">
 			<Setter Property="Background" Value="{DynamicResource PanelBackground}" />
 			<Setter Property="Padding" Value="4,4,4,0" />
@@ -372,6 +369,11 @@
 		<Style Selector="Button.tool PathIcon">
 			<Setter Property="Width" Value="18" />
 			<Setter Property="Height" Value="18" />
+		</Style>
+		<!-- Bottom strip icons sit in a row, so the gap goes to the right instead of below.
+		     Must follow Button.tool: Avalonia lets the later style win, not the more specific. -->
+		<Style Selector="Border.strip.horizontal Button.tool">
+			<Setter Property="Margin" Value="0,0,4,0" />
 		</Style>
 		<Style Selector="Button.tool.active">
 			<Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
