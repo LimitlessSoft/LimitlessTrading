@@ -1,5 +1,6 @@
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Orders;
+using LT.Contracts.Dtos.Positions;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 using LT.Contracts.Requests.Orders;
@@ -94,5 +95,71 @@ public class OrderHelpersTests
 		Assert.Equal("≈ 0.000125 units", OrderHelpers.Estimate(null, 10, 80000));
 		Assert.Equal("≈ $16.00", OrderHelpers.Estimate(0.0002m, null, 80000));
 		Assert.Null(OrderHelpers.Estimate(1, null, null));
+	}
+
+	private static PositionDto Position(decimal quantity) =>
+		new()
+		{
+			Account = "U1234567",
+			ContractId = 265598,
+			Symbol = "AAPL",
+			Quantity = quantity,
+			Contract = new ContractDto
+			{
+				ConId = 265598,
+				Symbol = "AAPL",
+				SecurityType = "STK",
+			},
+		};
+
+	[Fact]
+	public void Closing_a_long_position_sells_all_of_it()
+	{
+		var draft = OrderHelpers.GetClosingDraft(Position(100));
+
+		Assert.NotNull(draft);
+		Assert.Equal(OrderAction.Sell, draft.Action);
+		Assert.Equal(100m, draft.Quantity);
+		Assert.Equal("U1234567", draft.Account);
+		Assert.Equal(265598, draft.Contract.ConId);
+	}
+
+	[Fact]
+	public void Closing_a_short_position_buys_it_back()
+	{
+		var draft = OrderHelpers.GetClosingDraft(Position(-25));
+
+		Assert.NotNull(draft);
+		Assert.Equal(OrderAction.Buy, draft.Action);
+		Assert.Equal(25m, draft.Quantity);
+		Assert.Contains("short", draft.Note);
+	}
+
+	[Fact]
+	public void A_fractional_position_closes_in_full()
+	{
+		var draft = OrderHelpers.GetClosingDraft(Position(0.00012345m));
+
+		Assert.NotNull(draft);
+		Assert.Equal(0.00012345m, draft.Quantity);
+		Assert.Equal(
+			0.00012345m,
+			OrderHelpers.ParseNumber(OrderHelpers.FormatInput(draft.Quantity))
+		);
+	}
+
+	[Fact]
+	public void A_flat_position_has_nothing_to_close() =>
+		Assert.Null(OrderHelpers.GetClosingDraft(Position(0)));
+
+	[Theory]
+	[InlineData("1500", 1500)]
+	[InlineData("0.5", 0.5)]
+	public void Input_text_reads_back_as_the_same_number(string expected, double value)
+	{
+		var text = OrderHelpers.FormatInput((decimal)value);
+
+		Assert.Equal(expected, text);
+		Assert.Equal((decimal)value, OrderHelpers.ParseNumber(text));
 	}
 }

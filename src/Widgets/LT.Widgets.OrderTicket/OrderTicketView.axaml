@@ -18,6 +18,12 @@
 				<TextBlock FontWeight="SemiBold" Text="{Binding ContractText}" />
 				<TextBlock Classes="secondary" FontSize="12" Text="{Binding QuoteText}" />
 			</StackPanel>
+			<TextBlock
+				Classes="warning"
+				TextWrapping="Wrap"
+				Text="{Binding DraftText}"
+				IsVisible="{Binding DraftText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+			/>
 
 			<Grid
 				ColumnDefinitions="Auto,*"

@@ -66,6 +66,10 @@
 		<StreamGeometry x:Key="ViewAddIcon">
 			M5.3,1 H6.7 V5.3 H11 V6.7 H6.7 V11 H5.3 V6.7 H1 V5.3 H5.3 Z
 		</StreamGeometry>
+		<!-- Material Design "logout" (Apache-2.0), on a 24×24 grid: close a position -->
+		<StreamGeometry x:Key="ClosePositionIcon">
+			M16,17V14H9V10H16V7L21,12L16,17M14,2A2,2 0 0,1 16,4V6H14V4H5V20H14V18H16V20A2,2 0 0,1 14,22H5A2,2 0 0,1 3,20V4A2,2 0 0,1 5,2H14Z
+		</StreamGeometry>
 		<SolidColorBrush x:Key="FrameActionHoverBrush" Color="#2C323C" />
 		<SolidColorBrush x:Key="CurrentFrameBrush" Color="#7FA7E8" Opacity="0.55" />
 		<SolidColorBrush x:Key="FrameCloseHoverBrush" Color="#3A2326" />
@@ -393,6 +397,10 @@
 			<Setter Property="RenderTransform" Value="rotate(45deg)" />
 		</Style>
 		<Style Selector="Button.frameAction.link PathIcon">
+			<Setter Property="Width" Value="14" />
+			<Setter Property="Height" Value="14" />
+		</Style>
+		<Style Selector="Button.frameAction.closePosition PathIcon">
 			<Setter Property="Width" Value="14" />
 			<Setter Property="Height" Value="14" />
 		</Style>

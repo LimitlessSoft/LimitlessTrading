@@ -17,18 +17,21 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 {
 	private readonly IPositionManager _positionManager;
 	private readonly AccountStore _accountStore;
+	private readonly OrderTicketNavigator _orderTicketNavigator;
 	private readonly Dictionary<(string Account, int ContractId), PositionRowViewModel> _all = [];
 
 	public PositionsViewModel(
 		IPositionManager positionManager,
 		IConnectionManager connectionManager,
 		AccountStore accountStore,
-		LinkGroupStore linkGroupStore
+		LinkGroupStore linkGroupStore,
+		OrderTicketNavigator orderTicketNavigator
 	)
 		: base(connectionManager)
 	{
 		_positionManager = positionManager;
 		_accountStore = accountStore;
+		_orderTicketNavigator = orderTicketNavigator;
 		Link = new ContractLink(linkGroupStore, () => SelectedPosition?.Contract);
 		accountStore.PropertyChanged += OnAccountChanged;
 		// After the base class has applied the connection state
@@ -54,17 +57,24 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 	[ObservableProperty]
 	[NotifyPropertyChangedFor(nameof(IsStale))]
 	[NotifyPropertyChangedFor(nameof(ShowConnectHint))]
+	[NotifyPropertyChangedFor(nameof(CanClose))]
 	public partial string? StaleText { get; set; }
 
 	public bool IsStale => StaleText != null;
 
 	public bool ShowConnectHint => !IsConnected && !IsStale;
 
+	/// <summary>Only live positions can be closed; remembered ones may be out of date.</summary>
+	public bool CanClose => IsConnected && !IsStale;
+
 	protected override void OnPropertyChanged(PropertyChangedEventArgs e)
 	{
 		base.OnPropertyChanged(e);
 		if (e.PropertyName == nameof(IsConnected))
+		{
 			OnPropertyChanged(nameof(ShowConnectHint));
+			OnPropertyChanged(nameof(CanClose));
+		}
 	}
 
 	partial void OnSelectedPositionChanged(PositionRowViewModel? value)
@@ -76,6 +86,18 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 
 	[RelayCommand]
 	public void Refresh() => RestartSession();
+
+	/// <summary>
+	/// Opens an order ticket pre-filled to flatten <paramref name="row"/>; it is only sent from
+	/// the ticket, after review, on "Send order".
+	/// </summary>
+	[RelayCommand]
+	private void ClosePosition(PositionRowViewModel row)
+	{
+		if (!CanClose || OrderHelpers.GetClosingDraft(row.Position) is not { } draft)
+			return;
+		_orderTicketNavigator.Open(draft);
+	}
 
 	public override void Dispose()
 	{
