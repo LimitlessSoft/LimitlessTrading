@@ -1,3 +1,4 @@
+using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 
 namespace LT.Tests.Contracts.Helpers;
@@ -5,6 +6,20 @@ namespace LT.Tests.Contracts.Helpers;
 public class FlexHelpersTests
 {
 	private static readonly TimeZoneInfo NewYork = FlexHelpers.GetStatementTimeZone();
+
+	[Theory]
+	[InlineData(1000, "CASH RECEIPTS / ELECTRONIC FUND TRANSFERS", CashMovementKind.Deposit)]
+	[InlineData(-250, "DISBURSEMENT INITIATED BY FAKE NAME", CashMovementKind.Withdrawal)]
+	[InlineData(300, "TRANSFER FROM U0000002", CashMovementKind.TransferIn)]
+	[InlineData(-300, "Transfer to U0000002", CashMovementKind.TransferOut)]
+	[InlineData(-50, "INTERNAL TRANSFER", CashMovementKind.TransferOut)]
+	[InlineData(75, "ACATS cash in", CashMovementKind.TransferIn)]
+	[InlineData(10, null, CashMovementKind.Deposit)]
+	public void Tells_deposits_and_withdrawals_from_transfers_between_accounts(
+		double amount,
+		string? description,
+		CashMovementKind expected
+	) => Assert.Equal(expected, FlexHelpers.GetCashTransactionKind(amount, description));
 
 	[Theory]
 	[InlineData("20261026")]

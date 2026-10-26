@@ -44,4 +44,7 @@ public class WidgetPlacementEntity
 
 	/// <summary>Option chain instances: contracts per one-click order (null: the default).</summary>
 	public int? OptionQuickOrderQuantity { get; set; }
+
+	/// <summary>Account performance: deposits, withdrawals and transfers marked (null: off).</summary>
+	public bool? PerformanceShowCashMovements { get; set; }
 }

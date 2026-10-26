@@ -56,6 +56,12 @@ public static class FlexConstants
 	/// <summary>Trade Confirmation statement while the app runs (today's fills, minutes after the fill).</summary>
 	public static readonly TimeSpan TradeConfirmInterval = TimeSpan.FromMinutes(5);
 
+	/// <summary>
+	/// F5 fetches the Activity statement again after today's import when it lacked Cash
+	/// Transactions or Transfers, at most this often (the user may just have added them).
+	/// </summary>
+	public static readonly TimeSpan MissingSectionRecheckInterval = TimeSpan.FromMinutes(10);
+
 	/// <summary>After a failed Activity import (statement not ready yet, network) it is tried again this much later.</summary>
 	public static readonly TimeSpan ActivityRetryInterval = TimeSpan.FromHours(1);
 

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using LSCore.Validation.Contracts;
 using LT.Contracts.Constants;
+using LT.Contracts.Enums;
 using LT.Contracts.Enums.ValidationCodes;
 
 namespace LT.Contracts.Helpers;
@@ -178,6 +179,31 @@ public static partial class FlexHelpers
 			: null;
 
 	/// <summary>The zone Flex times are in.</summary>
+	/// <summary>
+	/// What a Deposits / Withdrawals cash transaction is: a transfer between accounts when IB's
+	/// description says so ("Internal transfer", "Transfer to / from U…", ACATS), else a deposit
+	/// (positive) or withdrawal (negative). "Electronic fund transfer" is a bank deposit, not a
+	/// transfer between accounts.
+	/// </summary>
+	public static CashMovementKind GetCashTransactionKind(double amount, string? description)
+	{
+		var text = description ?? string.Empty;
+		var transfer =
+			text.Contains("internal", StringComparison.OrdinalIgnoreCase)
+			|| text.Contains("ACATS", StringComparison.OrdinalIgnoreCase)
+			|| TransferToFromRegex().IsMatch(text);
+		return (transfer, amount >= 0) switch
+		{
+			(true, true) => CashMovementKind.TransferIn,
+			(true, false) => CashMovementKind.TransferOut,
+			(false, true) => CashMovementKind.Deposit,
+			(false, false) => CashMovementKind.Withdrawal,
+		};
+	}
+
+	[GeneratedRegex(@"\btransfer\s+(?:to|from)\b", RegexOptions.IgnoreCase)]
+	private static partial Regex TransferToFromRegex();
+
 	public static TimeZoneInfo GetStatementTimeZone() =>
 		IbTimeHelpers.FindTimeZone(FlexConstants.StatementTimeZoneId);
 }

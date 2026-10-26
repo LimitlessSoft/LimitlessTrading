@@ -13,6 +13,90 @@ public class FlexImportHelpersTests
 	private static readonly DateOnly Today = new(2026, 10, 26);
 
 	[Fact]
+	public void A_cash_section_new_to_the_history_starts_it_over_from_this_statement()
+	{
+		var state = new FlexImportStateEntity
+		{
+			CoveredFrom = new DateOnly(2023, 1, 1),
+			CoveredTo = new DateOnly(2026, 10, 18),
+			BackfillComplete = true,
+			LastActivitySuccess = Now.AddDays(-1),
+			LastActivityAttempt = Now,
+			HadCashTransactionsSection = false,
+			HadTransfersSection = false,
+		};
+
+		var restarted = FlexImportHelpers.NoteCashSections(
+			state,
+			hasCashTransactions: true,
+			hasTransfers: false,
+			new DateOnly(2026, 10, 11),
+			new DateOnly(2026, 10, 25)
+		);
+
+		Assert.True(restarted);
+		Assert.Equal(
+			(new DateOnly(2026, 10, 11), new DateOnly(2026, 10, 25), false),
+			(state.CoveredFrom!.Value, state.CoveredTo!.Value, state.BackfillComplete)
+		);
+		Assert.Null(state.LastActivitySuccess);
+		Assert.Null(state.LastActivityAttempt);
+		Assert.Equal((true, false), (state.HadCashTransactionsSection, state.HadTransfersSection));
+	}
+
+	[Fact]
+	public void Known_or_missing_cash_sections_and_a_first_import_dont_start_over()
+	{
+		var known = new FlexImportStateEntity
+		{
+			CoveredFrom = new DateOnly(2023, 1, 1),
+			CoveredTo = new DateOnly(2026, 10, 18),
+			BackfillComplete = true,
+			HadCashTransactionsSection = true,
+			HadTransfersSection = true,
+		};
+		var missing = new FlexImportStateEntity
+		{
+			CoveredFrom = new DateOnly(2023, 1, 1),
+			CoveredTo = new DateOnly(2026, 10, 18),
+			BackfillComplete = true,
+		};
+		var first = new FlexImportStateEntity();
+		var (from, to) = (new DateOnly(2026, 10, 11), new DateOnly(2026, 10, 25));
+
+		Assert.False(FlexImportHelpers.NoteCashSections(known, true, true, from, to));
+		Assert.False(FlexImportHelpers.NoteCashSections(missing, false, false, from, to));
+		Assert.False(FlexImportHelpers.NoteCashSections(first, true, true, from, to));
+		Assert.True(known.BackfillComplete && missing.BackfillComplete);
+		Assert.Equal(
+			(false, false),
+			(missing.HadCashTransactionsSection, missing.HadTransfersSection)
+		);
+		Assert.Equal((true, true), (first.HadCashTransactionsSection, first.HadTransfersSection));
+	}
+
+	[Fact]
+	public void F5_rechecks_missing_cash_sections_at_most_every_few_minutes()
+	{
+		var state = new FlexImportStateEntity
+		{
+			LastActivitySuccess = Now,
+			HadCashTransactionsSection = true,
+			HadTransfersSection = false,
+		};
+
+		Assert.False(FlexImportHelpers.ShouldRecheckCashSections(state, Now.AddMinutes(1)));
+		Assert.True(
+			FlexImportHelpers.ShouldRecheckCashSections(
+				state,
+				Now + FlexConstants.MissingSectionRecheckInterval
+			)
+		);
+		state.HadTransfersSection = true;
+		Assert.False(FlexImportHelpers.ShouldRecheckCashSections(state, Now.AddDays(1)));
+	}
+
+	[Fact]
 	public void The_first_range_is_the_year_up_to_yesterday()
 	{
 		var (from, to) = FlexImportHelpers.GetInitialRange(Today);

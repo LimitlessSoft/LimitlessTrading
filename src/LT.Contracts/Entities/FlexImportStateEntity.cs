@@ -21,4 +21,12 @@ public class FlexImportStateEntity
 
 	/// <summary>The last error is one only the user can fix (token, query id, IP restriction, query sections).</summary>
 	public bool LastErrorNeedsUser { get; set; }
+
+	/// <summary>
+	/// The last Activity statement had a Cash Transactions / Transfers section; null before the
+	/// first one (and in files from before these were tracked). A section that appears starts the
+	/// history over (FlexImportHelpers.NoteCashSections), so its movements come in for every year.
+	/// </summary>
+	public bool? HadCashTransactionsSection { get; set; }
+	public bool? HadTransfersSection { get; set; }
 }

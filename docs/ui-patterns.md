@@ -555,6 +555,16 @@ have `Source = Flex` and win over recorded ones), today is recorded live:
 - The equity curve places days by date (gaps where there is no data) and plots net liquidation,
   so a deposit shows as a step there (not in returns or P&L); the P&L bars are spaced evenly, one
   per day with data; the calendar is six Monday-first weeks.
+- **Show deposits & transfers** (check box, off by default, kept per widget in its placement as
+  `PerformanceShowCashMovements`) marks the Flex cash movements (`IAccountPerformanceManager.GetCashMovements`)
+  with badges: deposit a green +, withdrawal an orange −, transfer in / out a purple arrow down /
+  up (`ChartDrawing.DrawCashMovementBadge`, `CashMovementIcon` for the calendar and the legend).
+  On both charts they stack along the bottom of the day they reach (the first day with data on or
+  after the movement, `AccountPerformanceHelpers.AssignCashMovements`) and the hover readout lists
+  them; in the calendar they sit in the cell's corner on their own date, the tooltip with amount,
+  original currency and IB's description. A hint under the box (`FlexStatusHelpers.GetCashMovementsHint`)
+  says what to add to the Flex query when Cash Transactions or Transfers are missing, or that
+  none were found. Display only: the P&L math is unchanged.
 
 ## Connected widgets
 

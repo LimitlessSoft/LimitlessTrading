@@ -7,7 +7,12 @@ public class FlexStatementDto
 	public string QueryType { get; set; } = string.Empty;
 	public IReadOnlyList<string> Accounts { get; set; } = [];
 	public IReadOnlyList<FlexNavDto> Nav { get; set; } = [];
+
+	/// <summary>Deposits and withdrawals (Cash Transactions); left out of the daily P&amp;L.</summary>
 	public IReadOnlyList<FlexCashFlowDto> CashFlows { get; set; } = [];
+
+	/// <summary>Cash and position transfers (Transfers section); shown only, not part of the P&amp;L math.</summary>
+	public IReadOnlyList<FlexCashFlowDto> Transfers { get; set; } = [];
 	public IReadOnlyList<FlexTradeDto> Trades { get; set; } = [];
 
 	/// <summary>tradeIDs that a cancellation row ("BUY (Ca.)") in the statement voids.</summary>
@@ -23,5 +28,12 @@ public class FlexStatementDto
 	/// <summary>The statement had a Trades or Trade Confirmations section (even if empty).</summary>
 	public bool HasTradesSection { get; set; }
 
-	public bool IsEmpty => Nav.Count == 0 && CashFlows.Count == 0 && Trades.Count == 0;
+	/// <summary>The statement had a Cash Transactions section (even if empty).</summary>
+	public bool HasCashTransactionsSection { get; set; }
+
+	/// <summary>The statement had a Transfers section (even if empty).</summary>
+	public bool HasTransfersSection { get; set; }
+
+	public bool IsEmpty =>
+		Nav.Count == 0 && CashFlows.Count == 0 && Transfers.Count == 0 && Trades.Count == 0;
 }

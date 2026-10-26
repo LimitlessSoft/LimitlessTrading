@@ -4,13 +4,15 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using LT.Contracts.Dtos.AccountPerformance;
+using LT.Contracts.Helpers;
 using static LT.App.Widgets.AccountPerformance.ChartDrawing;
 
 namespace LT.App.Widgets.AccountPerformance;
 
 /// <summary>
 /// One bar per recorded day's daily P&amp;L, green above zero and red below. Days are spaced
-/// evenly (only recorded days are drawn). Hover shows the day under the cursor.
+/// evenly (only recorded days are drawn). Hover shows the day under the cursor. Cash movements,
+/// when given, are badges along the bottom under the bar of their day (or the next one).
 /// </summary>
 public class DailyPnlBarChart : Control
 {
@@ -21,11 +23,17 @@ public class DailyPnlBarChart : Control
 
 	private const double MaxBarWidth = 28;
 
+	/// <summary>Deposits, withdrawals and transfers to mark with badges; null or empty: none.</summary>
+	public static readonly StyledProperty<IReadOnlyList<CashMovementDto>?> CashMovementsProperty =
+		AvaloniaProperty.Register<DailyPnlBarChart, IReadOnlyList<CashMovementDto>?>(
+			nameof(CashMovements)
+		);
+
 	private Point? _pointer;
 
 	static DailyPnlBarChart()
 	{
-		AffectsRender<DailyPnlBarChart>(DaysProperty);
+		AffectsRender<DailyPnlBarChart>(DaysProperty, CashMovementsProperty);
 		ClipToBoundsProperty.OverrideDefaultValue<DailyPnlBarChart>(true);
 	}
 
@@ -33,6 +41,12 @@ public class DailyPnlBarChart : Control
 	{
 		get => GetValue(DaysProperty);
 		set => SetValue(DaysProperty, value);
+	}
+
+	public IReadOnlyList<CashMovementDto>? CashMovements
+	{
+		get => GetValue(CashMovementsProperty);
+		set => SetValue(CashMovementsProperty, value);
 	}
 
 	public override void Render(DrawingContext context)
@@ -98,6 +112,12 @@ public class DailyPnlBarChart : Control
 			context.DrawText(label, new Point(x, plot.Bottom + 3));
 		}
 
+		var movements = AccountPerformanceHelpers.AssignCashMovements(
+			bars.Select(x => x.Date).ToList(),
+			CashMovements ?? []
+		);
+		DrawCashMovementBadges(context, plot, movements, X);
+
 		var hovered = bars.Count - 1;
 		if (_pointer is { } p && plot.Contains(p))
 		{
@@ -112,6 +132,7 @@ public class DailyPnlBarChart : Control
 			hoveredValue >= 0 ? UpBrush : DownBrush
 		);
 		context.DrawText(readout, new Point(8, 3));
+		DrawCashMovementReadout(context, readout, movements.GetValueOrDefault(hovered));
 	}
 
 	protected override void OnPointerMoved(PointerEventArgs e)

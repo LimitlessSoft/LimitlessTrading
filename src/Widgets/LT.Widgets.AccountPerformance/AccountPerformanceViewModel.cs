@@ -6,7 +6,9 @@ using CommunityToolkit.Mvvm.Input;
 using LT.App.Helpers;
 using LT.App.Stores;
 using LT.App.ViewModels;
+using LT.App.Workspace;
 using LT.Contracts.Dtos.AccountPerformance;
+using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IManagers;
@@ -17,14 +19,16 @@ namespace LT.App.Widgets.AccountPerformance;
 /// Equity curve, return stats, daily P&amp;L calendar and bars of the selected account, from the
 /// history IAccountPerformanceManager records while the app is connected and imports from IB Flex
 /// (IFlexImportManager). Today follows the live values. History shows while disconnected too,
-/// once an account has been picked.
+/// once an account has been picked. With "Deposits &amp; transfers" on (kept per widget in its
+/// placement), the Flex cash movements are marked on both charts and in the calendar.
 /// </summary>
-public partial class AccountPerformanceViewModel : ConnectedViewModelBase
+public partial class AccountPerformanceViewModel : ConnectedViewModelBase, IWidgetState
 {
 	private readonly IAccountPerformanceManager _performanceManager;
 	private readonly IFlexImportManager _flexImport;
 	private readonly SettingsNavigator _settingsNavigator;
 	private IReadOnlyList<AccountDaySnapshotDto> _history = [];
+	private IReadOnlyList<CashMovementDto> _cashMovements = [];
 	private int _reloadPending;
 
 	public AccountPerformanceViewModel(
@@ -104,6 +108,18 @@ public partial class AccountPerformanceViewModel : ConnectedViewModelBase
 	[ObservableProperty]
 	public partial IReadOnlyList<AccountDaySnapshotDto> RangeDays { get; set; } = [];
 
+	/// <summary>The picked range's deposits, withdrawals and transfers for the charts; empty while off.</summary>
+	[ObservableProperty]
+	public partial IReadOnlyList<CashMovementDto> RangeCashMovements { get; set; } = [];
+
+	/// <summary>Mark deposits, withdrawals and transfers on the charts and the calendar.</summary>
+	[ObservableProperty]
+	public partial bool ShowCashMovements { get; set; }
+
+	/// <summary>Why no movements show, or what to add to the Flex query; null hides it.</summary>
+	[ObservableProperty]
+	public partial string? CashMovementsHint { get; set; }
+
 	[ObservableProperty]
 	public partial IReadOnlyList<ReturnStatViewModel> Stats { get; set; } = [];
 
@@ -162,6 +178,12 @@ public partial class AccountPerformanceViewModel : ConnectedViewModelBase
 		_ = Task.Run(() => _flexImport.ImportNowAsync());
 	}
 
+	public void LoadState(WidgetPlacementDto placement) =>
+		ShowCashMovements = placement.PerformanceShowCashMovements ?? false;
+
+	public void SaveState(WidgetPlacementDto placement) =>
+		placement.PerformanceShowCashMovements = ShowCashMovements ? true : null;
+
 	public override void Dispose()
 	{
 		Store.PropertyChanged -= OnStoreChanged;
@@ -171,6 +193,8 @@ public partial class AccountPerformanceViewModel : ConnectedViewModelBase
 	}
 
 	protected override void OnConnected(CancellationToken session) => Reload();
+
+	partial void OnShowCashMovementsChanged(bool value) => Rebuild();
 
 	partial void OnRangeChanged(PerformanceRange value)
 	{
@@ -227,6 +251,7 @@ public partial class AccountPerformanceViewModel : ConnectedViewModelBase
 		var account = Store.SelectedAccount;
 		HasAccount = account != null;
 		_history = account != null ? _performanceManager.GetHistory(account) : [];
+		_cashMovements = account != null ? _performanceManager.GetCashMovements(account) : [];
 		Rebuild();
 	}
 
@@ -234,10 +259,10 @@ public partial class AccountPerformanceViewModel : ConnectedViewModelBase
 	{
 		var today = _performanceManager.GetToday();
 
-		RangeDays = AccountPerformanceHelpers.FilterRange(
-			_history,
-			AccountPerformanceHelpers.GetRangeStart(Range, today)
-		);
+		var rangeStart = AccountPerformanceHelpers.GetRangeStart(Range, today);
+		RangeDays = AccountPerformanceHelpers.FilterRange(_history, rangeStart);
+		var movements = ShowCashMovements ? _cashMovements : [];
+		RangeCashMovements = AccountPerformanceHelpers.FilterCashMovements(movements, rangeStart);
 
 		Stats =
 		[
@@ -289,8 +314,8 @@ public partial class AccountPerformanceViewModel : ConnectedViewModelBase
 		MonthDown = monthPnl < 0;
 		CanGoNextMonth = monthStart < AccountPerformanceHelpers.GetMonthStart(today);
 		CalendarDays = AccountPerformanceHelpers
-			.BuildCalendarMonth(monthStart, _history, today)
-			.Select(x => new CalendarDayViewModel(x))
+			.BuildCalendarMonth(monthStart, _history, today, movements)
+			.Select(x => new CalendarDayViewModel(x, Currency))
 			.ToList();
 
 		UpdateHistoryNote();
@@ -302,6 +327,9 @@ public partial class AccountPerformanceViewModel : ConnectedViewModelBase
 		var banner = FlexStatusHelpers.GetBanner(flex);
 		FlexBanner = banner?.Text;
 		FlexBannerIsWarning = banner?.IsWarning ?? false;
+		CashMovementsHint = ShowCashMovements
+			? FlexStatusHelpers.GetCashMovementsHint(flex, _cashMovements.Count > 0)
+			: null;
 
 		// The banner says what needs the user; the note only says where the days come from
 		var firstFlex = _history.FirstOrDefault(x => x.Source == AccountDaySource.Flex);

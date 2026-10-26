@@ -4,13 +4,15 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using LT.Contracts.Dtos.AccountPerformance;
+using LT.Contracts.Helpers;
 using static LT.App.Widgets.AccountPerformance.ChartDrawing;
 
 namespace LT.App.Widgets.AccountPerformance;
 
 /// <summary>
 /// Net liquidation per recorded day, placed by date (days the app didn't run leave a gap in the
-/// spacing, not a fake point). Hover shows the day under the cursor.
+/// spacing, not a fake point). Hover shows the day under the cursor. Cash movements, when given,
+/// are badges along the bottom on the day they reach net liquidation.
 /// </summary>
 public class EquityCurveChart : Control
 {
@@ -19,11 +21,17 @@ public class EquityCurveChart : Control
 			nameof(Days)
 		);
 
+	/// <summary>Deposits, withdrawals and transfers to mark with badges; null or empty: none.</summary>
+	public static readonly StyledProperty<IReadOnlyList<CashMovementDto>?> CashMovementsProperty =
+		AvaloniaProperty.Register<EquityCurveChart, IReadOnlyList<CashMovementDto>?>(
+			nameof(CashMovements)
+		);
+
 	private Point? _pointer;
 
 	static EquityCurveChart()
 	{
-		AffectsRender<EquityCurveChart>(DaysProperty);
+		AffectsRender<EquityCurveChart>(DaysProperty, CashMovementsProperty);
 		ClipToBoundsProperty.OverrideDefaultValue<EquityCurveChart>(true);
 	}
 
@@ -31,6 +39,12 @@ public class EquityCurveChart : Control
 	{
 		get => GetValue(DaysProperty);
 		set => SetValue(DaysProperty, value);
+	}
+
+	public IReadOnlyList<CashMovementDto>? CashMovements
+	{
+		get => GetValue(CashMovementsProperty);
+		set => SetValue(CashMovementsProperty, value);
 	}
 
 	public override void Render(DrawingContext context)
@@ -130,21 +144,38 @@ public class EquityCurveChart : Control
 					2.5
 				);
 
+		// deposits / withdrawals / transfers, on the day net liquidation steps
+		var movements = AccountPerformanceHelpers.AssignCashMovements(
+			points.Select(x => x.Date).ToList(),
+			CashMovements ?? []
+		);
+		DrawCashMovementBadges(context, plot, movements, i => X(points[i].Date));
+
 		// hover: the nearest day
-		var hovered = points[^1];
+		var hoveredIndex = points.Count - 1;
 		if (_pointer is { } p && plot.Contains(p))
 		{
-			hovered = points.MinBy(x => Math.Abs(X(x.Date) - p.X));
-			var x = Math.Round(X(hovered.Date)) + 0.5;
+			hoveredIndex = Enumerable
+				.Range(0, points.Count)
+				.MinBy(i => Math.Abs(X(points[i].Date) - p.X));
+			var x = Math.Round(X(points[hoveredIndex].Date)) + 0.5;
 			context.DrawLine(CrosshairPen, new Point(x, plot.Y), new Point(x, plot.Bottom));
-			context.DrawEllipse(LabelBrush, null, new Point(x, Y(hovered.Value)), 3.5, 3.5);
+			context.DrawEllipse(
+				LabelBrush,
+				null,
+				new Point(x, Y(points[hoveredIndex].Value)),
+				3.5,
+				3.5
+			);
 		}
+		var hovered = points[hoveredIndex];
 		var readout = Text(
 			$"{hovered.Date.ToString("ddd dd MMM yyyy", CultureInfo.CurrentCulture)}   Net liq {hovered.Value.ToString("#,0.00", CultureInfo.CurrentCulture)}",
 			12,
 			LabelBrush
 		);
 		context.DrawText(readout, new Point(8, 3));
+		DrawCashMovementReadout(context, readout, movements.GetValueOrDefault(hoveredIndex));
 	}
 
 	protected override void OnPointerMoved(PointerEventArgs e)

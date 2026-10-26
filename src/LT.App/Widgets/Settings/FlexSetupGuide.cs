@@ -27,6 +27,7 @@ public static class FlexSetupGuide
 							"Cash Transactions"
 						),
 						new("Section (option Execution)", "Trades"),
+						new("Section (optional, transfers between accounts)", "Transfers"),
 						new("Format", "XML"),
 						new("Period", "Last 365 Calendar Days"),
 						new("Date Format", "yyyyMMdd"),

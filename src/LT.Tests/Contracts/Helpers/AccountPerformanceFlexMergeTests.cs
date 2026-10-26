@@ -165,4 +165,117 @@ public class AccountPerformanceFlexMergeTests
 
 		Assert.Equal(10, days.Single(x => x.Date.Day == 22).DailyPnl);
 	}
+
+	private static FlexCashFlowDto Movement(
+		int day,
+		double amount,
+		CashMovementKind kind,
+		string id = ""
+	) =>
+		new()
+		{
+			Account = "U0000001",
+			Date = new DateOnly(2026, 10, day),
+			Amount = amount,
+			Kind = kind,
+			TransactionId = id,
+			Currency = "USD",
+			AmountInCurrency = amount,
+		};
+
+	[Fact]
+	public void Cash_movements_are_kept_by_key_sorted_and_merged_idempotently()
+	{
+		var movements = new List<CashMovementEntity>();
+		var cash = new[]
+		{
+			Movement(22, -250, CashMovementKind.Withdrawal, "2"),
+			Movement(20, 1000, CashMovementKind.Deposit), // no transactionID: keyed by its values
+		};
+		var transfers = new[] { Movement(21, 300, CashMovementKind.TransferIn, "3") };
+
+		Assert.Equal(3, AccountPerformanceHelpers.MergeCashMovements(movements, cash, transfers));
+		Assert.Equal(0, AccountPerformanceHelpers.MergeCashMovements(movements, cash, transfers));
+
+		Assert.Equal(
+			[CashMovementKind.Deposit, CashMovementKind.TransferIn, CashMovementKind.Withdrawal],
+			movements.Select(x => x.Kind)
+		);
+		Assert.Equal("transfer:3", movements[1].Id);
+		Assert.Equal("cash:2", movements[2].Id);
+
+		// IB corrects the amount of a known transaction: updated in place
+		cash[0].Amount = -260;
+		Assert.Equal(1, AccountPerformanceHelpers.MergeCashMovements(movements, cash, []));
+		Assert.Equal(-260, movements.Single(x => x.Id == "cash:2").Amount);
+	}
+
+	[Fact]
+	public void A_transfer_listed_as_a_deposit_too_shows_once()
+	{
+		var movements = new List<CashMovementEntity>();
+		AccountPerformanceHelpers.MergeCashMovements(
+			movements,
+			[Movement(22, 300, CashMovementKind.TransferIn, "7")],
+			[]
+		);
+
+		// The same money in the Transfers section, imported later
+		AccountPerformanceHelpers.MergeCashMovements(
+			movements,
+			[],
+			[Movement(22, 300, CashMovementKind.TransferIn, "8")]
+		);
+
+		Assert.Equal("cash:7", Assert.Single(movements).Id);
+	}
+
+	[Fact]
+	public void Movements_belong_to_the_first_chart_point_on_or_after_their_date()
+	{
+		DateOnly[] points = [new(2026, 10, 22), new(2026, 10, 23), new(2026, 10, 26)];
+		var saturday = new CashMovementDto
+		{
+			Date = new DateOnly(2026, 10, 24),
+			Kind = CashMovementKind.Deposit,
+		};
+		var thursday = new CashMovementDto
+		{
+			Date = new DateOnly(2026, 10, 22),
+			Kind = CashMovementKind.Withdrawal,
+		};
+		var tomorrow = new CashMovementDto { Date = new DateOnly(2026, 10, 27) };
+
+		var byPoint = AccountPerformanceHelpers.AssignCashMovements(
+			points,
+			[saturday, thursday, tomorrow]
+		);
+
+		Assert.Equal([0, 2], byPoint.Keys.Order());
+		Assert.Same(thursday, Assert.Single(byPoint[0]));
+		Assert.Same(saturday, Assert.Single(byPoint[2]));
+	}
+
+	[Fact]
+	public void The_calendar_lists_each_days_movements_on_their_own_date()
+	{
+		var deposit = new CashMovementDto { Date = new DateOnly(2026, 10, 24), Amount = 500 };
+
+		var cells = AccountPerformanceHelpers.BuildCalendarMonth(
+			new DateOnly(2026, 10, 1),
+			[],
+			Today,
+			[deposit]
+		);
+
+		Assert.Same(
+			deposit,
+			Assert.Single(cells.Single(x => x.Date == deposit.Date).CashMovements)
+		);
+		Assert.Equal(1, cells.Count(x => x.CashMovements.Count > 0));
+		Assert.All(
+			AccountPerformanceHelpers.BuildCalendarMonth(new DateOnly(2026, 10, 1), [], Today),
+			x => Assert.Empty(x.CashMovements)
+		);
+	}
 }
