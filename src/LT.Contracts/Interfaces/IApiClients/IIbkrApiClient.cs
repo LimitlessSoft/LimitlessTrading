@@ -3,6 +3,7 @@ using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Executions;
 using LT.Contracts.Dtos.MarketData;
+using LT.Contracts.Dtos.MarketDepth;
 using LT.Contracts.Dtos.News;
 using LT.Contracts.Dtos.Options;
 using LT.Contracts.Dtos.Orders;
@@ -52,6 +53,20 @@ public interface IIbkrApiClient
 		ContractDto contract,
 		CancellationToken cancellationToken = default,
 		string genericTicks = ""
+	);
+
+	/// <summary>
+	/// Order book changes of a contract (reqMktDepth), up to <paramref name="rows"/> per side.
+	/// <paramref name="isSmartDepth"/> aggregates every exchange the account has depth for (send
+	/// the contract with exchange SMART); rows then name their exchange. IB allows only a few at a
+	/// time — go through <c>IMarketDepthManager</c>. IB's refusals throw
+	/// <see cref="Exceptions.IbkrRequestException"/> with its code.
+	/// </summary>
+	IAsyncEnumerable<MarketDepthUpdateDto> SubscribeMarketDepthAsync(
+		ContractDto contract,
+		int rows,
+		bool isSmartDepth,
+		CancellationToken cancellationToken = default
 	);
 
 	Task<IReadOnlyList<BarDto>> GetHistoricalBarsAsync(

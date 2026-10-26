@@ -103,8 +103,8 @@ LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
 `Foo : IFoo` as **transient** plus all `LSCoreValidatorBase<T>` validators. Then:
 
 - Stateful services (`IIbkrApiClient`, `IConnectionManager`, `IMarketDataManager`,
-  `IMessageLogManager`, `ISettingsManager`, `INewsManager`, both repositories) are re-registered
-  as **singletons after** the scan — the last registration wins.
+  `IMarketDepthManager`, `IMessageLogManager`, `ISettingsManager`, `INewsManager`, both
+  repositories) are re-registered as **singletons after** the scan — the last registration wins.
 - News sources (`INewsSource`) don't match the `Foo : IFoo` convention, so each is registered
   explicitly (`AddSingleton<INewsSource, IbkrNewsSource>()`); `NewsManager` takes all of them
   (`IEnumerable<INewsSource>`). A new source (RSS, Benzinga …) is one class and one line there.

@@ -21,6 +21,7 @@
 		<ProjectReference Include="..\Widgets\LT.Widgets.Executions\LT.Widgets.Executions.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.Messages\LT.Widgets.Messages.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.News\LT.Widgets.News.csproj" />
+		<ProjectReference Include="..\Widgets\LT.Widgets.Depth\LT.Widgets.Depth.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.OptionChain\LT.Widgets.OptionChain.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.OrderTicket\LT.Widgets.OrderTicket.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.Orders\LT.Widgets.Orders.csproj" />

@@ -200,7 +200,7 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   (`WorkspaceHelpers.GetDefaultPlacements`, sizes in `WorkspaceConstants`) the window is maximized
   with every side collapsed: Chart in the center on SPY at 5m (link group red); Watchlist on the
   left (unpinned); Account and Messages (pinned), Option chain and Order ticket (unpinned) on the
-  right. Positions, Orders, Executions, News, Account performance and Day trade performance are
+  right. Positions, Orders, Executions, News, Account performance, Day trade performance and Depth are
   closed.
 - **Order ticket** (`LT.Widgets.OrderTicket`, right side): takes its contract from the link group.
   Account, side, market / limit, quantity or amount in $ (market only), limit price, time in force
@@ -251,6 +251,21 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   says where today's trades come from ("via IB Flex, up to ~5 min delayed",
   `FlexStatusHelpers.DescribeTodayTrades`) or, without Flex, why IB's executions failed, if they did. F5 also
   starts a Flex import.
+- **Depth** (`LT.Widgets.Depth`, right side, closed on first run, Ctrl+Alt+K): the link group's
+  contract's order book as a ladder — asks stacked upwards above the spread line (best ask next
+  to it), bids downwards below it; rows that don't fit are cut off at the far end, so the inside
+  of the book stays in sight. Columns: price (bids green, asks red, best row bold), size, running
+  total from the best row out, and the exchange or market maker (SMART / Level 2 depth). A bar
+  behind each row shows its size against the largest row on either side. The spread line shows
+  spread and mid. The SMART toggle (on by default) switches between SMART depth and the listing
+  exchange's own book; a contract on one exchange (crypto on PAXOS, forex on IDEALPRO) always
+  uses that exchange. Prices show as many decimals as the book needs (2–6). Updates are read on
+  the thread pool, the latest book is drawn every 100 ms (`MarketDepthConstants.UiFlushInterval`),
+  rows are fixed view models refilled in place. IB's refusals (no depth subscription, three
+  subscriptions already open) show as the widget's error. Closing the widget cancels its depth
+  subscription at once (`IWidgetOpenState`, called by `WorkspaceViewModel.Close`; `DepthFeed`
+  owns the stream), so the slot is free; reopening subscribes again. Data from `IMarketDepthManager`
+  ([ibkr-tws-api.md → Market depth](ibkr-tws-api.md#market-depth)).
 - The frame (and the widget view inside it) is created once per instance and **moved** between
   hosts, so state and subscriptions survive docking, floating and collapsing. Widget view models
   are created on first open by `WidgetViewModelFactory`.
@@ -332,7 +347,7 @@ fullscreen widget restores it first; its header doesn't start a drag while fulls
 
 ### Link groups
 
-Watchlist, Positions, Orders, Executions, Chart, Option chain, Order ticket and News can be linked:
+Watchlist, Positions, Orders, Executions, Chart, Option chain, Order ticket, News and Depth can be linked:
 the chain icon left of the frame's close button opens a menu of ten color groups (Red, Green, Blue, Yellow, Orange, Purple, Cyan,
 Pink, Lime, White) or Not linked, and is tinted
 with the current one. Widgets in the same group show the same contract:
@@ -501,7 +516,7 @@ subscription and frees the market-data line.
 | F5 | Refresh chart, account, positions, orders, executions, day trade performance |
 | Ctrl+, | Settings |
 | Ctrl+1 … Ctrl+9 | Show Watchlist, Positions, Orders, Executions, Account, Messages, Chart, Option chain, Order ticket (collapses an expanded side widget); Ctrl+7 always opens a new chart in the current view |
-| Ctrl+Alt+W / P / O / E / A / M / C / B / N / R / J | Show and focus Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News, Account performance, Day trade performance (single-instance widgets; works from floating windows too) |
+| Ctrl+Alt+W / P / O / E / A / M / C / B / N / R / J / K | Show and focus Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News, Account performance, Day trade performance, Depth (single-instance widgets; works from floating windows too) |
 | Esc (side or bottom widget) | Back to the last focused center widget; an unpinned widget collapses |
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous center view |
 | Ctrl+Shift+F | Fullscreen the current widget (the one last clicked or typed in, framed in light blue), or restore it |

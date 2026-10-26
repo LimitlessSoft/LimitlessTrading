@@ -3,6 +3,7 @@ using LT.App.Widgets.Account;
 using LT.App.Widgets.AccountPerformance;
 using LT.App.Widgets.Chart;
 using LT.App.Widgets.DayTradePerformance;
+using LT.App.Widgets.Depth;
 using LT.App.Widgets.Executions;
 using LT.App.Widgets.Messages;
 using LT.App.Widgets.News;
@@ -33,6 +34,7 @@ public static class WidgetCatalog
 		new NewsWidget(),
 		new AccountPerformanceWidget(),
 		new DayTradePerformanceWidget(),
+		new DepthWidget(),
 	];
 
 	public static IWidgetDefinition Get(WorkspaceTool tool) =>

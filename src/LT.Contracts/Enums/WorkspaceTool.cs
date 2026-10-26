@@ -15,4 +15,5 @@ public enum WorkspaceTool
 	News = 9,
 	AccountPerformance = 10,
 	DayTradePerformance = 11,
+	Depth = 12,
 }

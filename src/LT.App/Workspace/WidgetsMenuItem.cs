@@ -24,6 +24,7 @@ public class WidgetsMenuItem : MenuItem
 		null,
 		WorkspaceTool.Chart,
 		WorkspaceTool.OptionChain,
+		WorkspaceTool.Depth,
 		WorkspaceTool.OrderTicket,
 		WorkspaceTool.News,
 		WorkspaceTool.DayTradePerformance,

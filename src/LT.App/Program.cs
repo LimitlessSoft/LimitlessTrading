@@ -99,6 +99,7 @@ public static class Program
 		builder.Services.AddSingleton<IGatewayProcess, GatewayProcess>();
 		builder.Services.AddSingleton<IGatewayManager, GatewayManager>();
 		builder.Services.AddSingleton<IMarketDataManager, MarketDataManager>();
+		builder.Services.AddSingleton<IMarketDepthManager, MarketDepthManager>();
 		builder.Services.AddSingleton<ISettingsManager, SettingsManager>();
 		builder.Services.AddSingleton<IAppUpdater, AppUpdater>();
 		builder.Services.AddSingleton<IUpdateManager, UpdateManager>();

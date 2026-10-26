@@ -502,6 +502,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 	{
 		if (widget.Dock != null)
 			Remove(widget);
+		(widget.Content as IWidgetOpenState)?.SetOpen(false);
 		if (!WorkspaceHelpers.AllowsMultipleInstances(widget.Tool))
 			return;
 		Widgets.Remove(widget);

@@ -7,10 +7,12 @@ using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Executions;
 using LT.Contracts.Dtos.MarketData;
+using LT.Contracts.Dtos.MarketDepth;
 using LT.Contracts.Dtos.News;
 using LT.Contracts.Dtos.Options;
 using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Dtos.Positions;
+using LT.Contracts.Exceptions;
 using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IApiClients;
 using LT.Contracts.Requests.Connection;
@@ -168,6 +170,42 @@ public class IbkrApiClient : IIbkrApiClient
 				),
 			cancellationToken
 		);
+
+	// IB's refusals (309 too many, 354 / 10089 no subscription) go out with their code
+	public async IAsyncEnumerable<MarketDepthUpdateDto> SubscribeMarketDepthAsync(
+		ContractDto contract,
+		int rows,
+		bool isSmartDepth,
+		[EnumeratorCancellation] CancellationToken cancellationToken = default
+	)
+	{
+		await using var updates = StreamAsync<MarketDepthUpdate, MarketDepthUpdateDto>(
+				(client, ct) =>
+					client.SubscribeMarketDepthAsync(
+						contract.ToMapped<ContractDto, Contract>(),
+						rows,
+						isSmartDepth,
+						ct
+					),
+				cancellationToken
+			)
+			.GetAsyncEnumerator(cancellationToken);
+		while (true)
+		{
+			bool more;
+			try
+			{
+				more = await updates.MoveNextAsync();
+			}
+			catch (IbkrException ex)
+			{
+				throw new IbkrRequestException(ex.Code, ex.ErrorText, ex);
+			}
+			if (!more)
+				break;
+			yield return updates.Current;
+		}
+	}
 
 	public async Task<IReadOnlyList<BarDto>> GetHistoricalBarsAsync(
 		ContractDto contract,
