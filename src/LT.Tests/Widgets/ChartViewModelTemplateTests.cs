@@ -234,6 +234,53 @@ public class ChartViewModelTemplateTests : IDisposable
 		});
 
 	[Fact]
+	public void A_saved_setup_holds_the_period_and_followers_share_it() =>
+		TestUiThread.Invoke(() =>
+		{
+			var source = CreateChart();
+			source.SetPeriod(ChartPeriod.OneMonth);
+			source.NewTemplateName = "Monthly";
+			source.SaveTemplate();
+			var id = _templates.FindByName("Monthly")!.Id;
+			Assert.Equal(ChartPeriod.OneMonth, _templates.GetTemplate(id)!.Settings.Period);
+			var editor = Following(id);
+			var follower = Following(id);
+			var bystander = CreateChart();
+			Assert.Equal(ChartPeriod.OneMonth, State(follower).ChartPeriod);
+
+			editor.SetPeriod(ChartPeriod.ThisWeek);
+			editor.SaveFollowedTemplate();
+
+			Assert.Equal(ChartPeriod.ThisWeek, _templates.GetTemplate(id)!.Settings.Period);
+			Assert.Equal(ChartPeriod.ThisWeek, State(follower).ChartPeriod);
+			Assert.Equal(ChartPeriod.Auto, State(bystander).ChartPeriod);
+		});
+
+	[Fact]
+	public void Followers_of_a_template_from_before_periods_share_their_period() =>
+		TestUiThread.Invoke(() =>
+		{
+			// The template as version 1 stored it: a timeframe, no period
+			_cache.Settings.Settings.ChartTemplates =
+			[
+				new()
+				{
+					Id = "old",
+					Name = "5min",
+					Version = 1,
+					Settings = new() { Timeframe = ChartTimeframe.FiveMinutes },
+				},
+			];
+			var editor = Following("old");
+			var follower = Following("old");
+
+			editor.SetPeriod(ChartPeriod.SevenDays);
+			editor.SaveFollowedTemplate();
+
+			Assert.Equal(ChartPeriod.SevenDays, State(follower).ChartPeriod);
+		});
+
+	[Fact]
 	public void Applying_a_followed_save_is_not_saved_back() =>
 		TestUiThread.Invoke(() =>
 		{

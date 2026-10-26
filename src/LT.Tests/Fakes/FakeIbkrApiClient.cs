@@ -48,6 +48,15 @@ public class FakeIbkrApiClient : IIbkrApiClient
 
 	/// <summary>useRTH of each historical bars request, in order.</summary>
 	public List<bool> HistoricalUseRth { get; } = [];
+
+	/// <summary>The bar size of each historical bars request, in order.</summary>
+	public List<string> HistoricalBarSizes { get; } = [];
+
+	/// <summary>
+	/// Answers each historical bars request by duration and bar size instead of
+	/// <see cref="HistoricalBars"/>; the answer ignores cancellation, like one already on its way.
+	/// </summary>
+	public Func<string, string, Task<IReadOnlyList<BarDto>>>? HistoricalBy { get; set; }
 	public List<AccountValueDto> AccountValues { get; set; } = [];
 
 	/// <summary>Each account's P&amp;L stream; none by default.</summary>
@@ -202,6 +211,9 @@ public class FakeIbkrApiClient : IIbkrApiClient
 		HistoricalCalls++;
 		HistoricalDurations.Add(duration);
 		HistoricalUseRth.Add(useRegularTradingHours);
+		HistoricalBarSizes.Add(barSize);
+		if (HistoricalBy != null)
+			return HistoricalBy(duration, barSize);
 		return HistoricalException != null
 			? Task.FromException<IReadOnlyList<BarDto>>(HistoricalException)
 			: Task.FromResult<IReadOnlyList<BarDto>>(HistoricalBars);

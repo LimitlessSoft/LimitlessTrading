@@ -1,6 +1,7 @@
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.ChartTemplates;
 using LT.Contracts.Dtos.Indicators;
+using LT.Contracts.Entities;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 
@@ -74,6 +75,69 @@ public class ChartTemplateHelpersTests
 		Assert.Null(merged.RightMargin);
 		Assert.Null(merged.Indicators);
 	}
+
+	[Fact]
+	public void A_template_holding_a_period_differs_from_a_chart_at_another_one()
+	{
+		var template = new ChartTemplateSettingsDto { Period = ChartPeriod.OneMonth };
+		var chart = Chart(ChartTimeframe.OneHour);
+
+		chart.Period = ChartPeriod.OneMonth;
+		Assert.True(ChartTemplateHelpers.Matches(template, chart));
+		chart.Period = ChartPeriod.Auto;
+		Assert.False(ChartTemplateHelpers.Matches(template, chart));
+	}
+
+	[Fact]
+	public void Merging_takes_the_charts_period_only_when_the_template_holds_one()
+	{
+		var chart = Chart(ChartTimeframe.OneHour);
+		chart.Period = ChartPeriod.ThisWeek;
+
+		Assert.Equal(
+			ChartPeriod.ThisWeek,
+			ChartTemplateHelpers.Merge(new() { Period = ChartPeriod.Auto }, chart).Period
+		);
+		Assert.Null(
+			ChartTemplateHelpers.Merge(new() { Timeframe = ChartTimeframe.OneDay }, chart).Period
+		);
+	}
+
+	[Fact]
+	public void A_template_from_before_periods_holds_auto_with_its_timeframe()
+	{
+		var old = new ChartTemplateEntity
+		{
+			Id = "a",
+			Name = "Old",
+			Version = 1,
+			Settings = new() { Timeframe = ChartTimeframe.FiveMinutes },
+		};
+		var empty = new ChartTemplateEntity
+		{
+			Id = "b",
+			Name = "Indicators only",
+			Version = 1,
+			Settings = new(),
+		};
+		var current = ChartTemplateHelpers.ToEntity(
+			"c",
+			"New",
+			new() { Timeframe = ChartTimeframe.FiveMinutes }
+		);
+
+		Assert.Equal(ChartPeriod.Auto, ChartTemplateHelpers.ToDto(old, null).Settings.Period);
+		Assert.Null(ChartTemplateHelpers.ToDto(empty, null).Settings.Period);
+		// Written since: a template without a period doesn't hold one
+		Assert.Null(ChartTemplateHelpers.ToDto(current, null).Settings.Period);
+	}
+
+	[Fact]
+	public void An_unknown_period_is_refused() =>
+		Assert.Equal(
+			"Mine: unknown period.",
+			ChartTemplateHelpers.GetSettingsError("Mine", new() { Period = (ChartPeriod)42 })
+		);
 
 	private static IndicatorInstanceDto Ema(double length) =>
 		new()

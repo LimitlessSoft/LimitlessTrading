@@ -68,6 +68,24 @@ public static class ChartViewportHelpers
 	}
 
 	/// <summary>
+	/// Bar spacing that shows every bar and the right margin across a plot
+	/// <paramref name="plotWidth"/> wide (with half a slot to spare on each side), at most
+	/// <paramref name="maxSpacing"/>; <paramref name="maxSpacing"/> when there is nothing to fit.
+	/// </summary>
+	public static double GetFitBarSpacing(
+		int barCount,
+		double rightMargin,
+		double plotWidth,
+		double maxSpacing
+	)
+	{
+		if (barCount <= 0 || !(plotWidth > 0))
+			return maxSpacing;
+		var slots = barCount + (rightMargin > 0 ? rightMargin : 0) + 1;
+		return Math.Min(maxSpacing, plotWidth / slots);
+	}
+
+	/// <summary>
 	/// Margin while dragging its handle <paramref name="deltaX"/> DIPs from where the drag
 	/// started: left (negative) widens it, right narrows it.
 	/// </summary>

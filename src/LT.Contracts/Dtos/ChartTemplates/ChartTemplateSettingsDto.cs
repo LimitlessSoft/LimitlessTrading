@@ -11,6 +11,9 @@ public class ChartTemplateSettingsDto
 {
 	public ChartTimeframe? Timeframe { get; set; }
 
+	/// <summary>The span of bars (<see cref="ChartPeriod.Auto"/>: the timeframe's own).</summary>
+	public ChartPeriod? Period { get; set; }
+
 	/// <summary>Empty bars after the latest one.</summary>
 	public double? RightMargin { get; set; }
 

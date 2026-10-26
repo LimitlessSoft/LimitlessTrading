@@ -5,8 +5,16 @@ public static class ChartTemplateConstants
 	/// <summary>
 	/// Version of the template format written now. Raise it when a setting changes meaning;
 	/// templates and files of older versions must keep loading.
+	/// <para>
+	/// 2: the period. A version 1 template holding a timeframe meant that timeframe with its own
+	/// span, so it is read as holding <see cref="Enums.ChartPeriod.Auto"/>
+	/// (<see cref="PeriodSinceVersion"/>).
+	/// </para>
 	/// </summary>
-	public const int CurrentVersion = 1;
+	public const int CurrentVersion = 2;
+
+	/// <summary>The first version whose templates say their period themselves.</summary>
+	public const int PeriodSinceVersion = 2;
 
 	/// <summary>Marks an exported file as chart templates (checked on import).</summary>
 	public const string FileFormat = "LimitlessTrading.ChartTemplates";

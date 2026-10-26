@@ -16,10 +16,11 @@ namespace LT.App.Widgets.Chart;
 
 /// <summary>
 /// Chart templates (<see cref="LT.Contracts.Interfaces.IManagers.IChartTemplateManager"/>): the
-/// header's template menu saves this chart's setup — timeframe, indicators with their inputs,
-/// visibility and colours, right margin — under a name (a taken name asks before replacing it),
-/// applies one, renames, deletes, marks one as the default for new charts, and exports / imports
-/// them as JSON files (the files are picked by the view). Problems and results show in the menu.
+/// header's template menu saves this chart's setup — timeframe, period, indicators with their
+/// inputs, visibility and colours, right margin — under a name (a taken name asks before
+/// replacing it), applies one, renames, deletes, marks one as the default for new charts, and
+/// exports / imports them as JSON files (the files are picked by the view). Problems and results
+/// show in the menu.
 /// <para>
 /// The chart remembers the template it last applied or was saved as (or the default it started
 /// from). "Follow and save on change" ties it to that template: its edits are saved to it
@@ -35,6 +36,9 @@ public partial class ChartViewModel
 {
 	private string? _templateId;
 	private bool _applyingTemplate;
+
+	// A timeframe or period changed while applying: one reload once the template is applied
+	private bool _reloadAfterTemplate;
 
 	/// <summary>The template this chart uses (last applied or saved as); null: none.</summary>
 	[ObservableProperty]
@@ -241,6 +245,7 @@ public partial class ChartViewModel
 		new()
 		{
 			Timeframe = SelectedTimeframe.Value,
+			Period = SelectedPeriod.Value,
 			RightMargin = RightMargin,
 			Indicators = [.. _indicators],
 		};
@@ -310,10 +315,13 @@ public partial class ChartViewModel
 	private void ApplyTemplateSettings(ChartTemplateSettingsDto settings)
 	{
 		_applyingTemplate = true;
+		_reloadAfterTemplate = false;
 		try
 		{
 			if (settings.Timeframe is { } timeframe)
 				SetTimeframe(timeframe);
+			if (settings.Period is { } period)
+				SetPeriod(period);
 			if (settings.RightMargin is { } margin)
 				RightMargin = Math.Max(0, margin);
 			if (settings.Indicators is { } indicators)
@@ -327,6 +335,17 @@ public partial class ChartViewModel
 		{
 			_applyingTemplate = false;
 		}
+		if (_reloadAfterTemplate)
+			Reload();
+	}
+
+	// Timeframe and period: applying a template that sets both asks IB for bars once
+	private void ReloadUnlessApplyingTemplate()
+	{
+		if (_applyingTemplate)
+			_reloadAfterTemplate = true;
+		else
+			Reload();
 	}
 
 	[RelayCommand]

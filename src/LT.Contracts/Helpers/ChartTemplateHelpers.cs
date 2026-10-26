@@ -6,6 +6,7 @@ using LT.Contracts.DtoMappings.ChartTemplates;
 using LT.Contracts.Dtos.ChartTemplates;
 using LT.Contracts.Dtos.Indicators;
 using LT.Contracts.Entities;
+using LT.Contracts.Enums;
 using LT.Contracts.Enums.ValidationCodes;
 
 namespace LT.Contracts.Helpers;
@@ -33,11 +34,20 @@ public static class ChartTemplateHelpers
 		return settings.ChartTemplates;
 	}
 
-	/// <summary>The template as shown; <paramref name="defaultId"/> marks the default one.</summary>
+	/// <summary>
+	/// The template as shown; <paramref name="defaultId"/> marks the default one. A template
+	/// written before periods that holds a timeframe holds <see cref="ChartPeriod.Auto"/> with it
+	/// (what charts showed then), so charts following it share their period too.
+	/// </summary>
 	public static ChartTemplateDto ToDto(ChartTemplateEntity template, string? defaultId)
 	{
 		var dto = new ChartTemplateDtoMapper().ToMapped(template);
 		dto.IsDefault = defaultId != null && template.Id == defaultId;
+		if (
+			template.Version < ChartTemplateConstants.PeriodSinceVersion
+			&& dto.Settings.Timeframe != null
+		)
+			dto.Settings.Period ??= ChartPeriod.Auto;
 		return dto;
 	}
 
@@ -106,6 +116,8 @@ public static class ChartTemplateHelpers
 	{
 		if (settings.Timeframe is { } timeframe && !Enum.IsDefined(timeframe))
 			return ChartTemplateValidationCodes.CHTVC_008.GetValidationMessage(label);
+		if (settings.Period is { } period && !Enum.IsDefined(period))
+			return ChartTemplateValidationCodes.CHTVC_014.GetValidationMessage(label);
 		if (settings.RightMargin is { } margin && !(double.IsFinite(margin) && margin >= 0))
 			return ChartTemplateValidationCodes.CHTVC_012.GetValidationMessage(label);
 		if (settings.Indicators is not { } indicators)
@@ -156,6 +168,8 @@ public static class ChartTemplateHelpers
 	{
 		if (template.Timeframe is { } timeframe && chart.Timeframe != timeframe)
 			return false;
+		if (template.Period is { } period && chart.Period != period)
+			return false;
 		if (template.RightMargin is { } margin && chart.RightMargin != Math.Max(0, margin))
 			return false;
 		if (template.Indicators is not { } indicators)
@@ -177,6 +191,7 @@ public static class ChartTemplateHelpers
 		new()
 		{
 			Timeframe = template.Timeframe != null ? chart.Timeframe : null,
+			Period = template.Period != null ? chart.Period : null,
 			RightMargin = template.RightMargin != null ? chart.RightMargin ?? 0 : null,
 			Indicators = template.Indicators != null ? [.. chart.Indicators ?? []] : null,
 		};
