@@ -11,6 +11,7 @@ using LT.App.Workspace;
 using LT.Contracts.Constants;
 using LT.Contracts.Enums;
 using LT.Contracts.Interfaces.IApiClients;
+using LT.Contracts.Interfaces.IEngines;
 using LT.Contracts.Interfaces.IManagers;
 using LT.Contracts.Interfaces.INewsSources;
 using LT.Contracts.Interfaces.IProcesses;
@@ -20,6 +21,7 @@ using LT.Domain.NewsSources;
 using LT.Ibkr;
 using LT.Ibkr.Flex;
 using LT.Ibkr.Gateway;
+using LT.Indicators.Scripting;
 using LT.Repository.Repositories;
 using LT.Sec;
 using Microsoft.Extensions.DependencyInjection;
@@ -111,6 +113,12 @@ public static class Program
 		// Holds the quick exits still working, app-wide (every Positions widget)
 		builder.Services.AddSingleton<IOrderManager, OrderManager>();
 
+		// Chart indicators: one engine (compiled scripts, their load contexts), one catalog, one
+		// watcher on the scripts folder
+		builder.Services.AddSingleton<IIndicatorEngine, IndicatorEngine>();
+		builder.Services.AddSingleton<IIndicatorScriptRepository, IndicatorScriptRepository>();
+		builder.Services.AddSingleton<IIndicatorManager, IndicatorManager>();
+
 		// News: every INewsSource is aggregated by the news manager (more sources go here)
 		builder.Services.AddSingleton<INewsSource, IbkrNewsSource>();
 		builder.Services.AddSingleton<INewsManager, NewsManager>();
@@ -135,6 +143,7 @@ public static class Program
 		builder.Services.AddHostedService<AccountPerformanceRecorder>();
 		builder.Services.AddHostedService<TradeJournalRecorder>();
 		builder.Services.AddHostedService<FlexImportScheduler>();
+		builder.Services.AddHostedService<IndicatorScriptHost>();
 
 		// ViewModels have no interfaces, so the convention scan skips them
 		builder.Services.AddTransient<MainWindowViewModel>();

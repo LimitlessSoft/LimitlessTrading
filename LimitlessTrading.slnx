@@ -19,6 +19,8 @@
 	<Project Path="src/LT.Contracts/LT.Contracts.csproj" />
 	<Project Path="src/LT.Domain/LT.Domain.csproj" />
 	<Project Path="src/LT.Ibkr/LT.Ibkr.csproj" />
+	<Project Path="src/LT.Indicators.Scripting/LT.Indicators.Scripting.csproj" />
+	<Project Path="src/LT.Indicators.Sdk/LT.Indicators.Sdk.csproj" />
 	<Project Path="src/LT.Repository/LT.Repository.csproj" />
 	<Project Path="src/LT.Sec/LT.Sec.csproj" />
 	<Project Path="src/LT.Tests/LT.Tests.csproj" />

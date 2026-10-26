@@ -22,6 +22,7 @@ using LT.Contracts.Requests.Connection;
 using LT.Contracts.Requests.Contracts;
 using LT.Contracts.Requests.Flex;
 using LT.Contracts.Requests.Gateway;
+using LT.Contracts.Requests.Indicators;
 using LT.Contracts.Requests.MarketDepth;
 using LT.Contracts.Requests.News;
 using LT.Contracts.Requests.Options;
@@ -32,6 +33,7 @@ using LT.Domain.Validators.Connection;
 using LT.Domain.Validators.Contracts;
 using LT.Domain.Validators.Flex;
 using LT.Domain.Validators.Gateway;
+using LT.Domain.Validators.Indicators;
 using LT.Domain.Validators.MarketDepth;
 using LT.Domain.Validators.News;
 using LT.Domain.Validators.Options;
@@ -120,6 +122,14 @@ public static class LSCoreContainer
 				.AddSingleton<
 					LSCoreValidatorBase<SaveFlexSettingsRequest>,
 					SaveFlexSettingsRequestValidator
+				>()
+				.AddSingleton<
+					LSCoreValidatorBase<UpdateIndicatorInputsRequest>,
+					UpdateIndicatorInputsRequestValidator
+				>()
+				.AddSingleton<
+					LSCoreValidatorBase<ComputeIndicatorsRequest>,
+					ComputeIndicatorsRequestValidator
 				>()
 				.BuildServiceProvider();
 		}

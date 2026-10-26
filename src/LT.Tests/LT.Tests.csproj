@@ -9,6 +9,8 @@
 		<ProjectReference Include="..\LT.Domain\LT.Domain.csproj" />
 		<ProjectReference Include="..\LT.Ibkr\LT.Ibkr.csproj" />
 		<ProjectReference Include="..\LT.Repository\LT.Repository.csproj" />
+		<ProjectReference Include="..\LT.Indicators.Sdk\LT.Indicators.Sdk.csproj" />
+		<ProjectReference Include="..\LT.Indicators.Scripting\LT.Indicators.Scripting.csproj" />
 		<ProjectReference Include="..\LT.Sec\LT.Sec.csproj" />
 		<!-- UI-free helpers only (FlexStatusHelpers); no view is created in tests -->
 		<ProjectReference Include="..\Widgets\LT.Widgets.Core\LT.Widgets.Core.csproj" />

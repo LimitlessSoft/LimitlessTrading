@@ -73,6 +73,8 @@ Layers follow the Termodom ecosystem and use LSCore (`DependencyInjection`, `Val
 | `LT.Domain` | Managers, Validators |
 | `LT.Repository` | Local persistence (JSON settings) |
 | `LT.Ibkr` | `IIbkrApiClient` over IBKR.Net (our own IB client, no IB code) |
+| `LT.Indicators.Sdk` | What chart indicators (built-in and user scripts) are written against; no deps |
+| `LT.Indicators.Scripting` | `IIndicatorEngine`: built-in indicators, Roslyn script compiler, runner |
 | `LT.App` | Avalonia app — `Program.cs` composition root, Shell, Pages, Workspace, Widgets |
 | `LT.Widgets.Core` | What widget projects build on: base VMs, Stores, shared controls, UI helpers |
 | `LT.Widgets.<Widget>` | One workspace widget per project, under `src/Widgets/` |
@@ -96,3 +98,4 @@ csharpier format .
 | [docs/ibkr-flex.md](docs/ibkr-flex.md) | Flex Web Service history import: query setup, endpoints, merge rules |
 | [docs/architecture.md](docs/architecture.md) | Project layout, dependency direction, DI, Termodom mapping |
 | [docs/ui-patterns.md](docs/ui-patterns.md) | Widgets/pages, MVVM, threading, styling |
+| [docs/indicators.md](docs/indicators.md) | Chart indicators: SDK, script files, compiler ban list, engine, panes |

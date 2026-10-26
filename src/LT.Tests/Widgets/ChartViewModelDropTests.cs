@@ -3,6 +3,7 @@ using LT.App.Widgets.Chart;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Enums;
 using LT.Domain.Managers;
+using LT.Indicators.Scripting;
 using LT.Tests.Fakes;
 
 namespace LT.Tests.Widgets;
@@ -86,6 +87,11 @@ public class ChartViewModelDropTests : IDisposable
 				_cache.Time
 			),
 			new PositionManager(_ibkr, _cache.Manager),
+			new IndicatorManager(
+				new IndicatorEngine(),
+				new InMemoryIndicatorScriptRepository(),
+				new MessageLogManager()
+			),
 			new AccountStore(_connection, settings),
 			_links,
 			new DisplayTimeStore(settings, _cache.Time)

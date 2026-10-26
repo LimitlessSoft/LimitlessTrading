@@ -24,4 +24,8 @@ public static class AppPathHelpers
 	/// <summary>Recorded account performance: one JSON file per account.</summary>
 	public static string GetAccountHistoryDirectory() =>
 		Path.Combine(GetAppDataDirectory(), AccountPerformanceConstants.HistoryDirectoryName);
+
+	/// <summary>Indicator scripts: one <c>*.cs</c> file per indicator, plus the editor project.</summary>
+	public static string GetIndicatorsDirectory() =>
+		Path.Combine(GetAppDataDirectory(), IndicatorConstants.DirectoryName);
 }

@@ -535,6 +535,12 @@ library): candles, volume, price grid, last-price line, crosshair + OHLCV readou
 drag pans, double-click resets (zoom and pan, not the right margin). The account performance widget's `EquityCurveChart` and
 `DailyPnlBarChart` are drawn the same way (same palette, `ChartDrawing`).
 
+**Indicators and panes.** The ƒx button in the chart header adds indicators; they draw on the
+price chart, on the volume bars or in panes of their own stacked under the price chart, each
+pane with its own scale and a legend (hover a row for hide / settings / remove). All panes share
+the horizontal viewport and the crosshair. The loading / error overlay sits top centre, clear of
+the legend. Details: [indicators.md](indicators.md).
+
 **Right margin.** A small grip in the time axis marks the end of the last bar; dragging it left
 leaves empty space after the latest bar (dragging right narrows it, double-clicking it removes
 it), with a resize cursor and a dashed guide through the plot while hovered or dragged. The

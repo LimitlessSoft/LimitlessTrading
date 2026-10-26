@@ -8,6 +8,7 @@ using Avalonia.Media.Immutable;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Executions;
+using LT.Contracts.Dtos.Indicators;
 using LT.Contracts.Dtos.Performance;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
@@ -21,8 +22,14 @@ namespace LT.App.Widgets.Chart;
 /// lost) and the open position's break-even line. A handle in the time axis, at the end of the
 /// last bar, drags out empty space after it (<see cref="RightMargin"/>, in bars, so it keeps its
 /// place across zoom, new bars and timeframe switches); double-clicking the handle removes it.
+/// <para>
+/// Indicators (<see cref="Indicators"/>) draw on the price chart, on the volume bars or in
+/// panes of their own stacked under the price chart; every pane shares the horizontal viewport
+/// and has its own vertical scale (<see cref="ChartPane"/>). Each pane has a legend at its top
+/// left (CandlestickChart.Indicators.cs) whose rows raise <see cref="IndicatorAction"/>.
+/// </para>
 /// </summary>
-public class CandlestickChart : Control
+public partial class CandlestickChart : Control
 {
 	public static readonly StyledProperty<IReadOnlyList<BarDto>?> BarsProperty =
 		AvaloniaProperty.Register<CandlestickChart, IReadOnlyList<BarDto>?>(nameof(Bars));
@@ -52,6 +59,11 @@ public class CandlestickChart : Control
 	public static readonly StyledProperty<TimeZoneInfo?> TimeZoneProperty =
 		AvaloniaProperty.Register<CandlestickChart, TimeZoneInfo?>(nameof(TimeZone));
 
+	public static readonly StyledProperty<IReadOnlyList<IndicatorResultDto>?> IndicatorsProperty =
+		AvaloniaProperty.Register<CandlestickChart, IReadOnlyList<IndicatorResultDto>?>(
+			nameof(Indicators)
+		);
+
 	private const double PriceAxisWidth = 72;
 	private const double TimeAxisHeight = 22;
 	private const double TopPadding = 24;
@@ -59,6 +71,7 @@ public class CandlestickChart : Control
 	private const double MinBarSpacing = 2;
 	private const double MaxBarSpacing = 40;
 	private const double DefaultBarSpacing = 8;
+	private const double PaneGap = 6;
 
 	private static readonly ImmutableSolidColorBrush Background = new ImmutableSolidColorBrush(
 		Color.Parse("#15181D")
@@ -124,6 +137,9 @@ public class CandlestickChart : Control
 		1,
 		new ImmutableDashStyle([2, 3], 0)
 	);
+	private static readonly ImmutableSolidColorBrush AxisLabelBrush = new ImmutableSolidColorBrush(
+		Color.Parse("#3A4150")
+	);
 	private static readonly Cursor ResizeCursor = new(StandardCursorType.SizeWestEast);
 	private static readonly TimeZoneInfo TradeDayZone = TradeJournalHelpers.GetTradeDayTimeZone();
 
@@ -145,6 +161,9 @@ public class CandlestickChart : Control
 	private (int Entry, int Exit, TradeLegDto Leg)[] _legBars = [];
 	private bool _tradesDirty = true;
 
+	// Indicator panes as last drawn (for the crosshair and hit tests)
+	private ChartPane[] _panes = [];
+
 	static CandlestickChart()
 	{
 		AffectsRender<CandlestickChart>(
@@ -155,7 +174,8 @@ public class CandlestickChart : Control
 			TradeLegsProperty,
 			BreakEvenPriceProperty,
 			RightMarginProperty,
-			TimeZoneProperty
+			TimeZoneProperty,
+			IndicatorsProperty
 		);
 		ClipToBoundsProperty.OverrideDefaultValue<CandlestickChart>(true);
 		FocusableProperty.OverrideDefaultValue<CandlestickChart>(true);
@@ -205,6 +225,16 @@ public class CandlestickChart : Control
 		set => SetValue(BreakEvenPriceProperty, value);
 	}
 
+	/// <summary>Computed indicators, in legend order (hidden ones too, for their legend row).</summary>
+	public IReadOnlyList<IndicatorResultDto>? Indicators
+	{
+		get => GetValue(IndicatorsProperty);
+		set => SetValue(IndicatorsProperty, value);
+	}
+
+	/// <summary>A legend row was clicked: the indicator instance and what to do with it.</summary>
+	public event Action<string, ChartIndicatorAction>? IndicatorAction;
+
 	/// <summary>Empty bars after the latest one (fractions allowed).</summary>
 	public double RightMargin
 	{
@@ -243,6 +273,8 @@ public class CandlestickChart : Control
 	{
 		var size = Bounds.Size;
 		context.DrawRectangle(Background, null, new Rect(size));
+		_legendRows.Clear();
+		_legendButtons.Clear();
 
 		var bars = Bars;
 		if (bars is not { Count: > 0 } || size.Width < PriceAxisWidth + 20 || size.Height < 80)
@@ -253,6 +285,7 @@ public class CandlestickChart : Control
 				new Point((size.Width - empty.Width) / 2, (size.Height - empty.Height) / 2)
 			);
 			_handleX = null;
+			_panes = [];
 			return;
 		}
 
@@ -262,9 +295,22 @@ public class CandlestickChart : Control
 			size.Width - PriceAxisWidth,
 			size.Height - TopPadding - TimeAxisHeight
 		);
-		var volumeHeight = plot.Height * VolumeFraction;
-		var priceRect = new Rect(plot.X, plot.Y, plot.Width, plot.Height - volumeHeight - 6);
-		var volumeRect = new Rect(plot.X, plot.Bottom - volumeHeight, plot.Width, volumeHeight);
+		var indicators = Indicators ?? [];
+		var overlays = indicators.Where(x => x.Pane == IndicatorPane.Overlay).ToList();
+		var volumeIndicators = indicators.Where(x => x.Pane == IndicatorPane.Volume).ToList();
+		var separate = indicators.Where(x => x.Pane == IndicatorPane.Separate).ToList();
+
+		// Price chart (with the volume bars at its bottom) on top, one pane per separate indicator under it
+		var paneHeight = IndicatorChartHelpers.GetPaneHeight(plot.Height, separate.Count);
+		var mainHeight = plot.Height - paneHeight * separate.Count;
+		var volumeHeight = mainHeight * VolumeFraction;
+		var priceRect = new Rect(plot.X, plot.Y, plot.Width, mainHeight - volumeHeight - 6);
+		var volumeRect = new Rect(
+			plot.X,
+			plot.Y + mainHeight - volumeHeight,
+			plot.Width,
+			volumeHeight
+		);
 
 		_plot = plot;
 		_offset = Math.Clamp(_offset, 0, bars.Count - 1);
@@ -290,6 +336,19 @@ public class CandlestickChart : Control
 			high = Math.Max(high, bars[i].High);
 			maxVolume = Math.Max(maxVolume, bars[i].Volume);
 		}
+		// Overlays on the price scale widen it, like the bars do
+		if (
+			IndicatorChartHelpers.GetRange(
+				overlays.Where(x => x.IsVisible).SelectMany(x => x.Plots),
+				start,
+				end
+			) is
+			{ } overlayRange
+		)
+		{
+			low = Math.Min(low, overlayRange.Min);
+			high = Math.Max(high, overlayRange.Max);
+		}
 		if (high <= low)
 		{
 			high += 0.5;
@@ -298,21 +357,47 @@ public class CandlestickChart : Control
 		var padding = (high - low) * 0.06;
 		low -= padding;
 		high += padding;
+		var volumeMax = (double)maxVolume;
+		if (
+			IndicatorChartHelpers.GetRange(
+				volumeIndicators.Where(x => x.IsVisible).SelectMany(x => x.Plots),
+				start,
+				end
+			) is
+			{ } volumeRange
+		)
+			volumeMax = Math.Max(volumeMax, volumeRange.Max);
 
-		double Y(double price) =>
-			priceRect.Bottom - (price - low) / (high - low) * priceRect.Height;
+		var price = new ChartPane(priceRect, low, high);
+		var volume = new ChartPane(volumeRect, 0, volumeMax > 0 ? volumeMax : 1);
+		var panes = new List<(ChartPane Pane, IndicatorResultDto Result)>();
+		for (var k = 0; k < separate.Count; k++)
+		{
+			var rect = new Rect(
+				plot.X,
+				plot.Y + mainHeight + k * paneHeight + PaneGap,
+				plot.Width,
+				Math.Max(1, paneHeight - PaneGap)
+			);
+			var (min, max) = IndicatorChartHelpers.GetPaneScale(separate[k], start, end);
+			panes.Add((new ChartPane(rect, min, max), separate[k]));
+		}
+		_panes = [.. panes.Select(x => x.Pane)];
+
+		double Y(double value) => price.Y(value);
 		double X(int index) =>
 			ChartViewportHelpers.GetBarX(index, rightEdge, plot.Right, _barSpacing);
+		var view = new Viewport(start, end, _barSpacing, X);
 
 		// price grid + axis labels
 		var step = NiceStep((high - low) / Math.Max(2, priceRect.Height / 48));
 		var decimals = step >= 1 ? 2 : Math.Min(6, (int)Math.Ceiling(-Math.Log10(step)) + 1);
-		for (var price = Math.Ceiling(low / step) * step; price <= high; price += step)
+		for (var value = Math.Ceiling(low / step) * step; value <= high; value += step)
 		{
-			var y = Math.Round(Y(price)) + 0.5;
+			var y = Math.Round(Y(value)) + 0.5;
 			context.DrawLine(GridPen, new Point(plot.X, y), new Point(plot.Right, y));
 			var label = Text(
-				price.ToString("N" + decimals, CultureInfo.CurrentCulture),
+				value.ToString("N" + decimals, CultureInfo.CurrentCulture),
 				11,
 				TextBrush
 			);
@@ -344,11 +429,11 @@ public class CandlestickChart : Control
 
 			if (maxVolume > 0 && bar.Volume > 0)
 			{
-				var h = (double)(bar.Volume / maxVolume) * volumeRect.Height;
+				var top = volume.Y((double)bar.Volume);
 				context.DrawRectangle(
 					up ? UpVolumeBrush : DownVolumeBrush,
 					null,
-					new Rect(x - bodyWidth / 2, volumeRect.Bottom - h, bodyWidth, h)
+					new Rect(x - bodyWidth / 2, top, bodyWidth, volumeRect.Bottom - top)
 				);
 			}
 
@@ -358,14 +443,19 @@ public class CandlestickChart : Control
 				new Point(wickX, Y(bar.High)),
 				new Point(wickX, Y(bar.Low))
 			);
-			var top = Y(Math.Max(bar.Open, bar.Close));
-			var bottom = Y(Math.Min(bar.Open, bar.Close));
+			var bodyTop = Y(Math.Max(bar.Open, bar.Close));
+			var bodyBottom = Y(Math.Min(bar.Open, bar.Close));
 			context.DrawRectangle(
 				up ? UpBrush : DownBrush,
 				null,
-				new Rect(x - bodyWidth / 2, top, bodyWidth, Math.Max(1, bottom - top))
+				new Rect(x - bodyWidth / 2, bodyTop, bodyWidth, Math.Max(1, bodyBottom - bodyTop))
 			);
 		}
+
+		DrawIndicatorPlots(context, volumeIndicators, volume, view, bars, false);
+		DrawIndicatorPlots(context, overlays, price, view, bars, true);
+		foreach (var (pane, result) in panes)
+			DrawIndicatorPane(context, pane, result, view, bars);
 
 		DrawTrades(context, bars, priceRect, X, Y);
 		DrawMarginHandle(context, plot, bars.Count, rightEdge);
@@ -417,7 +507,7 @@ public class CandlestickChart : Control
 			context.DrawText(label, new Point(plot.Right + 6, lastY - label.Height / 2));
 		}
 
-		// crosshair + readout
+		// crosshair: through every pane, the value of the pane under the pointer on the axis
 		var hovered = end - 1;
 		if (_pointer is { } p && plot.Contains(p))
 		{
@@ -429,25 +519,20 @@ public class CandlestickChart : Control
 				end - 1
 			);
 			if (p.Y <= priceRect.Bottom)
-			{
-				var price = low + (priceRect.Bottom - p.Y) / priceRect.Height * (high - low);
-				var label = Text(
-					price.ToString("N" + decimals, CultureInfo.CurrentCulture),
-					11,
-					LabelBrush
-				);
-				context.DrawRectangle(
-					new ImmutableSolidColorBrush(Color.Parse("#3A4150")),
-					null,
-					new Rect(
-						plot.Right,
-						p.Y - label.Height / 2 - 2,
-						PriceAxisWidth,
-						label.Height + 4
-					)
-				);
-				context.DrawText(label, new Point(plot.Right + 6, p.Y - label.Height / 2));
-			}
+				DrawAxisLabel(context, plot.Right, p.Y, price.Value(p.Y), decimals);
+			else
+				foreach (var (pane, result) in panes)
+					if (pane.Contains(p.Y))
+					{
+						DrawAxisLabel(
+							context,
+							plot.Right,
+							p.Y,
+							pane.Value(p.Y),
+							GetDecimals(result, pane)
+						);
+						break;
+					}
 		}
 
 		var b = bars[hovered];
@@ -459,6 +544,7 @@ public class CandlestickChart : Control
 		context.DrawText(readout, new Point(6, 4));
 
 		// the hovered bar's fills under the readout
+		var legendTop = priceRect.Top + 4;
 		var hoveredFills = _fillBars.Where(x => x.Index == hovered).Select(x => x.Fill).ToList();
 		if (hoveredFills.Count > 0)
 		{
@@ -473,8 +559,51 @@ public class CandlestickChart : Control
 			);
 			if (hoveredFills.Count > shown)
 				text += $"   +{hoveredFills.Count - shown} more";
-			context.DrawText(Text(text, 11, LabelBrush), new Point(6, 4 + readout.Height));
+			var fills = Text(text, 11, LabelBrush);
+			context.DrawText(fills, new Point(6, 4 + readout.Height));
+			legendTop = Math.Max(legendTop, 4 + readout.Height + fills.Height + 2);
 		}
+
+		// legends: overlays under the readout, volume indicators on the volume bars, each pane its own
+		DrawLegend(context, overlays, new Point(6, legendTop), plot.Width, hovered, _ => decimals);
+		DrawLegend(
+			context,
+			volumeIndicators,
+			new Point(6, volumeRect.Top + 2),
+			plot.Width,
+			hovered,
+			x => x.Decimals ?? 0
+		);
+		foreach (var (pane, result) in panes)
+			DrawLegend(
+				context,
+				[result],
+				new Point(6, pane.Rect.Top + 2),
+				plot.Width,
+				hovered,
+				x => GetDecimals(x, pane)
+			);
+	}
+
+	private void DrawAxisLabel(
+		DrawingContext context,
+		double x,
+		double y,
+		double value,
+		int decimals
+	)
+	{
+		var label = Text(
+			value.ToString("N" + decimals, CultureInfo.CurrentCulture),
+			11,
+			LabelBrush
+		);
+		context.DrawRectangle(
+			AxisLabelBrush,
+			null,
+			new Rect(x, y - label.Height / 2 - 2, PriceAxisWidth, label.Height + 4)
+		);
+		context.DrawText(label, new Point(x + 6, y - label.Height / 2));
 	}
 
 	// The break line between the last bar and the right margin: a grip in the time axis, and a
@@ -515,7 +644,12 @@ public class CandlestickChart : Control
 	private void UpdateHandleHover(Point? position)
 	{
 		_handleHovered = position is { } p && _dragStart == null && IsOnMarginHandle(p);
-		Cursor = _handleHovered || _marginDragStartX != null ? ResizeCursor : null;
+		var dragging = _dragStart != null || _marginDragStartX != null;
+		UpdateLegendHover(dragging ? null : position);
+		Cursor =
+			_handleHovered || _marginDragStartX != null ? ResizeCursor
+			: !dragging && position is { } q && HitLegend(q) != null ? HandCursor
+			: null;
 	}
 
 	private void DrawTrades(
@@ -615,6 +749,13 @@ public class CandlestickChart : Control
 	{
 		base.OnPointerPressed(e);
 		var position = e.GetPosition(this);
+		if (HitLegend(position) is { } legend)
+		{
+			e.Handled = true;
+			if (e.ClickCount == 1 && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+				RaiseIndicatorAction(legend.InstanceId, legend.Action);
+			return;
+		}
 		if (IsOnMarginHandle(position))
 		{
 			if (e.ClickCount == 2)
