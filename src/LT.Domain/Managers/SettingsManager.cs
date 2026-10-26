@@ -44,7 +44,6 @@ public class SettingsManager(ISettingsRepository settingsRepository, IIbkrApiCli
 		settings.General.DisplayTimeZoneId = string.IsNullOrWhiteSpace(request.DisplayTimeZoneId)
 			? null
 			: request.DisplayTimeZoneId;
-		settings.General.ChartOutsideRegularHours = request.ChartOutsideRegularHours;
 		settingsRepository.Save(settings);
 		if (ibkrApiClient.IsConnected)
 			ibkrApiClient.SetMarketDataType(request.MarketDataType);

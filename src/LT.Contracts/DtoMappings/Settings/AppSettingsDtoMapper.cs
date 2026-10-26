@@ -25,6 +25,5 @@ public class AppSettingsDtoMapper : ILSCoreMapper<GeneralSettingsEntity, AppSett
 			ChartLiveUpdateMode = source.ChartLiveUpdateMode,
 			ChartRedrawIntervalMs = source.ChartRedrawIntervalMs,
 			DisplayTimeZoneId = source.DisplayTimeZoneId,
-			ChartOutsideRegularHours = source.ChartOutsideRegularHours,
 		};
 }

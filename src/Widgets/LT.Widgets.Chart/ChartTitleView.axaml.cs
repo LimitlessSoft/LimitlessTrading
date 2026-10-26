@@ -10,6 +10,8 @@ namespace LT.App.Widgets.Chart;
 /// of the chart's timeframes (picking one reloads the bars at that size), and the period button,
 /// whose menu has Auto, the rolling periods (1 day … 5 years back from now) and the calendar
 /// periods (today, this week, this month, this year), each group set apart by a separator.
+/// On intraday charts an RTH / ETH button after it switches the chart between regular hours only
+/// and pre- and post-market bars.
 /// Indicators and templates are in the chart's right-click menu (<see cref="ChartView"/>).
 /// </summary>
 public partial class ChartTitleView : UserControl

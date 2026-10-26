@@ -8,8 +8,9 @@
 >
 	<!-- Chart header title: click the ticker to type another (IB listings are suggested) or pick a
 	     recent one; click the timeframe next to it to pick another bar size, and the period after
-	     it to pick the span of bars (rolling, then calendar periods). Indicators and
-	     templates are in the chart's right-click menu (ChartView). -->
+	     it to pick the span of bars (rolling, then calendar periods), and RTH / ETH after that
+	     (intraday only) to switch between regular hours and pre- and post-market bars.
+	     Indicators and templates are in the chart's right-click menu (ChartView). -->
 	<StackPanel Orientation="Horizontal" Spacing="2">
 		<controls:TickerTitle />
 		<Button
@@ -32,5 +33,12 @@
 				<MenuFlyout Placement="BottomEdgeAlignedLeft" />
 			</Button.Flyout>
 		</Button>
+		<Button
+			Classes="chartTimeframe"
+			Content="{Binding TradingHoursLabel}"
+			Command="{Binding ToggleTradingHoursCommand}"
+			IsVisible="{Binding HasTradingHoursToggle}"
+			ToolTip.Tip="{Binding TradingHoursToolTip}"
+		/>
 	</StackPanel>
 </UserControl>

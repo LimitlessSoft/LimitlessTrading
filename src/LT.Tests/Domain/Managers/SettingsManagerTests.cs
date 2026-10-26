@@ -190,33 +190,15 @@ public class SettingsManagerTests
 		);
 	}
 
+	// The app-wide chart hours setting moved onto each chart; files that still have it load
 	[Fact]
-	public void Charts_show_outside_regular_hours_by_default_and_can_turn_it_off()
-	{
-		var manager = new SettingsManager(_settings, _ibkr);
-		Assert.True(manager.GetAppSettings().ChartOutsideRegularHours);
-		bool? raised = null;
-		manager.AppSettingsChanged += x => raised = x.ChartOutsideRegularHours;
-
-		manager.SaveAppSettings(
-			new SaveAppSettingsRequest
-			{
-				MarketDataType = MarketDataType.Delayed,
-				HeartbeatSeconds = 10,
-				ChartOutsideRegularHours = false,
-			}
-		);
-
-		Assert.False(manager.GetAppSettings().ChartOutsideRegularHours);
-		Assert.False(raised);
-	}
-
-	[Fact]
-	public void Settings_saved_before_the_chart_hours_setting_load_with_it_on() =>
-		Assert.True(
+	public void Settings_saved_with_the_old_app_wide_chart_hours_setting_still_load() =>
+		Assert.False(
 			JsonSerializer
-				.Deserialize<SettingsEntity>("""{ "General": { "AutoReconnect": false } }""")!
-				.General.ChartOutsideRegularHours
+				.Deserialize<SettingsEntity>(
+					"""{ "General": { "AutoReconnect": false, "ChartOutsideRegularHours": false } }"""
+				)!
+				.General.AutoReconnect
 		);
 
 	[Fact]
