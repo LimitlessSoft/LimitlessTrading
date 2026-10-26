@@ -9,9 +9,10 @@ fixes and code are all welcome.
   humans as much as for AI assistants). The `docs/` folder explains the why.
 - **Open an issue first for anything bigger than a small fix**, so we can agree on the approach
   before you spend time on it.
-- **This is a read-only build.** There is no code that places, modifies or cancels orders, and
-  `IIbkrApiClient` has no order methods. Trading is a deliberate, separately discussed step — PRs
-  that add order placement on the side will not be merged.
+- **This app trades real money.** The Order ticket places and cancels orders through
+  `IIbkrApiClient.PlaceOrderAsync` / `CancelOrderAsync` on whatever account is connected — use a
+  paper account while developing. Changes to order code are reviewed with extra care, and nothing
+  (tests, probes, scripts) may send an order without an explicit yes for it.
 
 ## Getting set up
 
