@@ -47,6 +47,10 @@ src/
 │   ├── Flex/                      # FlexApiClient (HTTPS, no IBKR.Net) + FlexStatementParser
 │   ├── RequestThrottle.cs         # IB pacing (messages/s, historical requests / 10 min)
 │   └── IbkrApiClient.cs           # implements IIbkrApiClient over IBKR.Net (+ order connection)
+├── LT.Indicators.Sdk/             # Series, Ta, Indicator — what indicators are written against;
+│                                  #   references nothing (scripts compile against it alone)
+├── LT.Indicators.Scripting/       # IndicatorEngine (IIndicatorEngine): built-ins, ScriptCompiler
+│                                  #   (Roslyn, ban list, time guard), collectible load contexts
 ├── LT.App/                        # Avalonia (Fluent, dark)
 │   ├── Program.cs                 # composition root (generic host + LSCore DI)
 │   ├── App.axaml                  # themes, global styles
@@ -74,12 +78,15 @@ src/
 LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
    │  │                       ▲  ▲
    │  └──► LT.Ibkr ───────────┘  │   (LT.Ibkr ──► IBKR.Net)
+   ├──► LT.Indicators.Scripting ─┤   (──► LT.Indicators.Sdk, Microsoft.CodeAnalysis)
    └──► LT.Widgets.<Widget> ──► LT.Widgets.Core
 ```
 
 - `LT.Contracts` references nothing of ours, and **never** `IBKR.Net` or Avalonia.
 - `LT.Domain` depends only on `LT.Contracts` interfaces — it doesn't know IBKR is behind
   `IIbkrApiClient`, so managers are unit-testable with fakes.
+- `LT.Indicators.Scripting` plays the same role for indicators: SDK types (`LT.Indicators.Sdk`)
+  stay in it and the SDK; `IIndicatorEngine` speaks DTOs ([indicators.md](indicators.md)).
 - `LT.Ibkr` maps every IB type to a DTO at the boundary. IB types never reach the Domain or UI.
   It also holds the Flex Web Service client (`LT.Ibkr/Flex`): IB's other API, plain HTTPS + XML,
   kept next to the socket client so every "talks to IB" piece is in one project; it uses no
@@ -115,6 +122,9 @@ LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
 - `IFlexApiClient` is registered with a factory (`FlexApiClient.CreateHttpClient()` — timeout and
   the User-Agent IB requires — plus `TimeProvider`) as one singleton, so one `HttpClient` and one
   pacing state serve every Flex request.
+- Indicators: `IIndicatorEngine`, `IIndicatorScriptRepository` and `IIndicatorManager` are
+  singletons; `IndicatorScriptHost` (hosted service) runs `IIndicatorManager.RunAsync` — sets up
+  the scripts folder, compiles the scripts and recompiles them on change.
 - `UpdateScheduler` (also a `BackgroundService`) clears the previous version's folder left by an
   update, then has `IUpdateManager` check GitHub Releases ~10 s after start and every 6 h.
   `AppUpdater` (`LT.App/Services`) does the platform work: download, SHA-256 check against
@@ -170,7 +180,8 @@ account) in `settings.json`, the data cache in `cache/<CacheType>/<sha256 of key
 recorded account performance in `account-history/<account>.json` (one snapshot per trading day,
 see [ui-patterns.md → Account performance](ui-patterns.md#account-performance)) and the trade
 journal (recorded fills and intraday P&L, one file per trading day) in `trade-journal/fills/` and
-`trade-journal/pnl/`. IB Flex imports go into those same files (account days marked
+`trade-journal/pnl/`. Indicator scripts are `indicators/*.cs` (plus the editor project and an
+SDK copy, [indicators.md](indicators.md#script-files)). IB Flex imports go into those same files (account days marked
 `Source = Flex`, fills carrying their Flex `TradeId`); the import's progress is in
 `flex-import.json`, and the Flex token in `settings.json` (`SettingsEntity.Flex`, plain text). The last two are not part of the cache, so Clear cache and the size limit
 never touch them. All live under the OS app-data folder

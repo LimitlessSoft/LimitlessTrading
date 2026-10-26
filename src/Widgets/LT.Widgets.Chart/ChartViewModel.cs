@@ -3,6 +3,7 @@ using System.ComponentModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LSCore.Exceptions;
 using LT.App.Controls;
 using LT.App.Helpers;
 using LT.App.Stores;
@@ -12,6 +13,7 @@ using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Executions;
+using LT.Contracts.Dtos.Indicators;
 using LT.Contracts.Dtos.Performance;
 using LT.Contracts.Dtos.Positions;
 using LT.Contracts.Dtos.Settings;
@@ -20,6 +22,7 @@ using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IManagers;
 using LT.Contracts.Requests.Charts;
 using LT.Contracts.Requests.Contracts;
+using LT.Contracts.Requests.Indicators;
 
 namespace LT.App.Widgets.Chart;
 
@@ -28,6 +31,12 @@ namespace LT.App.Widgets.Chart;
 /// contract (linked) or stays on the contract it shows (pinned). The selected account's recorded
 /// fills of the contract are drawn on it (trade journal: socket executions and IB Flex), closed
 /// quantity joined entry → exit, and the break-even of an open position (live positions only).
+/// <para>
+/// Its indicators (saved with the chart) are computed on the thread pool by
+/// <see cref="IIndicatorManager"/> whenever the bars, the indicator list or a script they use
+/// change — at most every <see cref="IndicatorConstants.ComputeDebounce"/>, one compute at a
+/// time — and posted back to the UI thread.
+/// </para>
 /// </summary>
 public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILinkable
 {
@@ -36,6 +45,12 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 	private readonly IMessageLogManager _messageLogManager;
 	private readonly ITradeJournalManager _tradeJournalManager;
 	private readonly IPositionManager _positionManager;
+	private readonly IIndicatorManager _indicatorManager;
+	private readonly DispatcherTimer _computeTimer;
+	private List<IndicatorInstanceDto> _indicators = [];
+	private bool _computing;
+	private bool _computePending;
+	private bool _disposed;
 	private readonly AccountStore _accountStore;
 	private readonly ZonedText _status;
 	private readonly Dictionary<(string Account, int ContractId), PositionDto> _positions = [];
@@ -51,6 +66,7 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 		ISettingsManager settingsManager,
 		ITradeJournalManager tradeJournalManager,
 		IPositionManager positionManager,
+		IIndicatorManager indicatorManager,
 		AccountStore accountStore,
 		LinkGroupStore linkGroupStore,
 		DisplayTimeStore displayTime
@@ -65,7 +81,11 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 		_messageLogManager = messageLogManager;
 		_tradeJournalManager = tradeJournalManager;
 		_positionManager = positionManager;
+		_indicatorManager = indicatorManager;
 		_accountStore = accountStore;
+		_computeTimer = new DispatcherTimer { Interval = IndicatorConstants.ComputeDebounce };
+		_computeTimer.Tick += (_, _) => ComputeIndicators();
+		indicatorManager.DefinitionsChanged += OnIndicatorDefinitionsChanged;
 		tradeJournalManager.FillsChanged += OnFillsChanged;
 		accountStore.PropertyChanged += OnAccountChanged;
 		Link = new ContractLink(linkGroupStore, () => _contract);
@@ -145,6 +165,8 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 		if (!placement.ChartLinked)
 			Link.Group = LinkGroup.None;
 		RightMargin = Math.Max(0, placement.ChartRightMargin ?? 0);
+		_indicators = [.. placement.ChartIndicators ?? []];
+		ScheduleIndicators();
 		if (placement.ChartContract != null)
 			ShowContract(placement.ChartContract);
 	}
@@ -155,10 +177,14 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 		placement.ChartLinked = Link.Group != LinkGroup.None;
 		placement.ChartContract = _contract;
 		placement.ChartRightMargin = RightMargin > 0 ? RightMargin : null;
+		placement.ChartIndicators = _indicators.Count > 0 ? [.. _indicators] : null;
 	}
 
 	public override void Dispose()
 	{
+		_disposed = true;
+		_computeTimer.Stop();
+		_indicatorManager.DefinitionsChanged -= OnIndicatorDefinitionsChanged;
 		_tradeJournalManager.FillsChanged -= OnFillsChanged;
 		_accountStore.PropertyChanged -= OnAccountChanged;
 		DisplayTime.ZoneChanged -= _status.Rebuild;
@@ -393,4 +419,216 @@ public partial class ChartViewModel : ConnectedViewModelBase, IWidgetState, ILin
 			);
 		}
 	}
+
+	/// <summary>The chart's indicators as last computed, in legend order.</summary>
+	[ObservableProperty]
+	public partial IReadOnlyList<IndicatorResultDto> IndicatorResults { get; set; } = [];
+
+	/// <summary>Indicator picker: the search text.</summary>
+	[ObservableProperty]
+	public partial string? IndicatorSearch { get; set; }
+
+	/// <summary>Indicator picker: built-ins and scripts matching the search.</summary>
+	[ObservableProperty]
+	public partial IReadOnlyList<IndicatorChoiceItem> IndicatorChoices { get; set; } = [];
+
+	public bool CanAddIndicator => _indicators.Count < IndicatorConstants.MaxIndicatorsPerChart;
+
+	/// <summary>The folder of indicator scripts (opened from the picker).</summary>
+	public string IndicatorScriptsDirectory => _indicatorManager.GetScriptsDirectory();
+
+	partial void OnIndicatorSearchChanged(string? value) => RefreshIndicatorChoices();
+
+	// A different series (contract, timeframe): the old values don't line up with its bars
+	partial void OnBarsChanged(IReadOnlyList<BarDto> oldValue, IReadOnlyList<BarDto> newValue)
+	{
+		if (!IsContinuation(oldValue, newValue))
+			IndicatorResults = [.. IndicatorResults.Select(IndicatorChartHelpers.WithoutPlots)];
+		ScheduleIndicators();
+	}
+
+	public void RefreshIndicatorChoices() =>
+		IndicatorChoices = [
+			.. _indicatorManager
+				.GetDefinitions()
+				.Where(x =>
+					SettingsSearchHelpers.Matches(
+						IndicatorSearch,
+						x.Name,
+						x.ShortName,
+						x.FilePath is { } path ? Path.GetFileName(path) : null
+					)
+				)
+				.Select(x => new IndicatorChoiceItem(x)),
+		];
+
+	/// <summary>Picker: adds the indicator with its defaults.</summary>
+	public void AddIndicator(string definitionId)
+	{
+		if (!CanAddIndicator)
+			return;
+		try
+		{
+			_indicators = [.. _indicators, _indicatorManager.CreateInstance(definitionId)];
+		}
+		catch (LSCoreBadRequestException ex)
+		{
+			ErrorMessage = ex.Message;
+			return;
+		}
+		OnIndicatorsEdited();
+	}
+
+	/// <summary>Legend: shows or hides an indicator (it stays in the legend).</summary>
+	public void ToggleIndicator(string instanceId)
+	{
+		var instance = _indicators.FirstOrDefault(x => x.Id == instanceId);
+		if (instance == null)
+			return;
+		var toggled = new IndicatorInstanceDto
+		{
+			Id = instance.Id,
+			DefinitionId = instance.DefinitionId,
+			Inputs = instance.Inputs,
+			IsVisible = !instance.IsVisible,
+			PlotColors = instance.PlotColors,
+		};
+		_indicators = [.. _indicators.Select(x => x.Id == instanceId ? toggled : x)];
+		// Hiding shows at once; showing again once computed
+		foreach (var result in IndicatorResults.Where(x => x.InstanceId == instanceId))
+			result.IsVisible = toggled.IsVisible;
+		IndicatorResults = [.. IndicatorResults];
+		OnIndicatorsEdited();
+	}
+
+	/// <summary>Legend: removes an indicator from this chart.</summary>
+	public void RemoveIndicator(string instanceId)
+	{
+		_indicators = [.. _indicators.Where(x => x.Id != instanceId)];
+		IndicatorResults = [.. IndicatorResults.Where(x => x.InstanceId != instanceId)];
+		OnIndicatorsEdited();
+	}
+
+	/// <summary>Settings dialog: the indicator's definition (null when it is gone) and instance.</summary>
+	public (IndicatorDefinitionDto? Definition, IndicatorInstanceDto? Instance) GetIndicator(
+		string instanceId
+	)
+	{
+		var instance = _indicators.FirstOrDefault(x => x.Id == instanceId);
+		return (
+			instance != null ? _indicatorManager.GetDefinition(instance.DefinitionId) : null,
+			instance
+		);
+	}
+
+	/// <summary>Settings dialog: new input values; throws the validation error to show.</summary>
+	public void UpdateIndicatorInputs(string instanceId, Dictionary<string, double> inputs)
+	{
+		var (definition, instance) = GetIndicator(instanceId);
+		if (definition == null || instance == null)
+			return;
+		var updated = _indicatorManager.UpdateInputs(
+			new UpdateIndicatorInputsRequest
+			{
+				Definition = definition,
+				Instance = instance,
+				Inputs = inputs,
+			}
+		);
+		_indicators = [.. _indicators.Select(x => x.Id == instanceId ? updated : x)];
+		OnIndicatorsEdited();
+	}
+
+	private void OnIndicatorsEdited()
+	{
+		OnPropertyChanged(nameof(CanAddIndicator));
+		ScheduleIndicators();
+	}
+
+	// From the indicator manager's threads (a script compiled or was removed)
+	private void OnIndicatorDefinitionsChanged(IReadOnlyCollection<string> definitionIds) =>
+		Dispatcher.UIThread.Post(() =>
+		{
+			if (_disposed)
+				return;
+			RefreshIndicatorChoices();
+			if (_indicators.Any(x => definitionIds.Contains(x.DefinitionId)))
+				ScheduleIndicators();
+		});
+
+	// Throttled: the first change starts the timer, everything until it fires is one compute
+	private void ScheduleIndicators()
+	{
+		if (_disposed)
+			return;
+		if (_indicators.Count == 0)
+		{
+			_computeTimer.Stop();
+			IndicatorResults = [];
+			return;
+		}
+		if (!_computeTimer.IsEnabled)
+			_computeTimer.Start();
+	}
+
+	// One compute at a time on the thread pool; a change while it runs computes again after it
+	private void ComputeIndicators()
+	{
+		_computeTimer.Stop();
+		if (_disposed)
+			return;
+		if (_computing)
+		{
+			_computePending = true;
+			return;
+		}
+		var request = new ComputeIndicatorsRequest
+		{
+			Bars = Bars,
+			Indicators = _indicators,
+			IsIntraday = IsIntraday,
+		};
+		_computing = true;
+		_ = Task.Run(() => _indicatorManager.Compute(request))
+			.ContinueWith(
+				task => Dispatcher.UIThread.Post(() => OnIndicatorsComputed(request, task)),
+				TaskScheduler.Default
+			);
+	}
+
+	private void OnIndicatorsComputed(
+		ComputeIndicatorsRequest request,
+		Task<IReadOnlyList<IndicatorResultDto>> task
+	)
+	{
+		_computing = false;
+		if (_disposed)
+			return;
+		var current = ReferenceEquals(request.Indicators, _indicators);
+		if (task.IsCompletedSuccessfully)
+		{
+			if (current && IsContinuation(request.Bars, Bars))
+				IndicatorResults = task.Result;
+		}
+		else if (task.Exception?.GetBaseException() is { } ex)
+			_messageLogManager.Add(
+				MessageSeverity.Warning,
+				MessageLogConstants.SourceIndicators,
+				$"{Title}: indicators failed ({ErrorMessageHelpers.ToUserMessage(ex)})"
+			);
+		if (_computePending || !current || !ReferenceEquals(request.Bars, Bars))
+		{
+			_computePending = false;
+			ScheduleIndicators();
+		}
+	}
+
+	// The same series, possibly with bars added or the last one updated
+	private static bool IsContinuation(
+		IReadOnlyList<BarDto> previous,
+		IReadOnlyList<BarDto> next
+	) =>
+		previous.Count == 0
+			? next.Count == 0
+			: next.Count >= previous.Count && previous[0].Time == next[0].Time;
 }

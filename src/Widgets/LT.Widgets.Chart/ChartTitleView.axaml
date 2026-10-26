@@ -7,7 +7,7 @@
 	x:DataType="vm:ChartViewModel"
 >
 	<!-- Chart header title: click it to type a ticker (IB listings are suggested) or pick a recent one;
-	     click the timeframe next to it to pick another bar size -->
+	     click the timeframe next to it to pick another bar size, ƒx to add an indicator -->
 	<StackPanel Orientation="Horizontal" Spacing="2">
 		<Panel>
 			<Button
@@ -35,6 +35,69 @@
 		>
 			<Button.Flyout>
 				<MenuFlyout Placement="BottomEdgeAlignedLeft" />
+			</Button.Flyout>
+		</Button>
+		<Button
+			x:Name="IndicatorsButton"
+			Classes="chartTimeframe"
+			ToolTip.Tip="Add an indicator"
+			IsEnabled="{Binding CanAddIndicator}"
+		>
+			<TextBlock Text="ƒx" FontStyle="Italic" />
+			<Button.Flyout>
+				<Flyout Placement="BottomEdgeAlignedLeft">
+					<StackPanel Width="320" Spacing="6">
+						<TextBox
+							x:Name="IndicatorSearchBox"
+							PlaceholderText="Search indicators"
+							Text="{Binding IndicatorSearch}"
+						/>
+						<ScrollViewer MaxHeight="360">
+							<ItemsControl ItemsSource="{Binding IndicatorChoices}">
+								<ItemsControl.ItemTemplate>
+									<DataTemplate x:DataType="vm:IndicatorChoiceItem">
+										<Button
+											Classes="pickerRow"
+											Click="OnIndicatorPicked"
+											HorizontalContentAlignment="Stretch"
+										>
+											<StackPanel Spacing="1">
+												<Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+													<TextBlock
+														VerticalAlignment="Center"
+														TextTrimming="CharacterEllipsis"
+														Text="{Binding Name}"
+													/>
+													<TextBlock
+														Grid.Column="1"
+														Classes="secondary"
+														FontSize="12"
+														VerticalAlignment="Center"
+														Text="{Binding Kind}"
+													/>
+												</Grid>
+												<TextBlock
+													Classes="negative"
+													FontSize="11"
+													TextTrimming="CharacterEllipsis"
+													Text="{Binding Error}"
+													IsVisible="{Binding HasError}"
+												/>
+											</StackPanel>
+										</Button>
+									</DataTemplate>
+								</ItemsControl.ItemTemplate>
+							</ItemsControl>
+						</ScrollViewer>
+						<Button
+							x:Name="ScriptsFolderButton"
+							Classes="pickerRow"
+							ToolTip.Tip="Every .cs file there is an indicator; edit them in any editor"
+						>
+							<TextBlock Classes="secondary" Text="Open the scripts folder…" />
+						</Button>
+					</StackPanel>
+				</Flyout>
 			</Button.Flyout>
 		</Button>
 	</StackPanel>

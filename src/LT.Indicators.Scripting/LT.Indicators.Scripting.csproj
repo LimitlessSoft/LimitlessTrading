@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<!-- The indicator engine: built-in indicators, compiling script files with Roslyn and running
+	     both. The only project that references LT.Indicators.Sdk types besides the SDK itself
+	     (like LT.Ibkr is for IBKR.Net); everything crossing IIndicatorEngine is a DTO. -->
+	<ItemGroup>
+		<ProjectReference Include="..\LT.Contracts\LT.Contracts.csproj" />
+		<ProjectReference Include="..\LT.Indicators.Sdk\LT.Indicators.Sdk.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+	</ItemGroup>
+</Project>

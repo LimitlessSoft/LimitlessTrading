@@ -9,7 +9,9 @@
 	     controls are hidden until they are redesigned; the view model keeps their state. -->
 	<Panel>
 		<vm:CandlestickChart
+			x:Name="Chart"
 			Bars="{Binding Bars}"
+			Indicators="{Binding IndicatorResults}"
 			IsIntraday="{Binding IsIntraday}"
 			Timeframe="{Binding SelectedTimeframe.Value}"
 			Fills="{Binding Fills}"
@@ -19,9 +21,9 @@
 			TimeZone="{Binding DisplayTime.Zone}"
 		/>
 		<StackPanel
-			HorizontalAlignment="Left"
+			HorizontalAlignment="Center"
 			VerticalAlignment="Top"
-			Margin="8"
+			Margin="8,40,8,8"
 			Spacing="2"
 			IsHitTestVisible="False"
 		>

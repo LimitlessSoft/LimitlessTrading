@@ -35,6 +35,9 @@ public class WidgetPlacementEntity
 	/// <summary>Chart instances: empty bars after the latest one (null: none).</summary>
 	public double? ChartRightMargin { get; set; }
 
+	/// <summary>Chart instances: their indicators in legend order (null: none; older layouts).</summary>
+	public List<IndicatorInstanceEntity>? ChartIndicators { get; set; }
+
 	// News instances: what they show and which providers (keys "ibkr:BRFG"; null: all of them)
 	public NewsMode? NewsMode { get; set; }
 	public List<string>? NewsProviders { get; set; }

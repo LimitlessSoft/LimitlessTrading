@@ -1,5 +1,6 @@
 using LSCore.Mapper.Contracts;
 using LT.Contracts.DtoMappings.Contracts;
+using LT.Contracts.DtoMappings.Indicators;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Entities;
 
@@ -24,6 +25,9 @@ public class WidgetPlacementDtoMapper : ILSCoreMapper<WidgetPlacementEntity, Wid
 			ChartTimeframe = source.ChartTimeframe,
 			ChartLinked = source.ChartLinked,
 			ChartRightMargin = source.ChartRightMargin,
+			ChartIndicators = source.ChartIndicators is { } indicators
+				? [.. indicators.Select(new IndicatorInstanceDtoMapper().ToMapped)]
+				: null,
 			NewsMode = source.NewsMode,
 			NewsProviders = source.NewsProviders is { } providers ? [.. providers] : null,
 			ChartContract = source.ChartContract is { } contract
