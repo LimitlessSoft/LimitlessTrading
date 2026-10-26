@@ -11,8 +11,11 @@ public class DayTradePerformanceWidget : IWidgetDefinition
 
 	public string Title => "Day trade performance";
 
+	// Clock (intraday), so it doesn't read as Account performance's rising line
 	public string Icon =>
-		"M3,3H5V19H21V21H3Z M7,15L11,10L14,13L19.6,6.6L21.1,7.9L14.1,15.9L11.1,12.9L8.6,16.2Z";
+		"M12,2A10,10 0 1,1 12,22A10,10 0 1,1 12,2Z "
+		+ "M12,4A8,8 0 1,1 12,20A8,8 0 1,1 12,4Z "
+		+ "M11,6H13V11.4L16.6,13.5L15.6,15.2L11,12.6Z";
 
 	// J for journal; T and D are often taken by desktops, R is Account performance
 	public Key? FocusKey => Key.J;
