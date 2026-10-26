@@ -1,4 +1,5 @@
 using LSCore.Exceptions;
+using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
 using LT.Contracts.Requests.Settings;
@@ -48,6 +49,58 @@ public class SettingsManagerTests
 	[Fact]
 	public void Gateway_keeps_running_on_exit_by_default() =>
 		Assert.False(new SettingsManager(_settings, _ibkr).GetAppSettings().StopGatewayOnExit);
+
+	[Fact]
+	public void Cache_is_on_with_a_500_mb_limit_by_default()
+	{
+		var settings = new SettingsManager(_settings, _ibkr).GetAppSettings();
+
+		Assert.True(settings.CacheEnabled);
+		Assert.True(settings.CacheChartBars);
+		Assert.True(settings.CacheContracts);
+		Assert.True(settings.CacheOptionChains);
+		Assert.True(settings.CacheExecutions);
+		Assert.True(settings.CacheSnapshots);
+		Assert.Equal(CacheConstants.DefaultMaxSizeMb, settings.CacheMaxSizeMb);
+	}
+
+	[Fact]
+	public void Cache_settings_round_trip()
+	{
+		var manager = new SettingsManager(_settings, _ibkr);
+
+		manager.SaveAppSettings(
+			new SaveAppSettingsRequest
+			{
+				MarketDataType = MarketDataType.Delayed,
+				HeartbeatSeconds = 10,
+				CacheEnabled = false,
+				CacheExecutions = false,
+				CacheMaxSizeMb = 50,
+			}
+		);
+
+		var settings = manager.GetAppSettings();
+		Assert.False(settings.CacheEnabled);
+		Assert.False(settings.CacheExecutions);
+		Assert.True(settings.CacheSnapshots);
+		Assert.Equal(50, settings.CacheMaxSizeMb);
+	}
+
+	[Theory]
+	[InlineData(CacheConstants.MaxSizeMbMin - 1)]
+	[InlineData(CacheConstants.MaxSizeMbMax + 1)]
+	public void Cache_size_outside_the_limits_is_rejected(int sizeMb) =>
+		Assert.Throws<LSCoreBadRequestException>(() =>
+			new SettingsManager(_settings, _ibkr).SaveAppSettings(
+				new SaveAppSettingsRequest
+				{
+					MarketDataType = MarketDataType.Delayed,
+					HeartbeatSeconds = 10,
+					CacheMaxSizeMb = sizeMb,
+				}
+			)
+		);
 
 	[Fact]
 	public void Invalid_heartbeat_is_rejected() =>

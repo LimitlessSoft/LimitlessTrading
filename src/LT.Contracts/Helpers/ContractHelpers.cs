@@ -6,6 +6,14 @@ namespace LT.Contracts.Helpers;
 
 public static class ContractHelpers
 {
+	/// <summary>Cache key of one contract search (an already normalised query).</summary>
+	public static string GetSearchCacheKey(ContractDto query) =>
+		$"search|{query.Symbol}|{query.SecurityType}|{query.Exchange}|{query.Currency}";
+
+	/// <summary>Cache key of a ticker box's search of every type.</summary>
+	public static string GetSymbolSearchCacheKey(string symbol) =>
+		$"symbol|{symbol.Trim().ToUpperInvariant()}";
+
 	public static string GetDisplayName(ContractDto contract) =>
 		contract.SecurityType switch
 		{

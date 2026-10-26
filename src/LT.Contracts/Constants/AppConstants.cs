@@ -10,7 +10,6 @@ public static class AppConstants
 	/// anyway (IBC itself gives the Gateway up to 20 s to stop, then it is killed).
 	/// </summary>
 	public static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(30);
-	public const string BarCacheDirectoryName = "bar-cache";
 
 	/// <summary>GitHub's latest release of the app (the updater compares its tag).</summary>
 	public const string LatestReleaseApiUrl =

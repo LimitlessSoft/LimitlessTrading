@@ -66,6 +66,20 @@
 				/>
 			</StackPanel>
 		</DataTemplate>
+		<DataTemplate DataType="vm:ActionSettingViewModel">
+			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}">
+				<TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+				<StackPanel Orientation="Horizontal" Spacing="12">
+					<TextBlock VerticalAlignment="Center" Text="{Binding Status}" />
+					<Button Content="{Binding ButtonText}" Command="{Binding RunCommand}" />
+				</StackPanel>
+				<TextBlock
+					Classes="secondary settingHelp"
+					Text="{Binding Description}"
+					IsVisible="{Binding HasDescription}"
+				/>
+			</StackPanel>
+		</DataTemplate>
 	</Window.DataTemplates>
 
 	<DockPanel>

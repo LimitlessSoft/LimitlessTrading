@@ -28,6 +28,13 @@ public class SettingsManager(ISettingsRepository settingsRepository, IIbkrApiCli
 		settings.General.StopGatewayOnExit = request.StopGatewayOnExit;
 		settings.General.CheckForUpdates = request.CheckForUpdates;
 		settings.General.LayoutStyle = request.LayoutStyle;
+		settings.General.CacheEnabled = request.CacheEnabled;
+		settings.General.CacheChartBars = request.CacheChartBars;
+		settings.General.CacheContracts = request.CacheContracts;
+		settings.General.CacheOptionChains = request.CacheOptionChains;
+		settings.General.CacheExecutions = request.CacheExecutions;
+		settings.General.CacheSnapshots = request.CacheSnapshots;
+		settings.General.CacheMaxSizeMb = request.CacheMaxSizeMb;
 		settingsRepository.Save(settings);
 		if (ibkrApiClient.IsConnected)
 			ibkrApiClient.SetMarketDataType(request.MarketDataType);

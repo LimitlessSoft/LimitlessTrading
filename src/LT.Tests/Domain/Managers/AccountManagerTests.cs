@@ -9,6 +9,7 @@ namespace LT.Tests.Domain.Managers;
 public class AccountManagerTests
 {
 	private readonly FakeIbkrApiClient _ibkr = new() { IsConnected = true };
+	private readonly TestCache _cache = new();
 
 	[Fact]
 	public async Task Summary_follows_the_latest_value_of_each_tag()
@@ -31,7 +32,7 @@ public class AccountManagerTests
 			},
 		];
 
-		var summaries = await new AccountManager(_ibkr)
+		var summaries = await new AccountManager(_ibkr, _cache.Manager)
 			.SubscribeSummaryAsync("DU1", TestContext.Current.CancellationToken)
 			.ToListAsync(TestContext.Current.CancellationToken);
 
@@ -66,7 +67,7 @@ public class AccountManagerTests
 			},
 		];
 
-		var summary = await new AccountManager(_ibkr)
+		var summary = await new AccountManager(_ibkr, _cache.Manager)
 			.SubscribeSummaryAsync("DU1", TestContext.Current.CancellationToken)
 			.LastAsync(TestContext.Current.CancellationToken);
 
@@ -86,7 +87,7 @@ public class AccountManagerTests
 			new OpenOrderDto { OrderId = 1, Account = "DU2" },
 		];
 
-		var orders = await new OrderManager(_ibkr).GetOpenOrdersAsync(
+		var orders = await new OrderManager(_ibkr, _cache.Manager).GetOpenOrdersAsync(
 			"DU1",
 			TestContext.Current.CancellationToken
 		);
@@ -120,7 +121,7 @@ public class AccountManagerTests
 			},
 		];
 
-		var orders = await new OrderManager(_ibkr).GetOpenOrdersAsync(
+		var orders = await new OrderManager(_ibkr, _cache.Manager).GetOpenOrdersAsync(
 			null,
 			TestContext.Current.CancellationToken
 		);
@@ -138,11 +139,12 @@ public class AccountManagerTests
 			new ExecutionDto { ExecId = "b", Time = now },
 		];
 
-		var executions = await new ExecutionManager(_ibkr).GetExecutionsAsync(
-			null,
-			TestContext.Current.CancellationToken
-		);
+		var executions = await new ExecutionManager(
+			_ibkr,
+			_cache.Manager,
+			_cache.Time
+		).GetExecutionsAsync(null, TestContext.Current.CancellationToken);
 
-		Assert.Equal(["b", "a"], executions.Select(x => x.ExecId));
+		Assert.Equal(["b", "a"], executions.Value.Select(x => x.ExecId));
 	}
 }

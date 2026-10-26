@@ -180,8 +180,10 @@ New calls are added to IBKR.Net from a wire recording first (`tools/IbkrWireReco
 - `RequestThrottle` (sliding window) paces every request: 40 msg/s overall and 60 historical
   requests per 10 minutes. Requests wait instead of tripping IB's disconnect.
 - `MarketDataManager` counts lines and refuses a subscription above 90 (headroom under IB's 100).
-- `ChartManager` serves bars from the JSON cache while fresh (1 min intraday, 30 min daily+) and
-  falls back to stale cache when IB is unreachable.
+- `ChartManager` serves bars from the data cache while fresh (1 min intraday, 30 min daily+) and
+  falls back to stale cache when IB is unreachable. Contract searches (3 days) and option chain
+  structure (1 day) are cached too, which saves contract-details requests; see
+  [architecture.md → Data cache](architecture.md#data-cache).
 - `ConnectionManager.CheckHealthAsync` heartbeats with `GetServerTimeAsync`; a failure or
   `IsConnected == false` starts reconnecting with 2/5/10/30/60 s backoff.
 - On start, before the login dialog, `GatewayManager.AttachRunningAsync` checks the last trading

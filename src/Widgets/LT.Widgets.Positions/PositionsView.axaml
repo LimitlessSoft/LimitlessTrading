@@ -16,9 +16,15 @@
 				VerticalAlignment="Center"
 				Classes="secondary"
 				Text="Connect to TWS / IB Gateway to load positions."
-				IsVisible="{Binding !IsConnected}"
+				IsVisible="{Binding ShowConnectHint}"
 			/>
 			<TextBlock VerticalAlignment="Center" Classes="secondary" Text="{Binding TotalsText}" />
+			<TextBlock
+				VerticalAlignment="Center"
+				Classes="warning"
+				Text="{Binding StaleText}"
+				IsVisible="{Binding IsStale}"
+			/>
 			<TextBlock
 				VerticalAlignment="Center"
 				Classes="negative"

@@ -1,11 +1,13 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LT.App.Helpers;
 using LT.App.Stores;
 using LT.App.ViewModels;
 using LT.App.Workspace;
+using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IManagers;
 
 namespace LT.App.Widgets.Positions;
@@ -29,6 +31,12 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 		_accountStore = accountStore;
 		Link = new ContractLink(linkGroupStore, () => SelectedPosition?.Contract);
 		accountStore.PropertyChanged += OnAccountChanged;
+		// After the base class has applied the connection state
+		Dispatcher.UIThread.Post(() =>
+		{
+			if (!IsConnected)
+				ShowSnapshot(null);
+		});
 	}
 
 	/// <summary>Clicking a position sends its contract to the link group.</summary>
@@ -42,9 +50,27 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 	[ObservableProperty]
 	public partial string TotalsText { get; set; } = string.Empty;
 
+	/// <summary>Set while the rows are the account's last-known positions, not live (no P&amp;L).</summary>
+	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(IsStale))]
+	[NotifyPropertyChangedFor(nameof(ShowConnectHint))]
+	public partial string? StaleText { get; set; }
+
+	public bool IsStale => StaleText != null;
+
+	public bool ShowConnectHint => !IsConnected && !IsStale;
+
+	protected override void OnPropertyChanged(PropertyChangedEventArgs e)
+	{
+		base.OnPropertyChanged(e);
+		if (e.PropertyName == nameof(IsConnected))
+			OnPropertyChanged(nameof(ShowConnectHint));
+	}
+
 	partial void OnSelectedPositionChanged(PositionRowViewModel? value)
 	{
-		if (value != null)
+		// Remembered rows are for looking at only; they drive no other widget
+		if (value != null && !IsStale)
 			Link.Publish(value.Contract);
 	}
 
@@ -63,12 +89,41 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 		_ = StreamPositionsAsync(session);
 	}
 
-	protected override void OnDisconnected() => Clear();
+	protected override void OnDisconnected()
+	{
+		Clear();
+		ShowSnapshot(null);
+	}
 
 	private void OnAccountChanged(object? sender, PropertyChangedEventArgs e)
 	{
-		if (e.PropertyName == nameof(AccountStore.SelectedAccount))
+		if (e.PropertyName != nameof(AccountStore.SelectedAccount))
+			return;
+		if (IsStale || !IsConnected)
+			ShowSnapshot(null);
+		else
 			RebuildVisible();
+	}
+
+	// Display only, never for decisions: a remembered position may have changed since
+	private void ShowSnapshot(string? error)
+	{
+		Positions.Clear();
+		StaleText = null;
+		UpdateTotals();
+		if (_accountStore.SnapshotAccount is not { } account)
+			return;
+		if (_positionManager.GetPositionsSnapshot(account) is not { } snapshot)
+			return;
+		foreach (var position in snapshot.Value.OrderBy(x => x.Symbol))
+			Positions.Add(new PositionRowViewModel(position));
+		StaleText = CacheHelpers.FormatStale(
+			snapshot.FetchedAt.ToLocalTime(),
+			DateTimeOffset.Now,
+			account,
+			error
+		);
+		TotalsText = Positions.Count == 0 ? string.Empty : $"{Positions.Count} positions";
 	}
 
 	private async Task StreamPositionsAsync(CancellationToken cancellationToken)
@@ -79,6 +134,11 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 				var position in _positionManager.SubscribePositionsAsync(cancellationToken)
 			)
 			{
+				if (IsStale)
+				{
+					Positions.Clear();
+					StaleText = null;
+				}
 				var key = (position.Account, position.ContractId);
 				if (position.Quantity == 0)
 				{
@@ -108,6 +168,8 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 		catch (Exception ex)
 		{
 			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
+			if (_all.Count == 0)
+				ShowSnapshot(ErrorMessage);
 		}
 	}
 
@@ -157,6 +219,7 @@ public partial class PositionsViewModel : ConnectedViewModelBase, ILinkable
 
 	private void Clear()
 	{
+		StaleText = null;
 		foreach (var row in _all.Values)
 			row.PnlSubscription?.Cancel();
 		_all.Clear();

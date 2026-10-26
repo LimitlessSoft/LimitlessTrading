@@ -12,7 +12,8 @@ namespace LT.Tests.Domain.Managers;
 public class ChartManagerTests
 {
 	private readonly FakeIbkrApiClient _ibkr = new() { IsConnected = true };
-	private readonly InMemoryBarCacheRepository _cache = new();
+	private readonly InMemoryCacheRepository _cache = new();
+	private readonly InMemorySettingsRepository _settings = new();
 	private readonly FakeTimeProvider _time = new(
 		new DateTimeOffset(2026, 10, 23, 15, 0, 0, TimeSpan.Zero)
 	);
@@ -34,7 +35,7 @@ public class ChartManagerTests
 	public ChartManagerTests()
 	{
 		LSCoreContainer.EnsureInitialized();
-		_manager = new ChartManager(_ibkr, _cache, _time);
+		_manager = new ChartManager(_ibkr, new CacheManager(_cache, _settings, _time));
 		_ibkr.HistoricalBars =
 		[
 			new BarDto
@@ -56,6 +57,29 @@ public class ChartManagerTests
 		Assert.Single(result.Bars);
 		Assert.False(result.IsStale);
 		Assert.Single(_cache.Entries);
+	}
+
+	[Fact]
+	public async Task Disabled_bar_cache_is_bypassed()
+	{
+		_settings.Settings.General.CacheChartBars = false;
+
+		await _manager.GetBarsAsync(Request, Ct);
+		await _manager.GetBarsAsync(Request, Ct);
+
+		Assert.Equal(2, _ibkr.HistoricalCalls);
+		Assert.Empty(_cache.Entries);
+	}
+
+	[Fact]
+	public async Task Master_switch_off_bypasses_the_bar_cache()
+	{
+		_settings.Settings.General.CacheEnabled = false;
+
+		await _manager.GetBarsAsync(Request, Ct);
+		await _manager.GetBarsAsync(Request, Ct);
+
+		Assert.Equal(2, _ibkr.HistoricalCalls);
 	}
 
 	[Fact]

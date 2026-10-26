@@ -1,9 +1,11 @@
 using System.ComponentModel;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using LT.App.Helpers;
 using LT.App.Stores;
 using LT.App.ViewModels;
 using LT.Contracts.Dtos.Account;
+using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IManagers;
 
 namespace LT.App.Widgets.Account;
@@ -22,6 +24,12 @@ public partial class AccountViewModel : ConnectedViewModelBase
 		_accountManager = accountManager;
 		Store = accountStore;
 		accountStore.PropertyChanged += OnStoreChanged;
+		// After the base class has applied the connection state
+		Dispatcher.UIThread.Post(() =>
+		{
+			if (!IsConnected)
+				ShowSnapshot(null);
+		});
 	}
 
 	public AccountStore Store { get; }
@@ -56,6 +64,16 @@ public partial class AccountViewModel : ConnectedViewModelBase
 	[ObservableProperty]
 	public partial string? UpdatedText { get; set; }
 
+	/// <summary>Set while the values are the account's last-known summary, not live.</summary>
+	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(IsStale))]
+	[NotifyPropertyChangedFor(nameof(ShowConnectHint))]
+	public partial string? StaleText { get; set; }
+
+	public bool IsStale => StaleText != null;
+
+	public bool ShowConnectHint => !IsConnected && !IsStale;
+
 	[ObservableProperty]
 	public partial string DailyPnl { get; set; } = FormatHelpers.Empty;
 
@@ -85,6 +103,19 @@ public partial class AccountViewModel : ConnectedViewModelBase
 
 	public void Refresh() => RestartSession();
 
+	protected override void OnPropertyChanged(PropertyChangedEventArgs e)
+	{
+		base.OnPropertyChanged(e);
+		if (e.PropertyName == nameof(IsConnected))
+			OnPropertyChanged(nameof(ShowConnectHint));
+	}
+
+	protected override void OnDisconnected()
+	{
+		ApplyPnl(new AccountPnlDto());
+		ShowSnapshot(null);
+	}
+
 	protected override void OnConnected(CancellationToken session)
 	{
 		if (Store.SelectedAccount is not { } account)
@@ -100,22 +131,33 @@ public partial class AccountViewModel : ConnectedViewModelBase
 			return;
 		Apply(new AccountSummaryDto());
 		ApplyPnl(new AccountPnlDto());
-		RestartSession();
+		StaleText = null;
+		if (IsConnected)
+			RestartSession();
+		else
+			ShowSnapshot(null);
 	}
 
 	private async Task StreamSummaryAsync(string account, CancellationToken cancellationToken)
 	{
+		var live = false;
 		try
 		{
 			await foreach (
 				var summary in _accountManager.SubscribeSummaryAsync(account, cancellationToken)
 			)
+			{
+				live = true;
+				StaleText = null;
 				Apply(summary);
+			}
 		}
 		catch (OperationCanceledException) { }
 		catch (Exception ex)
 		{
 			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
+			if (!live)
+				ShowSnapshot(ErrorMessage);
 		}
 	}
 
@@ -145,6 +187,25 @@ public partial class AccountViewModel : ConnectedViewModelBase
 		GrossPositionValue = FormatHelpers.Money(summary.GrossPositionValue);
 		Currency = summary.Currency;
 		UpdatedText = summary.Account.Length > 0 ? $"Updated {summary.UpdatedAt:HH:mm:ss}" : null;
+	}
+
+	// Display only, never for decisions (buying power for an order is always asked live)
+	private void ShowSnapshot(string? error)
+	{
+		StaleText = null;
+		Apply(new AccountSummaryDto());
+		if (Store.SnapshotAccount is not { } account)
+			return;
+		if (_accountManager.GetSummarySnapshot(account) is not { } snapshot)
+			return;
+		Apply(snapshot.Value);
+		UpdatedText = null;
+		StaleText = CacheHelpers.FormatStale(
+			snapshot.FetchedAt.ToLocalTime(),
+			DateTimeOffset.Now,
+			account,
+			error
+		);
 	}
 
 	private void ApplyPnl(AccountPnlDto pnl)
