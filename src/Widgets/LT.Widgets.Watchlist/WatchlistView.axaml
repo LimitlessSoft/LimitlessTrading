@@ -129,6 +129,19 @@
 						</DataTemplate>
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
+				<!-- SEC shares outstanding × last; US stocks only -->
+				<DataGridTemplateColumn Header="Mkt Cap" Width="Auto" SortMemberPath="MarketCapValue">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:WatchlistRowViewModel">
+							<TextBlock
+								Classes="value secondary"
+								Margin="8,0"
+								VerticalAlignment="Center"
+								Text="{Binding MarketCap}"
+							/>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
 			</DataGrid.Columns>
 		</DataGrid>
 	</DockPanel>

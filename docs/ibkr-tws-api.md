@@ -255,6 +255,15 @@ deduplicated by IB's execution id, so the same fill from either stays one:
   connected.
 - **Real-time bars need a live subscription** — there is no delayed `reqRealTimeBars`. The chart
   keeps historical bars and logs "real-time bars unavailable".
+- <a id="fundamentals-10358"></a>**Generic tick 258 (fundamental ratios) without the
+  fundamentals entitlement rejects the whole `reqMktData`**: `10358 Fundamentals data is not
+  allowed` comes back for the request id within milliseconds and no tick follows, not even
+  bid/ask/last (recorded read-only on IB Gateway 4001, protocol 178, 2026-10-26, for AAPL, SPY,
+  VOW and EUR.USD). Never add `258` to a shared quote line. That is why the watchlist's market cap
+  is **SEC shares outstanding × IB's last price** instead: `ISharesOutstandingManager` looks up
+  US stocks (STK in USD) at SEC EDGAR (`LT.Sec`, see
+  [architecture.md](architecture.md#external-data-sec-edgar)) and the row multiplies by every
+  flushed price (last, or the previous close before the first trade).
 
 ## How LT.Ibkr applies the rules
 
