@@ -274,6 +274,7 @@
 			BreakEvenPrice="{Binding BreakEvenPrice}"
 			RightMargin="{Binding RightMargin}"
 			TimeZone="{Binding DisplayTime.Zone}"
+			RegularHours="{Binding RegularHours}"
 		>
 			<vm:CandlestickChart.ContextMenu>
 				<ContextMenu x:Name="ChartMenu">

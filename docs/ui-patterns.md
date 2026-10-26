@@ -216,6 +216,19 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   yet (e.g. Today before the session) says "no bars since …". Period is saved per chart and new
   charts start at the last chart's period; it is not part of chart templates. The other header controls (RTH, Reload) are hidden until
   they are redesigned; F5 reloads.
+- **Pre- and post-market bars:** Settings → Chart → Trading hours, "Show pre- and post-market
+  bars" (`GeneralSettingsEntity.ChartOutsideRegularHours`, on by default, also for settings saved
+  before it) sets every chart's `UseRegularTradingHours` (IB `useRTH`) for historical and
+  real-time bars; saving it reloads open charts. On an intraday chart with it on, bars outside the
+  regular session get a lighter background band (all panes) and hollow candles. The regular
+  session is the contract's `liquidHours` in its `timeZoneId` from contract details
+  (`IChartManager.GetRegularHoursAsync`, cached `CacheConstants.TradingHoursTtl`, fetched once per
+  contract per chart while connected). IB lists only a few days around today, so
+  `TradingHoursHelpers.Parse` keeps those days as listed (holidays, early closes) and gives every
+  other day the most common listed session (Monday–Friday, and a weekend day only when listed
+  open); a bar overlapping a session (e.g. the 09:00 hourly bar) counts as regular. IB's old zone
+  names (`US/Eastern`) map to IANA ids through `IbTimeZoneConstants.Aliases`. No usable hours
+  (or not connected): every bar is drawn as regular. Daily and weekly bars are never marked.
 - **Picking a chart's ticker:** click the chart's header title (`ChartTitleView`, hosted in the
   frame header via `WidgetViewFactory.CreateTitle`). It turns into a ticker box: typing lists
   IB's listings of the symbol to pick from, Enter takes the highlighted one or the typed ticker's
@@ -425,7 +438,8 @@ template stops following.
   `GetSettingsError`; raise `CurrentVersion` only when an existing field changes meaning.
 - Applying gives the chart its own copies of the indicators (new instance ids). Indicators whose
   script isn't on this computer stay in the legend as missing, as in a layout.
-- Not in templates: the contract, link group and the hidden RTH switch (not saved per chart).
+- Not in templates: the contract, link group and regular / extended hours (an app setting,
+  Settings → Chart).
 
 ### Watchlists
 

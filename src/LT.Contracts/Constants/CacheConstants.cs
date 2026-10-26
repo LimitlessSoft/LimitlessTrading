@@ -15,6 +15,12 @@ public static class CacheConstants
 	/// <summary>Contract definitions barely change; a symbol search is served from disk this long.</summary>
 	public static readonly TimeSpan ContractTtl = TimeSpan.FromDays(3);
 
+	/// <summary>
+	/// A contract's trading hours: shorter than <see cref="ContractTtl"/>, as IB lists only the
+	/// coming days (holidays, early closes) and the regular session is read from them.
+	/// </summary>
+	public static readonly TimeSpan TradingHoursTtl = TimeSpan.FromHours(12);
+
 	/// <summary>Expirations and strike lists (never prices or greeks).</summary>
 	public static readonly TimeSpan OptionChainTtl = TimeSpan.FromDays(1);
 

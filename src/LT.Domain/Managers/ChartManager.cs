@@ -1,7 +1,9 @@
 using LSCore.Exceptions;
 using LSCore.Mapper.Domain;
 using LSCore.Validation.Contracts;
+using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Charts;
+using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Entities;
 using LT.Contracts.Enums;
 using LT.Contracts.Enums.ValidationCodes;
@@ -68,6 +70,32 @@ public class ChartManager(
 			From = range.From,
 			LimitedTo = range.LimitedTo,
 		};
+	}
+
+	public async Task<TradingScheduleDto?> GetRegularHoursAsync(
+		ContractDto contract,
+		CancellationToken cancellationToken = default
+	)
+	{
+		if (contract.ConId <= 0)
+			throw new LSCoreBadRequestException(
+				ContractValidationCodes.CTVC_004.GetValidationMessage()
+			);
+
+		var result = await cacheManager.GetOrFetchAsync(
+			CacheType.Contracts,
+			ContractHelpers.GetTradingHoursCacheKey(contract.ConId),
+			CacheConstants.TradingHoursTtl,
+			async ct =>
+				(await ibkrApiClient.SearchContractsAsync(contract, ct)).FirstOrDefault(x =>
+					x.Contract.ConId == contract.ConId
+				),
+			cancellationToken,
+			x => x != null
+		);
+		return result.Value is { } details
+			? TradingHoursHelpers.Parse(details.LiquidHours, details.TimeZoneId)
+			: null;
 	}
 
 	public IAsyncEnumerable<BarDto> SubscribeRealtimeBarsAsync(

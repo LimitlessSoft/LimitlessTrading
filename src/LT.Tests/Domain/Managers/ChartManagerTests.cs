@@ -2,6 +2,7 @@ using LSCore.Exceptions;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Enums;
+using LT.Contracts.Helpers;
 using LT.Contracts.Requests.Charts;
 using LT.Domain.Managers;
 using LT.Tests.Fakes;
@@ -195,4 +196,36 @@ public class ChartManagerTests
 			Timeframe = Request.Timeframe,
 			Period = period,
 		};
+
+	[Fact]
+	public async Task Regular_hours_come_from_the_contract_details_and_are_cached()
+	{
+		_ibkr.SearchResults =
+		[
+			new ContractDetailsDto
+			{
+				Contract = Request.Contract,
+				TimeZoneId = "US/Eastern",
+				TradingHours = "20261026:0400-20261026:2000",
+				LiquidHours = "20261026:0930-20261026:1600",
+			},
+		];
+
+		var schedule = await _manager.GetRegularHoursAsync(Request.Contract, Ct);
+		await _manager.GetRegularHoursAsync(Request.Contract, Ct);
+
+		var session = Assert.Single(
+			TradingHoursHelpers.GetSessions(schedule!, new DateOnly(2026, 10, 26))
+		);
+		Assert.Equal(new TimeOnly(9, 30), session.Start);
+		Assert.Equal(1, _ibkr.SearchCalls);
+	}
+
+	[Fact]
+	public async Task A_contract_without_liquid_hours_has_no_regular_hours()
+	{
+		_ibkr.SearchResults = [new ContractDetailsDto { Contract = Request.Contract }];
+
+		Assert.Null(await _manager.GetRegularHoursAsync(Request.Contract, Ct));
+	}
 }
