@@ -36,4 +36,7 @@ public enum OrderValidationCodes
 
 	[LSCoreValidationMessage("An exit of this position is already working.")]
 	OVC_011,
+
+	[LSCoreValidationMessage("Set a one-click quantity of {0} to {1} whole contracts.")]
+	OVC_012,
 }

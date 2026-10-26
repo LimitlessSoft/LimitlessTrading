@@ -10,6 +10,7 @@ using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.MarketData;
 using LT.Contracts.Dtos.Options;
 using LT.Contracts.Dtos.Orders;
+using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IManagers;
@@ -20,11 +21,15 @@ namespace LT.App.Widgets.OptionChain;
 
 /// <summary>
 /// Calls and puts per strike for one expiration. Quotes are streamed only for the strikes around
-/// the underlying price, to stay inside the market data line limit. Bid / ask cells trade one
-/// contract at market with a single click (no confirmation; the user asked for it). The underlying
-/// comes from the link group, or is typed into the header title.
+/// the underlying price, to stay inside the market data line limit. Bid / ask cells trade the
+/// widget's one-click quantity at market with a single click (no confirmation; the user asked for
+/// it). The underlying comes from the link group, or is typed into the header title.
 /// </summary>
-public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable, ITickerTitled
+public partial class OptionChainViewModel
+	: ConnectedViewModelBase,
+		ILinkable,
+		ITickerTitled,
+		IWidgetState
 {
 	private readonly IOptionChainManager _optionChainManager;
 	private readonly IContractManager _contractManager;
@@ -142,6 +147,27 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable, I
 	/// <summary>The last one-click order sent, shown for a few seconds.</summary>
 	[ObservableProperty]
 	public partial string? TradeStatus { get; set; }
+
+	/// <summary>
+	/// Contracts per one-click order, saved with the widget. Null while the box is empty: a click
+	/// then sends nothing and says why.
+	/// </summary>
+	[ObservableProperty]
+	public partial decimal? QuickOrderQuantity { get; set; } =
+		OrderConstants.QuickOrderQuantityDefault;
+
+	public void LoadState(WidgetPlacementDto placement) =>
+		QuickOrderQuantity = OptionChainHelpers.GetQuickOrderQuantityOrDefault(
+			placement.OptionQuickOrderQuantity
+		);
+
+	// An empty or invalid box saves nothing, so the next start has the default
+	public void SaveState(WidgetPlacementDto placement) =>
+		placement.OptionQuickOrderQuantity = OptionChainHelpers.IsValidQuickOrderQuantity(
+			QuickOrderQuantity
+		)
+			? (int)QuickOrderQuantity!.Value
+			: null;
 
 	partial void OnSelectedExpirationChanged(ExpirationTab? value)
 	{
@@ -333,10 +359,13 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable, I
 	private OptionRowViewModel CreateRow(OptionStrikeDto strike) =>
 		new(strike, QuickTradeAsync, () => IsConnected);
 
-	// One click on a bid / ask cell: 1 contract at market, DAY, on the selected account. Repeat
-	// clicks on the same cell are dropped while its order is in flight and for a short window
-	// after, so a double click sends one order.
-	private async Task QuickTradeAsync(
+	/// <summary>
+	/// One click on a bid / ask cell: <see cref="QuickOrderQuantity"/> contracts at market, DAY, on
+	/// the selected account; an empty or out-of-range quantity sends nothing and shows why. Repeat
+	/// clicks on the same cell are dropped while its order is in flight and for a short window
+	/// after, so a double click sends one order.
+	/// </summary>
+	public async Task QuickTradeAsync(
 		OptionRowViewModel row,
 		string right,
 		OptionQuoteColumn column
@@ -344,11 +373,18 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable, I
 	{
 		if (!IsConnected)
 			return;
+		var quantity = QuickOrderQuantity;
+		if (OptionChainHelpers.GetQuickOrderQuantityError(quantity) is { } quantityError)
+		{
+			ErrorMessage = $"Order not sent: {quantityError}";
+			return;
+		}
 		var request = OptionChainHelpers.BuildQuickOrder(
 			row.Strike,
 			right,
 			column,
-			_accountStore.SelectedAccount
+			_accountStore.SelectedAccount,
+			quantity
 		);
 		if (request == null)
 			return;
