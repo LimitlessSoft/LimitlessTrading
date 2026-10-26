@@ -4,8 +4,10 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using LT.App.Stores;
 using LT.App.Widgets.Gateway;
+using LT.App.Widgets.OrderTicket;
 using LT.App.Widgets.Settings;
 using LT.App.Workspace;
+using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Enums;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,6 +16,7 @@ namespace LT.App.Shell;
 public partial class MainWindow : Window, IFullscreenHost
 {
 	private readonly SettingsNavigator? _settingsNavigator;
+	private readonly OrderTicketNavigator? _orderTicketNavigator;
 	private bool _settingsOpen;
 
 	public MainWindow()
@@ -26,10 +29,16 @@ public partial class MainWindow : Window, IFullscreenHost
 		_settingsNavigator = Program.Services?.GetService<SettingsNavigator>();
 		if (_settingsNavigator != null)
 			_settingsNavigator.OpenRequested += OnSettingsRequested;
+		// Positions' "Close" opens a pre-filled ticket in a popup
+		_orderTicketNavigator = Program.Services?.GetService<OrderTicketNavigator>();
+		if (_orderTicketNavigator != null)
+			_orderTicketNavigator.OpenRequested += OnOrderTicketRequested;
 		Closed += (_, _) =>
 		{
 			if (_settingsNavigator != null)
 				_settingsNavigator.OpenRequested -= OnSettingsRequested;
+			if (_orderTicketNavigator != null)
+				_orderTicketNavigator.OpenRequested -= OnOrderTicketRequested;
 		};
 	}
 
@@ -136,6 +145,9 @@ public partial class MainWindow : Window, IFullscreenHost
 
 	private void OnSettingsRequested(string? pageTitle) =>
 		Dispatcher.UIThread.Post(() => _ = OpenSettingsAsync(pageTitle));
+
+	private void OnOrderTicketRequested(OrderDraftDto draft) =>
+		Dispatcher.UIThread.Post(() => _ = OrderTicketWindow.ShowAsync(this, draft));
 
 	private void OnSettingsClick(object? sender, RoutedEventArgs e) => _ = OpenSettingsAsync();
 

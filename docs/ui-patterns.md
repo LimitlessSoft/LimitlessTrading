@@ -161,6 +161,14 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   order out with the endpoint; any edit drops the review; only "Send order" sends. Orders sent
   this session list their status below, with Cancel while working; everything is also logged
   to Messages.
+- **Close position** (Positions, a Close button per live row; disabled for remembered rows and
+  while disconnected): opens the Order ticket's own view and view model in a dialog
+  (`LT.App/Widgets/OrderTicket/OrderTicketWindow`) through `OrderTicketNavigator` (a store in
+  `LT.Widgets.Core`, the main window listens like `SettingsNavigator`). The draft
+  (`OrderHelpers.GetClosingDraft`) is the position's account and contract, sell for a long / buy
+  for a short, the whole size, at market. `OrderTicketViewModel.Prefill` leaves the link group
+  so the popup can't switch contract; review and send are the ticket's own — nothing is sent
+  until "Send order". The view model is disposed when the dialog closes.
 - **News** (`LT.Widgets.News`, bottom, Ctrl+Alt+N): two modes, saved per widget with the provider
   selection (`WidgetPlacementDto.NewsMode` / `NewsProviders`, keys `source:code`, null = all).
   *Linked* follows the link group's contract: the latest 100 past headlines, then live ones

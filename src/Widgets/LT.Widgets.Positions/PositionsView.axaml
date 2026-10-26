@@ -114,6 +114,25 @@
 					Header="Realized P&amp;L"
 					Binding="{Binding RealizedPnl}"
 				/>
+				<!-- Opens a pre-filled order ticket; nothing is sent from here -->
+				<DataGridTemplateColumn CanUserSort="False">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:PositionRowViewModel">
+							<Button
+								Classes="frameAction close closePosition"
+								Margin="4,0"
+								HorizontalAlignment="Center"
+								VerticalAlignment="Center"
+								ToolTip.Tip="Close position"
+								Command="{Binding $parent[DataGrid].((vm:PositionsViewModel)DataContext).ClosePositionCommand}"
+								CommandParameter="{Binding}"
+								IsEnabled="{Binding $parent[DataGrid].((vm:PositionsViewModel)DataContext).CanClose}"
+							>
+								<PathIcon Data="{StaticResource ClosePositionIcon}" />
+							</Button>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
 			</DataGrid.Columns>
 		</DataGrid>
 	</DockPanel>

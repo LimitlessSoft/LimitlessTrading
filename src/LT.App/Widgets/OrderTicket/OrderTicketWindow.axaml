@@ -1,0 +1,15 @@
+<Window
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:ot="using:LT.App.Widgets.OrderTicket"
+	x:Class="LT.App.Widgets.OrderTicket.OrderTicketWindow"
+	x:DataType="ot:OrderTicketViewModel"
+	Title="{Binding Title}"
+	Width="420"
+	MaxHeight="760"
+	SizeToContent="Height"
+	WindowStartupLocation="CenterOwner"
+>
+	<!-- The Order ticket widget's own view, pre-filled (e.g. Positions' "Close") -->
+	<ot:OrderTicketView Margin="16" />
+</Window>

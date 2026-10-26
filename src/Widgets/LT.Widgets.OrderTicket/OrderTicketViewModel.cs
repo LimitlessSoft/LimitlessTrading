@@ -35,11 +35,13 @@ public partial class OrderTicketViewModel : ConnectedViewModelBase, ILinkable
 	private readonly IMessageLogManager _messageLogManager;
 	private readonly AccountStore _accountStore;
 	private readonly LatestValue<QuoteDto> _pendingQuote = new();
+	private readonly DispatcherTimer _flushTimer;
 	private CancellationToken _session = new(true);
 	private CancellationTokenSource? _quotes;
 	private ContractDto? _contract;
 	private QuoteDto? _quote;
 	private PlaceOrderRequest? _reviewed;
+	private bool _pinned;
 
 	public OrderTicketViewModel(
 		IOrderManager orderManager,
@@ -61,11 +63,12 @@ public partial class OrderTicketViewModel : ConnectedViewModelBase, ILinkable
 		SelectedAccount = accountStore.SelectedAccount;
 		SetContract(linkGroupStore.Get(Link.Group));
 
-		new DispatcherTimer(
+		_flushTimer = new DispatcherTimer(
 			MarketDataConstants.UiFlushInterval,
 			DispatcherPriority.Background,
 			(_, _) => FlushQuote()
-		).Start();
+		);
+		_flushTimer.Start();
 	}
 
 	/// <summary>The contract comes from the link group (watchlist, positions, a chart).</summary>
@@ -137,6 +140,10 @@ public partial class OrderTicketViewModel : ConnectedViewModelBase, ILinkable
 	[ObservableProperty]
 	public partial string QuoteText { get; set; } = string.Empty;
 
+	/// <summary>Why the ticket is pre-filled (e.g. closing a position); null for a plain ticket.</summary>
+	[ObservableProperty]
+	public partial string? DraftText { get; set; }
+
 	[ObservableProperty]
 	public partial string? EstimateText { get; set; }
 
@@ -195,6 +202,25 @@ public partial class OrderTicketViewModel : ConnectedViewModelBase, ILinkable
 
 	[RelayCommand]
 	private void Back() => StopReview();
+
+	/// <summary>
+	/// Fills the ticket from <paramref name="draft"/> and pins it to that contract: it leaves its
+	/// link group, so picking another contract elsewhere can't swap what it would close. Nothing
+	/// is reviewed or sent.
+	/// </summary>
+	public void Prefill(OrderDraftDto draft)
+	{
+		Link.Group = LinkGroup.None;
+		_pinned = true;
+		ApplyContract(draft.Contract);
+		SelectedAccount = draft.Account;
+		IsBuy = draft.Action == OrderAction.Buy;
+		SelectedOrderType = OrderTypeChoices[0];
+		IsAmount = false;
+		SizeText = OrderHelpers.FormatInput(draft.Quantity);
+		LimitPriceText = string.Empty;
+		DraftText = draft.Note;
+	}
 
 	/// <summary>Sends the reviewed order to IB.</summary>
 	[RelayCommand]
@@ -258,12 +284,19 @@ public partial class OrderTicketViewModel : ConnectedViewModelBase, ILinkable
 
 	public override void Dispose()
 	{
+		_flushTimer.Stop();
 		Link.Dispose();
 		StopQuotes();
 		base.Dispose();
 	}
 
 	private void SetContract(ContractDto? contract)
+	{
+		if (!_pinned)
+			ApplyContract(contract);
+	}
+
+	private void ApplyContract(ContractDto? contract)
 	{
 		if (contract != null && ContractHelpers.IsSameListing(contract, _contract ?? new()))
 			return;

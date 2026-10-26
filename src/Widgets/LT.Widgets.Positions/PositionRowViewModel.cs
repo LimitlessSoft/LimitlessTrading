@@ -16,6 +16,9 @@ public partial class PositionRowViewModel(PositionDto position) : ViewModelBase
 	public string Exchange { get; } = position.Exchange;
 	public string Currency { get; } = position.Currency;
 
+	/// <summary>The latest update, for actions on the row (closing it).</summary>
+	public PositionDto Position { get; private set; } = position;
+
 	public CancellationTokenSource? PnlSubscription { get; set; }
 
 	public double? UnrealizedValue { get; private set; }
@@ -53,6 +56,7 @@ public partial class PositionRowViewModel(PositionDto position) : ViewModelBase
 
 	public void Update(PositionDto update)
 	{
+		Position = update;
 		Quantity = FormatHelpers.Quantity(update.Quantity);
 		AverageCost = FormatHelpers.Price(update.AverageCost);
 	}

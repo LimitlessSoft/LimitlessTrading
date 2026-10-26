@@ -1,6 +1,7 @@
 using System.Globalization;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Orders;
+using LT.Contracts.Dtos.Positions;
 using LT.Contracts.Enums;
 using LT.Contracts.Requests.Orders;
 
@@ -31,6 +32,27 @@ public static class OrderHelpers
 				? [TimeInForce.Ioc]
 				: [TimeInForce.Gtc, TimeInForce.Ioc]
 			: [TimeInForce.Day, TimeInForce.Gtc, TimeInForce.Ioc];
+
+	/// <summary>
+	/// The order that flattens <paramref name="position"/>: sell a long, buy back a short, the whole
+	/// size, in the position's account. Null for a flat position.
+	/// </summary>
+	public static OrderDraftDto? GetClosingDraft(PositionDto position)
+	{
+		if (position.Quantity == 0)
+			return null;
+		var quantity = Math.Abs(position.Quantity);
+		var side = position.Quantity > 0 ? "long" : "short";
+		return new()
+		{
+			Contract = position.Contract,
+			Account = position.Account,
+			Action = position.Quantity > 0 ? OrderAction.Sell : OrderAction.Buy,
+			Quantity = quantity,
+			Note =
+				$"Closes the {side} position of {FormatInput(quantity)} in {position.Account}. Review, then send.",
+		};
+	}
 
 	public static OrderDto ToOrder(PlaceOrderRequest request) =>
 		new()
@@ -94,6 +116,10 @@ public static class OrderHelpers
 
 	public static string FormatMoney(decimal amount) =>
 		amount.ToString("$#,0.00", CultureInfo.InvariantCulture);
+
+	/// <summary>A number as the ticket's text boxes take it back (<see cref="ParseNumber"/>), e.g. "0.5".</summary>
+	public static string FormatInput(decimal value) =>
+		value.ToString("0.########", CultureInfo.InvariantCulture);
 
 	/// <summary>Parses a typed number ("10", "0.0002", "1,000.5"); null when empty or not a number.</summary>
 	public static decimal? ParseNumber(string? text) =>
