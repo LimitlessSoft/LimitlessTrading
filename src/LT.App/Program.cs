@@ -115,6 +115,9 @@ public static class Program
 		// Remembers the fills already heard of and the one sound playing, app-wide
 		builder.Services.AddSingleton<ISoundPlayer, SoundPlayer>();
 		builder.Services.AddSingleton<IFillAlertManager, FillAlertManager>();
+		// One list of price alerts for every chart and the watcher (each fires once)
+		builder.Services.AddSingleton<IPriceAlertRepository, PriceAlertRepository>();
+		builder.Services.AddSingleton<IPriceAlertManager, PriceAlertManager>();
 		builder.Services.AddSingleton<IFlexImportManager, FlexImportManager>();
 		// Shares one SEC lookup per ticker between watchlists
 		builder.Services.AddSingleton<ISharesOutstandingManager, SharesOutstandingManager>();
@@ -157,6 +160,7 @@ public static class Program
 		builder.Services.AddHostedService<AccountPerformanceRecorder>();
 		builder.Services.AddHostedService<TradeJournalRecorder>();
 		builder.Services.AddHostedService<FillAlertService>();
+		builder.Services.AddHostedService<PriceAlertService>();
 		builder.Services.AddHostedService<FlexImportScheduler>();
 		builder.Services.AddHostedService<IndicatorScriptHost>();
 

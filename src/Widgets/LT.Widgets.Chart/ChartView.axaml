@@ -16,12 +16,16 @@
 		<StreamGeometry x:Key="TemplateNotDefaultIcon">
 			M12,15.39L8.24,17.66L9.23,13.38L5.91,10.5L10.29,10.11L12,6.09L13.71,10.1L18.09,10.5L14.77,13.38L15.76,17.66M22,9.24L14.81,8.63L12,2L9.19,8.63L2,9.24L7.45,13.97L5.82,21L12,17.27L18.18,21L16.54,13.97L22,9.24Z
 		</StreamGeometry>
+		<StreamGeometry x:Key="ChartAlertIcon">
+			M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M14,21A2,2 0 0,1 12,23A2,2 0 0,1 10,21
+		</StreamGeometry>
 		<StreamGeometry x:Key="TemplateExportIcon">
 			M23,12L19,8V11H10V13H19V16M1,18V6C1,4.89 1.9,4 3,4H15A2,2 0 0,1 17,6V9H15V6H3V18H15V15H17V18A2,2 0 0,1 15,20H3A2,2 0 0,1 1,18Z
 		</StreamGeometry>
 	</UserControl.Resources>
 	<!-- The ticker and timeframe are picked in the frame header (ChartTitleView). Right-clicking
-	     the chart opens its menu: manage the indicators (remove those on the chart, pick more),
+	     the chart opens its menu: add a price alert at the pointer's price (also Alt+A), remove
+	     the alert under the pointer or the triggered ones, manage the indicators (remove those on the chart, pick more),
 	     apply a template, manage the templates. The picker and the template manager are flyouts kept on the chart and the
 	     panel and shown at the pointer. Regular / extended hours is in the header
 	     (ChartTitleView); there is no Reload button, F5 reloads.
@@ -276,9 +280,23 @@
 			TimeZone="{Binding DisplayTime.Zone}"
 			RegularHours="{Binding RegularHours}"
 			FitBars="{Binding FitsPeriod}"
+			Alerts="{Binding Alerts}"
 		>
 			<vm:CandlestickChart.ContextMenu>
 				<ContextMenu x:Name="ChartMenu">
+					<!-- Headers name the price under the pointer; set when the menu opens -->
+					<MenuItem x:Name="AddAlertMenuItem" Header="Add alert" InputGesture="Alt+A">
+						<MenuItem.Icon>
+							<PathIcon Width="12" Height="12" Data="{StaticResource ChartAlertIcon}" />
+						</MenuItem.Icon>
+					</MenuItem>
+					<MenuItem x:Name="RemoveAlertMenuItem" Header="Remove alert" />
+					<MenuItem
+						Header="Remove triggered alerts"
+						Command="{Binding RemoveTriggeredAlertsCommand}"
+						IsVisible="{Binding HasTriggeredAlerts}"
+					/>
+					<Separator />
 					<MenuItem x:Name="ManageIndicatorsMenuItem" Header="Manage indicators…">
 						<MenuItem.Icon>
 							<TextBlock Text="ƒx" FontStyle="Italic" HorizontalAlignment="Center" />

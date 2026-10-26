@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Notifications;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -11,9 +12,12 @@ using LT.App.Widgets.OrderTicket;
 using LT.App.Widgets.PatchNotes;
 using LT.App.Widgets.Settings;
 using LT.App.Workspace;
+using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Orders;
+using LT.Contracts.Dtos.PriceAlerts;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
+using LT.Contracts.Interfaces.IManagers;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LT.App.Shell;
@@ -22,6 +26,10 @@ public partial class MainWindow : AppWindow, IFullscreenHost
 {
 	private readonly SettingsNavigator? _settingsNavigator;
 	private readonly OrderTicketNavigator? _orderTicketNavigator;
+	private readonly IPriceAlertManager? _priceAlertManager;
+
+	// Toasts at the bottom right: price alerts that fired
+	private WindowNotificationManager? _notifications;
 	private bool _settingsOpen;
 	private PatchNotesWindow? _patchNotesWindow;
 
@@ -49,8 +57,14 @@ public partial class MainWindow : AppWindow, IFullscreenHost
 		_orderTicketNavigator = Program.Services?.GetService<OrderTicketNavigator>();
 		if (_orderTicketNavigator != null)
 			_orderTicketNavigator.OpenRequested += OnOrderTicketRequested;
+		// A price alert that fired shows a toast, whichever window its chart is in
+		_priceAlertManager = Program.Services?.GetService<IPriceAlertManager>();
+		if (_priceAlertManager != null)
+			_priceAlertManager.AlertTriggered += OnAlertTriggered;
 		Closed += (_, _) =>
 		{
+			if (_priceAlertManager != null)
+				_priceAlertManager.AlertTriggered -= OnAlertTriggered;
 			if (_settingsNavigator != null)
 				_settingsNavigator.OpenRequested -= OnSettingsRequested;
 			if (_orderTicketNavigator != null)
@@ -86,6 +100,11 @@ public partial class MainWindow : AppWindow, IFullscreenHost
 	// come back, and after an update the patch notes open.
 	private void OnOpened(object? sender, EventArgs e)
 	{
+		_notifications = new WindowNotificationManager(this)
+		{
+			Position = NotificationPosition.BottomRight,
+			MaxItems = 4,
+		};
 		if (ViewModel?.Windows is { } windows)
 		{
 			foreach (var window in windows.Windows)
@@ -284,6 +303,19 @@ public partial class MainWindow : AppWindow, IFullscreenHost
 
 	private void OnOrderTicketRequested(OrderDraftDto draft) =>
 		Dispatcher.UIThread.Post(() => _ = OrderTicketWindow.ShowAsync(this, draft));
+
+	// From a price stream's thread
+	private void OnAlertTriggered(PriceAlertDto alert) =>
+		Dispatcher.UIThread.Post(() =>
+			_notifications?.Show(
+				new Notification(
+					$"Alert: {ContractHelpers.GetDisplayName(alert.Contract)}",
+					PriceAlertHelpers.GetTriggeredText(alert),
+					NotificationType.Warning,
+					PriceAlertConstants.NotificationDuration
+				)
+			)
+		);
 
 	private void OnSettingsClick(object? sender, RoutedEventArgs e) => _ = OpenSettingsAsync();
 

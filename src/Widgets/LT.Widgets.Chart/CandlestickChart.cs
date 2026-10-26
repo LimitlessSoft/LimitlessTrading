@@ -35,6 +35,10 @@ namespace LT.App.Widgets.Chart;
 /// With <see cref="RegularHours"/> set (intraday, pre- / post-market shown), bars outside the
 /// regular session have a lighter background behind them and hollow candles.
 /// </para>
+/// <para>
+/// Price alerts (<see cref="Alerts"/>) are lines that drag to a new level and have a ✕ to remove
+/// them (CandlestickChart.Alerts.cs).
+/// </para>
 /// </summary>
 public partial class CandlestickChart : Control
 {
@@ -196,7 +200,8 @@ public partial class CandlestickChart : Control
 			RightMarginProperty,
 			TimeZoneProperty,
 			IndicatorsProperty,
-			RegularHoursProperty
+			RegularHoursProperty,
+			AlertsProperty
 		);
 		ClipToBoundsProperty.OverrideDefaultValue<CandlestickChart>(true);
 		FocusableProperty.OverrideDefaultValue<CandlestickChart>(true);
@@ -350,6 +355,9 @@ public partial class CandlestickChart : Control
 			);
 			_handleX = null;
 			_panes = [];
+			_pricePane = null;
+			_alertLines.Clear();
+			_alertCloseButtons.Clear();
 			return;
 		}
 
@@ -590,6 +598,8 @@ public partial class CandlestickChart : Control
 			}
 		}
 
+		DrawAlerts(context, price, decimals);
+
 		// last price
 		var last = bars[^1].Close;
 		var lastY = Math.Round(Y(last)) + 0.5;
@@ -746,10 +756,11 @@ public partial class CandlestickChart : Control
 	private void UpdateHandleHover(Point? position)
 	{
 		_handleHovered = position is { } p && _dragStart == null && IsOnMarginHandle(p);
-		var dragging = _dragStart != null || _marginDragStartX != null;
+		var dragging = _dragStart != null || _marginDragStartX != null || _draggedAlert != null;
 		UpdateLegendHover(dragging ? null : position);
 		Cursor =
-			_handleHovered || _marginDragStartX != null ? ResizeCursor
+			GetAlertCursor(position) is { } alertCursor ? alertCursor
+			: _handleHovered || _marginDragStartX != null ? ResizeCursor
 			: !dragging && position is { } q && HitLegend(q) != null ? HandCursor
 			: null;
 	}
@@ -831,7 +842,9 @@ public partial class CandlestickChart : Control
 		base.OnPointerMoved(e);
 		var position = e.GetPosition(this);
 		_pointer = position;
-		if (_marginDragStartX is { } marginStart)
+		if (_draggedAlert != null)
+			DragAlert(position);
+		else if (_marginDragStartX is { } marginStart)
 			RightMargin = ChartViewportHelpers.DragRightMargin(
 				_marginDragStartValue,
 				position.X - marginStart,
@@ -858,9 +871,20 @@ public partial class CandlestickChart : Control
 				RaiseIndicatorAction(legend.InstanceId, legend.Action);
 			return;
 		}
+		// Alt+A on the chart adds an alert, so a click gives it the keyboard
+		Focus();
 		// The right button is the chart's context menu (opened on release): no pan, no reset
 		if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed)
+		{
+			MenuPoint = position;
 			return;
+		}
+		if (OnAlertPressed(e, position))
+		{
+			e.Handled = true;
+			UpdateHandleHover(position);
+			return;
+		}
 		if (IsOnMarginHandle(position))
 		{
 			if (e.ClickCount == 2)
@@ -892,6 +916,7 @@ public partial class CandlestickChart : Control
 	protected override void OnPointerReleased(PointerReleasedEventArgs e)
 	{
 		base.OnPointerReleased(e);
+		OnAlertReleased();
 		_dragStart = null;
 		_marginDragStartX = null;
 		e.Pointer.Capture(null);
@@ -902,6 +927,8 @@ public partial class CandlestickChart : Control
 	protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
 	{
 		base.OnPointerCaptureLost(e);
+		// Lost before the release (another window took the pointer): the alert stays where it was
+		_draggedAlert = null;
 		_dragStart = null;
 		_marginDragStartX = null;
 		UpdateHandleHover(_pointer);

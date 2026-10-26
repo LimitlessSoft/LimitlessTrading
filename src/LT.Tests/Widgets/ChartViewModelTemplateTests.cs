@@ -499,6 +499,12 @@ public class ChartViewModelTemplateTests : IDisposable
 			new PositionManager(_ibkr, _cache.Manager),
 			_indicators,
 			_templates,
+			new PriceAlertManager(
+				new InMemoryPriceAlertRepository(),
+				new MarketDataManager(_ibkr),
+				new MessageLogManager(),
+				_cache.Time
+			),
 			new AccountStore(_connection, settings),
 			_links,
 			new DisplayTimeStore(settings, _cache.Time),

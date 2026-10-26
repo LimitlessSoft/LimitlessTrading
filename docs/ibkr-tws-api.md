@@ -336,6 +336,8 @@ deduplicated by IB's execution id, so the same fill from either stays one:
   recorded read-only on IB Gateway 4001, 2026-10-26, all answered; IB slowed its answers to
   ~6 s each after ~55). Holding them queued chart loads for minutes behind other charts.
 - `MarketDataManager` counts lines and refuses a subscription above 90 (headroom under IB's 100).
+  Chart price alerts hold one line per contract with an active alert while connected (at most
+  20, `PriceAlertConstants.MaxWatchedContracts`).
 - `ChartManager` turns the chart's period into the IB duration (`ChartPeriodHelpers.GetRange`):
   the span plus a day of slack, rounded up to 2/8/32/93/185/365 D or whole years (end is always
   now), never longer than the timeframe's longest period (1m 7 days, 5m 1 month, 15m 3 months,

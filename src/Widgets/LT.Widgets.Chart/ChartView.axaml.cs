@@ -8,6 +8,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Indicators;
+using LT.Contracts.Dtos.PriceAlerts;
 using LT.Contracts.Helpers;
 
 namespace LT.App.Widgets.Chart;
@@ -24,6 +25,12 @@ namespace LT.App.Widgets.Chart;
 /// rename (pencil; Enter or clicking away saves, Esc cancels), export it to a file, delete it (✕,
 /// confirmed in place), save this chart as a new one, import a file or export them all. The files
 /// are picked here; the view model reads and writes their content.
+/// <para>
+/// Price alerts: the menu's "Add alert at …" (or Alt+A while the chart has the keyboard) adds one
+/// at the price under the pointer, or at the last price when the pointer is elsewhere; "Remove
+/// alert at …" shows when the menu was opened on an alert line. Dragging a line and its ✕ are
+/// handled by the chart and reach the view model here.
+/// </para>
 /// </summary>
 public partial class ChartView : UserControl
 {
@@ -31,7 +38,17 @@ public partial class ChartView : UserControl
 	{
 		InitializeComponent();
 		Chart.IndicatorAction += OnIndicatorAction;
+		Chart.AlertMoved += (id, price) => ViewModel?.MoveAlert(id, price);
+		Chart.AlertRemoved += id => ViewModel?.RemoveAlert(id);
+		KeyDown += OnKeyDown;
 		ChartMenu.Opening += (_, _) => FillApplyTemplateMenu();
+		ChartMenu.Opening += (_, _) => FillAlertMenu();
+		AddAlertMenuItem.Click += (_, _) => ViewModel?.AddAlert(_menuAlertPrice);
+		RemoveAlertMenuItem.Click += (_, _) =>
+		{
+			if (_menuAlert != null)
+				ViewModel?.RemoveAlert(_menuAlert.Id);
+		};
 		ManageIndicatorsMenuItem.Click += (_, _) => ShowAtPointer(IndicatorsFlyout);
 		ManageTemplatesMenuItem.Click += (_, _) => ShowAtPointer(TemplatesFlyout);
 		IndicatorsFlyout.Opening += (_, _) => OnIndicatorsOpening();
@@ -52,6 +69,10 @@ public partial class ChartView : UserControl
 
 	// Set while the manager is shown again after a file dialog, to keep its result message
 	private bool _reopeningTemplates;
+
+	// What the open menu's alert items act on: the price it was opened at, the alert under it
+	private double? _menuAlertPrice;
+	private PriceAlertDto? _menuAlert;
 
 	private Flyout IndicatorsFlyout => (Flyout)FlyoutBase.GetAttachedFlyout(Chart)!;
 
@@ -93,6 +114,32 @@ public partial class ChartView : UserControl
 	}
 
 	private ChartViewModel? ViewModel => DataContext as ChartViewModel;
+
+	// Right-click: an alert at the price under the pointer (the last price off the price chart),
+	// and the alert under it to remove
+	private void FillAlertMenu()
+	{
+		var point = Chart.MenuPoint;
+		_menuAlertPrice = (point is { } p ? Chart.GetPriceAt(p) : null) ?? ViewModel?.LastPrice;
+		_menuAlert = point is { } q ? Chart.GetAlertAt(q) : null;
+		AddAlertMenuItem.Header = _menuAlertPrice is { } price
+			? $"Add alert at {PriceAlertHelpers.FormatPrice(price)}"
+			: "Add alert";
+		AddAlertMenuItem.IsEnabled = ViewModel?.CanAddAlert == true && _menuAlertPrice != null;
+		RemoveAlertMenuItem.IsVisible = _menuAlert != null;
+		if (_menuAlert != null)
+			RemoveAlertMenuItem.Header =
+				$"Remove alert at {PriceAlertHelpers.FormatPrice(_menuAlert.Price)}";
+	}
+
+	// Alt+A (TradingView's): an alert at the pointer's price, or the last price
+	private void OnKeyDown(object? sender, KeyEventArgs e)
+	{
+		if (e.Key != Key.A || e.KeyModifiers != KeyModifiers.Alt || ViewModel is not { } viewModel)
+			return;
+		e.Handled = true;
+		viewModel.AddAlert(Chart.PointerPrice ?? viewModel.LastPrice);
+	}
 
 	private void OnIndicatorAction(string instanceId, ChartIndicatorAction action)
 	{

@@ -148,6 +148,12 @@ public class ChartViewModelTradingHoursTests : IDisposable
 				new MessageLogManager()
 			),
 			new ChartTemplateManager(_cache.Settings),
+			new PriceAlertManager(
+				new InMemoryPriceAlertRepository(),
+				new MarketDataManager(_ibkr),
+				new MessageLogManager(),
+				_cache.Time
+			),
 			new AccountStore(_connection, _settings),
 			new LinkGroupStore(),
 			new DisplayTimeStore(_settings, _cache.Time),
