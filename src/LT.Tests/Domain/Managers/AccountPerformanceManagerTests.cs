@@ -42,7 +42,7 @@ public class AccountPerformanceManagerTests
 				: AsyncEnumerable.Empty<AccountPnlDto>();
 		_manager = new AccountPerformanceManager(
 			_connection,
-			new AccountManager(_ibkr),
+			new AccountManager(_ibkr, new TestCache().Manager),
 			_repository,
 			new MessageLogManager(),
 			_time
