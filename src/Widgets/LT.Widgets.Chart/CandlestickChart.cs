@@ -29,6 +29,9 @@ namespace LT.App.Widgets.Chart;
 /// left (CandlestickChart.Indicators.cs) whose rows raise <see cref="IndicatorAction"/>.
 /// </para>
 /// <para>
+/// With <see cref="FitBars"/> (a chosen period) a new series zooms out to show all of its bars.
+/// </para>
+/// <para>
 /// With <see cref="RegularHours"/> set (intraday, pre- / post-market shown), bars outside the
 /// regular session have a lighter background behind them and hollow candles.
 /// </para>
@@ -70,6 +73,11 @@ public partial class CandlestickChart : Control
 
 	public static readonly StyledProperty<TradingScheduleDto?> RegularHoursProperty =
 		AvaloniaProperty.Register<CandlestickChart, TradingScheduleDto?>(nameof(RegularHours));
+
+	public static readonly StyledProperty<bool> FitBarsProperty = AvaloniaProperty.Register<
+		CandlestickChart,
+		bool
+	>(nameof(FitBars));
 
 	private const double PriceAxisWidth = 72;
 	private const double TimeAxisHeight = 22;
@@ -154,6 +162,9 @@ public partial class CandlestickChart : Control
 
 	private double _barSpacing = DefaultBarSpacing;
 	private int _offset;
+
+	// The next render fits every bar into the plot (FitBars: a new series, double-click)
+	private bool _fitPending;
 	private Point? _pointer;
 	private Point? _dragStart;
 	private int _dragStartOffset;
@@ -255,6 +266,16 @@ public partial class CandlestickChart : Control
 	/// <summary>A legend row was clicked: the indicator instance and what to do with it.</summary>
 	public event Action<string, ChartIndicatorAction>? IndicatorAction;
 
+	/// <summary>
+	/// Show every bar: a new series (and double-click) zooms out until all of it fits, instead of
+	/// the latest bars at the default zoom. Set for a chosen period, so its whole span is in view.
+	/// </summary>
+	public bool FitBars
+	{
+		get => GetValue(FitBarsProperty);
+		set => SetValue(FitBarsProperty, value);
+	}
+
 	/// <summary>Empty bars after the latest one (fractions allowed).</summary>
 	public double RightMargin
 	{
@@ -272,6 +293,11 @@ public partial class CandlestickChart : Control
 			|| change.Property == TimeframeProperty
 		)
 			_tradesDirty = true;
+		if (change.Property == FitBarsProperty)
+		{
+			ResetView();
+			return;
+		}
 		if (change.Property != BarsProperty)
 			return;
 
@@ -283,10 +309,16 @@ public partial class CandlestickChart : Control
 			|| newBars is not { Count: > 0 }
 			|| oldBars[0].Time != newBars[0].Time
 		)
-		{
-			_offset = 0;
-			_barSpacing = DefaultBarSpacing;
-		}
+			ResetView();
+	}
+
+	// Back to the latest bar, at the default zoom or (FitBars) with every bar in view
+	private void ResetView()
+	{
+		_offset = 0;
+		_barSpacing = DefaultBarSpacing;
+		_fitPending = FitBars;
+		InvalidateVisual();
 	}
 
 	// Which visible bars (start..end) are outside the regular session; all false without hours
@@ -345,6 +377,16 @@ public partial class CandlestickChart : Control
 		);
 
 		_plot = plot;
+		if (_fitPending)
+		{
+			_fitPending = false;
+			_barSpacing = ChartViewportHelpers.GetFitBarSpacing(
+				bars.Count,
+				RightMargin,
+				plot.Width,
+				MaxBarSpacing
+			);
+		}
 		_offset = Math.Clamp(_offset, 0, bars.Count - 1);
 		var rightMargin = ChartViewportHelpers.ClampRightMargin(
 			RightMargin,
@@ -839,9 +881,7 @@ public partial class CandlestickChart : Control
 		}
 		if (e.ClickCount == 2)
 		{
-			_offset = 0;
-			_barSpacing = DefaultBarSpacing;
-			InvalidateVisual();
+			ResetView();
 			return;
 		}
 		_dragStart = position;
@@ -878,9 +918,10 @@ public partial class CandlestickChart : Control
 	protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
 	{
 		base.OnPointerWheelChanged(e);
+		// A fitted long period may be denser than the wheel goes; zooming out never jumps in
 		_barSpacing = Math.Clamp(
 			e.Delta.Y > 0 ? _barSpacing * 1.15 : _barSpacing / 1.15,
-			MinBarSpacing,
+			Math.Min(MinBarSpacing, _barSpacing),
 			MaxBarSpacing
 		);
 		e.Handled = true;

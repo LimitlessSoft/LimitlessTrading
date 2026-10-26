@@ -120,4 +120,29 @@ public class ChartViewportHelpersTests
 			6
 		);
 	}
+
+	[Theory]
+	[InlineData(100, 0)]
+	[InlineData(4000, 0)] // a month of 5-minute bars: denser than the wheel goes
+	[InlineData(100, 10)]
+	[InlineData(1, 0)]
+	public void Fitting_shows_every_bar_and_the_margin(int barCount, double margin)
+	{
+		var spacing = ChartViewportHelpers.GetFitBarSpacing(barCount, margin, PlotWidth, 40);
+		var edge = ChartViewportHelpers.GetRightEdge(barCount, 0, margin);
+
+		Assert.True(spacing <= 40);
+		Assert.Equal(
+			(0, barCount),
+			ChartViewportHelpers.GetVisibleRange(barCount, edge, PlotWidth, spacing)
+		);
+		Assert.True(ChartViewportHelpers.GetBarX(0, edge, PlotRight, spacing) - spacing / 2 >= 0);
+	}
+
+	[Fact]
+	public void Few_bars_are_fitted_no_wider_than_the_widest_zoom()
+	{
+		Assert.Equal(40, ChartViewportHelpers.GetFitBarSpacing(3, 0, PlotWidth, 40));
+		Assert.Equal(40, ChartViewportHelpers.GetFitBarSpacing(0, 0, PlotWidth, 40));
+	}
 }

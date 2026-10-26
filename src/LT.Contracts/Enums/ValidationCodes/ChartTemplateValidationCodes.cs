@@ -42,4 +42,7 @@ public enum ChartTemplateValidationCodes
 
 	[LSCoreValidationMessage("The file is larger than {0} MB.")]
 	CHTVC_013,
+
+	[LSCoreValidationMessage("{0}: unknown period.")]
+	CHTVC_014,
 }

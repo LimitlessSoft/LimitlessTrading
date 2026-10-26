@@ -275,6 +275,7 @@
 			RightMargin="{Binding RightMargin}"
 			TimeZone="{Binding DisplayTime.Zone}"
 			RegularHours="{Binding RegularHours}"
+			FitBars="{Binding FitsPeriod}"
 		>
 			<vm:CandlestickChart.ContextMenu>
 				<ContextMenu x:Name="ChartMenu">

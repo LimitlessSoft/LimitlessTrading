@@ -311,6 +311,31 @@ public class ChartTemplateManagerTests
 	}
 
 	[Fact]
+	public void A_template_saved_before_periods_is_followed_with_its_period()
+	{
+		// settings.json written by version 1: the timeframe meant its own span (Auto)
+		_settings.Save(
+			JsonSerializer.Deserialize<SettingsEntity>(
+				"""
+				{ "ChartTemplates": [ { "Id": "old", "Name": "5min", "Version": 1,
+				  "Settings": { "Timeframe": 1, "RightMargin": 5 } } ] }
+				"""
+			)!
+		);
+		var template = _manager.GetTemplate("old")!;
+		Assert.Equal(ChartPeriod.Auto, template.Settings.Period);
+
+		// A follower's period edit is kept; the template is written as the current version
+		var settings = template.Settings;
+		settings.Period = ChartPeriod.OneMonth;
+		_manager.UpdateSettings(new() { Id = "old", Settings = settings });
+
+		var updated = _manager.GetTemplate("old")!;
+		Assert.Equal(ChartPeriod.OneMonth, updated.Settings.Period);
+		Assert.Equal(ChartTemplateConstants.CurrentVersion, updated.Version);
+	}
+
+	[Fact]
 	public void Import_takes_timeframes_as_numbers_and_any_property_case()
 	{
 		var json = """
@@ -342,6 +367,9 @@ public class ChartTemplateManagerTests
 	)]
 	[InlineData(
 		"{ \"format\": \"LimitlessTrading.ChartTemplates\", \"templates\": [ { \"name\": \"A\", \"settings\": { \"rightMargin\": -1 } } ] }"
+	)]
+	[InlineData(
+		"{ \"format\": \"LimitlessTrading.ChartTemplates\", \"templates\": [ { \"name\": \"A\", \"settings\": { \"period\": 42 } } ] }"
 	)]
 	[InlineData(
 		"{ \"format\": \"LimitlessTrading.ChartTemplates\", \"templates\": [ { \"name\": \"A\", \"settings\": { \"indicators\": [ { \"inputs\": {} } ] } } ] }"
@@ -415,6 +443,7 @@ public class ChartTemplateManagerTests
 		new()
 		{
 			Timeframe = ChartTimeframe.OneMinute,
+			Period = ChartPeriod.Today,
 			RightMargin = 12,
 			Indicators =
 			[
@@ -436,6 +465,7 @@ public class ChartTemplateManagerTests
 	private static void AssertScalping(ChartTemplateSettingsDto settings)
 	{
 		Assert.Equal(ChartTimeframe.OneMinute, settings.Timeframe);
+		Assert.Equal(ChartPeriod.Today, settings.Period);
 		Assert.Equal(12, settings.RightMargin);
 		Assert.Collection(
 			settings.Indicators!,

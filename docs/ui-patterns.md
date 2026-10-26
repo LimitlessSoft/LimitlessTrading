@@ -213,8 +213,12 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   `ChartPeriodHelpers`; `ChartManager` asks IB for a covering duration and drops older bars.
   Small bars have a longest period (1m 7 days, 5m 1 month, 15m 3 months, 1h 1 year): a longer
   one is cut to it and the status line says "… bars go back … at most"; a period with no bars
-  yet (e.g. Today before the session) says "no bars since …". Period is saved per chart and new
-  charts start at the last chart's period; it is not part of chart templates. The other header controls (RTH, Reload) are hidden until
+  yet (e.g. Today before the session) says "no bars since …". A chosen period is shown whole:
+  the chart (`CandlestickChart.FitBars`, bound to `ChartViewModel.FitsPeriod`) zooms out until
+  every bar of the new series fits (also on double-click; the wheel can zoom in from there), while
+  Auto keeps the latest bars at the default zoom. Period is saved per chart, new charts start at
+  the last chart's period, and it is part of chart templates. A load superseded by another
+  timeframe, period or contract never shows its bars or its error. The other header controls (RTH, Reload) are hidden until
   they are redesigned; F5 reloads.
 - **Pre- and post-market bars:** Settings → Chart → Trading hours, "Show pre- and post-market
   bars" (`GeneralSettingsEntity.ChartOutsideRegularHours`, on by default, also for settings saved
@@ -389,7 +393,7 @@ instead.
 ### Chart templates
 
 Right-clicking a chart (`ChartView`) → **Templates…** opens its templates at the pointer: named
-chart setups — timeframe, indicators (type, inputs, visibility, plot colours) and right margin. Click a
+chart setups — timeframe, period, indicators (type, inputs, visibility, plot colours) and right margin. Click a
 template's name to apply it to that chart; the star makes it the **default**, applied to every new
 chart (restored charts keep their saved setup); the pencil renames it in place; the export icon
 writes it to a JSON file; ✕ deletes it after an inline confirmation. "Save this chart as…" saves
@@ -403,7 +407,7 @@ the templates (the default starred) to apply one in a click.
 **Follow and save on change.** A chart remembers the template it *uses*: the one last applied to
 it, saved from it, or the default it started with (`WidgetPlacementDto.ChartTemplateId`, saved
 with the layout). The switch under the list (`ChartFollowTemplate`, also saved) ties the chart to
-that template: its timeframe / indicator / margin edits are written to the template
+that template: its timeframe / period / indicator / margin edits are written to the template
 `ChartTemplateConstants.FollowSaveDebounce` (400 ms) after they stop — only the settings the
 template holds (`ChartTemplateHelpers.Merge`) — and every save of the template, from any chart,
 is applied to each chart following it. Charts that don't follow are never touched. Without a
@@ -427,9 +431,12 @@ template stops following.
   storage provider) and hands their text to `ChartViewModel.ImportTemplates` / takes
   `ExportTemplates`; at most `MaxFileLength` (2 MB) is read.
 - **Format, versioned for later settings.** A template (`ChartTemplateEntity`) has a `Version`
-  (`ChartTemplateConstants.CurrentVersion`, 1) and its `Settings`, every one optional: a setting
-  a template doesn't hold (saved before it existed) leaves the chart's own when applied. An
-  exported file is `{ "format": "LimitlessTrading.ChartTemplates", "version": 1, "templates":
+  (`ChartTemplateConstants.CurrentVersion`, 2) and its `Settings`, every one optional: a setting
+  a template doesn't hold (saved before it existed) leaves the chart's own when applied. Version
+  2 added the period: a version 1 template (stored or imported) that holds a timeframe is read as
+  holding period Auto (`ChartTemplateHelpers.ToDto`), what its charts showed, so charts following
+  it share their period too. An
+  exported file is `{ "format": "LimitlessTrading.ChartTemplates", "version": 2, "templates":
   [...] }` in camelCase with timeframes by name; reading accepts any property case, enum numbers,
   comments and trailing commas, and ignores fields it doesn't know, so files from newer versions
   import with what this one understands (and are stored as the current version). Adding a

@@ -16,6 +16,7 @@ public class ChartTemplateEntityMapper : ILSCoreMapper<ChartTemplateDto, ChartTe
 			Settings = new ChartTemplateSettingsEntity
 			{
 				Timeframe = source.Settings.Timeframe,
+				Period = source.Settings.Period,
 				RightMargin = source.Settings.RightMargin,
 				Indicators = source.Settings.Indicators is { } indicators
 					? [.. indicators.Select(new IndicatorInstanceEntityMapper().ToMapped)]

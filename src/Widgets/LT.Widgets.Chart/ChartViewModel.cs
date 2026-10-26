@@ -38,8 +38,8 @@ namespace LT.App.Widgets.Chart;
 /// time — and posted back to the UI thread.
 /// </para>
 /// <para>
-/// Its setup (timeframe, indicators, right margin) can be saved as a named template and applied
-/// from the header, and can follow its template (changes saved to it and taken from it); see
+/// Its setup (timeframe, period, indicators, right margin) can be saved as a named template and
+/// applied from the header, and can follow its template (changes saved to it and taken from it); see
 /// ChartViewModel.Templates.cs.
 /// </para>
 /// </summary>
@@ -272,7 +272,14 @@ public partial class ChartViewModel
 	public IReadOnlyList<PeriodOption> Periods { get; }
 
 	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(FitsPeriod))]
 	public partial PeriodOption SelectedPeriod { get; set; }
+
+	/// <summary>
+	/// A chosen period is shown whole (the chart zooms out to fit its bars); Auto shows the latest
+	/// bars at the default zoom, as before periods.
+	/// </summary>
+	public bool FitsPeriod => SelectedPeriod.Value != ChartPeriod.Auto;
 
 	/// <summary>
 	/// Regular hours only (IB useRTH); the opposite of the "outside regular trading hours" chart
@@ -329,7 +336,7 @@ public partial class ChartViewModel
 
 	partial void OnSelectedTimeframeChanged(TimeframeOption value)
 	{
-		Reload();
+		ReloadUnlessApplyingTemplate();
 		OnTemplateSettingsEdited();
 	}
 
@@ -340,7 +347,11 @@ public partial class ChartViewModel
 			SelectedPeriod = Periods.FirstOrDefault(x => x.Value == period) ?? SelectedPeriod;
 	}
 
-	partial void OnSelectedPeriodChanged(PeriodOption value) => Reload();
+	partial void OnSelectedPeriodChanged(PeriodOption value)
+	{
+		ReloadUnlessApplyingTemplate();
+		OnTemplateSettingsEdited();
+	}
 
 	// Today, this week… start at midnight in the display zone: another zone moves them
 	private void OnZoneChanged()
@@ -514,6 +525,9 @@ public partial class ChartViewModel
 		try
 		{
 			var result = await _chartManager.GetBarsAsync(request, cancellationToken);
+			// Superseded (another timeframe, period or contract) while IB answered: the newer
+			// load's bars stay
+			cancellationToken.ThrowIfCancellationRequested();
 			Bars = result.Bars;
 			var period = SelectedPeriod.ToString();
 			_status.Set(() =>
@@ -535,6 +549,10 @@ public partial class ChartViewModel
 			);
 		}
 		catch (OperationCanceledException)
+		{
+			return;
+		}
+		catch (Exception) when (cancellationToken.IsCancellationRequested)
 		{
 			return;
 		}
