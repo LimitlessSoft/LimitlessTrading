@@ -19,6 +19,7 @@ public static class TickTypeHelpers
 	public const int Low = 7;
 	public const int Volume = 8;
 	public const int Close = 9;
+	public const int OptionImpliedVolatility = 24;
 	public const int Open = 14;
 	public const int LastTimestamp = 45;
 	public const int Halted = 49;
@@ -90,6 +91,9 @@ public static class TickTypeHelpers
 				return true;
 			case Halted:
 				quote.IsHalted = tick.Value is > 0;
+				return true;
+			case OptionImpliedVolatility:
+				quote.ImpliedVolatility = tick.Value is > 0 ? tick.Value : null;
 				return true;
 			default:
 				return false;

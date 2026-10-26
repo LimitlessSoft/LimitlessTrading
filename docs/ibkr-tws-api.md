@@ -118,7 +118,7 @@ Limits / caveats:
 | `SetMarketDataTypeAsync` | `reqMarketDataType` | 1 live, 2 frozen, 3 delayed, 4 delayed-frozen |
 | `GetContractDetailsAsync(Contract)` | `reqContractDetails` | Search by symbol, conId lookup, one expiration's options |
 | `GetOptionChainParametersAsync` | `reqSecDefOptParams` | Expirations + strikes per exchange / trading class |
-| `SubscribeMarketDataAsync` | `reqMktData` | Price, size, generic and string ticks |
+| `SubscribeMarketDataAsync` | `reqMktData` | Price, size, generic and string ticks; optional generic tick list (`106` = underlying option implied volatility, tick 24, used by the option chain) |
 | `GetHistoricalBarsAsync` | `reqHistoricalData` | IB strings: duration `"5 D"`, bar size `"5 mins"` |
 | `SubscribeRealtimeBarsAsync` | `reqRealTimeBars` | 5-second bars |
 | `GetPositionsAsync` / `SubscribePositionsAsync` | `reqPositions` | Snapshot / stream |
@@ -139,7 +139,7 @@ Limits / caveats:
   ([ibkr-flex.md](ibkr-flex.md)) and shows CVC_007 only as a note when Flex isn't set up. The mapping must
   fill `ExecutionDto.ConId`, `LocalSymbol` and `Multiplier` too (trade matching keys on the
   conId, P&L uses the multiplier), and the commission report's commission by ExecId.
-- Market depth / Level 2 (`reqMktDepth`), tick-by-tick (`reqTickByTickData`), option greeks
+- Market depth / Level 2 (`reqMktDepth`), tick-by-tick (`reqTickByTickData`), option greeks and per-option implied volatility
   (`tickOptionComputation`).
 - Scanners (`reqScannerSubscription`); news bulletins (`reqNewsBulletins`).
 - Matching symbols (`reqMatchingSymbols`): search is by exact symbol + type via

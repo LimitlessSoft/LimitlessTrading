@@ -23,7 +23,8 @@ public class MarketDataManager(IIbkrApiClient ibkrApiClient) : IMarketDataManage
 
 	public async IAsyncEnumerable<QuoteDto> SubscribeQuotesAsync(
 		ContractDto contract,
-		[EnumeratorCancellation] CancellationToken cancellationToken = default
+		[EnumeratorCancellation] CancellationToken cancellationToken = default,
+		string genericTicks = ""
 	)
 	{
 		if (!ibkrApiClient.IsConnected)
@@ -36,7 +37,11 @@ public class MarketDataManager(IIbkrApiClient ibkrApiClient) : IMarketDataManage
 		{
 			var quote = new QuoteDto();
 			await foreach (
-				var tick in ibkrApiClient.SubscribeMarketDataAsync(contract, cancellationToken)
+				var tick in ibkrApiClient.SubscribeMarketDataAsync(
+					contract,
+					cancellationToken,
+					genericTicks
+				)
 			)
 				if (TickTypeHelpers.Apply(quote, tick))
 					yield return quote.Clone();

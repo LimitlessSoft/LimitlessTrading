@@ -9,40 +9,78 @@ using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.MarketData;
 using LT.Contracts.Dtos.Options;
+using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IManagers;
 using LT.Contracts.Requests.Options;
+using LT.Contracts.Requests.Orders;
 
 namespace LT.App.Widgets.OptionChain;
 
 /// <summary>
 /// Calls and puts per strike for one expiration. Quotes are streamed only for the strikes around
-/// the underlying price, to stay inside the market data line limit.
+/// the underlying price, to stay inside the market data line limit. Bid / ask cells trade one
+/// contract at market with a single click (no confirmation; the user asked for it).
 /// </summary>
 public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 {
 	private readonly IOptionChainManager _optionChainManager;
 	private readonly IMarketDataManager _marketDataManager;
 	private readonly IMessageLogManager _messageLogManager;
+	private readonly IOrderManager _orderManager;
+	private readonly AccountStore _accountStore;
+	private readonly TimeProvider _timeProvider;
+	private readonly DispatcherTimer _tradeStatusTimer;
+
+	// Double-send guard for one-click orders, per cell (contract + side)
+	private readonly Dictionary<string, DateTimeOffset> _lastQuickOrderClicks = [];
+	private readonly HashSet<string> _quickOrdersInFlight = [];
 	private CancellationToken _session = new(true);
 	private ContractDto? _underlying;
 	private CancellationTokenSource? _load;
 	private CancellationTokenSource? _quotes;
 	private OptionChainDto? _chain;
+	private double? _underlyingPrice;
+	private double? _impliedVolatility;
+	private DateTimeOffset? _expiration;
+
+	// Index in _chain.Strikes the visible window was built around, and the quote streams of each
+	// visible row (one cancellation per row, so rows leaving the window can be unsubscribed)
+	private int _center;
+	private readonly Dictionary<OptionRowViewModel, RowQuotes> _rowQuotes = [];
+	private bool _recentering;
+
+	// Replaced per chain, so a stream cancelled with the previous chain can't write into this one
+	private LatestValue<QuoteDto> _underlyingPending = new();
 
 	public OptionChainViewModel(
 		IOptionChainManager optionChainManager,
 		IMarketDataManager marketDataManager,
 		IConnectionManager connectionManager,
 		IMessageLogManager messageLogManager,
-		LinkGroupStore linkGroupStore
+		IOrderManager orderManager,
+		LinkGroupStore linkGroupStore,
+		AccountStore accountStore,
+		TimeProvider timeProvider
 	)
 		: base(connectionManager)
 	{
 		_optionChainManager = optionChainManager;
 		_marketDataManager = marketDataManager;
 		_messageLogManager = messageLogManager;
+		_orderManager = orderManager;
+		_accountStore = accountStore;
+		_timeProvider = timeProvider;
+		_tradeStatusTimer = new DispatcherTimer
+		{
+			Interval = OrderConstants.QuickOrderStatusDuration,
+		};
+		_tradeStatusTimer.Tick += (_, _) =>
+		{
+			_tradeStatusTimer.Stop();
+			TradeStatus = null;
+		};
 		Link = new ContractLink(linkGroupStore, () => _underlying);
 		Link.ContractReceived += OnContractReceived;
 		_underlying = linkGroupStore.Get(Link.Group);
@@ -53,11 +91,18 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 			DispatcherPriority.Background,
 			(_, _) =>
 			{
+				FlushUnderlyingPrice();
 				foreach (var row in Rows)
 					row.Flush();
 			}
 		).Start();
 	}
+
+	/// <summary>
+	/// Raised on the UI thread after the strike window re-centred, with the new ATM row, so the
+	/// view can keep it in sight.
+	/// </summary>
+	public event Action<OptionRowViewModel>? Recentered;
 
 	/// <summary>The underlying comes from the link group (watchlist, positions, a chart).</summary>
 	public ContractLink Link { get; }
@@ -78,6 +123,10 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 	[ObservableProperty]
 	public partial string? InfoText { get; set; }
 
+	/// <summary>The last one-click order sent, shown for a few seconds.</summary>
+	[ObservableProperty]
+	public partial string? TradeStatus { get; set; }
+
 	partial void OnSelectedExpirationChanged(ExpirationTab? value)
 	{
 		if (value != null)
@@ -94,6 +143,8 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 	{
 		CancelLoad();
 		StopQuotes();
+		foreach (var row in Rows)
+			row.RefreshTrading();
 	}
 
 	public override void Dispose()
@@ -168,6 +219,8 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 		var load = RestartLoad();
 		StopQuotes();
 		_chain = null;
+		_impliedVolatility = null;
+		_expiration = OptionChainHelpers.GetExpirationTime(tab.Expiration.Expiration);
 		Rows.Clear();
 		ErrorMessage = null;
 		InfoText = null;
@@ -202,31 +255,254 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 		if (_chain == null)
 			return;
 
-		var visible = OptionChainHelpers.AroundPrice(
-			_chain.Strikes,
-			_chain.UnderlyingPrice,
+		// Unknown price: centred on the middle strike until the underlying's stream brings one
+		_center =
+			OptionChainHelpers.GetNearestStrikeIndex(_chain.Strikes, _chain.UnderlyingPrice)
+			?? _chain.Strikes.Count / 2;
+		var (from, to) = OptionChainHelpers.GetWindow(
+			_chain.Strikes.Count,
+			_center,
 			MarketDataConstants.OptionStrikesAroundAtm
 		);
-		var atm = OptionChainHelpers
-			.AroundPrice(visible, _chain.UnderlyingPrice, 0)
-			.FirstOrDefault();
-		foreach (var strike in visible)
-			Rows.Add(new OptionRowViewModel(strike, strike == atm));
-
-		InfoText =
-			$"Underlying {FormatHelpers.Price(_chain.UnderlyingPrice)} · {visible.Count} of {_chain.Strikes.Count} strikes around the money";
+		for (var i = from; i <= to; i++)
+			Rows.Add(CreateRow(_chain.Strikes[i]));
+		ApplyUnderlyingPrice(_chain.UnderlyingPrice);
 
 		if (!IsConnected)
 			return;
 
+		// The underlying keeps streaming so the moneyness shading follows its price
 		_quotes = CancellationTokenSource.CreateLinkedTokenSource(_session);
+		_underlyingPending = new LatestValue<QuoteDto>();
+		// … and carries its option implied volatility (tick 106) for the σ bands, on the same line
+		StartQuote(
+			_chain.Underlying,
+			_underlyingPending,
+			_quotes.Token,
+			MarketDataConstants.OptionImpliedVolatilityGenericTick
+		);
 		foreach (var row in Rows)
+			StartRowQuotes(row, _quotes.Token);
+	}
+
+	private OptionRowViewModel CreateRow(OptionStrikeDto strike) =>
+		new(strike, QuickTradeAsync, () => IsConnected);
+
+	// One click on a bid / ask cell: 1 contract at market, DAY, on the selected account. Repeat
+	// clicks on the same cell are dropped while its order is in flight and for a short window
+	// after, so a double click sends one order.
+	private async Task QuickTradeAsync(
+		OptionRowViewModel row,
+		string right,
+		OptionQuoteColumn column
+	)
+	{
+		if (!IsConnected)
+			return;
+		var request = OptionChainHelpers.BuildQuickOrder(
+			row.Strike,
+			right,
+			column,
+			_accountStore.SelectedAccount
+		);
+		if (request == null)
+			return;
+
+		var key = OptionChainHelpers.GetQuickOrderKey(request);
+		var now = _timeProvider.GetUtcNow();
+		DateTimeOffset? lastClick = _lastQuickOrderClicks.TryGetValue(key, out var last)
+			? last
+			: null;
+		if (_quickOrdersInFlight.Contains(key) || OptionChainHelpers.IsRepeatClick(lastClick, now))
+			return;
+		_lastQuickOrderClicks[key] = now;
+		_quickOrdersInFlight.Add(key);
+
+		var description = OrderHelpers.Describe(request);
+		ErrorMessage = null;
+		try
 		{
-			if (row.Strike.Call is { } call)
-				StartQuote(call, row.CallPending, _quotes.Token);
-			if (row.Strike.Put is { } put)
-				StartQuote(put, row.PutPending, _quotes.Token);
+			var placed = await _orderManager.PlaceOrderAsync(request, _session);
+			ShowTradeStatus($"Order {placed.OrderId} sent: {description}");
+			Log(MessageSeverity.Info, $"Order {placed.OrderId} sent: {description}");
+			_ = FollowQuickOrderAsync(placed, _session);
 		}
+		catch (OperationCanceledException) { }
+		catch (Exception ex)
+		{
+			ErrorMessage = $"Order not sent: {ErrorMessageHelpers.ToUserMessage(ex)}";
+			Log(MessageSeverity.Error, $"{ErrorMessage} ({description})");
+		}
+		finally
+		{
+			_quickOrdersInFlight.Remove(key);
+		}
+	}
+
+	// A rejection fails the status stream: shown in the chain's error line and the messages
+	private async Task FollowQuickOrderAsync(PlacedOrderDto placed, CancellationToken session)
+	{
+		try
+		{
+			await foreach (
+				var status in placed.Statuses.WithCancellation(session).ConfigureAwait(false)
+			)
+			{
+				if (!status.IsDone)
+					continue;
+				var text =
+					$"Order {placed.OrderId} {status.Status}: {FormatHelpers.Quantity(status.Filled)} filled @ {FormatHelpers.FixedPrice(status.AverageFillPrice)}";
+				Dispatcher.UIThread.Post(() => ShowTradeStatus(text));
+				Log(MessageSeverity.Info, text);
+			}
+		}
+		catch (OperationCanceledException) { }
+		catch (Exception ex)
+		{
+			var text = $"Order {placed.OrderId} rejected: {ErrorMessageHelpers.ToUserMessage(ex)}";
+			Dispatcher.UIThread.Post(() => ErrorMessage = text);
+			Log(MessageSeverity.Error, text);
+		}
+	}
+
+	private void ShowTradeStatus(string text)
+	{
+		TradeStatus = text;
+		_tradeStatusTimer.Stop();
+		_tradeStatusTimer.Start();
+	}
+
+	private void Log(MessageSeverity severity, string text) =>
+		_messageLogManager.Add(severity, MessageLogConstants.SourceOrders, text);
+
+	private void StartRowQuotes(OptionRowViewModel row, CancellationToken quotes)
+	{
+		var cts = CancellationTokenSource.CreateLinkedTokenSource(quotes);
+		var tasks = new List<Task>(2);
+		if (row.Strike.Call is { } call)
+			tasks.Add(StartQuote(call, row.CallPending, cts.Token));
+		if (row.Strike.Put is { } put)
+			tasks.Add(StartQuote(put, row.PutPending, cts.Token));
+		_rowQuotes[row] = new RowQuotes(cts, tasks);
+	}
+
+	// Moves the window to the price once the ATM strike drifted far enough off its centre. Rows
+	// that stay keep their view models and streams; the lines of rows leaving are released
+	// before the new rows subscribe, so the chain never holds more lines than a full window.
+	private async Task RecenterAsync()
+	{
+		if (_chain is not { } chain || _recentering)
+			return;
+		if (
+			OptionChainHelpers.GetRecenterTarget(
+				chain.Strikes,
+				_center,
+				_underlyingPrice,
+				MarketDataConstants.OptionStrikesAroundAtm,
+				MarketDataConstants.OptionStrikesRecenterThreshold
+			)
+			is not { } target
+		)
+			return;
+
+		_recentering = true;
+		try
+		{
+			_center = target;
+			var (from, to) = OptionChainHelpers.GetWindow(
+				chain.Strikes.Count,
+				target,
+				MarketDataConstants.OptionStrikesAroundAtm
+			);
+			var window = chain.Strikes.Skip(from).Take(to - from + 1).ToList();
+			var keep = window.ToHashSet();
+
+			var leaving = new List<RowQuotes>();
+			foreach (var row in Rows.Where(x => !keep.Contains(x.Strike)).ToList())
+			{
+				Rows.Remove(row);
+				if (_rowQuotes.Remove(row, out var quotes))
+				{
+					quotes.Cancellation.Cancel();
+					leaving.Add(quotes);
+				}
+			}
+			var added = new List<OptionRowViewModel>();
+			for (var i = 0; i < window.Count; i++)
+			{
+				if (i < Rows.Count && Rows[i].Strike == window[i])
+					continue;
+				var row = CreateRow(window[i]);
+				Rows.Insert(i, row);
+				added.Add(row);
+			}
+			ApplyMoneyness();
+			if (Rows.FirstOrDefault(x => x.IsAtm) is { } atmRow)
+				Recentered?.Invoke(atmRow);
+
+			try
+			{
+				await Task.WhenAll(leaving.SelectMany(x => x.Tasks));
+			}
+			catch (OperationCanceledException) { }
+			foreach (var quotes in leaving)
+				quotes.Cancellation.Dispose();
+
+			// A new chain, tab or disconnect while waiting owns the rows now
+			if (_chain != chain || _quotes is not { IsCancellationRequested: false } live)
+				return;
+			foreach (var row in added.Where(Rows.Contains))
+				StartRowQuotes(row, live.Token);
+		}
+		finally
+		{
+			_recentering = false;
+		}
+
+		// The price may have moved on while the old lines were released
+		await RecenterAsync();
+	}
+
+	private void FlushUnderlyingPrice()
+	{
+		if (_chain == null || _underlyingPending.Take() is not { } quote)
+			return;
+		var price = TickTypeHelpers.GetDisplayPrice(quote) ?? _underlyingPrice;
+		if (price == _underlyingPrice && quote.ImpliedVolatility == _impliedVolatility)
+			return;
+		_impliedVolatility = quote.ImpliedVolatility;
+		ApplyUnderlyingPrice(price);
+	}
+
+	// Shades in-the-money calls and puts and marks the strike nearest the price
+	private void ApplyUnderlyingPrice(double? price)
+	{
+		if (_chain == null)
+			return;
+		_underlyingPrice = price;
+		ApplyMoneyness();
+		_ = RecenterAsync();
+	}
+
+	// Also colours strikes by σ distance: 1σ = price × IV × √(years to the expiry's close)
+	private void ApplyMoneyness()
+	{
+		if (_chain == null)
+			return;
+		var atm = OptionChainHelpers.GetAtmStrike(_chain.Strikes, _underlyingPrice);
+		var years = _expiration is { } expiration
+			? OptionChainHelpers.GetYearsToExpiration(expiration, _timeProvider.GetUtcNow())
+			: 0;
+		var sigma = OptionChainHelpers.GetExpectedMove(_underlyingPrice, _impliedVolatility, years);
+		foreach (var row in Rows)
+			row.SetUnderlyingPrice(_underlyingPrice, atm, sigma);
+
+		var iv = _impliedVolatility is { } v
+			? $" · IV {FormatHelpers.FixedPrice(v * 100)}%"
+			: string.Empty;
+		var move = sigma is { } s ? $" · 1σ ±{FormatHelpers.FixedPrice(s)}" : string.Empty;
+		InfoText =
+			$"Underlying {FormatHelpers.FixedPrice(_underlyingPrice)}{iv}{move} · {Rows.Count} of {_chain.Strikes.Count} strikes around the money";
 	}
 
 	// One load at a time: a newer underlying or tab cancels the one in flight
@@ -244,19 +520,20 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 		_load = null;
 	}
 
-	private void StartQuote(
+	private Task StartQuote(
 		ContractDto contract,
 		LatestValue<QuoteDto> target,
-		CancellationToken token
+		CancellationToken token,
+		string genericTicks = ""
 	) =>
-		_ = Task.Run(
+		Task.Run(
 			async () =>
 			{
 				try
 				{
 					await foreach (
 						var quote in _marketDataManager
-							.SubscribeQuotesAsync(contract, token)
+							.SubscribeQuotesAsync(contract, token, genericTicks)
 							.ConfigureAwait(false)
 					)
 						target.Set(quote);
@@ -279,5 +556,13 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 		_quotes?.Cancel();
 		_quotes?.Dispose();
 		_quotes = null;
+		foreach (var quotes in _rowQuotes.Values)
+			quotes.Cancellation.Dispose();
+		_rowQuotes.Clear();
 	}
+
+	private sealed record RowQuotes(
+		CancellationTokenSource Cancellation,
+		IReadOnlyList<Task> Tasks
+	);
 }

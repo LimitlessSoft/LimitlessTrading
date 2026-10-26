@@ -130,6 +130,11 @@
 			<TextBlock Classes="secondary" Text="Loading…" IsVisible="{Binding IsLoading}" />
 			<TextBlock Classes="secondary" Text="{Binding InfoText}" />
 			<TextBlock
+				Classes="positive"
+				Text="{Binding TradeStatus}"
+				IsVisible="{Binding TradeStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+			/>
+			<TextBlock
 				Classes="negative"
 				TextWrapping="Wrap"
 				Text="{Binding ErrorMessage}"
@@ -137,6 +142,7 @@
 			/>
 		</StackPanel>
 		<DataGrid
+			x:Name="StrikesGrid"
 			ItemsSource="{Binding Rows}"
 			IsReadOnly="True"
 			GridLinesVisibility="Horizontal"
@@ -147,8 +153,8 @@
 				<Style Selector="DataGridCell">
 					<Setter Property="HorizontalContentAlignment" Value="Center" />
 				</Style>
-				<!-- The strike cell stays full width so the ATM highlight spans it -->
-				<Style Selector="DataGridCell.strike">
+				<!-- Cells stay full width so the ATM and in-the-money shading spans them -->
+				<Style Selector="DataGridCell.strike, DataGridCell.quote">
 					<Setter Property="HorizontalContentAlignment" Value="Stretch" />
 				</Style>
 				<Style Selector="DataGridColumnHeader">
@@ -159,40 +165,138 @@
 				</Style>
 				<Style Selector="Border.strike">
 					<Setter Property="Padding" Value="12,0" />
+					<Setter Property="BorderThickness" Value="1" />
+					<Setter Property="BorderBrush" Value="Transparent" />
 				</Style>
+				<!-- Strikes by distance from the price in σ of the expected move, fading out with
+				     distance; no colour while the IV (or price) is unknown -->
+				<Style Selector="Border.strike.sigma1">
+					<Setter Property="Background" Value="{DynamicResource SigmaOneBrush}" />
+				</Style>
+				<Style Selector="Border.strike.sigma2">
+					<Setter Property="Background" Value="{DynamicResource SigmaTwoBrush}" />
+				</Style>
+				<Style Selector="Border.strike.sigma3">
+					<Setter Property="Background" Value="{DynamicResource SigmaThreeBrush}" />
+				</Style>
+				<Style Selector="Border.strike.sigma4">
+					<Setter Property="Background" Value="{DynamicResource SigmaBeyondBrush}" />
+				</Style>
+				<!-- ATM: an accent outline, so it reads on top of any band colour -->
 				<Style Selector="Border.strike.atm">
-					<Setter Property="Background" Value="{DynamicResource AtmBrush}" />
+					<Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+				</Style>
+				<!-- In the money: calls below the underlying price, puts above it; the strike
+				     column belongs to neither side and only marks the ATM strike -->
+				<Style Selector="Border.itm">
+					<Setter Property="Background" Value="{DynamicResource ItmBrush}" />
+				</Style>
+				<!-- One-click trading: ask cells buy, bid cells sell. Only they get the hand cursor
+				     and a translucent buy / sell tint on hover, drawn over the ITM shade; disabled
+				     (no connection, contract or price) they look like plain text -->
+				<Style Selector="Button.quickTrade">
+					<Setter Property="HorizontalAlignment" Value="Stretch" />
+					<Setter Property="VerticalAlignment" Value="Stretch" />
+					<Setter Property="HorizontalContentAlignment" Value="Center" />
+					<Setter Property="VerticalContentAlignment" Value="Center" />
+					<Setter Property="Padding" Value="0" />
+					<Setter Property="MinHeight" Value="0" />
+					<Setter Property="CornerRadius" Value="0" />
+					<Setter Property="BorderThickness" Value="0" />
+					<Setter Property="Background" Value="Transparent" />
+				</Style>
+				<Style Selector="Button.quickTrade:not(:disabled)">
+					<Setter Property="Cursor" Value="Hand" />
+				</Style>
+				<Style Selector="Button.quickTrade:pressed">
+					<Setter Property="RenderTransform" Value="none" />
+				</Style>
+				<Style Selector="Button.quickTrade:disabled /template/ ContentPresenter#PART_ContentPresenter">
+					<Setter Property="Background" Value="Transparent" />
+					<Setter Property="Foreground" Value="{DynamicResource ButtonForeground}" />
+				</Style>
+				<Style Selector="Button.quickTrade.buy:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+					<Setter Property="Background" Value="{DynamicResource BuyHoverBrush}" />
+				</Style>
+				<Style Selector="Button.quickTrade.buy:pressed /template/ ContentPresenter#PART_ContentPresenter">
+					<Setter Property="Background" Value="{DynamicResource BuyPressedBrush}" />
+				</Style>
+				<Style Selector="Button.quickTrade.sell:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+					<Setter Property="Background" Value="{DynamicResource SellHoverBrush}" />
+				</Style>
+				<Style Selector="Button.quickTrade.sell:pressed /template/ ContentPresenter#PART_ContentPresenter">
+					<Setter Property="Background" Value="{DynamicResource SellPressedBrush}" />
 				</Style>
 			</DataGrid.Styles>
 			<DataGrid.Columns>
-				<DataGridTextColumn
-					Width="*"
-					x:DataType="vm:OptionRowViewModel"
-					Header="Call vol"
-					Binding="{Binding CallVolume}"
-				/>
-				<DataGridTextColumn
-					Width="*"
-					x:DataType="vm:OptionRowViewModel"
-					Header="Call last"
-					Binding="{Binding CallLast}"
-				/>
-				<DataGridTextColumn
-					Width="*"
-					x:DataType="vm:OptionRowViewModel"
-					Header="Call bid"
-					Binding="{Binding CallBid}"
-				/>
-				<DataGridTextColumn
-					Width="*"
-					x:DataType="vm:OptionRowViewModel"
-					Header="Call ask"
-					Binding="{Binding CallAsk}"
-				/>
+				<DataGridTemplateColumn Header="Call vol" Width="*" CellStyleClasses="quote">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:OptionRowViewModel">
+							<Border Classes.itm="{Binding IsCallInTheMoney}">
+								<TextBlock
+									HorizontalAlignment="Center"
+									VerticalAlignment="Center"
+									Text="{Binding CallVolume}"
+								/>
+							</Border>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
+				<DataGridTemplateColumn Header="Call last" Width="*" CellStyleClasses="quote">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:OptionRowViewModel">
+							<Border Classes.itm="{Binding IsCallInTheMoney}">
+								<TextBlock
+									HorizontalAlignment="Center"
+									VerticalAlignment="Center"
+									Text="{Binding CallLast}"
+								/>
+							</Border>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
+				<DataGridTemplateColumn Header="Call ask" Width="*" CellStyleClasses="quote">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:OptionRowViewModel">
+							<Border Classes.itm="{Binding IsCallInTheMoney}">
+								<Button
+									Classes="quickTrade buy"
+									Command="{Binding BuyCallCommand}"
+									ToolTip.Tip="Buy 1 call at market — sends on click"
+								>
+									<TextBlock Text="{Binding CallAsk}" />
+								</Button>
+							</Border>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
+				<DataGridTemplateColumn Header="Call bid" Width="*" CellStyleClasses="quote">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:OptionRowViewModel">
+							<Border Classes.itm="{Binding IsCallInTheMoney}">
+								<Button
+									Classes="quickTrade sell"
+									Command="{Binding SellCallCommand}"
+									ToolTip.Tip="Sell 1 call at market — sends on click"
+								>
+									<TextBlock Text="{Binding CallBid}" />
+								</Button>
+							</Border>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
 				<DataGridTemplateColumn Header="Strike" Width="*" CellStyleClasses="strike">
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:OptionRowViewModel">
-							<Border Classes="strike" Classes.atm="{Binding IsAtm}">
+							<Border
+								Classes="strike"
+								Classes.atm="{Binding IsAtm}"
+								Classes.sigma1="{Binding IsWithinOneSigma}"
+								Classes.sigma2="{Binding IsWithinTwoSigma}"
+								Classes.sigma3="{Binding IsWithinThreeSigma}"
+								Classes.sigma4="{Binding IsBeyondThreeSigma}"
+								ToolTip.Tip="{Binding SigmaText}"
+							>
 								<TextBlock
 									FontWeight="SemiBold"
 									HorizontalAlignment="Center"
@@ -203,30 +307,62 @@
 						</DataTemplate>
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
-				<DataGridTextColumn
-					Width="*"
-					x:DataType="vm:OptionRowViewModel"
-					Header="Put bid"
-					Binding="{Binding PutBid}"
-				/>
-				<DataGridTextColumn
-					Width="*"
-					x:DataType="vm:OptionRowViewModel"
-					Header="Put ask"
-					Binding="{Binding PutAsk}"
-				/>
-				<DataGridTextColumn
-					Width="*"
-					x:DataType="vm:OptionRowViewModel"
-					Header="Put last"
-					Binding="{Binding PutLast}"
-				/>
-				<DataGridTextColumn
-					Width="*"
-					x:DataType="vm:OptionRowViewModel"
-					Header="Put vol"
-					Binding="{Binding PutVolume}"
-				/>
+				<DataGridTemplateColumn Header="Put bid" Width="*" CellStyleClasses="quote">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:OptionRowViewModel">
+							<Border Classes.itm="{Binding IsPutInTheMoney}">
+								<Button
+									Classes="quickTrade sell"
+									Command="{Binding SellPutCommand}"
+									ToolTip.Tip="Sell 1 put at market — sends on click"
+								>
+									<TextBlock Text="{Binding PutBid}" />
+								</Button>
+							</Border>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
+				<DataGridTemplateColumn Header="Put ask" Width="*" CellStyleClasses="quote">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:OptionRowViewModel">
+							<Border Classes.itm="{Binding IsPutInTheMoney}">
+								<Button
+									Classes="quickTrade buy"
+									Command="{Binding BuyPutCommand}"
+									ToolTip.Tip="Buy 1 put at market — sends on click"
+								>
+									<TextBlock Text="{Binding PutAsk}" />
+								</Button>
+							</Border>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
+				<DataGridTemplateColumn Header="Put last" Width="*" CellStyleClasses="quote">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:OptionRowViewModel">
+							<Border Classes.itm="{Binding IsPutInTheMoney}">
+								<TextBlock
+									HorizontalAlignment="Center"
+									VerticalAlignment="Center"
+									Text="{Binding PutLast}"
+								/>
+							</Border>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
+				<DataGridTemplateColumn Header="Put vol" Width="*" CellStyleClasses="quote">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:OptionRowViewModel">
+							<Border Classes.itm="{Binding IsPutInTheMoney}">
+								<TextBlock
+									HorizontalAlignment="Center"
+									VerticalAlignment="Center"
+									Text="{Binding PutVolume}"
+								/>
+							</Border>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
 			</DataGrid.Columns>
 		</DataGrid>
 	</DockPanel>

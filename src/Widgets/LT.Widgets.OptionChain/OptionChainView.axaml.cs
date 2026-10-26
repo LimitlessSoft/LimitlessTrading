@@ -10,6 +10,8 @@ public partial class OptionChainView : UserControl
 	private const double WheelStep = 60;
 	private const double ArrowPage = 0.8;
 
+	private OptionChainViewModel? _viewModel;
+
 	public OptionChainView()
 	{
 		InitializeComponent();
@@ -18,6 +20,19 @@ public partial class OptionChainView : UserControl
 		ScrollLeftButton.Click += (_, _) => ScrollBy(-ExpirationScroll.Viewport.Width * ArrowPage);
 		ScrollRightButton.Click += (_, _) => ScrollBy(ExpirationScroll.Viewport.Width * ArrowPage);
 	}
+
+	// Rows above the old ATM may have been removed or inserted: keep the new ATM row in sight
+	protected override void OnDataContextChanged(EventArgs e)
+	{
+		base.OnDataContextChanged(e);
+		if (_viewModel != null)
+			_viewModel.Recentered -= OnRecentered;
+		_viewModel = DataContext as OptionChainViewModel;
+		if (_viewModel != null)
+			_viewModel.Recentered += OnRecentered;
+	}
+
+	private void OnRecentered(OptionRowViewModel atm) => StrikesGrid.ScrollIntoView(atm, null);
 
 	// The strip only scrolls sideways: a vertical wheel moves it too (up = earlier)
 	private void OnWheel(object? sender, PointerWheelEventArgs e)

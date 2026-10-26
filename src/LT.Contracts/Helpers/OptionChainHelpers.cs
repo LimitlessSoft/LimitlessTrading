@@ -1,8 +1,12 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Contracts;
+using LT.Contracts.Dtos.MarketData;
 using LT.Contracts.Dtos.Options;
+using LT.Contracts.Enums;
 using LT.Contracts.Requests.Options;
+using LT.Contracts.Requests.Orders;
 
 namespace LT.Contracts.Helpers;
 
@@ -85,8 +89,222 @@ public static partial class OptionChainHelpers
 				.MinBy(x => x.Distance)
 				.Index
 			: strikes.Count / 2;
-		var from = Math.Max(0, center - count);
-		var to = Math.Min(strikes.Count - 1, center + count);
+		var (from, to) = GetWindow(strikes.Count, center, count);
 		return strikes.Skip(from).Take(to - from + 1).ToList();
 	}
+
+	/// <summary>
+	/// Index range (inclusive) of the <paramref name="count"/> strikes on each side of
+	/// <paramref name="center"/>, clamped to the list.
+	/// </summary>
+	public static (int From, int To) GetWindow(int strikeCount, int center, int count) =>
+		(Math.Max(0, center - count), Math.Min(strikeCount - 1, center + count));
+
+	/// <summary>
+	/// Index of the strike nearest <paramref name="underlyingPrice"/> (the lower one on a tie);
+	/// null when the price is unknown (null or not positive) or there are no strikes.
+	/// </summary>
+	public static int? GetNearestStrikeIndex(
+		IReadOnlyList<OptionStrikeDto> strikes,
+		double? underlyingPrice
+	)
+	{
+		if (strikes.Count == 0 || underlyingPrice is not { } price || price <= 0)
+			return null;
+		return strikes
+			.Select((x, i) => (Distance: Math.Abs(x.Strike - price), Index: i))
+			.MinBy(x => x.Distance)
+			.Index;
+	}
+
+	/// <summary>
+	/// The centre a strike window around <paramref name="center"/> should move to for
+	/// <paramref name="underlyingPrice"/>: the ATM index once it is more than
+	/// <paramref name="threshold"/> strikes off centre and the move changes the window; null
+	/// otherwise (also when the price is unknown).
+	/// </summary>
+	public static int? GetRecenterTarget(
+		IReadOnlyList<OptionStrikeDto> strikes,
+		int center,
+		double? underlyingPrice,
+		int count,
+		int threshold
+	)
+	{
+		if (GetNearestStrikeIndex(strikes, underlyingPrice) is not { } atm)
+			return null;
+		if (Math.Abs(atm - center) <= threshold)
+			return null;
+		return GetWindow(strikes.Count, atm, count) == GetWindow(strikes.Count, center, count)
+			? null
+			: atm;
+	}
+
+	/// <summary>
+	/// Whether the option is in the money at <paramref name="underlyingPrice"/>: a call when its
+	/// strike is below the price, a put when above. False when the price is unknown (null or not
+	/// positive), so nothing is shaded rather than shaded wrongly.
+	/// </summary>
+	public static bool IsInTheMoney(double strike, string right, double? underlyingPrice) =>
+		underlyingPrice is { } price
+		&& price > 0
+		&& right switch
+		{
+			MarketDataConstants.CallRight => strike < price,
+			MarketDataConstants.PutRight => strike > price,
+			_ => false,
+		};
+
+	/// <summary>
+	/// The at-the-money strike: the one nearest <paramref name="underlyingPrice"/> (the lower one
+	/// on a tie); null when the price is unknown or there are no strikes.
+	/// </summary>
+	public static double? GetAtmStrike(
+		IReadOnlyList<OptionStrikeDto> strikes,
+		double? underlyingPrice
+	) => GetNearestStrikeIndex(strikes, underlyingPrice) is { } i ? strikes[i].Strike : null;
+
+	/// <summary>
+	/// One-click trading from the chain: the ask buys, the bid sells (calls and puts alike); other
+	/// columns don't trade.
+	/// </summary>
+	public static OrderAction? GetQuickOrderAction(OptionQuoteColumn column) =>
+		column switch
+		{
+			OptionQuoteColumn.Ask => OrderAction.Buy,
+			OptionQuoteColumn.Bid => OrderAction.Sell,
+			_ => null,
+		};
+
+	/// <summary>
+	/// Whether a cell can be clicked to trade: a bid / ask column whose side has a contract and a
+	/// price in that column (nothing to hit otherwise).
+	/// </summary>
+	public static bool CanQuickTrade(
+		OptionStrikeDto strike,
+		string right,
+		OptionQuoteColumn column,
+		QuoteDto? quote
+	) =>
+		GetOption(strike, right) != null
+		&& column switch
+		{
+			OptionQuoteColumn.Ask => quote?.Ask != null,
+			OptionQuoteColumn.Bid => quote?.Bid != null,
+			_ => false,
+		};
+
+	/// <summary>
+	/// The one-click order for a chain cell: 1 contract at market, DAY, on
+	/// <paramref name="account"/>; null when the column doesn't trade or the side has no contract.
+	/// The manager still validates it (account, contract id).
+	/// </summary>
+	public static PlaceOrderRequest? BuildQuickOrder(
+		OptionStrikeDto strike,
+		string right,
+		OptionQuoteColumn column,
+		string? account
+	)
+	{
+		if (
+			GetQuickOrderAction(column) is not { } action
+			|| GetOption(strike, right) is not { } option
+		)
+			return null;
+		return new PlaceOrderRequest
+		{
+			Contract = option,
+			Account = account ?? string.Empty,
+			Action = action,
+			OrderType = OrderType.Market,
+			Quantity = OrderConstants.QuickOrderQuantity,
+			TimeInForce = TimeInForce.Day,
+		};
+	}
+
+	/// <summary>Identifies a chain cell for the repeat-click guard: the contract and the side.</summary>
+	public static string GetQuickOrderKey(PlaceOrderRequest request) =>
+		$"{request.Contract?.ConId}|{request.Contract?.LocalSymbol}|{request.Action}";
+
+	/// <summary>Whether a click lands within the repeat window of the last one on the same cell.</summary>
+	public static bool IsRepeatClick(DateTimeOffset? lastClick, DateTimeOffset now) =>
+		lastClick is { } last && now - last < OrderConstants.QuickOrderRepeatWindow;
+
+	/// <summary>The strike's call or put, by right ("C" / "P").</summary>
+	public static ContractDto? GetOption(OptionStrikeDto strike, string right) =>
+		right switch
+		{
+			MarketDataConstants.CallRight => strike.Call,
+			MarketDataConstants.PutRight => strike.Put,
+			_ => null,
+		};
+
+	/// <summary>
+	/// When an expiry date (yyyyMMdd) expires: 16:00 New York that day. Null for another format
+	/// (a yyyyMM month has no day) or when the system lacks the New York time zone.
+	/// </summary>
+	public static DateTimeOffset? GetExpirationTime(string expiry)
+	{
+		if (
+			!DateTime.TryParseExact(
+				expiry,
+				"yyyyMMdd",
+				CultureInfo.InvariantCulture,
+				DateTimeStyles.None,
+				out var date
+			)
+		)
+			return null;
+		if (
+			!TimeZoneInfo.TryFindSystemTimeZoneById(
+				MarketDataConstants.OptionExpirationTimeZone,
+				out var zone
+			)
+		)
+			return null;
+		var close = date.Add(MarketDataConstants.OptionExpirationClose);
+		return new DateTimeOffset(close, zone.GetUtcOffset(close));
+	}
+
+	/// <summary>Calendar time from <paramref name="now"/> to the expiration, in years (0 once past).</summary>
+	public static double GetYearsToExpiration(DateTimeOffset expiration, DateTimeOffset now) =>
+		Math.Max(0, (expiration - now).TotalDays / MarketDataConstants.DaysPerYear);
+
+	/// <summary>
+	/// One standard deviation of the expected move to expiration, in price:
+	/// price × IV × √T. Null when the price or IV is unknown, or no time is left (the bands would
+	/// collapse onto the price).
+	/// </summary>
+	public static double? GetExpectedMove(
+		double? underlyingPrice,
+		double? impliedVolatility,
+		double yearsToExpiration
+	) =>
+		underlyingPrice is { } price
+		&& price > 0
+		&& impliedVolatility is { } iv
+		&& iv > 0
+		&& yearsToExpiration > 0
+			? price * iv * Math.Sqrt(yearsToExpiration)
+			: null;
+
+	/// <summary>Signed distance of the strike from the price in standard deviations; null when unknown.</summary>
+	public static double? GetSigmaDistance(double strike, double? underlyingPrice, double? sigma) =>
+		underlyingPrice is { } price && price > 0 && sigma is { } s && s > 0
+			? (strike - price) / s
+			: null;
+
+	/// <summary>The band of a σ distance: within 1, 2, 3 σ (inclusive), or beyond.</summary>
+	public static SigmaBand GetSigmaBand(double? sigmaDistance) =>
+		sigmaDistance is not { } d ? SigmaBand.None
+		: Math.Abs(d) <= 1 ? SigmaBand.WithinOne
+		: Math.Abs(d) <= 2 ? SigmaBand.WithinTwo
+		: Math.Abs(d) <= 3 ? SigmaBand.WithinThree
+		: SigmaBand.BeyondThree;
+
+	/// <summary>"+1.4σ" / "−0.3σ"; null when unknown.</summary>
+	public static string? FormatSigma(double? sigmaDistance) =>
+		sigmaDistance is { } d
+			? d.ToString("+0.0;-0.0;0.0", CultureInfo.InvariantCulture) + "σ"
+			: null;
 }

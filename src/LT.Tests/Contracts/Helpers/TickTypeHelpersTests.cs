@@ -42,6 +42,24 @@ public class TickTypeHelpersTests
 	}
 
 	[Fact]
+	public void Option_implied_volatility_is_kept_and_non_positive_means_unknown()
+	{
+		var quote = new QuoteDto();
+
+		TickTypeHelpers.Apply(
+			quote,
+			new MarketDataTickDto { Field = TickTypeHelpers.OptionImpliedVolatility, Value = 0.31 }
+		);
+		Assert.Equal(0.31, quote.ImpliedVolatility);
+
+		TickTypeHelpers.Apply(
+			quote,
+			new MarketDataTickDto { Field = TickTypeHelpers.OptionImpliedVolatility, Value = -1 }
+		);
+		Assert.Null(quote.ImpliedVolatility);
+	}
+
+	[Fact]
 	public void Last_timestamp_is_parsed()
 	{
 		var quote = new QuoteDto();
