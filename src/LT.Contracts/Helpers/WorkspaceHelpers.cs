@@ -1,3 +1,4 @@
+using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Entities;
 using LT.Contracts.Enums;
@@ -21,6 +22,15 @@ public static class WorkspaceHelpers
 
 	/// <summary>Widgets that can be open several times at once; every other widget is single.</summary>
 	public static bool AllowsMultipleInstances(WorkspaceTool tool) => tool == WorkspaceTool.Chart;
+
+	/// <summary>
+	/// Whether a press that has moved by (<paramref name="deltaX"/>, <paramref name="deltaY"/>)
+	/// DIPs is a drag rather than a click: at least <see cref="WorkspaceConstants.DragThreshold"/>
+	/// along either axis.
+	/// </summary>
+	public static bool IsBeyondDragThreshold(double deltaX, double deltaY) =>
+		Math.Abs(deltaX) >= WorkspaceConstants.DragThreshold
+		|| Math.Abs(deltaY) >= WorkspaceConstants.DragThreshold;
 
 	/// <summary>Instance id of a single-instance widget (and of the first instance of the others).</summary>
 	public static string GetDefaultId(WorkspaceTool tool) => tool.ToString();

@@ -89,7 +89,10 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   discards it (its view model is disposed); single-instance widgets keep theirs while closed.
   Which widgets allow several instances: `WorkspaceHelpers.AllowsMultipleInstances`.
 - Every widget is wrapped in a `WidgetFrame`: icon, title, link, fullscreen, `✕` (close) and, on
-  a side, the pin. **The header is the drag handle**; while dragging, a highlight shows the target:
+  a side, the pin. **The header is the drag handle**, and so is the strip icon of a widget docked
+  on a side or the bottom (no need to expand it first): a press becomes a drag once it moves
+  6 px (`WorkspaceConstants.DragThreshold`); a click that doesn't still toggles the widget, a drag
+  doesn't. Both handles share `Workspace/DragGesture`. While dragging, a highlight shows the target:
   - left / right: the strip (+24 px), or the open side panel → dock on that side **at an icon
     position**: the strip's icons part to open a gap at the slot nearest the pointer and the gap
     is highlighted; dropping inserts the icon there (also reorders icons within a strip);

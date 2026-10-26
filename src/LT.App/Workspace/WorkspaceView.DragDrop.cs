@@ -1,14 +1,17 @@
+using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using LT.Contracts.Enums;
 
 namespace LT.App.Workspace;
 
 /// <summary>
-/// Drag and drop docking: a widget is dragged by its frame header and dropped on a strip (left,
-/// right or bottom, at an icon position), on a center tile, or outside the main window to float. Positions
-/// arrive in screen pixels because a drag can start in a floating window.
+/// Drag and drop docking: a widget is dragged by its frame header (or, docked on a strip, by its
+/// strip icon) and dropped on a strip (left, right or bottom, at an icon position), on a center
+/// tile, or outside the main window to float. Positions arrive in screen pixels because a drag can
+/// start in a floating window.
 /// </summary>
 public partial class WorkspaceView
 {
@@ -40,17 +43,42 @@ public partial class WorkspaceView
 	// Strip icon pushed down to open a gap where the dropped icon will go
 	private Control? _gapContainer;
 
+	// Strip icons already given a drag (an icon can be attached to the visual tree again)
+	private readonly ConditionalWeakTable<Button, DragGesture> _iconDrags = [];
+
 	private void AttachDrag(WidgetFrame frame)
 	{
-		frame.DragStarted += ShowDropTarget;
-		frame.DragMoved += ShowDropTarget;
+		frame.DragStarted += (_, screen) => ShowDropTarget(frame.Widget, screen);
+		frame.DragMoved += (_, screen) => ShowDropTarget(frame.Widget, screen);
 		frame.DragCancelled += _ => EndDragFeedback();
-		frame.DragDropped += OnDragDropped;
+		frame.DragDropped += (_, screen) =>
+			OnDragDropped(frame.Widget, frame.GrabOffset, frame, screen);
 	}
 
-	private void ShowDropTarget(WidgetFrame frame, PixelPoint screen)
+	// A strip icon drags its widget like the header does; a click that doesn't move past the
+	// threshold still toggles it, a drag doesn't. The press is seen before the button handles it.
+	private void OnStripIconAttached(object? sender, VisualTreeAttachmentEventArgs e)
 	{
-		var target = GetDropTarget(frame, screen);
+		if (sender is not Button icon || _iconDrags.TryGetValue(icon, out _))
+			return;
+		WidgetItem? Widget() => icon.DataContext as WidgetItem;
+		var drag = new DragGesture(
+			icon,
+			RoutingStrategies.Tunnel,
+			() => Widget()?.IsFullscreen != true
+		);
+		drag.Started += screen => ShowDropTarget(Widget(), screen);
+		drag.Moved += screen => ShowDropTarget(Widget(), screen);
+		drag.Cancelled += EndDragFeedback;
+		drag.Dropped += screen => OnDragDropped(Widget(), drag.GrabOffset, icon, screen);
+		_iconDrags.Add(icon, drag);
+	}
+
+	private void ShowDropTarget(WidgetItem? widget, PixelPoint screen)
+	{
+		if (widget is null)
+			return;
+		var target = GetDropTarget(widget, screen);
 		// Strip icon tooltips would pop up over the drop slot
 		ToolTip.SetServiceEnabled(this, false);
 		SetStripGap(target.Strip, target.Index);
@@ -87,18 +115,28 @@ public partial class WorkspaceView
 				: new Thickness(0, StripIconSlot, 0, 0);
 	}
 
-	private void OnDragDropped(WidgetFrame frame, PixelPoint screen)
+	/// <param name="grabOffset">Where the handle was grabbed, relative to the floating window's content.</param>
+	/// <param name="handle">The dragged frame or strip icon, for the screen scaling.</param>
+	private void OnDragDropped(
+		WidgetItem? widget,
+		Point grabOffset,
+		Visual handle,
+		PixelPoint screen
+	)
 	{
-		var target = GetDropTarget(frame, screen);
-		EndDragFeedback();
-		if (_viewModel is null || frame.Widget is not { } widget)
+		if (_viewModel is null || widget is null)
+		{
+			EndDragFeedback();
 			return;
+		}
+		var target = GetDropTarget(widget, screen);
+		EndDragFeedback();
 
 		if (target.Dock == WidgetDock.Floating)
 		{
-			// Put the window where the header was released, under the pointer
-			var scaling = TopLevel.GetTopLevel(frame)?.RenderScaling ?? 1;
-			var grab = frame.GrabOffset + new Point(FloatingPadding.Left, FloatingPadding.Top);
+			// Put the window where the handle was released, under the pointer
+			var scaling = TopLevel.GetTopLevel(handle)?.RenderScaling ?? 1;
+			var grab = grabOffset + new Point(FloatingPadding.Left, FloatingPadding.Top);
 			var position =
 				screen - new PixelPoint((int)(grab.X * scaling), (int)(grab.Y * scaling));
 			if (_windows.TryGetValue(widget.Id, out var window))
@@ -138,7 +176,7 @@ public partial class WorkspaceView
 		);
 	}
 
-	private DropTarget GetDropTarget(WidgetFrame frame, PixelPoint screen)
+	private DropTarget GetDropTarget(WidgetItem widget, PixelPoint screen)
 	{
 		var point = this.PointToClient(screen);
 		var size = Bounds.Size;
@@ -177,7 +215,7 @@ public partial class WorkspaceView
 			var rect = new Rect(origin, tileFrame.Bounds.Size);
 			if (!rect.Contains(point))
 				continue;
-			if (tileFrame == frame)
+			if (tile == widget)
 				return new DropTarget(
 					WidgetDock.Center,
 					null,
