@@ -32,6 +32,19 @@ public static class WorkspaceHelpers
 		Math.Abs(deltaX) >= WorkspaceConstants.DragThreshold
 		|| Math.Abs(deltaY) >= WorkspaceConstants.DragThreshold;
 
+	/// <summary>
+	/// Where Esc in a side or bottom widget sends keyboard focus: the center widget focused last
+	/// (<paramref name="lastCenterId"/>) while it is still in the center, else the first center
+	/// widget; null when the center is empty.
+	/// </summary>
+	public static string? GetFocusReturnId(string? lastCenterId, IEnumerable<string> centerIds)
+	{
+		var ids = centerIds.ToList();
+		return lastCenterId != null && ids.Contains(lastCenterId)
+			? lastCenterId
+			: ids.FirstOrDefault();
+	}
+
 	/// <summary>Instance id of a single-instance widget (and of the first instance of the others).</summary>
 	public static string GetDefaultId(WorkspaceTool tool) => tool.ToString();
 

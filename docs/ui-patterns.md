@@ -171,6 +171,13 @@ focus anywhere outside its panel — another widget, the toolbar, a floating win
 icon, splitter and dropdowns don't count. `WidgetItem.IsPinned`, saved in the layout;
 `WorkspaceView` watches clicks and focus on the window (tunnelling handlers).
 
+**Esc** in an expanded side or bottom widget hands keyboard focus back to the center widget
+focused last (or the first center widget, if none was), which becomes current; an unpinned
+widget also collapses, a pinned one stays open. Only an Esc nothing inside the widget handled
+counts — an open dropdown, a ticker box or a rename box keeps its own Esc
+(`WorkspaceView.OnDockedKeyDown`, bubbling, → `WorkspaceViewModel.LeaveDocked`; the target is
+`WorkspaceHelpers.GetFocusReturnId`).
+
 ### Fullscreen
 
 The fullscreen button next to a widget's ✕, or Ctrl+Shift+F, shows the widget over the whole
@@ -249,6 +256,7 @@ subscription and frees the market-data line.
 | Ctrl+, | Settings |
 | Ctrl+1 … Ctrl+9 | Show Watchlist, Positions, Orders, Executions, Account, Messages, Chart, Option chain, Order ticket (collapses an expanded side widget) |
 | Ctrl+Alt+W / P / O / E / A / M / C / B | Show and focus Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket (single-instance widgets; works from floating windows too) |
+| Esc (side or bottom widget) | Back to the last focused center widget; an unpinned widget collapses |
 | Ctrl+Shift+7 | New chart |
 | Ctrl+Shift+F | Fullscreen the current widget (the one last clicked or typed in, framed in light blue), or restore it |
 
