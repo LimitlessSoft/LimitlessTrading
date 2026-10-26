@@ -1,0 +1,27 @@
+<Window
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	x:Class="LT.App.Controls.ConfirmDialog"
+	Width="440"
+	SizeToContent="Height"
+	CanResize="False"
+	ShowInTaskbar="False"
+	WindowStartupLocation="CenterOwner"
+>
+	<!-- Asks before closing something; see ConfirmDialog.axaml.cs -->
+	<StackPanel Margin="20" Spacing="8">
+		<TextBlock x:Name="MessageText" FontWeight="SemiBold" TextWrapping="Wrap" />
+		<TextBlock x:Name="DetailText" Classes="secondary" TextWrapping="Wrap" />
+		<StackPanel Margin="0,12,0,0" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="8">
+			<Button Content="Cancel" IsCancel="True" Click="OnCancelClick" />
+			<!-- Shown only with a second way to go on (ShowChoiceAsync) -->
+			<Button
+				x:Name="AlternativeButton"
+				Classes="danger"
+				IsVisible="False"
+				Click="OnAlternativeClick"
+			/>
+			<Button x:Name="ConfirmButton" IsDefault="True" Click="OnConfirmClick" />
+		</StackPanel>
+	</StackPanel>
+</Window>

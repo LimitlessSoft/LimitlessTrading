@@ -1,12 +1,15 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using LT.App.Controls;
 using LT.App.Widgets.Watchlist;
 using LT.App.Workspace;
 using LT.Contracts.Constants;
 using LT.Contracts.Enums;
+using LT.Contracts.Helpers;
 
 namespace LT.App.Shell;
 
@@ -18,6 +21,9 @@ namespace LT.App.Shell;
 public partial class WorkspaceWindow : Window, IFullscreenHost
 {
 	private readonly WorkspaceWindows? _windows;
+
+	// Set once the user chose to close it (or picked Close window in its menu): no more asking
+	private bool _closeConfirmed;
 
 	// Previewer only
 	public WorkspaceWindow()
@@ -83,8 +89,36 @@ public partial class WorkspaceWindow : Window, IFullscreenHost
 		viewModel.Height = ClientSize.Height;
 	}
 
+	/// <summary>
+	/// ✕ on a workspace window while others are open: Close this window (Enter), Close application
+	/// or Cancel.
+	/// </summary>
+	public static Task<ConfirmChoice> AskCloseAsync(Window owner, string detail) =>
+		ConfirmDialog.ShowChoiceAsync(
+			owner,
+			"Close window",
+			"Close this window or the whole application?",
+			detail,
+			"Close this window",
+			"Close application"
+		);
+
 	private void OnClosing(object? sender, WindowClosingEventArgs e)
 	{
+		// The user closing a window that is still open in the app (not one discarded or handed to
+		// the main window, nor the app exiting): ask what to close
+		if (
+			!_closeConfirmed
+			&& _windows is { IsExiting: false }
+			&& e.CloseReason == WindowCloseReason.WindowClosing
+			&& ViewModel is { } open
+			&& _windows.Windows.Contains(open)
+		)
+		{
+			e.Cancel = true;
+			_ = AskAndCloseAsync();
+			return;
+		}
 		StoreLayout();
 		// The user closed it (✕, Alt+F4, the menu): it is gone. The app exiting keeps it.
 		if (
@@ -153,5 +187,44 @@ public partial class WorkspaceWindow : Window, IFullscreenHost
 
 	private void OnFullscreenClicked() => ViewModel?.ToggleFullscreen();
 
-	private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
+	private async Task AskAndCloseAsync()
+	{
+		var choice = await AskCloseAsync(
+			this,
+			WorkspaceWindowHelpers.GetCloseDetail(false, null, _windows!.Windows.Count + 1)
+		);
+		switch (choice)
+		{
+			case ConfirmChoice.Confirm:
+				_closeConfirmed = true;
+				Close();
+				break;
+			case ConfirmChoice.Alternative:
+				// The app exits with the main window, which keeps every window for the next start
+				if (
+					Application.Current?.ApplicationLifetime
+					is IClassicDesktopStyleApplicationLifetime { MainWindow: MainWindow main }
+				)
+					main.CloseApplication();
+				break;
+		}
+	}
+
+	/// <summary>
+	/// The main window took this window's workspace over: it lets go of it (its frames, floating
+	/// windows) and closes without asking.
+	/// </summary>
+	public void HandOver()
+	{
+		StoreLayout();
+		_closeConfirmed = true;
+		DataContext = null;
+	}
+
+	// Menu → Close window is already the choice
+	private void OnCloseClick(object? sender, RoutedEventArgs e)
+	{
+		_closeConfirmed = true;
+		Close();
+	}
 }

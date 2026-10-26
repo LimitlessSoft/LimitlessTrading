@@ -8,6 +8,7 @@ using LT.App.Widgets.DayTradePerformance;
 using LT.App.Widgets.Executions;
 using LT.App.Widgets.Orders;
 using LT.App.Widgets.Positions;
+using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
@@ -22,7 +23,7 @@ namespace LT.App.Workspace;
 /// Link groups and the other stores stay app-wide. Singleton (Program.cs); the main window opens a
 /// window for every entry of <see cref="Windows"/>.
 /// </summary>
-public class WorkspaceWindows
+public class WorkspaceWindows : IWorkspaceHost
 {
 	private readonly WidgetViewModelFactory _widgetViewModelFactory;
 	private readonly AppearanceStore _appearance;
@@ -42,8 +43,14 @@ public class WorkspaceWindows
 			Windows.Add(new WorkspaceWindowViewModel(this, window, Create(window)));
 	}
 
-	/// <summary>The main window's workspace.</summary>
-	public WorkspaceViewModel Main { get; }
+	/// <summary>
+	/// The main window's workspace. Replaced when the main window is closed on its own while extra
+	/// windows are open (<see cref="ReplaceMain"/>).
+	/// </summary>
+	public WorkspaceViewModel Main { get; private set; }
+
+	/// <summary>Raised when <see cref="Main"/> is replaced.</summary>
+	public event Action? MainChanged;
 
 	/// <summary>The extra windows, in the order they were opened.</summary>
 	public ObservableCollection<WorkspaceWindowViewModel> Windows { get; } = [];
@@ -71,6 +78,79 @@ public class WorkspaceWindows
 	{
 		if (Windows.Remove(window))
 			window.Workspace.DisposeWidgets();
+	}
+
+	/// <summary>
+	/// The main window's ✕ → Close this window, with extra windows open: the main window can't go
+	/// (it holds the toolbar, status bar and connection, and the app exits with it), so the first
+	/// extra window's workspace moves into it and that window is forgotten; the main workspace is
+	/// discarded with its widgets, like a closed extra window. Returns the window taken over (its
+	/// bounds are where the main window goes), null when there is none.
+	/// </summary>
+	public WorkspaceWindowViewModel? ReplaceMain()
+	{
+		if (Windows.Count == 0)
+			return null;
+		var next = Windows[0];
+		var old = Main;
+		Windows.RemoveAt(0);
+		Main = next.Workspace;
+		MainChanged?.Invoke();
+		old.DisposeWidgets();
+		return next;
+	}
+
+	public IReadOnlyList<ViewMoveTarget> GetMoveTargets(WorkspaceViewModel from) =>
+		Windows
+			.Select(x => new ViewMoveTarget(x.Name, x.Workspace))
+			.Prepend(new ViewMoveTarget(WorkspaceConstants.MainWindowName, Main))
+			.Where(x => x.Workspace != from)
+			.ToList();
+
+	public void MoveView(CenterViewItem view, WorkspaceViewModel to, int? slot = null)
+	{
+		var from = view.Workspace;
+		if (from == to)
+		{
+			if (slot is { } s)
+				from.MoveView(view, s);
+			return;
+		}
+		if (!Workspaces.Contains(to) || from.ReleaseView(view) is not { } transfer)
+			return;
+		to.AdoptView(transfer, slot);
+		CloseIfEmpty(from);
+	}
+
+	public void DetachView(CenterViewItem view, double? x = null, double? y = null)
+	{
+		var from = view.Workspace;
+		if (!from.Views.Contains(view))
+			return;
+		var layout = WorkspaceWindowHelpers.CreateEmpty(Windows.Select(w => w.Name));
+		layout.X = x;
+		layout.Y = y;
+		var window = new WorkspaceWindowViewModel(this, layout, Create(layout));
+		if (from.ReleaseView(view) is not { } transfer)
+			return;
+		// The new workspace starts with an empty view: the detached one takes its place
+		var placeholder = window.Workspace.Views[0];
+		window.Workspace.AdoptView(transfer);
+		window.Workspace.CloseView(placeholder);
+		Windows.Add(window);
+		CloseIfEmpty(from);
+	}
+
+	/// <summary>
+	/// An extra window whose last view was moved out and that shows nothing else is closed (the
+	/// main window stays).
+	/// </summary>
+	private void CloseIfEmpty(WorkspaceViewModel workspace)
+	{
+		if (
+			workspace.IsEmpty && Windows.FirstOrDefault(x => x.Workspace == workspace) is { } window
+		)
+			Discard(window);
 	}
 
 	public void FillLayout(LayoutDto layout) =>
@@ -120,7 +200,8 @@ public class WorkspaceWindows
 			_widgetViewModelFactory.Create,
 			layout,
 			_appearance,
-			tool => Release(tool, workspace!)
+			tool => Release(tool, workspace!),
+			this
 		);
 		return workspace;
 	}

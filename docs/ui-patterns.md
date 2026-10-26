@@ -123,6 +123,17 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   and keeps the open windows, with their bounds and layouts, for the next start. Dragging a
   widget between windows is not supported: dropped outside its window, it floats (owned by that
   window); move it by opening it from the other window's menu (single-instance widgets).
+  **✕ with several workspace windows open** (main + extra; floating widget windows don't count)
+  asks: Close this window (Enter), Close application, or Cancel. With one window, ✕ just exits.
+  The extra window's menu → Close window doesn't ask. Close application exits like closing the
+  main window always did, keeping every window. Close this window on an extra window discards it
+  as before. The main window can't go (it holds the toolbar, status bar and connection, and the
+  app exits with it), so there it **takes over the first extra window**: that window's workspace
+  moves into the main window (`WorkspaceWindows.ReplaceMain`, raising `MainChanged`; the page
+  rebinds), the main window takes its bounds and state, that window closes
+  (`WorkspaceWindow.HandOver` releases its frames first) and the old main workspace is discarded
+  with its widgets. `WorkspaceView` empties its hosts whenever its workspace is swapped
+  (`ClearHosts`), so the new one gets fresh frames.
   `WorkspaceWindows` (singleton) holds the main workspace and the extra ones
   (`WorkspaceWindowViewModel`, shown by `Shell/WorkspaceWindow`, which the main window opens).
 
@@ -130,14 +141,32 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   floating widgets are shared by all of them, a center widget sits in exactly one. Click a tab to
   show it, double-click to rename it in place (Enter or clicking away saves, Esc cancels, a blank
   name keeps the old one), ✕ closes the view together with its widgets (like ✕ on each; the last
-  view has no ✕). Right-click a tab → Duplicate puts "<name> copy" right after it and shows it:
+  view has no ✕) after a confirmation (`Controls/ConfirmDialog` in `LT.Widgets.Core`: a modal with
+  Cancel and a red confirm button; Enter confirms, Esc cancels). Right-click a tab → Duplicate
+  puts "<name> copy" right after it and shows it:
   the same split tree with new instances of its widgets carrying their saved settings (symbol,
   timeframe, link group, …); single-instance widgets can't be in two views, so their slots are
   left out (`CenterViewHelpers.Duplicate`). "+" adds an empty "View N" and shows it; Ctrl+Tab / Ctrl+Shift+Tab cycle
   through them. New and reopened center widgets go to the shown view; showing a widget that sits
   in another view (menu, Ctrl+1…9, Ctrl+Alt+key) switches to that view. Every view has its own
   host in `WorkspaceView`, built once per tree change and only hidden while another view is
-  shown, so switching views moves no frame. Tabs can't be reordered yet.
+  shown, so switching views moves no frame.
+- **Moving views.** Drag a tab (a press that moves 6 px, like a widget header; not while its name
+  is being edited) along the strip to reorder: a bar marks the gap it goes to. Dropped on another
+  workspace window it moves there — into the gap when dropped on that window's tabs, after its
+  tabs anywhere else in it (the window is highlighted) — and is shown there. Dropped outside every
+  window it is **detached**: a new window ("Window N", opened under the pointer) holding only that
+  view. Released over its own window off the tabs, nothing happens. Right-click a tab for the same
+  without dragging: Move left / Move right, Move to window ▸ (every other window, main first) and
+  Detach to new window. A moved view keeps its id, name, split tree with sizes and its widgets'
+  view models and settings (symbol, link group, …); the other window builds new frames and widget
+  views for them (nothing is re-hosted across windows), and a widget whose id is taken there gets
+  a new one. Moving the last view out of a window leaves an empty "Main" view there; an extra
+  window left with nothing open is closed (the main window stays). Model:
+  `WorkspaceViewModel.MoveView` / `MoveViewBy` (reorder), `ReleaseView` → `CenterViewTransfer` →
+  `AdoptView` (between workspaces), orchestrated by `WorkspaceWindows` through `IWorkspaceHost`
+  (`MoveView`, `DetachView`); the drag is `WorkspaceView.ViewTabs.cs`. The saved layout follows
+  (each window's `Views` and `Widgets`), so the order and placement come back on the next start.
 - Spawn or reveal a widget from menu → Widgets. Ctrl+1 … Ctrl+9 do the same, but collapse a side
   widget that is already expanded.
 - **Charts can be open several times**: menu → Widgets → Chart (Ctrl+7) always opens a new one

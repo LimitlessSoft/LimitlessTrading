@@ -1,8 +1,10 @@
 using System.Collections.Specialized;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using LT.App.Controls;
 using LT.App.Stores;
 using LT.App.Widgets.Gateway;
 using LT.App.Widgets.OrderTicket;
@@ -10,6 +12,7 @@ using LT.App.Widgets.Settings;
 using LT.App.Workspace;
 using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Enums;
+using LT.Contracts.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LT.App.Shell;
@@ -19,6 +22,9 @@ public partial class MainWindow : Window, IFullscreenHost
 	private readonly SettingsNavigator? _settingsNavigator;
 	private readonly OrderTicketNavigator? _orderTicketNavigator;
 	private bool _settingsOpen;
+
+	// Set once closing means exiting the app (chosen, or an update restart): no more asking
+	private bool _closeConfirmed;
 
 	// Open extra workspace windows, by view model
 	private readonly Dictionary<WorkspaceWindowViewModel, WorkspaceWindow> _workspaceWindows = [];
@@ -61,7 +67,7 @@ public partial class MainWindow : Window, IFullscreenHost
 		base.OnDataContextChanged(e);
 		if (ViewModel is { } viewModel)
 			// The new version starts once this process has exited
-			viewModel.Update.RestartRequested += Close;
+			viewModel.Update.RestartRequested += CloseApplication;
 		if (ViewModel?.GetLayout() is not { } layout)
 			return;
 
@@ -89,6 +95,18 @@ public partial class MainWindow : Window, IFullscreenHost
 	{
 		foreach (var window in e.NewItems?.OfType<WorkspaceWindowViewModel>() ?? [])
 			OpenWorkspaceWindow(window);
+		// Discarded without the user closing it (its last view moved out): close it, after the
+		// pass that took the frames out of it. One the user closed is already gone by then.
+		foreach (var viewModel in e.OldItems?.OfType<WorkspaceWindowViewModel>() ?? [])
+			if (_workspaceWindows.Remove(viewModel, out var window))
+				Dispatcher.UIThread.Post(
+					() =>
+					{
+						if (window.IsVisible)
+							window.Close();
+					},
+					DispatcherPriority.Background
+				);
 	}
 
 	private void OpenWorkspaceWindow(WorkspaceWindowViewModel viewModel)
@@ -109,8 +127,26 @@ public partial class MainWindow : Window, IFullscreenHost
 		await GatewayWindow.ShowAsync(this);
 	}
 
+	/// <summary>Exits the app without asking; every open window is kept for the next start.</summary>
+	public void CloseApplication()
+	{
+		_closeConfirmed = true;
+		Close();
+	}
+
 	private void OnClosing(object? sender, WindowClosingEventArgs e)
 	{
+		// ✕ with extra workspace windows open: close only this one, or the whole app?
+		if (
+			!_closeConfirmed
+			&& e.CloseReason == WindowCloseReason.WindowClosing
+			&& ViewModel?.Windows is { Windows.Count: > 0 }
+		)
+		{
+			e.Cancel = true;
+			_ = AskAndCloseAsync();
+			return;
+		}
 		// The extra windows close with the app and are kept for the next start
 		if (ViewModel?.Windows is { } windows)
 			windows.IsExiting = true;
@@ -123,6 +159,55 @@ public partial class MainWindow : Window, IFullscreenHost
 			maximized ? null : ClientSize.Height,
 			maximized
 		);
+	}
+
+	private async Task AskAndCloseAsync()
+	{
+		if (ViewModel?.Windows is not { } windows)
+			return;
+		var choice = await WorkspaceWindow.AskCloseAsync(
+			this,
+			WorkspaceWindowHelpers.GetCloseDetail(
+				true,
+				windows.Windows.FirstOrDefault()?.Name,
+				windows.Windows.Count + 1
+			)
+		);
+		switch (choice)
+		{
+			// The others may have closed meanwhile: then this is the last window and the app exits
+			case ConfirmChoice.Confirm when windows.Windows.Count > 0:
+				TakeOverNextWindow(windows);
+				break;
+			case ConfirmChoice.Confirm:
+			case ConfirmChoice.Alternative:
+				CloseApplication();
+				break;
+		}
+	}
+
+	/// <summary>
+	/// Close this window on the main window: it can't go (the app exits with it), so it takes the
+	/// place of the first extra window instead — that window's workspace, bounds and state — and
+	/// that window closes; the main workspace is discarded (<see cref="WorkspaceWindows.ReplaceMain"/>).
+	/// </summary>
+	private void TakeOverNextWindow(WorkspaceWindows windows)
+	{
+		var next = windows.Windows[0];
+		// Its window lets go of the workspace first, so the main window builds fresh frames for it
+		if (_workspaceWindows.Remove(next, out var window))
+		{
+			window.HandOver();
+			Dispatcher.UIThread.Post(window.Close, DispatcherPriority.Background);
+		}
+		windows.ReplaceMain();
+		WindowState = WindowState.Normal;
+		if (next is { X: { } x, Y: { } y })
+			Position = new PixelPoint((int)x, (int)y);
+		Width = Math.Max(MinWidth, next.Width);
+		Height = Math.Max(MinHeight, next.Height);
+		if (next.IsMaximized)
+			WindowState = WindowState.Maximized;
 	}
 
 	private void OnPreviewKeyDown(object? sender, KeyEventArgs e)

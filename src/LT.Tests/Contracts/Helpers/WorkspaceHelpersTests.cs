@@ -172,4 +172,14 @@ public class WorkspaceHelpersTests
 	[Fact]
 	public void Focus_has_nowhere_to_return_with_an_empty_center() =>
 		Assert.Null(WorkspaceHelpers.GetFocusReturnId("Chart", []));
+
+	[Fact]
+	public void A_free_id_is_kept_and_a_taken_one_gets_a_short_suffix()
+	{
+		Assert.Equal("Chart", WorkspaceHelpers.GetFreeId("Chart", ["Watchlist"]));
+
+		var id = WorkspaceHelpers.GetFreeId("Chart", ["Chart"]);
+
+		Assert.Matches("^Chart-[0-9a-f]{8}$", id);
+	}
 }

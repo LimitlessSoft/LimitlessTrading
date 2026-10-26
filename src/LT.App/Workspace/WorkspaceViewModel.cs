@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LT.App.Stores;
 using LT.App.ViewModels;
+using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
@@ -22,6 +23,9 @@ public partial class WorkspaceViewModel : ViewModelBase
 	// Takes a single-instance widget out of whichever other workspace holds it (null: none does)
 	private readonly Func<WorkspaceTool, WidgetItem?>? _claim;
 
+	// The other windows, where a view can move to (null: none, e.g. offline views)
+	private readonly IWorkspaceHost? _host;
+
 	// Last dock per widget kind, for spawning new instances where the previous one was
 	private readonly Dictionary<WorkspaceTool, WidgetDock> _lastDock = [];
 
@@ -32,11 +36,13 @@ public partial class WorkspaceViewModel : ViewModelBase
 		Func<WorkspaceTool, object> createContent,
 		WorkspaceLayoutDto layout,
 		AppearanceStore? appearance = null,
-		Func<WorkspaceTool, WidgetItem?>? claim = null
+		Func<WorkspaceTool, WidgetItem?>? claim = null,
+		IWorkspaceHost? host = null
 	)
 	{
 		_createContent = createContent;
 		_claim = claim;
+		_host = host;
 		Appearance = appearance;
 		Bottom.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasBottomWidgets));
 		LeftWidth = layout.LeftWidth;
@@ -66,8 +72,8 @@ public partial class WorkspaceViewModel : ViewModelBase
 			Views.Add(new CenterViewItem(this, view.Id, view.Name) { Root = view.Root });
 		var selectedId = CenterViewHelpers.GetSelectedId(views, layout.SelectedViewId);
 		SelectedView = Views.First(x => x.Id == selectedId);
-		Views.CollectionChanged += (_, _) => UpdateCanCloseViews();
-		UpdateCanCloseViews();
+		Views.CollectionChanged += (_, _) => UpdateViewFlags();
+		UpdateViewFlags();
 
 		LeftActive = Left.FirstOrDefault(x => x.Id == layout.LeftWidgetId);
 		RightActive = Right.FirstOrDefault(x => x.Id == layout.RightWidgetId);
@@ -184,6 +190,134 @@ public partial class WorkspaceViewModel : ViewModelBase
 		Views.Remove(view);
 		RaiseCenterChanged();
 	}
+
+	/// <summary>
+	/// A tab dragged along the strip: the view goes to gap <paramref name="slot"/> (0 = before the
+	/// first tab, <c>Views.Count</c> = after the last). Its widgets and tree stay as they are.
+	/// </summary>
+	public void MoveView(CenterViewItem view, int slot)
+	{
+		var from = Views.IndexOf(view);
+		if (from < 0)
+			return;
+		var to = CenterViewHelpers.GetMoveIndex(from, slot, Views.Count);
+		if (to != from)
+			Views.Move(from, to);
+	}
+
+	/// <summary>Right-click → Move left / Move right: one tab over (<paramref name="step"/> −1 or 1).</summary>
+	public void MoveViewBy(CenterViewItem view, int step)
+	{
+		var from = Views.IndexOf(view);
+		var to = from + step;
+		if (from < 0 || to < 0 || to >= Views.Count || to == from)
+			return;
+		Views.Move(from, to);
+	}
+
+	/// <summary>Views can move to other windows (the app's windows are known).</summary>
+	public bool CanMoveViewsOut => _host != null;
+
+	/// <summary>The windows a view of this workspace can move to (right-click → Move to window).</summary>
+	public IReadOnlyList<ViewMoveTarget> GetMoveTargets() => _host?.GetMoveTargets(this) ?? [];
+
+	/// <summary>Moves the view, with its widgets, to the window of <paramref name="to"/>.</summary>
+	public void MoveViewTo(CenterViewItem view, WorkspaceViewModel to, int? slot = null)
+	{
+		if (to == this)
+		{
+			if (slot is { } s)
+				MoveView(view, s);
+			return;
+		}
+		_host?.MoveView(view, to, slot);
+	}
+
+	/// <summary>Right-click → Detach, or a tab dropped outside every window: a new window with only this view.</summary>
+	public void DetachView(CenterViewItem view, double? x = null, double? y = null) =>
+		_host?.DetachView(view, x, y);
+
+	/// <summary>
+	/// Takes the view out of this workspace, with the center widgets in it (view models and
+	/// settings go along), for another workspace to adopt (<see cref="AdoptView"/>). The last view
+	/// leaves an empty one in its place, so the workspace always has a view. Null when the view
+	/// isn't here.
+	/// </summary>
+	public CenterViewTransfer? ReleaseView(CenterViewItem view)
+	{
+		var index = Views.IndexOf(view);
+		if (index < 0)
+			return null;
+		var widgets = CenterLayoutHelpers
+			.GetWidgetIds(view.Root)
+			.Select(Find)
+			.OfType<WidgetItem>()
+			.ToList();
+		foreach (var widget in widgets)
+		{
+			if (FullscreenWidget == widget)
+				FullscreenWidget = null;
+			if (CurrentWidget == widget)
+				CurrentWidget = null;
+			if (_lastCenterId == widget.Id)
+				_lastCenterId = null;
+			Widgets.Remove(widget);
+			widget.Workspace = null;
+		}
+		if (Views.Count == 1)
+			Views.Add(
+				new CenterViewItem(
+					this,
+					CenterViewHelpers.NewId(),
+					WorkspaceConstants.DefaultViewName
+				)
+			);
+		if (SelectedView == view)
+		{
+			var remaining = Views.Where(x => x != view).ToList();
+			SelectedView = remaining[CenterViewHelpers.GetIndexAfterClose(index, remaining.Count)];
+		}
+		Views.Remove(view);
+		RaiseCenterChanged();
+		return new CenterViewTransfer(view.Id, view.Name, view.Root, widgets);
+	}
+
+	/// <summary>
+	/// Takes in a view released by another workspace, at tab gap <paramref name="slot"/> (null:
+	/// after the others), and shows it. Its widgets keep their view models and settings; one
+	/// whose id is already taken here gets a new one.
+	/// </summary>
+	public CenterViewItem AdoptView(CenterViewTransfer transfer, int? slot = null)
+	{
+		var ids = CenterViewHelpers.GetTransferIds(
+			transfer.Widgets.Select(x => x.Id),
+			Widgets.Select(x => x.Id)
+		);
+		foreach (var widget in transfer.Widgets)
+		{
+			widget.Id = ids[widget.Id];
+			widget.Workspace = this;
+			Widgets.Add(widget);
+		}
+		var view = new CenterViewItem(
+			this,
+			Views.Any(x => x.Id == transfer.Id) ? CenterViewHelpers.NewId() : transfer.Id,
+			transfer.Name
+		)
+		{
+			Root = CenterLayoutHelpers.Copy(transfer.Root, ids),
+		};
+		Views.Insert(slot is { } s ? Math.Clamp(s, 0, Views.Count) : Views.Count, view);
+		SelectedView = view;
+		RaiseCenterChanged();
+		return view;
+	}
+
+	/// <summary>
+	/// Nothing left to show: no open widget anywhere and a single empty view. An extra window
+	/// left like this by moving its last view out is closed.
+	/// </summary>
+	public bool IsEmpty => Views.Count == 1 && Views[0].Root is null && !Widgets.Any(x => x.IsOpen);
 
 	/// <summary>Ctrl+Tab / Ctrl+Shift+Tab: the next or previous view, wrapping around.</summary>
 	public void CycleView(int step)
@@ -593,11 +727,11 @@ public partial class WorkspaceViewModel : ViewModelBase
 		return widget;
 	}
 
-	private string NewId(WorkspaceTool tool)
-	{
-		var id = WorkspaceHelpers.GetDefaultId(tool);
-		return Widgets.Any(x => x.Id == id) ? $"{id}-{Guid.NewGuid():N}"[..(id.Length + 9)] : id;
-	}
+	private string NewId(WorkspaceTool tool) =>
+		WorkspaceHelpers.GetFreeId(
+			WorkspaceHelpers.GetDefaultId(tool),
+			Widgets.Select(x => x.Id).ToHashSet()
+		);
 
 	private WidgetDock GetSpawnDock(WorkspaceTool tool) =>
 		_lastDock.TryGetValue(tool, out var dock) ? dock : WorkspaceHelpers.GetDefaultDock(tool);
@@ -688,10 +822,14 @@ public partial class WorkspaceViewModel : ViewModelBase
 	private static bool IsInView(CenterViewItem view, string widgetId) =>
 		CenterLayoutHelpers.Contains(view.Root, widgetId);
 
-	private void UpdateCanCloseViews()
+	private void UpdateViewFlags()
 	{
-		foreach (var view in Views)
-			view.CanClose = Views.Count > 1;
+		for (var i = 0; i < Views.Count; i++)
+		{
+			Views[i].CanClose = Views.Count > 1;
+			Views[i].CanMoveLeft = i > 0;
+			Views[i].CanMoveRight = i < Views.Count - 1;
+		}
 	}
 
 	private void RaiseCenterChanged()

@@ -20,6 +20,8 @@
 		<ProjectReference Include="..\Widgets\LT.Widgets.Watchlist\LT.Widgets.Watchlist.csproj" />
 		<!-- Option chain view model only (typing its underlying); its view is never created -->
 		<ProjectReference Include="..\Widgets\LT.Widgets.OptionChain\LT.Widgets.OptionChain.csproj" />
+		<!-- Workspace model only (moving views between windows); no view or window is created -->
+		<ProjectReference Include="..\LT.App\LT.App.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

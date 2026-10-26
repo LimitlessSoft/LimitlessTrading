@@ -276,4 +276,41 @@ public class CenterViewHelpersTests
 
 		Assert.Null(copy.Root);
 	}
+
+	[Theory]
+	// Gap after the tab itself counts one less once it is taken out
+	[InlineData(0, 3, 4, 2)]
+	[InlineData(0, 4, 4, 3)]
+	[InlineData(3, 0, 4, 0)]
+	[InlineData(3, 1, 4, 1)]
+	// The gaps on either side of a tab leave it where it is
+	[InlineData(1, 1, 4, 1)]
+	[InlineData(1, 2, 4, 1)]
+	// Out of range gaps stay on the strip
+	[InlineData(0, 9, 3, 2)]
+	[InlineData(2, -1, 3, 0)]
+	public void A_tab_dropped_in_a_gap_ends_up_at_the_index_of_that_gap(
+		int from,
+		int slot,
+		int count,
+		int expected
+	) => Assert.Equal(expected, CenterViewHelpers.GetMoveIndex(from, slot, count));
+
+	[Fact]
+	public void Widgets_of_a_moved_view_keep_their_ids_unless_taken_in_the_other_window()
+	{
+		var ids = CenterViewHelpers.GetTransferIds(["Chart", "Watchlist", "Chart-2"], ["Chart"]);
+
+		Assert.Equal("Watchlist", ids["Watchlist"]);
+		Assert.Equal("Chart-2", ids["Chart-2"]);
+		Assert.StartsWith("Chart-", ids["Chart"]);
+		Assert.Equal(3, ids.Values.Distinct().Count());
+	}
+
+	[Theory]
+	[InlineData(0, "It has no widgets.")]
+	[InlineData(1, "Its widget will be closed too.")]
+	[InlineData(3, "Its 3 widgets will be closed too.")]
+	public void Closing_a_view_says_what_goes_with_it(int widgets, string expected) =>
+		Assert.Equal(expected, CenterViewHelpers.GetCloseDetail(widgets));
 }
