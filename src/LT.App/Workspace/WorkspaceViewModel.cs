@@ -41,16 +41,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 		foreach (var placement in WorkspaceHelpers.Normalize(layout.Widgets))
 		{
 			var widget = CreateItem(placement.Id, placement.Tool);
-			widget.FloatX = placement.FloatX;
-			widget.FloatY = placement.FloatY;
-			widget.FloatWidth = placement.FloatWidth;
-			widget.FloatHeight = placement.FloatHeight;
-			widget.IsPinned = placement.IsPinned;
-			widget.SideWidth = placement.SideWidth;
-			widget.BottomHeight = placement.BottomHeight;
-			if (widget.Content is ILinkable linkable)
-				linkable.Link.Group = placement.LinkGroup;
-			(widget.Content as IWidgetState)?.LoadState(placement);
+			LoadPlacement(widget, placement);
 			if (placement.Dock == WidgetDock.Center)
 			{
 				SetDock(widget, WidgetDock.Center);
@@ -133,6 +124,40 @@ public partial class WorkspaceViewModel : ViewModelBase
 			CenterViewHelpers.GetNewName(Views.Select(x => x.Name))
 		);
 		Views.Add(view);
+		SelectedView = view;
+	}
+
+	/// <summary>
+	/// Right-click → Duplicate: a copy of the view right after it, shown at once. Its split tree is
+	/// the same, filled with new instances of the widgets carrying their settings (symbol, link
+	/// group, …); single-instance widgets can't be in two places, so their slots are left out.
+	/// </summary>
+	public void DuplicateView(CenterViewItem source)
+	{
+		var index = Views.IndexOf(source);
+		if (index < 0)
+			return;
+		var widgetIds = new Dictionary<string, string>();
+		foreach (var id in CenterLayoutHelpers.GetWidgetIds(source.Root).ToList())
+		{
+			if (
+				Find(id) is not { } widget
+				|| !WorkspaceHelpers.AllowsMultipleInstances(widget.Tool)
+			)
+				continue;
+			var copy = CreateItem(NewId(widget.Tool), widget.Tool);
+			LoadPlacement(copy, SavePlacement(widget));
+			SetDock(copy, WidgetDock.Center);
+			widgetIds[id] = copy.Id;
+		}
+		var duplicate = CenterViewHelpers.Duplicate(
+			source.Name,
+			source.Root,
+			widgetIds,
+			Views.Select(x => x.Name)
+		);
+		var view = new CenterViewItem(this, duplicate.Id, duplicate.Name) { Root = duplicate.Root };
+		Views.Insert(index + 1, view);
 		SelectedView = view;
 	}
 
@@ -465,27 +490,45 @@ public partial class WorkspaceViewModel : ViewModelBase
 			.Concat(Right)
 			.Concat(Bottom)
 			.Concat(Floating)
-			.Select(x =>
-			{
-				var placement = new WidgetPlacementDto
-				{
-					Id = x.Id,
-					Tool = x.Tool,
-					Dock = x.Dock!.Value,
-					FloatX = x.FloatX,
-					FloatY = x.FloatY,
-					FloatWidth = x.FloatWidth,
-					FloatHeight = x.FloatHeight,
-					IsPinned = x.IsPinned,
-					SideWidth = x.SideWidth,
-					BottomHeight = x.BottomHeight,
-				};
-				if (x.Content is ILinkable linkable)
-					placement.LinkGroup = linkable.Link.Group;
-				(x.Content as IWidgetState)?.SaveState(placement);
-				return placement;
-			})
+			.Select(SavePlacement)
 			.ToList();
+	}
+
+	// A widget's saved placement: where it is and its own settings (symbol, link group, …)
+	private static WidgetPlacementDto SavePlacement(WidgetItem widget)
+	{
+		var placement = new WidgetPlacementDto
+		{
+			Id = widget.Id,
+			Tool = widget.Tool,
+			Dock = widget.Dock!.Value,
+			FloatX = widget.FloatX,
+			FloatY = widget.FloatY,
+			FloatWidth = widget.FloatWidth,
+			FloatHeight = widget.FloatHeight,
+			IsPinned = widget.IsPinned,
+			SideWidth = widget.SideWidth,
+			BottomHeight = widget.BottomHeight,
+		};
+		if (widget.Content is ILinkable linkable)
+			placement.LinkGroup = linkable.Link.Group;
+		(widget.Content as IWidgetState)?.SaveState(placement);
+		return placement;
+	}
+
+	// Everything of a saved placement but its dock, which the caller sets
+	private static void LoadPlacement(WidgetItem widget, WidgetPlacementDto placement)
+	{
+		widget.FloatX = placement.FloatX;
+		widget.FloatY = placement.FloatY;
+		widget.FloatWidth = placement.FloatWidth;
+		widget.FloatHeight = placement.FloatHeight;
+		widget.IsPinned = placement.IsPinned;
+		widget.SideWidth = placement.SideWidth;
+		widget.BottomHeight = placement.BottomHeight;
+		if (widget.Content is ILinkable linkable)
+			linkable.Link.Group = placement.LinkGroup;
+		(widget.Content as IWidgetState)?.LoadState(placement);
 	}
 
 	private WidgetItem CreateItem(string id, WorkspaceTool tool)

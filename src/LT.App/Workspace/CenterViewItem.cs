@@ -43,6 +43,9 @@ public partial class CenterViewItem(WorkspaceViewModel workspace, string id, str
 	private void Close() => workspace.CloseView(this);
 
 	[RelayCommand]
+	private void Duplicate() => workspace.DuplicateView(this);
+
+	[RelayCommand]
 	private void BeginRename() => workspace.BeginRenameView(this);
 
 	[RelayCommand]

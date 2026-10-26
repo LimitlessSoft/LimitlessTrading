@@ -69,6 +69,47 @@ public static class CenterViewHelpers
 		}
 	}
 
+	/// <summary>
+	/// Name of a copy of view <paramref name="sourceName"/>: "&lt;name&gt; copy", or the first free
+	/// "&lt;name&gt; copy N" (N from 2). The source name is cut so the suffix always fits the limit.
+	/// </summary>
+	public static string GetDuplicateName(string sourceName, IEnumerable<string> existing)
+	{
+		var names = existing.ToHashSet(StringComparer.OrdinalIgnoreCase);
+		var source = CleanName(sourceName) ?? WorkspaceConstants.DefaultViewName;
+		for (var n = 1; ; n++)
+		{
+			var suffix =
+				n == 1
+					? $" {WorkspaceConstants.DuplicateViewNameSuffix}"
+					: $" {WorkspaceConstants.DuplicateViewNameSuffix} {n}";
+			var room = WorkspaceConstants.ViewNameMaxLength - suffix.Length;
+			var name = CleanName(
+				(source.Length > room ? source[..room].TrimEnd() : source) + suffix
+			)!;
+			if (!names.Contains(name))
+				return name;
+		}
+	}
+
+	/// <summary>
+	/// A copy of a view: a new id, <see cref="GetDuplicateName"/> and the source's split tree with
+	/// each widget swapped for its copy (<paramref name="widgetIds"/>: source id → copy id).
+	/// Widgets without a copy (single-instance ones) are left out of the tree.
+	/// </summary>
+	public static CenterViewDto Duplicate(
+		string sourceName,
+		CenterNodeDto? sourceRoot,
+		IReadOnlyDictionary<string, string> widgetIds,
+		IEnumerable<string> existingNames
+	) =>
+		new()
+		{
+			Id = NewId(),
+			Name = GetDuplicateName(sourceName, existingNames),
+			Root = CenterLayoutHelpers.Copy(sourceRoot, widgetIds),
+		};
+
 	/// <summary>A typed view name trimmed and cut to the limit; null when blank (keep the old one).</summary>
 	public static string? CleanName(string? name)
 	{
