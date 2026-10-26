@@ -29,4 +29,8 @@ public class WidgetPlacementDto
 	public ChartTimeframe? ChartTimeframe { get; set; }
 	public bool ChartLinked { get; set; } = true;
 	public ContractDto? ChartContract { get; set; }
+
+	// News instances: what they show and which providers (keys "ibkr:BRFG"; null: all of them)
+	public NewsMode? NewsMode { get; set; }
+	public List<string>? NewsProviders { get; set; }
 }

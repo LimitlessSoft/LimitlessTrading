@@ -7,7 +7,7 @@ this app's license. How each message looks on the wire is in that repo's `docs/p
 file covers how the app uses it, IB's limits and the quirks we have hit. Read it before touching
 `LT.Ibkr`.
 
-`IBKR.Net` comes from nuget.org (0.2.0).
+`IBKR.Net` comes from nuget.org (0.4.0).
 
 ## Connecting
 
@@ -113,6 +113,11 @@ Limits / caveats:
 | `SubscribeAccountSummaryAsync` | `reqAccountSummary` | Stream — see error 322 below |
 | `SubscribeAccountPnlAsync` / `SubscribePositionPnlAsync` | `reqPnL` / `reqPnLSingle` | |
 | `GetOpenOrdersAsync` | `reqAllOpenOrders` | Every client's and TWS's orders (0.3.0); `reqOpenOrders` would only return the asking client id's, and LT places orders on the order connection's id |
+| `GetNewsProvidersAsync` | `reqNewsProviders` | The account's API providers (0.4.0) |
+| `GetHistoricalNewsAsync` | `reqHistoricalNews` | Newest first, max 300; `before` pages back (strictly older) |
+| `GetNewsArticleAsync` | `reqNewsArticle` | Text / HTML, or base64 binary (PDF) |
+| `SubscribeNewsAsync` | `reqMktData` `mdoff,292` | Live headlines of a contract (its providers) or a broad tape; one market data line |
+| `GetBroadTapeContractsAsync` | `reqContractDetails` (`NEWS`) | A provider's broad tape contracts; IB fails 321 / 200 when it has none |
 
 ### Not covered yet
 
@@ -121,7 +126,7 @@ Limits / caveats:
   (`ConnectionValidationCodes.CVC_007`).
 - Market depth / Level 2 (`reqMktDepth`), tick-by-tick (`reqTickByTickData`), option greeks
   (`tickOptionComputation`).
-- Scanners (`reqScannerSubscription`), news (`reqNewsProviders` / `reqHistoricalNews`).
+- Scanners (`reqScannerSubscription`); news bulletins (`reqNewsBulletins`).
 - Matching symbols (`reqMatchingSymbols`): search is by exact symbol + type via
   `reqContractDetails`.
 - `reqAccountUpdates` (portfolio with market value / P&L per position in one stream).
@@ -146,6 +151,38 @@ Limits / caveats:
   Gateway shows a "Cryptocurrency order confirmation" dialog and holds the order until clicked.
 
 New calls are added to IBKR.Net from a wire recording first (`tools/IbkrWireRecorder` there).
+
+## News
+
+`IIbkrApiClient` exposes the IBKR.Net news calls as DTOs (`LT.Ibkr/DtoMappings/News`);
+`IbkrNewsSource` (`LT.Domain/NewsSources`) turns them into an `INewsSource`, and `NewsManager`
+merges every source for the News widget (see [ui-patterns.md](ui-patterns.md#workspace-ltappworkspace)).
+
+- **Providers** seen on the live account (2026-10-26, read-only): BRFG, BRFUPDN, DJ-N, DJ-RT,
+  DJ-RTA, DJ-RTE, DJ-RTG, DJNL. A provider's codes are what history, articles and live ticks take.
+- **History** is per contract (conId) and mixes the requested providers, newest first; IB returns
+  at most 300 per request (`NewsConstants.MaxHeadlinesPerRequest`), the widget asks for 100 at a
+  time. Paging passes the oldest headline's time: IB returns headlines strictly before it. Times
+  are UTC at minute resolution. Continuation headlines ("-2-", "-3-") are separate articles.
+- **Live headlines** are news ticks over `reqMktData` with quotes off (`mdoff,292`). Each
+  subscription uses a **market data line**, counted through `IMarketDataManager.AcquireLine` /
+  `ReleaseLine` like quotes: one per linked contract (all its providers in one request), one per
+  broad tape. IB first replays recent headlines, mostly ones history already returned, so
+  headlines are deduplicated on (source, provider, article id) in the manager and the widget.
+- **Broad tapes** (every headline of a provider, not tied to a symbol) exist only for BRFG (15
+  sub-tapes; we use `BRFG:BRFG_ALL`), BRFUPDN (`BRFUPDN:BRF_ALL`) and DJNL (`DJNL:DJNL_ALL`).
+  The DJ-* providers fail the lookup with 321 or 200, which `IbkrApiClient` turns into "none".
+  The subscription needs security type `NEWS` and the provider code as exchange, so
+  `IbkrContractMapper` sends those for `NEWS` contracts (the lookup's reply says exchange `NEWS`,
+  which IB then rejects with 321). `IbkrNewsSource` looks each provider up once per app run.
+- **Articles** came as `<pre>` text with entities such as `&#10;` and as `<html><body><p>…`; both
+  arrive with type 0 and are told apart by their tags (`NewsHelpers.GetTextKind`). The widget
+  shows plain text only (`NewsHelpers.ToPlainText`). Type 1 (base64, e.g. PDF) has not been seen
+  yet; the widget offers to open it with the OS. The last 50 articles are kept in memory for 30
+  minutes.
+- News requests go through the message throttle only, not the historical data window (that is
+  for bars; we have not seen IB pace `reqHistoricalNews`), and the widget pages only on "Load
+  older". Not verified against IB's limits under heavy paging.
 
 ## Quirks we have hit
 

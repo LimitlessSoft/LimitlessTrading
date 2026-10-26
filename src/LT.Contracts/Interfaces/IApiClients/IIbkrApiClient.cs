@@ -3,6 +3,7 @@ using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Executions;
 using LT.Contracts.Dtos.MarketData;
+using LT.Contracts.Dtos.News;
 using LT.Contracts.Dtos.Options;
 using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Dtos.Positions;
@@ -95,6 +96,46 @@ public interface IIbkrApiClient
 	);
 
 	Task<IReadOnlyList<ExecutionDto>> GetExecutionsAsync(
+		CancellationToken cancellationToken = default
+	);
+
+	/// <summary>News providers the account can read over the API (reqNewsProviders); SourceId empty.</summary>
+	Task<IReadOnlyList<NewsProviderDto>> GetNewsProvidersAsync(
+		CancellationToken cancellationToken = default
+	);
+
+	/// <summary>
+	/// Past headlines of a contract, newest first (reqHistoricalNews): the latest, or those strictly
+	/// before <paramref name="before"/>. At most <c>NewsConstants.MaxHeadlinesPerRequest</c>.
+	/// </summary>
+	Task<NewsHeadlinesPageDto> GetHistoricalNewsAsync(
+		int contractId,
+		IReadOnlyList<string> providerCodes,
+		int maxResults,
+		DateTimeOffset? before = null,
+		CancellationToken cancellationToken = default
+	);
+
+	Task<NewsArticleDto> GetNewsArticleAsync(
+		string providerCode,
+		string articleId,
+		CancellationToken cancellationToken = default
+	);
+
+	/// <summary>
+	/// Live headlines over reqMktData (one market data line; callers count it). For a contract pass
+	/// its providers; for a broad tape contract (<see cref="GetBroadTapeContractsAsync"/>) none.
+	/// IB replays recent headlines first.
+	/// </summary>
+	IAsyncEnumerable<NewsHeadlineDto> SubscribeNewsAsync(
+		ContractDto contract,
+		IReadOnlyList<string>? providerCodes = null,
+		CancellationToken cancellationToken = default
+	);
+
+	/// <summary>The provider's broad tape contracts; empty when it has none.</summary>
+	Task<IReadOnlyList<ContractDto>> GetBroadTapeContractsAsync(
+		string providerCode,
 		CancellationToken cancellationToken = default
 	);
 
