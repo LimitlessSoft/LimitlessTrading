@@ -21,11 +21,13 @@ namespace LT.App.Widgets.OptionChain;
 /// <summary>
 /// Calls and puts per strike for one expiration. Quotes are streamed only for the strikes around
 /// the underlying price, to stay inside the market data line limit. Bid / ask cells trade one
-/// contract at market with a single click (no confirmation; the user asked for it).
+/// contract at market with a single click (no confirmation; the user asked for it). The underlying
+/// comes from the link group, or is typed into the header title.
 /// </summary>
-public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
+public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable, ITickerTitled
 {
 	private readonly IOptionChainManager _optionChainManager;
+	private readonly IContractManager _contractManager;
 	private readonly IMarketDataManager _marketDataManager;
 	private readonly IMessageLogManager _messageLogManager;
 	private readonly IOrderManager _orderManager;
@@ -57,6 +59,7 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 
 	public OptionChainViewModel(
 		IOptionChainManager optionChainManager,
+		IContractManager contractManager,
 		IMarketDataManager marketDataManager,
 		IConnectionManager connectionManager,
 		IMessageLogManager messageLogManager,
@@ -70,6 +73,7 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 	{
 		_displayTime = displayTime;
 		_optionChainManager = optionChainManager;
+		_contractManager = contractManager;
 		_marketDataManager = marketDataManager;
 		_messageLogManager = messageLogManager;
 		_orderManager = orderManager;
@@ -86,6 +90,12 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 		};
 		Link = new ContractLink(linkGroupStore, () => _underlying);
 		Link.ContractReceived += OnContractReceived;
+		TickerEditor = new TickerTitleEditor(
+			contractManager,
+			() => IsConnected,
+			OpenTickerAsync,
+			OpenContract
+		);
 		_underlying = linkGroupStore.Get(Link.Group);
 		_ = LoadExpirationsAsync();
 
@@ -109,6 +119,9 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 
 	/// <summary>The underlying comes from the link group (watchlist, positions, a chart).</summary>
 	public ContractLink Link { get; }
+
+	/// <summary>The header title's ticker box: typing an underlying there opens its chain.</summary>
+	public TickerTitleEditor TickerEditor { get; }
 
 	public ObservableCollection<ExpirationTab> Expirations { get; } = [];
 	public ObservableCollection<OptionRowViewModel> Rows { get; } = [];
@@ -156,6 +169,34 @@ public partial class OptionChainViewModel : ConnectedViewModelBase, ILinkable
 		CancelLoad();
 		StopQuotes();
 		base.Dispose();
+	}
+
+	/// <summary>Ticker box: resolves the ticker and shows its chain.</summary>
+	public async Task OpenTickerAsync(string ticker)
+	{
+		ErrorMessage = null;
+		try
+		{
+			ShowUnderlying(await _contractManager.ResolveTickerAsync(ticker));
+		}
+		catch (Exception ex)
+		{
+			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
+		}
+	}
+
+	/// <summary>Ticker box: a recent or suggested listing, already resolved.</summary>
+	public void OpenContract(ContractDto contract)
+	{
+		_contractManager.AddRecentContract(contract);
+		ShowUnderlying(contract);
+	}
+
+	// A ticker typed here moves every widget in this chain's link group along, like a chart's
+	private void ShowUnderlying(ContractDto contract)
+	{
+		OnContractReceived(contract);
+		Link.Publish(contract);
 	}
 
 	private void OnContractReceived(ContractDto contract)

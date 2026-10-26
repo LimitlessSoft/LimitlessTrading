@@ -151,9 +151,15 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   frame header via `WidgetViewFactory.CreateTitle`). It turns into a ticker box: typing lists
   IB's listings of the symbol to pick from, Enter takes the highlighted one or the typed ticker's
   first listing (`IContractManager.ResolveTickerAsync`); an empty box (or the chevron) lists the
-  last 10 tickers (`SettingsEntity.RecentContracts`, shared by all charts). Esc or clicking away
+  last 10 tickers (`SettingsEntity.RecentContracts`, shared by all widgets). Esc or clicking away
   cancels.
-- **Ticker search boxes** (chart title, watchlist) are one control, `Controls/ContractSearchBox`.
+- **Click-to-edit ticker titles** (chart, option chain) are one control, `Controls/TickerTitle`
+  in `LT.Widgets.Core`. Its view model implements `ITickerTitled` (`Title` plus a
+  `TickerTitleEditor`, which holds the editing state, trims and upper-cases typed text, ignores a
+  blank one and hands the ticker or picked listing to the widget's own open path).
+  `CommitOnLostFocus` makes clicking away open the typed ticker instead of cancelling.
+- **Ticker search boxes** (chart and option chain titles, watchlist) are one control,
+  `Controls/ContractSearchBox`.
   A typed symbol is looked up as stock / ETF, index and crypto at once
   (`IContractManager.SearchSymbolAsync`, `MarketDataConstants.SymbolSearchTypes`), US-dollar
   listings first. Futures and forex are not searched (every contract month / currency pairs).
@@ -343,8 +349,10 @@ with the current one. Widgets in the same group show the same contract:
 - New widgets start in Red, so out of the box they all follow each other. "Not linked" keeps a
   widget on its own contract.
 
-The option chain has no ticker input of its own: its underlying comes from its group, and the
-frame header shows that ticker (`WidgetViewFactory.CreateTitle` binds `OptionChainViewModel.Title`).
+The option chain's underlying comes from its group, and the frame header shows that ticker
+(`TickerTitle`, bound to `OptionChainViewModel.Title`). Clicking it types another underlying, as
+on a chart: Enter or clicking away opens the typed ticker (upper-cased, blank ignored), Esc
+cancels; the ticker goes through the same path as one from the group and moves the group along.
 It lists one tab per expiration (`IOptionChainManager.GetExpirationsAsync`, from
 `reqSecDefOptParams`); the selected tab loads that day's strikes around the money. Columns mirror
 around the strike with the bid next to it on both sides: call vol · last · ask · bid | strike |
