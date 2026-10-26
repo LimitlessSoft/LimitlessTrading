@@ -113,6 +113,10 @@ public static class LSCoreContainer
 					ILSCoreMapper<AccountDaySnapshotEntity, AccountDaySnapshotDto>,
 					AccountDaySnapshotDtoMapper
 				>()
+				.AddSingleton<
+					ILSCoreMapper<CashMovementEntity, CashMovementDto>,
+					CashMovementDtoMapper
+				>()
 				.AddSingleton<ILSCoreMapper<ExecutionDto, FillEntity>, FillEntityMapper>()
 				.AddSingleton<ILSCoreMapper<FillEntity, ExecutionDto>, ExecutionDtoMapper>()
 				.AddSingleton<ILSCoreMapper<PnlSampleEntity, PnlSampleDto>, PnlSampleDtoMapper>()

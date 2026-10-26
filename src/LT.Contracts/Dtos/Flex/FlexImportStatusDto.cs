@@ -19,4 +19,10 @@ public class FlexImportStatusDto
 
 	/// <summary>The last error needs the user (expired / invalid token, bad query id, IP restriction …).</summary>
 	public bool ErrorNeedsUser { get; set; }
+
+	/// <summary>The last Activity statement had a Cash Transactions section; null before the first one.</summary>
+	public bool? HasCashTransactionsSection { get; set; }
+
+	/// <summary>The last Activity statement had a Transfers section; null before the first one.</summary>
+	public bool? HasTransfersSection { get; set; }
 }

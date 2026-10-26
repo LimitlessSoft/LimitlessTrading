@@ -79,4 +79,59 @@ public class FlexStatusHelpersTests
 			FlexStatusHelpers.DescribeTodayTrades(status, tokyo, import.AddHours(1))
 		);
 	}
+
+	[Fact]
+	public void The_cash_movements_hint_says_which_query_sections_to_add()
+	{
+		var status = new FlexImportStatusDto
+		{
+			IsConfigured = true,
+			BackfillComplete = true,
+			HasCashTransactionsSection = false,
+			HasTransfersSection = false,
+		};
+
+		Assert.Equal(
+			"Add Cash Transactions (option Deposits & Withdrawals) and Transfers to your Activity Flex query in Client Portal, then press F5.",
+			FlexStatusHelpers.GetCashMovementsHint(status, hasMovements: false)
+		);
+		status.HasCashTransactionsSection = true;
+		Assert.Equal(
+			"Add Transfers to your Activity Flex query in Client Portal, then press F5.",
+			FlexStatusHelpers.GetCashMovementsHint(status, hasMovements: true)
+		);
+	}
+
+	[Fact]
+	public void The_cash_movements_hint_never_leaves_an_empty_overlay_unexplained()
+	{
+		var status = new FlexImportStatusDto
+		{
+			IsConfigured = true,
+			BackfillComplete = true,
+			HasCashTransactionsSection = true,
+			HasTransfersSection = true,
+		};
+
+		Assert.Null(FlexStatusHelpers.GetCashMovementsHint(status, hasMovements: true));
+		Assert.Equal(
+			"No deposits, withdrawals or transfers in the imported history.",
+			FlexStatusHelpers.GetCashMovementsHint(status, hasMovements: false)
+		);
+		status.BackfillComplete = false;
+		Assert.Equal(
+			"Importing deposits and transfers…",
+			FlexStatusHelpers.GetCashMovementsHint(status, hasMovements: false)
+		);
+		Assert.Equal(
+			"Waiting for the IB Flex import.",
+			FlexStatusHelpers.GetCashMovementsHint(
+				new FlexImportStatusDto { IsConfigured = true },
+				hasMovements: false
+			)
+		);
+		Assert.NotNull(
+			FlexStatusHelpers.GetCashMovementsHint(new FlexImportStatusDto(), hasMovements: false)
+		);
+	}
 }

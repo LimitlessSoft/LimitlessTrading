@@ -133,6 +133,121 @@ public static class AccountPerformanceHelpers
 		return changed.Count;
 	}
 
+	/// <summary>
+	/// The dedupe key of a Flex deposit / withdrawal (<paramref name="isTransfer"/> false) or
+	/// transfer: IB's transactionID when the query has it, else the row's date, kind, amount and
+	/// description. Prefixed by section, so the two sections never collide.
+	/// </summary>
+	public static string GetCashMovementKey(FlexCashFlowDto flow, bool isTransfer)
+	{
+		var prefix = isTransfer ? "transfer:" : "cash:";
+		return flow.TransactionId.Length > 0
+			? prefix + flow.TransactionId
+			: string.Create(
+				System.Globalization.CultureInfo.InvariantCulture,
+				$"{prefix}{flow.Date:yyyyMMdd}:{flow.Kind}:{flow.Amount:R}:{flow.Description}"
+			);
+	}
+
+	/// <summary>
+	/// Adds or updates the Flex deposits / withdrawals (<paramref name="cashFlows"/>) and
+	/// transfers in <paramref name="movements"/> (kept sorted by date), by
+	/// <see cref="GetCashMovementKey"/>; idempotent. A transfer row with the same date and amount
+	/// as a deposit / withdrawal row is the same money seen in both sections and is skipped.
+	/// Returns the movements added or changed.
+	/// </summary>
+	public static int MergeCashMovements(
+		List<CashMovementEntity> movements,
+		IEnumerable<FlexCashFlowDto> cashFlows,
+		IEnumerable<FlexCashFlowDto> transfers
+	)
+	{
+		var cash = cashFlows.ToList();
+		var changed = 0;
+		foreach (var flow in cash)
+			changed += Upsert(movements, flow, GetCashMovementKey(flow, isTransfer: false));
+		foreach (var flow in transfers)
+		{
+			var duplicate =
+				cash.Exists(x => x.Date == flow.Date && SameAmount(x.Amount, flow.Amount))
+				|| movements.Exists(x =>
+					x.Id.StartsWith("cash:", StringComparison.Ordinal)
+					&& x.Date == flow.Date
+					&& SameAmount(x.Amount, flow.Amount)
+				);
+			if (!duplicate)
+				changed += Upsert(movements, flow, GetCashMovementKey(flow, isTransfer: true));
+		}
+		if (changed > 0)
+			movements.Sort((a, b) => a.Date.CompareTo(b.Date));
+		return changed;
+
+		static bool SameAmount(double a, double b) => Math.Abs(a - b) < 0.005;
+
+		static int Upsert(List<CashMovementEntity> target, FlexCashFlowDto flow, string key)
+		{
+			var entity = target.Find(x => x.Id == key);
+			if (
+				entity != null
+				&& entity.Date == flow.Date
+				&& entity.Kind == flow.Kind
+				&& entity.Amount == flow.Amount
+				&& entity.Currency == flow.Currency
+				&& entity.AmountInCurrency == flow.AmountInCurrency
+				&& entity.Description == flow.Description
+			)
+				return 0;
+			if (entity == null)
+			{
+				entity = new CashMovementEntity { Id = key };
+				target.Add(entity);
+			}
+			entity.Date = flow.Date;
+			entity.Kind = flow.Kind;
+			entity.Amount = flow.Amount;
+			entity.Currency = flow.Currency;
+			entity.AmountInCurrency = flow.AmountInCurrency;
+			entity.Description = flow.Description;
+			return 1;
+		}
+	}
+
+	/// <summary>The movements on or after <paramref name="from"/> (all of them when null), oldest first.</summary>
+	public static IReadOnlyList<CashMovementDto> FilterCashMovements(
+		IEnumerable<CashMovementDto> movements,
+		DateOnly? from
+	) => movements.Where(x => from == null || x.Date >= from).OrderBy(x => x.Date).ToList();
+
+	/// <summary>
+	/// Which chart point each movement belongs to: the first of <paramref name="pointDates"/>
+	/// (sorted) on or after its date — a deposit on a weekend shows on the next trading day, where
+	/// net liquidation steps up (the same rule as the Flex merge's cash flows). Movements after
+	/// the last point are left out. Keyed by point index, movements oldest first.
+	/// </summary>
+	public static IReadOnlyDictionary<int, IReadOnlyList<CashMovementDto>> AssignCashMovements(
+		IReadOnlyList<DateOnly> pointDates,
+		IEnumerable<CashMovementDto> movements
+	)
+	{
+		var result = new Dictionary<int, List<CashMovementDto>>();
+		var dates = pointDates.ToList();
+		foreach (var movement in movements.OrderBy(x => x.Date))
+		{
+			var index = dates.BinarySearch(movement.Date);
+			if (index < 0)
+				index = ~index;
+			if (index >= dates.Count)
+				continue;
+			// BinarySearch may land on any of equal dates; take the first
+			while (index > 0 && dates[index - 1] == dates[index])
+				index--;
+			if (!result.TryGetValue(index, out var list))
+				result[index] = list = [];
+			list.Add(movement);
+		}
+		return result.ToDictionary(x => x.Key, x => (IReadOnlyList<CashMovementDto>)x.Value);
+	}
+
 	/// <summary>Takes net liquidation and currency; values IB didn't send keep the previous ones.</summary>
 	public static void ApplySummary(AccountDaySnapshotEntity day, AccountSummaryDto summary)
 	{
@@ -241,12 +356,14 @@ public static class AccountPerformanceHelpers
 
 	/// <summary>
 	/// The month grid of <paramref name="month"/>: <see cref="AccountPerformanceConstants.CalendarWeeks"/>
-	/// Monday-first weeks starting with the week of the 1st, each day with its recorded P&amp;L.
+	/// Monday-first weeks starting with the week of the 1st, each day with its recorded P&amp;L and
+	/// the <paramref name="cashMovements"/> made that day.
 	/// </summary>
 	public static IReadOnlyList<CalendarDayDto> BuildCalendarMonth(
 		DateOnly month,
 		IEnumerable<AccountDaySnapshotDto> days,
-		DateOnly today
+		DateOnly today,
+		IEnumerable<CashMovementDto>? cashMovements = null
 	)
 	{
 		var first = GetMonthStart(month);
@@ -254,6 +371,9 @@ public static class AccountPerformanceHelpers
 		var pnlByDate = days.Where(x => x.DailyPnl != null)
 			.GroupBy(x => x.Date)
 			.ToDictionary(x => x.Key, x => x.Last().DailyPnl);
+		var movementsByDate = (cashMovements ?? [])
+			.GroupBy(x => x.Date)
+			.ToDictionary(x => x.Key, x => (IReadOnlyList<CashMovementDto>)x.ToList());
 
 		return Enumerable
 			.Range(0, AccountPerformanceConstants.CalendarWeeks * 7)
@@ -266,6 +386,7 @@ public static class AccountPerformanceHelpers
 					IsInMonth = date.Month == first.Month && date.Year == first.Year,
 					IsToday = date == today,
 					Pnl = pnlByDate.GetValueOrDefault(date),
+					CashMovements = movementsByDate.GetValueOrDefault(date) ?? [],
 				};
 			})
 			.ToList();

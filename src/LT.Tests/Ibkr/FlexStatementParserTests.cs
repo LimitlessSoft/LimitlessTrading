@@ -1,5 +1,6 @@
 using System.Xml.Linq;
 using LT.Contracts.Dtos.Flex;
+using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 using LT.Ibkr.Flex;
 
@@ -39,6 +40,47 @@ public class FlexStatementParserTests
 		Assert.Equal("U0000001", flow.Account);
 		Assert.Equal(new DateOnly(2026, 10, 22), flow.Date);
 		Assert.Equal(1000, flow.Amount, 3);
+	}
+
+	[Fact]
+	public void Reads_deposits_withdrawals_and_transfers_with_their_kind()
+	{
+		var statement = Parse(FlexFixtures.CashMovements);
+
+		Assert.True(statement.HasCashTransactionsSection);
+		Assert.True(statement.HasTransfersSection);
+		Assert.Equal(
+			[
+				(CashMovementKind.Deposit, 1000.0, "901"),
+				(CashMovementKind.Withdrawal, -250.0, "902"),
+				(CashMovementKind.TransferIn, 300.0, "903"),
+			],
+			statement.CashFlows.Select(x => (x.Kind, x.Amount, x.TransactionId))
+		);
+		Assert.Equal(2, statement.Transfers.Count);
+		var cash = statement.Transfers[0];
+		Assert.Equal(
+			(CashMovementKind.TransferOut, "EUR", -100.0, "904"),
+			(cash.Kind, cash.Currency, cash.AmountInCurrency, cash.TransactionId)
+		);
+		Assert.Equal(-110, cash.Amount, 6);
+		Assert.Equal("Internal transfer to U0000003: cash", cash.Description);
+		var position = statement.Transfers[1];
+		Assert.Equal(
+			(CashMovementKind.TransferIn, 105.0, new DateOnly(2026, 10, 23)),
+			(position.Kind, position.Amount, position.Date)
+		);
+		Assert.Equal("ACATS transfer: 10 FAKE", position.Description);
+	}
+
+	[Fact]
+	public void A_query_without_cash_sections_says_so()
+	{
+		var statement = Parse(FlexFixtures.TradeConfirm);
+
+		Assert.False(statement.HasCashTransactionsSection);
+		Assert.False(statement.HasTransfersSection);
+		Assert.Empty(statement.Transfers);
 	}
 
 	[Fact]

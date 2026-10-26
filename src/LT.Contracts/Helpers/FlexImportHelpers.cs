@@ -121,6 +121,51 @@ public static class FlexImportHelpers
 		state.CoveredTo = state.CoveredTo is { } coveredTo ? Max(coveredTo, to) : to;
 	}
 
+	/// <summary>
+	/// Notes whether an Activity statement for <paramref name="from"/>–<paramref name="to"/> had
+	/// the Cash Transactions / Transfers sections. When one appears that the history imported so
+	/// far didn't have (the user added it to the query, or the state predates tracking it), the
+	/// history starts over from this statement's range — the newer years again with the next
+	/// daily run, the older ones with the back-fill — so every year's movements come in (merges
+	/// are idempotent). Returns true when it started over.
+	/// </summary>
+	public static bool NoteCashSections(
+		FlexImportStateEntity state,
+		bool hasCashTransactions,
+		bool hasTransfers,
+		DateOnly from,
+		DateOnly to
+	)
+	{
+		var added =
+			(hasCashTransactions && state.HadCashTransactionsSection != true)
+			|| (hasTransfers && state.HadTransfersSection != true);
+		state.HadCashTransactionsSection = hasCashTransactions;
+		state.HadTransfersSection = hasTransfers;
+		if (!added || state.CoveredFrom == null)
+			return false;
+		state.CoveredFrom = from;
+		state.CoveredTo = to;
+		state.BackfillComplete = false;
+		// Due again right away: the newer years come in with the next run
+		state.LastActivitySuccess = null;
+		state.LastActivityAttempt = null;
+		return true;
+	}
+
+	/// <summary>
+	/// The last Activity statement lacked Cash Transactions or Transfers and came at least
+	/// <see cref="FlexConstants.MissingSectionRecheckInterval"/> ago: F5 fetches it again even
+	/// after today's import, so a section just added to the query shows without waiting for
+	/// tomorrow.
+	/// </summary>
+	public static bool ShouldRecheckCashSections(FlexImportStateEntity state, DateTimeOffset now) =>
+		(state.HadCashTransactionsSection != true || state.HadTransfersSection != true)
+		&& (
+			state.LastActivitySuccess is not { } success
+			|| now - success >= FlexConstants.MissingSectionRecheckInterval
+		);
+
 	private static bool FailedRecently(
 		DateTimeOffset? attempt,
 		DateTimeOffset? success,

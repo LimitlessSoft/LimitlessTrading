@@ -229,10 +229,12 @@ public class AccountPerformanceManagerTests
 					Date = new DateOnly(2026, 10, 23),
 					Amount = 500,
 				},
-			]
+			],
+			[]
 		);
 
-		Assert.Equal(2, count);
+		// two days and the deposit
+		Assert.Equal(3, count);
 		Assert.Equal(["U0000001"], changed);
 		var days = _manager.GetHistory("U0000001");
 		Assert.Equal(2, days.Count);
@@ -241,5 +243,58 @@ public class AccountPerformanceManagerTests
 			(days[1].DailyPnl!.Value, days[1].CashFlow!.Value, days[1].Source)
 		);
 		Assert.Equal(2, _repository.Entries["U0000001"].Days.Count);
+	}
+
+	[Fact]
+	public void Flex_deposits_and_transfers_are_kept_as_movements_without_changing_pnl()
+	{
+		var nav = new List<FlexNavDto>
+		{
+			new()
+			{
+				Account = "U0000001",
+				Date = new DateOnly(2026, 10, 22),
+				Total = 1000,
+			},
+			new()
+			{
+				Account = "U0000001",
+				Date = new DateOnly(2026, 10, 23),
+				Total = 1800,
+			},
+		};
+		var deposit = new FlexCashFlowDto
+		{
+			Account = "U0000001",
+			Date = new DateOnly(2026, 10, 23),
+			Amount = 500,
+			Kind = CashMovementKind.Deposit,
+			TransactionId = "111",
+			Currency = "USD",
+			AmountInCurrency = 500,
+			Description = "CASH RECEIPTS",
+		};
+		var transfer = new FlexCashFlowDto
+		{
+			Account = "U0000001",
+			Date = new DateOnly(2026, 10, 23),
+			Amount = 200,
+			Kind = CashMovementKind.TransferIn,
+			TransactionId = "222",
+			Description = "Internal transfer from U0000002: cash",
+		};
+
+		_manager.ImportFlexHistory(nav, [deposit], [transfer]);
+		// The same statement again (an overlapping daily import) adds nothing
+		Assert.Equal(0, _manager.ImportFlexHistory(nav, [deposit], [transfer]));
+
+		var movements = _manager.GetCashMovements("U0000001");
+		Assert.Equal(
+			[CashMovementKind.Deposit, CashMovementKind.TransferIn],
+			movements.Select(x => x.Kind)
+		);
+		Assert.Equal(2, _repository.Entries["U0000001"].CashMovements.Count);
+		// Only the deposit is left out of the P&L; the transfer is display only
+		Assert.Equal(300.0, _manager.GetHistory("U0000001")[1].DailyPnl);
 	}
 }

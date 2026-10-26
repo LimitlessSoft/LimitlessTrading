@@ -41,6 +41,28 @@ public static class FlexFixtures
 		</FlexQueryResponse>
 		""";
 
+	public const string CashMovements = """
+		<FlexQueryResponse queryName="LT activity" type="AF">
+		<FlexStatements count="1">
+		<FlexStatement accountId="U0000001" fromDate="20261019" toDate="20261023">
+		<EquitySummaryInBase>
+		<EquitySummaryByReportDateInBase reportDate="20261023" total="5000" currency="USD" />
+		</EquitySummaryInBase>
+		<CashTransactions>
+		<CashTransaction accountId="U0000001" currency="USD" fxRateToBase="1" type="Deposits/Withdrawals" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" reportDate="20261020" amount="1000" transactionID="901" levelOfDetail="DETAIL" />
+		<CashTransaction accountId="U0000001" currency="USD" fxRateToBase="1" type="Deposits/Withdrawals" description="DISBURSEMENT INITIATED BY FAKE NAME" reportDate="20261021" amount="-250" transactionID="902" levelOfDetail="DETAIL" />
+		<CashTransaction accountId="U0000001" currency="USD" fxRateToBase="1" type="Deposits/Withdrawals" description="TRANSFER FROM U0000002" reportDate="20261022" amount="300" transactionID="903" levelOfDetail="DETAIL" />
+		</CashTransactions>
+		<Transfers>
+		<Transfer accountId="U0000001" currency="EUR" fxRateToBase="1.1" assetCategory="CASH" symbol="--" type="INTERNAL" direction="OUT" account="U0000003" reportDate="20261022" date="20261022" cashTransfer="-100" positionAmount="0" positionAmountInBase="0" quantity="0" transactionID="904" levelOfDetail="DETAIL" />
+		<Transfer accountId="U0000001" currency="USD" fxRateToBase="1" assetCategory="STK" symbol="FAKE" type="ACATS" direction="IN" account="" reportDate="20261023" quantity="10" positionAmount="105" positionAmountInBase="105" cashTransfer="0" transactionID="905" levelOfDetail="DETAIL" />
+		<Transfer accountId="U0000001" currency="BASE_SUMMARY" assetCategory="CASH" type="INTERNAL" reportDate="20261022" cashTransfer="-110" levelOfDetail="SUMMARY" />
+		</Transfers>
+		</FlexStatement>
+		</FlexStatements>
+		</FlexQueryResponse>
+		""";
+
 	public const string TradeConfirm = """
 		<FlexQueryResponse queryName="LT today" type="TCF">
 		<FlexStatements count="1">

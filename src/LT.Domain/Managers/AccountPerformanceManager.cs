@@ -84,9 +84,17 @@ public class AccountPerformanceManager : IAccountPerformanceManager
 				.Days.ToMappedList<AccountDaySnapshotEntity, AccountDaySnapshotDto>();
 	}
 
+	public IReadOnlyList<CashMovementDto> GetCashMovements(string account)
+	{
+		lock (_lock)
+			return GetHistoryEntity(account)
+				.CashMovements.ToMappedList<CashMovementEntity, CashMovementDto>();
+	}
+
 	public int ImportFlexHistory(
 		IReadOnlyList<FlexNavDto> nav,
-		IReadOnlyList<FlexCashFlowDto> cashFlows
+		IReadOnlyList<FlexCashFlowDto> cashFlows,
+		IReadOnlyList<FlexCashFlowDto> transfers
 	)
 	{
 		var now = _timeProvider.GetUtcNow();
@@ -95,16 +103,27 @@ public class AccountPerformanceManager : IAccountPerformanceManager
 		var changed = 0;
 		lock (_lock)
 		{
-			foreach (var account in nav.Select(x => x.Account).Distinct())
+			var accounts = nav.Select(x => x.Account)
+				.Concat(cashFlows.Select(x => x.Account))
+				.Concat(transfers.Select(x => x.Account))
+				.Where(x => x.Length > 0)
+				.Distinct();
+			foreach (var account in accounts)
 			{
 				var history = GetHistoryEntity(account);
-				var count = AccountPerformanceHelpers.MergeFlexDays(
-					history.Days,
-					nav.Where(x => x.Account == account),
-					cashFlows.Where(x => x.Account == account),
-					today,
-					now
-				);
+				var count =
+					AccountPerformanceHelpers.MergeFlexDays(
+						history.Days,
+						nav.Where(x => x.Account == account),
+						cashFlows.Where(x => x.Account == account),
+						today,
+						now
+					)
+					+ AccountPerformanceHelpers.MergeCashMovements(
+						history.CashMovements,
+						cashFlows.Where(x => x.Account == account),
+						transfers.Where(x => x.Account == account)
+					);
 				if (count == 0)
 					continue;
 				changed += count;
@@ -249,6 +268,8 @@ public class AccountPerformanceManager : IAccountPerformanceManager
 		history = _repository.Get(account);
 		history.Account = account;
 		history.Days.Sort((a, b) => a.Date.CompareTo(b.Date));
+		history.CashMovements ??= [];
+		history.CashMovements.Sort((a, b) => a.Date.CompareTo(b.Date));
 		_histories[account] = history;
 		return history;
 	}

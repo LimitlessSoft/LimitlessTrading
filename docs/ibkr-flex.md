@@ -45,13 +45,18 @@ and then.
    *Activity Flex Query* click **+**.
    - Query name: anything, e.g. `LimitlessTrading activity`.
    - **Sections** — click each; a field list pops up with the section's options (checkboxes at
-     the top) and its fields: pick the options below, tick **Select All**, Save. Only these four
-     are needed; extra sections are ignored. The fields the app reads are listed in brackets.
+     the top) and its fields: pick the options below, tick **Select All**, Save. Only these five
+     are read (Transfers is optional); extra sections are ignored. The fields the app reads are listed in brackets.
      - **Account Information** [Account ID, Currency, Date Opened]
      - **Net Asset Value (NAV) in Base** [Account ID, Currency, Report Date, Total]
      - **Cash Transactions** — options: **Deposits & Withdrawals** (others may stay on), level
        **Detail** [Account ID, Currency, FX Rate To Base, Type, Amount, Report Date, Date/Time,
-       Description, Level of Detail]
+       Description, Transaction ID, Level of Detail]. Without it deposits count as P&L and
+       Account performance can't mark them.
+     - **Transfers** (optional) — level **Detail** [Account ID, Currency, FX Rate To Base, Asset
+       Class, Symbol, Type, Direction, Account, Quantity, Position Amount, Position Amount in
+       Base, Cash Transfer, Report Date, Date, Transaction ID, Level of Detail]: transfers between
+       accounts (internal, ACATS …), only marked in Account performance.
      - **Trades** — options: **Execution** (Closed Lots / Order / summaries may stay on, they
        are skipped) [Account ID, Currency, Asset Class, Symbol, Underlying Symbol, Description,
        Conid, Multiplier, Trade ID, IB Execution ID, Orig Trade ID, Buy/Sell, Quantity, Trade
@@ -121,7 +126,9 @@ Version 3 Error Codes*, 2026-10-26) and a token-less probe of both endpoints (an
 | Section (XML element) | Used for |
 |---|---|
 | `EquitySummaryByReportDateInBase` (`reportDate`, `total`, `currency`, `accountId`) | End-of-day NAV per account, base currency |
-| `CashTransaction` with a type containing *Deposit* / *Withdrawal* (detail rows only; `SUMMARY` / `BASE_SUMMARY` rows are skipped) — `amount × fxRateToBase`, `reportDate` (else `dateTime`, `settleDate`) | Net cash flow per day, left out of P&L |
+| `CashTransaction` with a type containing *Deposit* / *Withdrawal* (detail rows only; `SUMMARY` / `BASE_SUMMARY` rows are skipped) — `amount × fxRateToBase`, `reportDate` (else `dateTime`, `settleDate`), `currency`, `description`, `transactionID` | Net cash flow per day, left out of P&L; each row also a cash movement (deposit / withdrawal, or transfer in / out when the description says *internal*, *ACATS* or *transfer to / from*) |
+| `Transfer` (detail rows) — `type`, `direction`, `account`, `assetCategory`, `symbol`, `quantity`, `cashTransfer` (cash rows) or `positionAmountInBase` (+ `cashTransfer`) for positions, `fxRateToBase`, `reportDate` (else `date`, `dateTime`, `settleDate`), `transactionID` | Transfer in / out cash movements, display only (not part of the P&L math) |
+| `CashTransactions`, `Transfers` present (even empty) | Whether the query has them: the Account performance hint, and a re-import when one is added |
 | `Trade` (`levelOfDetail` EXECUTION or none) and `TradeConfirm` — `tradeID`, `ibExecID` / `execID`, `conid`, `symbol`, `underlyingSymbol`, `assetCategory`, `multiplier`, `buySell`, `quantity`, `tradePrice` / `price`, `ibCommission` / `commission` (+ currency, stored positive), `exchange`, `dateTime`, `tradeDate`, `fifoPnlRealized` | Journal fills |
 | `buySell` "BUY (Ca.)" / "SELL (Ca.)" with `origTradeID` | Removes the busted original from the journal |
 | `AccountInformation` `dateOpened` | Ends the back-fill at the account's start |
@@ -148,7 +155,16 @@ error) so a restart doesn't download again:
    (`FlexConstants.TradeConfirmInterval`) while the app runs, Gateway connected or not.
 5. **On demand**: Settings → *Save & import now* and F5 in either widget run what is due plus the
    Trade Confirmation statement right away (a back-fill in progress is waited for). Saving new Flex
-   settings wakes the scheduler and clears the last error.
+   settings wakes the scheduler and clears the last error. While the last Activity statement
+   lacked Cash Transactions or Transfers, F5 fetches it again even after today's import (at most
+   every 10 minutes, `FlexConstants.MissingSectionRecheckInterval`), so a section just added to
+   the query shows the same day.
+6. **A cash section added later** (`FlexImportHelpers.NoteCashSections`, state
+   `HadCashTransactionsSection` / `HadTransfersSection`): when an Activity statement has Cash
+   Transactions or Transfers and the history imported so far didn't, the covered range is reset
+   to that statement's and the back-fill runs again, so every year's deposits and transfers come
+   in (and deposits leave the P&L of those days). This also runs once for every existing
+   history after the update that added cash movements (the state had no flags yet).
 
 ## Merge rules
 
@@ -166,6 +182,12 @@ error) so a restart doesn't download again:
   The return math then never sees a deposit as a gain: a day's return is P&L over (net
   liquidation − P&L) = previous close + the day's deposits.
 - Merges are idempotent; an older year filled in later gives the previous first day its P&L.
+- **Cash movements** (`AccountPerformanceHelpers.MergeCashMovements`, `AccountHistoryEntity.CashMovements`
+  in the same `account-history/<account>.json`): every deposit / withdrawal and transfer row,
+  keyed by `cash:` / `transfer:` + `transactionID` (else date, kind, amount and description),
+  updated in place when IB corrects one. A Transfers row with the same date and base amount as a
+  cash transaction is taken as the same money and skipped. Movements keep their own date; the
+  charts put one on the first day with data on or after it.
 
 **Trade journal** (`ITradeJournalManager.ImportFlexTrades`):
 
@@ -187,8 +209,12 @@ error) so a restart doesn't download again:
   not verified against a real statement.
 - Today's trades come only from the Trade Confirmation query, typically a few minutes after the
   fill plus up to the 5-minute poll.
-- Position transfers (ACATS, internal transfers of positions) are not cash flows; such a day shows
-  the transferred value as P&L. Only *Deposits & Withdrawals* cash transactions are left out.
+- Position transfers (ACATS, internal transfers of positions) and the Transfers section's cash
+  transfers are not cash flows; such a day shows the transferred value as P&L (they are only
+  marked in Account performance). Only *Deposits & Withdrawals* cash transactions are left out.
+- How IB lists an internal cash transfer (in Deposits & Withdrawals, in Transfers, or both) is not
+  verified against a real statement; the dedupe above covers "both", the description check
+  covers "Deposits & Withdrawals".
 - Amounts are summed as reported per account; journal stats sum across currencies like before.
 - Corrections that change an execution id (socket `.01` → `.02` suffix) are not reconciled yet.
 - The token expires (at most about a year); the user has to generate a new one. The widgets'

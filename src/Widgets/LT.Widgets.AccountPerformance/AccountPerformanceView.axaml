@@ -3,6 +3,7 @@
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:LT.App.Widgets.AccountPerformance"
 	xmlns:controls="using:LT.App.Controls"
+	xmlns:enums="using:LT.Contracts.Enums"
 	x:Class="LT.App.Widgets.AccountPerformance.AccountPerformanceView"
 	x:DataType="vm:AccountPerformanceViewModel"
 >
@@ -132,13 +133,83 @@
 					</StackPanel>
 				</Border>
 
+				<!-- Deposits & transfers overlay -->
+				<StackPanel Spacing="2">
+					<WrapPanel Orientation="Horizontal">
+						<CheckBox
+							Content="Show deposits &amp; transfers"
+							IsChecked="{Binding ShowCashMovements}"
+							ToolTip.Tip="Mark deposits, withdrawals and transfers between accounts (from IB Flex) on the charts and in the calendar."
+							Margin="0,0,12,0"
+						/>
+						<StackPanel
+							Orientation="Horizontal"
+							Spacing="10"
+							VerticalAlignment="Center"
+							IsVisible="{Binding ShowCashMovements}"
+						>
+							<StackPanel Orientation="Horizontal" Spacing="4">
+								<vm:CashMovementIcon Kind="Deposit" VerticalAlignment="Center" />
+								<TextBlock
+									Classes="secondary"
+									FontSize="11"
+									VerticalAlignment="Center"
+									Text="Deposit"
+								/>
+							</StackPanel>
+							<StackPanel Orientation="Horizontal" Spacing="4">
+								<vm:CashMovementIcon Kind="Withdrawal" VerticalAlignment="Center" />
+								<TextBlock
+									Classes="secondary"
+									FontSize="11"
+									VerticalAlignment="Center"
+									Text="Withdrawal"
+								/>
+							</StackPanel>
+							<StackPanel Orientation="Horizontal" Spacing="4">
+								<vm:CashMovementIcon Kind="TransferIn" VerticalAlignment="Center" />
+								<TextBlock
+									Classes="secondary"
+									FontSize="11"
+									VerticalAlignment="Center"
+									Text="Transfer in"
+								/>
+							</StackPanel>
+							<StackPanel Orientation="Horizontal" Spacing="4">
+								<vm:CashMovementIcon Kind="TransferOut" VerticalAlignment="Center" />
+								<TextBlock
+									Classes="secondary"
+									FontSize="11"
+									VerticalAlignment="Center"
+									Text="Transfer out"
+								/>
+							</StackPanel>
+						</StackPanel>
+					</WrapPanel>
+					<TextBlock
+						Classes="secondary"
+						FontSize="11"
+						TextWrapping="Wrap"
+						Text="{Binding CashMovementsHint}"
+						IsVisible="{Binding CashMovementsHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+					/>
+				</StackPanel>
+
 				<!-- Equity curve -->
 				<TextBlock Classes="sectionTitle" Text="Equity (net liquidation)" />
-				<vm:EquityCurveChart Height="180" Days="{Binding RangeDays}" />
+				<vm:EquityCurveChart
+					Height="180"
+					Days="{Binding RangeDays}"
+					CashMovements="{Binding RangeCashMovements}"
+				/>
 
 				<!-- Daily P&L bars -->
 				<TextBlock Classes="sectionTitle" Text="Daily P&amp;L" />
-				<vm:DailyPnlBarChart Height="140" Days="{Binding RangeDays}" />
+				<vm:DailyPnlBarChart
+					Height="140"
+					Days="{Binding RangeDays}"
+					CashMovements="{Binding RangeCashMovements}"
+				/>
 
 				<!-- Daily P&L calendar -->
 				<Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,6,0,0">
@@ -196,6 +267,24 @@
 										Classes.up="{Binding IsUp}"
 										Classes.down="{Binding IsDown}"
 									/>
+									<ItemsControl
+										HorizontalAlignment="Right"
+										VerticalAlignment="Top"
+										Margin="0,3,3,0"
+										ItemsSource="{Binding CashMovementKinds}"
+										IsVisible="{Binding HasCashMovements}"
+									>
+										<ItemsControl.ItemsPanel>
+											<ItemsPanelTemplate>
+												<StackPanel Orientation="Horizontal" Spacing="2" />
+											</ItemsPanelTemplate>
+										</ItemsControl.ItemsPanel>
+										<ItemsControl.ItemTemplate>
+											<DataTemplate x:DataType="enums:CashMovementKind">
+												<vm:CashMovementIcon Width="10" Height="10" Kind="{Binding}" />
+											</DataTemplate>
+										</ItemsControl.ItemTemplate>
+									</ItemsControl>
 									<StackPanel Margin="4,2">
 										<TextBlock Classes="secondary" FontSize="10" Text="{Binding DayText}" />
 										<TextBlock

@@ -27,7 +27,7 @@ namespace LT.Domain.Managers;
 /// <item>Trade Confirmation (the query's own period, "Today"): every
 /// <see cref="FlexConstants.TradeConfirmInterval"/> and on <see cref="ImportNowAsync"/>.</item>
 /// </list>
-/// NAV and cash flows go to <see cref="IAccountPerformanceManager.ImportFlexHistory"/>, trades to
+/// NAV, cash flows and transfers go to <see cref="IAccountPerformanceManager.ImportFlexHistory"/>, trades to
 /// <see cref="ITradeJournalManager.ImportFlexTrades"/>; both merges are idempotent, so
 /// overlapping ranges are harmless.
 /// </summary>
@@ -90,6 +90,8 @@ public class FlexImportManager : IFlexImportManager
 				LastError = state.LastError,
 				LastErrorAt = state.LastErrorAt,
 				ErrorNeedsUser = state.LastError != null && state.LastErrorNeedsUser,
+				HasCashTransactionsSection = state.HadCashTransactionsSection,
+				HasTransfersSection = state.HadTransfersSection,
 			};
 		}
 	}
@@ -205,7 +207,13 @@ public class FlexImportManager : IFlexImportManager
 			coveredTo = state.CoveredTo;
 			due =
 				FlexImportHelpers.IsActivityDue(state, now, _zone)
-				|| (force && !FlexImportHelpers.SucceededToday(state, now, _zone));
+				|| (
+					force
+					&& (
+						!FlexImportHelpers.SucceededToday(state, now, _zone)
+						|| FlexImportHelpers.ShouldRecheckCashSections(state, now)
+					)
+				);
 		}
 
 		if (due)
@@ -228,7 +236,7 @@ public class FlexImportManager : IFlexImportManager
 						until,
 						cancellationToken
 					);
-					ImportActivity(statement);
+					ImportActivity(statement, from, until);
 					Update(state => FlexImportHelpers.ExtendCoverage(state, from, until));
 				}
 				Update(state =>
@@ -282,7 +290,7 @@ public class FlexImportManager : IFlexImportManager
 					rangeTo,
 					cancellationToken
 				);
-				ImportActivity(statement);
+				ImportActivity(statement, rangeFrom, rangeTo);
 				// The account's start is in this year: nothing older to fetch
 				var reachedStart =
 					statement.AccountsOpened.Count > 0
@@ -365,7 +373,7 @@ public class FlexImportManager : IFlexImportManager
 			cancellationToken
 		);
 
-	private void ImportActivity(FlexStatementDto statement)
+	private void ImportActivity(FlexStatementDto statement, DateOnly from, DateOnly to)
 	{
 		// Without the NAV section only trades come in; say what to add to the query
 		if (!statement.HasNavSection)
@@ -373,8 +381,22 @@ public class FlexImportManager : IFlexImportManager
 				FlexValidationCodes.FVC_018.GetValidationMessage(),
 				needsUserAction: true
 			);
-		_accountPerformanceManager.ImportFlexHistory(statement.Nav, statement.CashFlows);
+		_accountPerformanceManager.ImportFlexHistory(
+			statement.Nav,
+			statement.CashFlows,
+			statement.Transfers
+		);
 		_tradeJournalManager.ImportFlexTrades(statement.Trades, statement.CancelledTradeIds);
+		// A section new to the history: fetch every year again for its movements
+		Update(state =>
+			FlexImportHelpers.NoteCashSections(
+				state,
+				statement.HasCashTransactionsSection,
+				statement.HasTransfersSection,
+				from,
+				to
+			)
+		);
 	}
 
 	private void OnSettingsChanged(FlexSettingsDto settings)

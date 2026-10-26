@@ -11,4 +11,7 @@ public class CalendarDayDto
 
 	/// <summary>The day's recorded daily P&amp;L; null when nothing was recorded.</summary>
 	public double? Pnl { get; set; }
+
+	/// <summary>The day's deposits, withdrawals and transfers (empty when none or not asked for).</summary>
+	public IReadOnlyList<CashMovementDto> CashMovements { get; set; } = [];
 }

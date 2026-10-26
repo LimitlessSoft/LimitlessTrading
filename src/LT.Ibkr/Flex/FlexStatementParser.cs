@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.Xml;
 using System.Xml.Linq;
 using LT.Contracts.Dtos.Flex;
+using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 
 namespace LT.Ibkr.Flex;
@@ -12,7 +14,12 @@ namespace LT.Ibkr.Flex;
 /// <list type="bullet">
 /// <item>EquitySummaryInBase / EquitySummaryByReportDateInBase: accountId, reportDate, total, currency.</item>
 /// <item>CashTransactions / CashTransaction of type "Deposits/Withdrawals" (detail rows): accountId,
-/// amount × fxRateToBase, reportDate (else dateTime, settleDate), description.</item>
+/// amount × fxRateToBase, currency, reportDate (else dateTime, settleDate), description,
+/// transactionID.</item>
+/// <item>Transfers / Transfer (detail rows; cash and positions, display only): accountId, type,
+/// direction, account (the other side), assetCategory, symbol, quantity, positionAmount /
+/// positionAmountInBase, cashTransfer, fxRateToBase, currency, reportDate (else date, dateTime,
+/// settleDate), description, transactionID.</item>
 /// <item>Trades / Trade (execution rows) and TradeConfirms / TradeConfirm: accountId, tradeID,
 /// ibExecID / execID, conid, symbol, underlyingSymbol, description, assetCategory, multiplier,
 /// buySell, quantity, tradePrice / price, ibCommission / commission (+ currency), currency,
@@ -30,11 +37,14 @@ public static class FlexStatementParser
 		var accounts = new List<string>();
 		var nav = new List<FlexNavDto>();
 		var cashFlows = new List<FlexCashFlowDto>();
+		var transfers = new List<FlexCashFlowDto>();
 		var trades = new List<FlexTradeDto>();
 		var cancelled = new List<string>();
 		var opened = new Dictionary<string, DateOnly>();
 		var hasNav = false;
 		var hasTrades = false;
+		var hasCashTransactions = false;
+		var hasTransfers = false;
 
 		foreach (var statement in root.Descendants("FlexStatement"))
 		{
@@ -47,9 +57,15 @@ public static class FlexStatementParser
 				if (ParseNav(row, statementAccount) is { } value)
 					nav.Add(value);
 
+			hasCashTransactions |= statement.Descendants("CashTransactions").Any();
 			foreach (var row in statement.Descendants("CashTransaction"))
 				if (ParseCashFlow(row, statementAccount, zone) is { } flow)
 					cashFlows.Add(flow);
+
+			hasTransfers |= statement.Descendants("Transfers").Any();
+			foreach (var row in statement.Descendants("Transfer"))
+				if (ParseTransfer(row, statementAccount, zone) is { } transfer)
+					transfers.Add(transfer);
 
 			hasTrades |=
 				statement.Descendants("Trades").Any()
@@ -96,11 +112,14 @@ public static class FlexStatementParser
 			Accounts = accounts,
 			Nav = nav,
 			CashFlows = cashFlows,
+			Transfers = transfers,
 			Trades = trades.Where(x => !cancelled.Contains(x.TradeId)).ToList(),
 			CancelledTradeIds = cancelled,
 			AccountsOpened = opened,
 			HasNavSection = hasNav,
 			HasTradesSection = hasTrades,
+			HasCashTransactionsSection = hasCashTransactions,
+			HasTransfersSection = hasTransfers,
 		};
 	}
 
@@ -161,12 +180,86 @@ public static class FlexStatementParser
 			?? FlexHelpers.ParseDate(Attr(row, "settleDate"));
 		if (date is not { } day)
 			return null;
+		var description = Attr(row, "description");
 		return new FlexCashFlowDto
 		{
 			Account = AttrOr(row, "accountId", statementAccount),
 			Date = day,
 			Amount = amount * (FlexHelpers.ParseDouble(Attr(row, "fxRateToBase")) ?? 1),
-			Description = Attr(row, "description"),
+			Description = description,
+			Kind = FlexHelpers.GetCashTransactionKind(amount, description),
+			TransactionId = Attr(row, "transactionID"),
+			Currency = Attr(row, "currency"),
+			AmountInCurrency = amount,
+		};
+	}
+
+	private static FlexCashFlowDto? ParseTransfer(
+		XElement row,
+		string statementAccount,
+		TimeZoneInfo zone
+	)
+	{
+		var level = Attr(row, "levelOfDetail");
+		if (
+			level.Equals("SUMMARY", StringComparison.OrdinalIgnoreCase)
+			|| Attr(row, "currency").Equals("BASE_SUMMARY", StringComparison.OrdinalIgnoreCase)
+		)
+			return null;
+		var fx = FlexHelpers.ParseDouble(Attr(row, "fxRateToBase")) ?? 1;
+		var isCash = Attr(row, "assetCategory").Equals("CASH", StringComparison.OrdinalIgnoreCase);
+		var cash = FlexHelpers.ParseDouble(Attr(row, "cashTransfer")) ?? 0;
+		var position = FlexHelpers.ParseDouble(Attr(row, "positionAmount")) ?? 0;
+		var quantity = FlexHelpers.ParseDouble(Attr(row, "quantity")) ?? 0;
+		// A cash row may repeat its amount in positionAmount / quantity: take one of them
+		var inCurrency = isCash
+			? (
+				cash != 0 ? cash
+				: position != 0 ? position
+				: quantity
+			)
+			: position + cash;
+		var inBase = isCash
+			? inCurrency * fx
+			: (FlexHelpers.ParseDouble(Attr(row, "positionAmountInBase")) ?? position * fx)
+				+ cash * fx;
+		if (inBase == 0 && inCurrency == 0)
+			return null;
+
+		var direction = Attr(row, "direction");
+		var incoming =
+			direction.Equals("IN", StringComparison.OrdinalIgnoreCase) ? true
+			: direction.Equals("OUT", StringComparison.OrdinalIgnoreCase) ? false
+			: (inBase != 0 ? inBase : inCurrency) > 0;
+		var date =
+			FlexHelpers.ParseDate(Attr(row, "reportDate"))
+			?? FlexHelpers.ParseDate(Attr(row, "date"))
+			?? FlexHelpers.ParseDateTime(Attr(row, "dateTime"), zone).Date
+			?? FlexHelpers.ParseDate(Attr(row, "settleDate"));
+		if (date is not { } day)
+			return null;
+
+		var type = Attr(row, "type");
+		var kind = type.Equals("INTERNAL", StringComparison.OrdinalIgnoreCase) ? "Internal" : type;
+		var other = Attr(row, "account");
+		var what = isCash
+			? "cash"
+			: $"{Math.Abs(quantity).ToString("#,0.####", CultureInfo.InvariantCulture)} {Attr(row, "symbol")}".Trim();
+		var description =
+			$"{(kind.Length > 0 ? kind + " transfer" : "Transfer")}"
+			+ (other.Length > 0 ? $" {(incoming ? "from" : "to")} {other}" : "")
+			+ $": {what}";
+		var sign = incoming ? 1 : -1;
+		return new FlexCashFlowDto
+		{
+			Account = AttrOr(row, "accountId", statementAccount),
+			Date = day,
+			Amount = sign * Math.Abs(inBase),
+			Description = description,
+			Kind = incoming ? CashMovementKind.TransferIn : CashMovementKind.TransferOut,
+			TransactionId = Attr(row, "transactionID"),
+			Currency = Attr(row, "currency"),
+			AmountInCurrency = sign * Math.Abs(inCurrency),
 		};
 	}
 

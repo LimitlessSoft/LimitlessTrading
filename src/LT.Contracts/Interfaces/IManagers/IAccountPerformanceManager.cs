@@ -24,11 +24,24 @@ public interface IAccountPerformanceManager
 	IReadOnlyList<AccountDaySnapshotDto> GetHistory(string account);
 
 	/// <summary>
+	/// The deposits, withdrawals and transfers of <paramref name="account"/> imported from Flex,
+	/// oldest first.
+	/// </summary>
+	IReadOnlyList<CashMovementDto> GetCashMovements(string account);
+
+	/// <summary>
 	/// Merges end-of-day NAV and deposits / withdrawals from a Flex Activity statement into the
 	/// history and saves it. Flex wins for days before today; today stays live. A Flex day's daily
-	/// P&amp;L is its NAV change minus the day's cash flow. Returns the days added or changed.
+	/// P&amp;L is its NAV change minus the day's cash flow (<paramref name="cashFlows"/> only;
+	/// <paramref name="transfers"/> are kept for display and don't change the P&amp;L). Every
+	/// deposit, withdrawal and transfer is kept as a cash movement. Returns the days and
+	/// movements added or changed.
 	/// </summary>
-	int ImportFlexHistory(IReadOnlyList<FlexNavDto> nav, IReadOnlyList<FlexCashFlowDto> cashFlows);
+	int ImportFlexHistory(
+		IReadOnlyList<FlexNavDto> nav,
+		IReadOnlyList<FlexCashFlowDto> cashFlows,
+		IReadOnlyList<FlexCashFlowDto> transfers
+	);
 
 	/// <summary>Today's trading day (the date in New York).</summary>
 	DateOnly GetToday();

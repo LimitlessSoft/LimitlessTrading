@@ -2,6 +2,8 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
+using LT.Contracts.Dtos.AccountPerformance;
+using LT.Contracts.Enums;
 
 namespace LT.App.Widgets.AccountPerformance;
 
@@ -47,6 +49,112 @@ internal static class ChartDrawing
 		new ImmutableDashStyle([3, 3], 0)
 	);
 	public static readonly IPen LinePen = new ImmutablePen(LineBrush, 1.5);
+
+	// Cash movement badges: a colour and a glyph per kind, apart from the P&L green / red
+	public static readonly ImmutableSolidColorBrush DepositBrush = new ImmutableSolidColorBrush(
+		Color.Parse("#3FB950")
+	);
+	public static readonly ImmutableSolidColorBrush WithdrawalBrush = new ImmutableSolidColorBrush(
+		Color.Parse("#F0883E")
+	);
+	public static readonly ImmutableSolidColorBrush TransferBrush = new ImmutableSolidColorBrush(
+		Color.Parse("#A371F7")
+	);
+	private static readonly IPen BadgeRingPen = new ImmutablePen(Background, 1.5);
+	private static readonly IPen GlyphPen = new ImmutablePen(
+		new ImmutableSolidColorBrush(Colors.White),
+		1.6,
+		lineCap: PenLineCap.Round
+	);
+
+	/// <summary>Height of one movement badge on a chart, spacing included.</summary>
+	public const double BadgeSlot = 14;
+
+	public static IBrush GetBrush(CashMovementKind kind) =>
+		kind switch
+		{
+			CashMovementKind.Deposit => DepositBrush,
+			CashMovementKind.Withdrawal => WithdrawalBrush,
+			_ => TransferBrush,
+		};
+
+	/// <summary>
+	/// A round badge centred on <paramref name="center"/>: deposit a green +, withdrawal an orange
+	/// −, transfer in / out a purple arrow down (into the account) / up (out of it).
+	/// </summary>
+	public static void DrawCashMovementBadge(
+		DrawingContext context,
+		Point center,
+		CashMovementKind kind,
+		double radius
+	)
+	{
+		context.DrawEllipse(GetBrush(kind), BadgeRingPen, center, radius, radius);
+		var r = radius * 0.5;
+		var (x, y) = (center.X, center.Y);
+		switch (kind)
+		{
+			case CashMovementKind.Deposit:
+				context.DrawLine(GlyphPen, new Point(x - r, y), new Point(x + r, y));
+				context.DrawLine(GlyphPen, new Point(x, y - r), new Point(x, y + r));
+				break;
+			case CashMovementKind.Withdrawal:
+				context.DrawLine(GlyphPen, new Point(x - r, y), new Point(x + r, y));
+				break;
+			default:
+				var dir = kind == CashMovementKind.TransferIn ? 1 : -1;
+				context.DrawLine(GlyphPen, new Point(x, y - r * dir), new Point(x, y + r * dir));
+				context.DrawLine(
+					GlyphPen,
+					new Point(x - r * 0.75, y + r * dir * 0.25),
+					new Point(x, y + r * dir)
+				);
+				context.DrawLine(
+					GlyphPen,
+					new Point(x + r * 0.75, y + r * dir * 0.25),
+					new Point(x, y + r * dir)
+				);
+				break;
+		}
+	}
+
+	/// <summary>
+	/// Badges for the movements of each chart point, stacked up from the bottom of
+	/// <paramref name="plot"/> at the point's x (at most three; the readout lists all).
+	/// </summary>
+	public static void DrawCashMovementBadges(
+		DrawingContext context,
+		Rect plot,
+		IReadOnlyDictionary<int, IReadOnlyList<CashMovementDto>> byPoint,
+		Func<int, double> x
+	)
+	{
+		foreach (var (index, movements) in byPoint)
+			for (var i = 0; i < Math.Min(3, movements.Count); i++)
+				DrawCashMovementBadge(
+					context,
+					new Point(x(index), plot.Bottom - BadgeSlot / 2 - 1 - i * BadgeSlot),
+					movements[i].Kind,
+					BadgeSlot / 2 - 1
+				);
+	}
+
+	/// <summary>The hovered point's movements after its readout, in the first one's colour.</summary>
+	public static void DrawCashMovementReadout(
+		DrawingContext context,
+		FormattedText readout,
+		IReadOnlyList<CashMovementDto>? movements
+	)
+	{
+		if (movements is not { Count: > 0 })
+			return;
+		var text = Text(
+			"   " + string.Join(",  ", movements.Select(m => CashMovementText.Short(m))),
+			12,
+			GetBrush(movements[0].Kind)
+		);
+		context.DrawText(text, new Point(8 + readout.Width, 3));
+	}
 
 	public static FormattedText Text(string text, double size, IBrush brush) =>
 		new(

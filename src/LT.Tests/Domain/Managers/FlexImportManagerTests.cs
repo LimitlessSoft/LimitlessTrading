@@ -1,3 +1,4 @@
+using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Flex;
 using LT.Contracts.Exceptions;
 using LT.Contracts.Requests.Flex;
@@ -304,6 +305,57 @@ public class FlexImportManagerTests
 		await WaitUntilAsync(() => _flex.Requests.Any(x => x.QueryId == "222"));
 		await stop.CancelAsync();
 		await run;
+	}
+
+	[Fact]
+	public async Task Adding_cash_transactions_to_the_query_imports_every_year_again_with_its_deposits()
+	{
+		Configure();
+		_flex.Handler = Activity;
+		await CreateManager().ImportNowAsync(Ct);
+		_flex.Requests.Clear();
+		Assert.Empty(_performance.GetCashMovements("U0000001"));
+
+		// The user adds Cash Transactions to the query: each statement now has the section
+		_flex.Handler = request =>
+		{
+			var statement = Activity(request);
+			statement.HasCashTransactionsSection = true;
+			if (request.To >= new DateOnly(2024, 10, 27))
+				statement.CashFlows =
+				[
+					new FlexCashFlowDto
+					{
+						Account = "U0000001",
+						Date = request.To!.Value,
+						Amount = 10,
+						Kind = LT.Contracts.Enums.CashMovementKind.Deposit,
+					},
+				];
+			return statement;
+		};
+		_time.Advance(FlexConstants.MissingSectionRecheckInterval);
+		var manager = CreateManager();
+		// F5 after today's import: rechecks, finds the section, back-fills every year again
+		await manager.ImportNowAsync(Ct);
+
+		Assert.Equal(
+			[
+				Yesterday,
+				new DateOnly(2026, 10, 17),
+				new DateOnly(2025, 10, 17),
+				new DateOnly(2024, 10, 17),
+			],
+			_flex.Requests.Select(x => x.To!.Value)
+		);
+		Assert.True(_state.Saved!.BackfillComplete);
+		Assert.True(_state.Saved.HadCashTransactionsSection);
+		Assert.Equal(Yesterday, _state.Saved.CoveredTo);
+		Assert.Equal(
+			[new DateOnly(2025, 10, 17), new DateOnly(2026, 10, 17), Yesterday],
+			_performance.GetCashMovements("U0000001").Select(x => x.Date)
+		);
+		Assert.True(manager.GetStatus().HasCashTransactionsSection);
 	}
 
 	[Fact]
