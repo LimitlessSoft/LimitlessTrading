@@ -5,7 +5,11 @@ namespace LT.Contracts.Interfaces.IManagers;
 
 public interface IChartManager
 {
-	/// <summary>Historical bars, served from the local cache while it is fresh.</summary>
+	/// <summary>
+	/// Historical bars of the request's period (ending now), served from the local cache while it
+	/// is fresh. A period longer than the timeframe loads is cut to its longest
+	/// (<see cref="Dtos.Charts.ChartBarsDto.LimitedTo"/>).
+	/// </summary>
 	Task<ChartBarsDto> GetBarsAsync(
 		GetBarsRequest request,
 		CancellationToken cancellationToken = default

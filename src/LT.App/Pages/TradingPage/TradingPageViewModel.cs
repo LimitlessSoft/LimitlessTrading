@@ -34,12 +34,15 @@ public class TradingPageViewModel : ViewModelBase
 	{
 		Workspace.FillLayout(layout);
 		_windows.FillLayout(layout);
-		// New charts start with the timeframe of the last chart
+		// New charts start with the timeframe and period of the last chart
 		if (
 			Workspace.Widgets.Select(x => x.Content).OfType<ChartViewModel>().LastOrDefault() is
 			{ } chart
 		)
+		{
 			layout.ChartTimeframe = chart.SelectedTimeframe.Value;
+			layout.ChartPeriod = chart.SelectedPeriod.Value;
+		}
 	}
 
 	/// <summary>F5: every open widget, in every window.</summary>

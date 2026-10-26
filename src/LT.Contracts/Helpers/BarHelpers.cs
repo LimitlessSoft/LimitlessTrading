@@ -61,6 +61,20 @@ public static class BarHelpers
 		return result;
 	}
 
-	public static string GetCacheKey(int conId, ChartTimeframe timeframe, bool useRth) =>
-		$"{conId}_{timeframe}_{(useRth ? "rth" : "all")}";
+	/// <summary>
+	/// The cache key of a bar request. The timeframe's own duration (Auto period) keeps the key
+	/// it had before periods; another duration is part of the key.
+	/// </summary>
+	public static string GetCacheKey(
+		int conId,
+		ChartTimeframe timeframe,
+		bool useRth,
+		string? duration = null
+	) =>
+		$"{conId}_{timeframe}_{(useRth ? "rth" : "all")}"
+		+ (
+			duration == null || duration == ChartTimeframeHelpers.GetDuration(timeframe)
+				? ""
+				: $"_{duration.Replace(" ", "")}"
+		);
 }

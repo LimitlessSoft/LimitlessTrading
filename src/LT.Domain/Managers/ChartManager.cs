@@ -12,7 +12,11 @@ using LT.Contracts.Requests.Charts;
 
 namespace LT.Domain.Managers;
 
-public class ChartManager(IIbkrApiClient ibkrApiClient, ICacheManager cacheManager) : IChartManager
+public class ChartManager(
+	IIbkrApiClient ibkrApiClient,
+	ICacheManager cacheManager,
+	TimeProvider timeProvider
+) : IChartManager
 {
 	public async Task<ChartBarsDto> GetBarsAsync(
 		GetBarsRequest request,
@@ -24,19 +28,26 @@ public class ChartManager(IIbkrApiClient ibkrApiClient, ICacheManager cacheManag
 				ContractValidationCodes.CTVC_004.GetValidationMessage()
 			);
 
+		var range = ChartPeriodHelpers.GetRange(
+			request.Period,
+			request.Timeframe,
+			timeProvider.GetUtcNow(),
+			request.TimeZone
+		);
 		var result = await cacheManager.GetOrFetchAsync(
 			CacheType.ChartBars,
 			BarHelpers.GetCacheKey(
 				request.Contract.ConId,
 				request.Timeframe,
-				request.UseRegularTradingHours
+				request.UseRegularTradingHours,
+				range.Duration
 			),
 			ChartTimeframeHelpers.GetCacheTtl(request.Timeframe),
 			async ct =>
 				(
 					await ibkrApiClient.GetHistoricalBarsAsync(
 						request.Contract,
-						ChartTimeframeHelpers.GetDuration(request.Timeframe),
+						range.Duration,
 						ChartTimeframeHelpers.GetBarSize(request.Timeframe),
 						ChartTimeframeHelpers.GetWhatToShow(request.Contract.SecurityType),
 						request.UseRegularTradingHours,
@@ -45,12 +56,17 @@ public class ChartManager(IIbkrApiClient ibkrApiClient, ICacheManager cacheManag
 				).ToMappedList<BarDto, BarEntity>(),
 			cancellationToken
 		);
+		var bars = result.Value.ToMappedList<BarEntity, BarDto>();
 		return new ChartBarsDto
 		{
-			Bars = result.Value.ToMappedList<BarEntity, BarDto>(),
+			Bars = range.From is { } from
+				? ChartPeriodHelpers.Trim(bars, from, request.Timeframe, request.TimeZone)
+				: bars,
 			FetchedAt = result.FetchedAt,
 			IsStale = result.IsStale,
 			Error = result.Error,
+			From = range.From,
+			LimitedTo = range.LimitedTo,
 		};
 	}
 

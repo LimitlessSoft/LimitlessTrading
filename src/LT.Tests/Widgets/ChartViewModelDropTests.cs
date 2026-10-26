@@ -75,7 +75,7 @@ public class ChartViewModelDropTests : IDisposable
 	{
 		var settings = new SettingsManager(_cache.Settings, _ibkr);
 		var chart = new ChartViewModel(
-			new ChartManager(_ibkr, _cache.Manager),
+			new ChartManager(_ibkr, _cache.Manager, _cache.Time),
 			_contracts,
 			_connection,
 			new MessageLogManager(),

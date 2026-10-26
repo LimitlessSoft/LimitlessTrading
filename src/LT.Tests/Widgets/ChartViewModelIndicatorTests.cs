@@ -191,7 +191,7 @@ public class ChartViewModelIndicatorTests : IDisposable
 	{
 		var settings = new SettingsManager(_cache.Settings, _ibkr);
 		var chart = new ChartViewModel(
-			new ChartManager(_ibkr, _cache.Manager),
+			new ChartManager(_ibkr, _cache.Manager, _cache.Time),
 			new ContractManager(_ibkr, _cache.Settings, _cache.Manager),
 			_connection,
 			new MessageLogManager(),

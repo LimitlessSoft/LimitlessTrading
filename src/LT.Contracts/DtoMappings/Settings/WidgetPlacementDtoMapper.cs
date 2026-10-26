@@ -27,6 +27,7 @@ public class WidgetPlacementDtoMapper : ILSCoreMapper<WidgetPlacementEntity, Wid
 			SideWidth = source.SideWidth,
 			BottomHeight = source.BottomHeight,
 			ChartTimeframe = source.ChartTimeframe,
+			ChartPeriod = source.ChartPeriod,
 			ChartLinked = source.ChartLinked,
 			ChartRightMargin = source.ChartRightMargin,
 			ChartIndicators = source.ChartIndicators is { } indicators

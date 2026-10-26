@@ -11,6 +11,7 @@ public class LayoutEntityMapper : ILSCoreMapper<LayoutDto, LayoutEntity>
 			new LayoutEntity
 			{
 				ChartTimeframe = source.ChartTimeframe,
+				ChartPeriod = source.ChartPeriod,
 				WindowWidth = source.WindowWidth,
 				WindowHeight = source.WindowHeight,
 				IsMaximized = source.IsMaximized,

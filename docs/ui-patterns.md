@@ -204,7 +204,17 @@ Every widget is **independently spawnable** and lives in one of four wrappers:
   chart. New charts start at the last chart's timeframe (5m on first run). **Changing the
   timeframe:** click the timeframe beside the chart's header title (e.g. "5m"); a menu lists 1m,
   5m, 15m, 1h, 1D and 1W with the current one checked, and picking one reloads the bars
-  (historical + real-time) at that size. The other header controls (RTH, Reload) are hidden until
+  (historical + real-time) at that size. **Changing the period:** the button after the
+  timeframe (e.g. "Auto") picks the span of bars, ending now, in two groups: rolling (1 day,
+  7 days, 1/3/6 months, 1/5 years back from now) and calendar (Today, This week, This month,
+  This year — from midnight of the current day, Monday, the 1st, 1 January in the display time
+  zone, the zone of the chart's time axis; a zone change reloads them). Auto is the timeframe's
+  own span (the behaviour before periods; older layouts load as Auto). Logic in
+  `ChartPeriodHelpers`; `ChartManager` asks IB for a covering duration and drops older bars.
+  Small bars have a longest period (1m 7 days, 5m 1 month, 15m 3 months, 1h 1 year): a longer
+  one is cut to it and the status line says "… bars go back … at most"; a period with no bars
+  yet (e.g. Today before the session) says "no bars since …". Period is saved per chart and new
+  charts start at the last chart's period; it is not part of chart templates. The other header controls (RTH, Reload) are hidden until
   they are redesigned; F5 reloads.
 - **Picking a chart's ticker:** click the chart's header title (`ChartTitleView`, hosted in the
   frame header via `WidgetViewFactory.CreateTitle`). It turns into a ticker box: typing lists

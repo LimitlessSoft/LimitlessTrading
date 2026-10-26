@@ -10,6 +10,9 @@ public class LayoutEntity : WorkspaceLayoutEntity
 
 	/// <summary>Timeframe of the last chart used; new charts start with it.</summary>
 	public ChartTimeframe ChartTimeframe { get; set; } = ChartTimeframe.FiveMinutes;
+
+	/// <summary>Period of the last chart used; new charts start with it.</summary>
+	public ChartPeriod ChartPeriod { get; set; } = ChartPeriod.Auto;
 	public double WindowWidth { get; set; } = 1440;
 	public double WindowHeight { get; set; } = 900;
 	public bool IsMaximized { get; set; } = true;

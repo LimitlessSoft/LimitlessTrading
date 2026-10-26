@@ -299,6 +299,12 @@ deduplicated by IB's execution id, so the same fill from either stays one:
 - `RequestThrottle` (sliding window) paces every request: 40 msg/s overall and 60 historical
   requests per 10 minutes. Requests wait instead of tripping IB's disconnect.
 - `MarketDataManager` counts lines and refuses a subscription above 90 (headroom under IB's 100).
+- `ChartManager` turns the chart's period into the IB duration (`ChartPeriodHelpers.GetRange`):
+  the span plus a day of slack, rounded up to 2/8/32/93/185/365 D or whole years (end is always
+  now), never longer than the timeframe's longest period (1m 7 days, 5m 1 month, 15m 3 months,
+  1h 1 year — IB serves long spans of small bars slowly), at least a week of daily / a month of
+  weekly bars; the bars are then cut to the period start. The duration is part of the cache key
+  (except the timeframe's own, Auto).
 - `ChartManager` serves bars from the data cache while fresh (1 min intraday, 30 min daily+) and
   falls back to stale cache when IB is unreachable. Contract searches (3 days) and option chain
   structure (1 day) are cached too, which saves contract-details requests; see

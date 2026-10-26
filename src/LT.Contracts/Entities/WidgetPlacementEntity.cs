@@ -33,6 +33,9 @@ public class WidgetPlacementEntity
 
 	// Chart instances
 	public ChartTimeframe? ChartTimeframe { get; set; }
+
+	/// <summary>Chart instances: the span of bars shown (null: older layouts, Auto).</summary>
+	public ChartPeriod? ChartPeriod { get; set; }
 	public bool ChartLinked { get; set; } = true;
 	public ContractEntity? ChartContract { get; set; }
 

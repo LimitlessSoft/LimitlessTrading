@@ -6,6 +6,7 @@ namespace LT.Contracts.Dtos.Settings;
 public class LayoutDto : WorkspaceLayoutDto
 {
 	public ChartTimeframe ChartTimeframe { get; set; }
+	public ChartPeriod ChartPeriod { get; set; }
 	public double WindowWidth { get; set; }
 	public double WindowHeight { get; set; }
 	public bool IsMaximized { get; set; }

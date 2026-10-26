@@ -27,7 +27,7 @@ using LT.Contracts.Requests.Indicators;
 namespace LT.App.Widgets.Chart;
 
 /// <summary>
-/// One chart. Several can be open; each has its own timeframe and either follows the selected
+/// One chart. Several can be open; each has its own timeframe and period and either follows the selected
 /// contract (linked) or stays on the contract it shows (pinned). The selected account's recorded
 /// fills of the contract are drawn on it (trade journal: socket executions and IB Flex), closed
 /// quantity joined entry → exit, and the break-even of an open position (live positions only).
@@ -117,8 +117,12 @@ public partial class ChartViewModel
 			OpenContract
 		);
 
+		displayTime.ZoneChanged += OnZoneChanged;
+		var layout = settingsManager.GetLayout();
+		Periods = Enum.GetValues<ChartPeriod>().Select(x => new PeriodOption(x)).ToList();
+		SelectedPeriod = Periods.FirstOrDefault(x => x.Value == layout.ChartPeriod) ?? Periods[0];
 		Timeframes = Enum.GetValues<ChartTimeframe>().Select(x => new TimeframeOption(x)).ToList();
-		var saved = settingsManager.GetLayout().ChartTimeframe;
+		var saved = layout.ChartTimeframe;
 		SelectedTimeframe = Timeframes.FirstOrDefault(x => x.Value == saved) ?? Timeframes[1];
 		// A new chart starts from the default template; a restored one then loads its own state
 		if (chartTemplateManager.GetDefault() is { } template)
@@ -199,6 +203,9 @@ public partial class ChartViewModel
 		if (placement.ChartTimeframe is { } timeframe)
 			SelectedTimeframe =
 				Timeframes.FirstOrDefault(x => x.Value == timeframe) ?? SelectedTimeframe;
+		SelectedPeriod =
+			Periods.FirstOrDefault(x => x.Value == (placement.ChartPeriod ?? ChartPeriod.Auto))
+			?? SelectedPeriod;
 		// Layouts saved before link groups: a chart pinned to its own ticker is not linked
 		if (!placement.ChartLinked)
 			Link.Group = LinkGroup.None;
@@ -214,6 +221,7 @@ public partial class ChartViewModel
 	public void SaveState(WidgetPlacementDto placement)
 	{
 		placement.ChartTimeframe = SelectedTimeframe.Value;
+		placement.ChartPeriod = SelectedPeriod.Value;
 		placement.ChartLinked = Link.Group != LinkGroup.None;
 		placement.ChartContract = _contract;
 		placement.ChartRightMargin = RightMargin > 0 ? RightMargin : null;
@@ -234,6 +242,7 @@ public partial class ChartViewModel
 		_tradeJournalManager.FillsChanged -= OnFillsChanged;
 		_accountStore.PropertyChanged -= OnAccountChanged;
 		DisplayTime.ZoneChanged -= _status.Rebuild;
+		DisplayTime.ZoneChanged -= OnZoneChanged;
 		Link.Dispose();
 		_load?.Cancel();
 		_load?.Dispose();
@@ -245,6 +254,12 @@ public partial class ChartViewModel
 
 	[ObservableProperty]
 	public partial TimeframeOption SelectedTimeframe { get; set; }
+
+	/// <summary>Header period menu: Auto, then the rolling and the calendar periods.</summary>
+	public IReadOnlyList<PeriodOption> Periods { get; }
+
+	[ObservableProperty]
+	public partial PeriodOption SelectedPeriod { get; set; }
 
 	[ObservableProperty]
 	public partial bool UseRegularTradingHours { get; set; } = true;
@@ -292,6 +307,22 @@ public partial class ChartViewModel
 	{
 		Reload();
 		OnTemplateSettingsEdited();
+	}
+
+	/// <summary>Header period menu: switches the span of bars and reloads.</summary>
+	public void SetPeriod(ChartPeriod period)
+	{
+		if (period != SelectedPeriod.Value)
+			SelectedPeriod = Periods.FirstOrDefault(x => x.Value == period) ?? SelectedPeriod;
+	}
+
+	partial void OnSelectedPeriodChanged(PeriodOption value) => Reload();
+
+	// Today, this week… start at midnight in the display zone: another zone moves them
+	private void OnZoneChanged()
+	{
+		if (ChartPeriodHelpers.IsCalendar(SelectedPeriod.Value))
+			Reload();
 	}
 
 	partial void OnRightMarginChanged(double value) => OnTemplateSettingsEdited();
@@ -415,6 +446,8 @@ public partial class ChartViewModel
 		{
 			Contract = contract,
 			Timeframe = timeframe,
+			Period = SelectedPeriod.Value,
+			TimeZone = DisplayTime.Zone,
 			UseRegularTradingHours = UseRegularTradingHours,
 		};
 		Title = ContractHelpers.GetDisplayName(contract);
@@ -424,10 +457,23 @@ public partial class ChartViewModel
 		{
 			var result = await _chartManager.GetBarsAsync(request, cancellationToken);
 			Bars = result.Bars;
+			var period = SelectedPeriod.ToString();
 			_status.Set(() =>
-				result.IsStale
-					? $"Cached {DisplayTime.Format(result.FetchedAt, "HH:mm")} — {result.Error}"
-					: $"Loaded {DisplayTime.Format(result.FetchedAt)}"
+				(
+					result.IsStale
+						? $"Cached {DisplayTime.Format(result.FetchedAt, "HH:mm")} — {result.Error}"
+						: $"Loaded {DisplayTime.Format(result.FetchedAt)}"
+				)
+				+ (
+					result.LimitedTo is { } limit
+						? $" · {SelectedTimeframe} bars go back {ChartPeriodHelpers.GetDisplayName(limit)} at most"
+						: ""
+				)
+				+ (
+					result.Bars.Count == 0 && result.From is { } from
+						? $" · no bars since {DisplayTime.FormatDayTime(from)} ({period})"
+						: ""
+				)
 			);
 		}
 		catch (OperationCanceledException)

@@ -1,3 +1,5 @@
+using LT.Contracts.Enums;
+
 namespace LT.Contracts.Dtos.Charts;
 
 public class ChartBarsDto
@@ -8,4 +10,10 @@ public class ChartBarsDto
 	/// <summary>True when IB could not be reached and these are the last cached bars.</summary>
 	public bool IsStale { get; set; }
 	public string? Error { get; set; }
+
+	/// <summary>Where the period starts (bars before it are dropped); null for Auto.</summary>
+	public DateTimeOffset? From { get; set; }
+
+	/// <summary>The timeframe's longest period when the asked period was cut to it.</summary>
+	public ChartPeriod? LimitedTo { get; set; }
 }
