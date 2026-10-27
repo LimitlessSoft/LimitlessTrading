@@ -15,11 +15,19 @@
 			/>
 		</StackPanel>
 		<DataGrid
+			x:Name="Grid"
 			ItemsSource="{Binding Messages}"
 			IsReadOnly="True"
+			SelectionMode="Extended"
+			ClipboardCopyMode="None"
 			GridLinesVisibility="Horizontal"
 			HeadersVisibility="Column"
 		>
+			<DataGrid.ContextMenu>
+				<ContextMenu Opening="OnMenuOpening">
+					<MenuItem x:Name="CopyItem" Header="Copy" InputGesture="Ctrl+C" Click="OnCopyClick" />
+				</ContextMenu>
+			</DataGrid.ContextMenu>
 			<DataGrid.Columns>
 				<DataGridTextColumn
 					x:DataType="vm:MessageRowViewModel"
