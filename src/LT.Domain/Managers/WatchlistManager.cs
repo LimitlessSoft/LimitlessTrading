@@ -14,7 +14,14 @@ using LT.Contracts.Requests.Watchlists;
 
 namespace LT.Domain.Managers;
 
-public class WatchlistManager(ISettingsRepository settingsRepository) : IWatchlistManager
+/// <summary>
+/// Plain symbol lists are imported through <see cref="IContractManager"/> one symbol at a time, so
+/// the lookups queue behind IB's request pacing instead of bursting.
+/// </summary>
+public class WatchlistManager(
+	ISettingsRepository settingsRepository,
+	IContractManager contractManager
+) : IWatchlistManager
 {
 	public event Action? Changed;
 
@@ -148,7 +155,10 @@ public class WatchlistManager(ISettingsRepository settingsRepository) : IWatchli
 			ContractHelpers.IsSameListing(x.ToMapped<ContractEntity, ContractDto>(), contract)
 		);
 		var unpinned = watchlist.Pinned.RemoveAll(x => WatchlistHelpers.IsPinOf(x, contract));
-		if (removed + unpinned == 0)
+		var cleared = watchlist.Columns.Sum(column =>
+			column.Cells.RemoveAll(x => WatchlistHelpers.IsCellOf(x, contract))
+		);
+		if (removed + unpinned + cleared == 0)
 			return;
 		settingsRepository.Save(settings);
 		Changed?.Invoke();
@@ -204,5 +214,213 @@ public class WatchlistManager(ISettingsRepository settingsRepository) : IWatchli
 			return;
 		settingsRepository.Save(settings);
 		Changed?.Invoke();
+	}
+
+	public IReadOnlyList<WatchlistColumnDto> GetColumns(string watchlistId) =>
+		(
+			WatchlistHelpers.Find(WatchlistHelpers.LoadSettings(settingsRepository), watchlistId)
+			?? throw new LSCoreBadRequestException(
+				WatchlistValidationCodes.WVC_007.GetValidationMessage()
+			)
+		).Columns.ToMappedList<WatchlistColumnEntity, WatchlistColumnDto>();
+
+	public WatchlistColumnDto SaveColumn(SaveWatchlistColumnRequest request)
+	{
+		request.Validate();
+		var name = request.Name.Trim();
+		var settings = WatchlistHelpers.LoadSettings(settingsRepository);
+		var watchlist =
+			WatchlistHelpers.Find(settings, request.WatchlistId)
+			?? throw new LSCoreBadRequestException(
+				WatchlistValidationCodes.WVC_007.GetValidationMessage()
+			);
+		if (
+			watchlist.Columns.Any(x =>
+				x.Id != request.ColumnId
+				&& string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase)
+			)
+		)
+			throw new LSCoreBadRequestException(
+				WatchlistValidationCodes.WVC_011.GetValidationMessage(name)
+			);
+
+		WatchlistColumnEntity column;
+		if (request.ColumnId is null)
+		{
+			if (watchlist.Columns.Count >= WatchlistConstants.MaxCustomColumns)
+				throw new LSCoreBadRequestException(
+					WatchlistValidationCodes.WVC_012.GetValidationMessage(
+						WatchlistConstants.MaxCustomColumns
+					)
+				);
+			column = new WatchlistColumnEntity { Name = name };
+			watchlist.Columns.Add(column);
+		}
+		else
+		{
+			column =
+				watchlist.Columns.FirstOrDefault(x => x.Id == request.ColumnId)
+				?? throw new LSCoreBadRequestException(
+					WatchlistValidationCodes.WVC_013.GetValidationMessage()
+				);
+			column.Name = name;
+		}
+		settingsRepository.Save(settings);
+		Changed?.Invoke();
+		return column.ToMapped<WatchlistColumnEntity, WatchlistColumnDto>();
+	}
+
+	public string GetNewColumnName(string watchlistId) =>
+		WatchlistHelpers.GetNewColumnName(GetColumns(watchlistId).Select(x => x.Name));
+
+	public void DeleteColumn(string watchlistId, string columnId)
+	{
+		var settings = WatchlistHelpers.LoadSettings(settingsRepository);
+		if (
+			WatchlistHelpers.Find(settings, watchlistId) is not { } watchlist
+			|| watchlist.Columns.RemoveAll(x => x.Id == columnId) == 0
+		)
+			return;
+		settingsRepository.Save(settings);
+		Changed?.Invoke();
+	}
+
+	public void SetCell(SetWatchlistCellRequest request)
+	{
+		request.Validate();
+		var value = request.Value?.Trim() ?? string.Empty;
+		var settings = WatchlistHelpers.LoadSettings(settingsRepository);
+		var watchlist =
+			WatchlistHelpers.Find(settings, request.WatchlistId)
+			?? throw new LSCoreBadRequestException(
+				WatchlistValidationCodes.WVC_007.GetValidationMessage()
+			);
+		var column =
+			watchlist.Columns.FirstOrDefault(x => x.Id == request.ColumnId)
+			?? throw new LSCoreBadRequestException(
+				WatchlistValidationCodes.WVC_013.GetValidationMessage()
+			);
+		if (
+			!watchlist.Items.Any(x =>
+				ContractHelpers.IsSameListing(
+					x.ToMapped<ContractEntity, ContractDto>(),
+					request.Contract
+				)
+			)
+		)
+			throw new LSCoreBadRequestException(
+				WatchlistValidationCodes.WVC_008.GetValidationMessage(
+					ContractHelpers.GetDisplayName(request.Contract)
+				)
+			);
+
+		var cell = column.Cells.FirstOrDefault(x => WatchlistHelpers.IsCellOf(x, request.Contract));
+		if ((cell?.Value ?? string.Empty) == value)
+			return;
+		if (value.Length == 0)
+			column.Cells.Remove(cell!);
+		else if (cell != null)
+			cell.Value = value;
+		else
+			column.Cells.Add(WatchlistHelpers.CreateCell(request.Contract, value));
+		settingsRepository.Save(settings);
+		Changed?.Invoke();
+	}
+
+	public string Export(string watchlistId) =>
+		WatchlistFileHelpers.Serialize(
+			WatchlistHelpers.Find(WatchlistHelpers.LoadSettings(settingsRepository), watchlistId)
+				?? throw new LSCoreBadRequestException(
+					WatchlistValidationCodes.WVC_007.GetValidationMessage()
+				)
+		);
+
+	public async Task<WatchlistImportResultDto> ImportAsync(
+		string content,
+		string? fileName,
+		CancellationToken cancellationToken = default
+	)
+	{
+		if (content.Length > WatchlistConstants.MaxFileLength)
+			throw new LSCoreBadRequestException(
+				WatchlistValidationCodes.WVC_017.GetValidationMessage(
+					WatchlistConstants.MaxFileLength / (1024 * 1024)
+				)
+			);
+		if (!WatchlistFileHelpers.IsText(content))
+			throw new LSCoreBadRequestException(
+				WatchlistValidationCodes.WVC_015.GetValidationMessage()
+			);
+
+		WatchlistEntity watchlist;
+		var notFound = new List<string>();
+		if (WatchlistFileHelpers.IsJson(content))
+		{
+			var file =
+				WatchlistFileHelpers.Parse(content)
+				?? throw new LSCoreBadRequestException(
+					WatchlistValidationCodes.WVC_015.GetValidationMessage()
+				);
+			var request = WatchlistFileHelpers.ToRequest(file);
+			request.Validate();
+			watchlist = WatchlistFileHelpers.ToEntity(
+				request,
+				WatchlistFileHelpers.GetImportName(request.Name, fileName)
+			);
+		}
+		else
+		{
+			var request = new ImportWatchlistSymbolsRequest
+			{
+				Symbols = WatchlistFileHelpers.ParseSymbols(content),
+			};
+			request.Validate();
+
+			// One symbol at a time: every lookup queues behind IB's request pacing (and is cached)
+			var contracts = new List<ContractDto>();
+			foreach (var symbol in request.Symbols)
+			{
+				ContractDto? contract = null;
+				try
+				{
+					contract = (await contractManager.SearchSymbolAsync(symbol, cancellationToken))
+						.FirstOrDefault()
+						?.Contract;
+				}
+				// IB answers an unknown symbol with an error for every type
+				catch (Exception ex) when (ex is not OperationCanceledException) { }
+				if (contract is not { ConId: > 0 })
+					notFound.Add(symbol);
+				else if (!contracts.Any(x => ContractHelpers.IsSameListing(x, contract)))
+					contracts.Add(contract);
+			}
+			if (contracts.Count == 0)
+				throw new LSCoreBadRequestException(
+					WatchlistValidationCodes.WVC_019.GetValidationMessage(
+						WatchlistFileHelpers.JoinSymbols(notFound)
+					)
+				);
+			watchlist = new WatchlistEntity
+			{
+				Name = WatchlistFileHelpers.GetImportName(null, fileName),
+				Items = [.. contracts.Select(x => x.ToMapped<ContractDto, ContractEntity>())],
+			};
+		}
+
+		// Read after the lookups: the watchlists may have changed meanwhile
+		var settings = WatchlistHelpers.LoadSettings(settingsRepository);
+		watchlist.Name = WatchlistHelpers.GetFreeName(
+			watchlist.Name,
+			settings.Watchlists.Select(x => x.Name)
+		);
+		settings.Watchlists.Add(watchlist);
+		settings.ActiveWatchlistId = watchlist.Id;
+		settingsRepository.Save(settings);
+		Changed?.Invoke();
+		return new WatchlistImportResultDto
+		{
+			Watchlist = watchlist.ToMapped<WatchlistEntity, WatchlistDto>(),
+			NotFound = notFound,
+		};
 	}
 }

@@ -16,7 +16,7 @@ public class WatchlistHelpersTests
 		var settings = new InMemorySettingsRepository();
 		settings.Save(WatchlistHelpers.CreateFirstRunSettings());
 
-		var manager = new WatchlistManager(settings);
+		var manager = new WatchlistManager(settings, new FakeContractManager());
 
 		var watchlist = Assert.Single(manager.GetWatchlists());
 		Assert.Equal(MarketDataConstants.StarterWatchlistName, watchlist.Name);

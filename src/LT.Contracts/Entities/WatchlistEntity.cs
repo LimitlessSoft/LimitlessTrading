@@ -12,4 +12,7 @@ public class WatchlistEntity
 	/// have none.
 	/// </summary>
 	public List<WatchlistPinEntity> Pinned { get; set; } = [];
+
+	/// <summary>The user's own columns, in their order. Watchlists saved before them have none.</summary>
+	public List<WatchlistColumnEntity> Columns { get; set; } = [];
 }

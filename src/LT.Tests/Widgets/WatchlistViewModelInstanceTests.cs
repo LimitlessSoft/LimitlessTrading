@@ -23,7 +23,10 @@ public class WatchlistViewModelInstanceTests : IDisposable
 
 	public WatchlistViewModelInstanceTests()
 	{
-		_watchlists = new WatchlistManager(_cache.Settings);
+		_watchlists = new WatchlistManager(
+			_cache.Settings,
+			new ContractManager(_ibkr, _cache.Settings, _cache.Manager)
+		);
 		_mainId = _watchlists.GetActive().Id;
 		_watchlists.Add(_mainId, Stock(1, "SPY"));
 	}

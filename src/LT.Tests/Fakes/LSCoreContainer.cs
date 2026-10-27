@@ -100,6 +100,26 @@ public static class LSCoreContainer
 					LSCoreValidatorBase<SaveWatchlistNameRequest>,
 					SaveWatchlistNameRequestValidator
 				>()
+				.AddSingleton<
+					ILSCoreMapper<WatchlistColumnEntity, WatchlistColumnDto>,
+					WatchlistColumnDtoMapper
+				>()
+				.AddSingleton<
+					LSCoreValidatorBase<SaveWatchlistColumnRequest>,
+					SaveWatchlistColumnRequestValidator
+				>()
+				.AddSingleton<
+					LSCoreValidatorBase<SetWatchlistCellRequest>,
+					SetWatchlistCellRequestValidator
+				>()
+				.AddSingleton<
+					LSCoreValidatorBase<ImportWatchlistRequest>,
+					ImportWatchlistRequestValidator
+				>()
+				.AddSingleton<
+					LSCoreValidatorBase<ImportWatchlistSymbolsRequest>,
+					ImportWatchlistSymbolsRequestValidator
+				>()
 				.AddSingleton<ILSCoreMapper<ContractDto, ContractEntity>, ContractEntityMapper>()
 				.AddSingleton<ILSCoreMapper<BarEntity, BarDto>, BarDtoMapper>()
 				.AddSingleton<

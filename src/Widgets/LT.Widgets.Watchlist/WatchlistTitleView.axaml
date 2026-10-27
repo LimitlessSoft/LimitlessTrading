@@ -6,7 +6,8 @@
 	x:DataType="vm:WatchlistViewModel"
 >
 	<!-- Watchlist header title: the shown watchlist; click it for the list, where each row can be
-	     switched to, renamed (pencil) or deleted (✕), and the last row adds a watchlist -->
+	     switched to, renamed (pencil) or deleted (✕), then rows to add, import and export a
+	     watchlist, and the shown watchlist's custom columns -->
 	<Button x:Name="PickerButton" Classes="watchlistPicker" ToolTip.Tip="Watchlists">
 		<StackPanel Orientation="Horizontal" Spacing="6">
 			<TextBlock
@@ -116,6 +117,103 @@
 						<StackPanel Orientation="Horizontal" Spacing="6">
 							<TextBlock Classes="secondary" Text="+" />
 							<TextBlock Text="New watchlist" />
+						</StackPanel>
+					</Button>
+					<!-- A JSON export, or a list of symbols (one per line or comma-separated) -->
+					<Button
+						Classes="pickerRow"
+						Click="OnImportClick"
+						IsEnabled="{Binding !IsImporting}"
+						ToolTip.Tip="A watchlist exported here, or a text / CSV list of symbols (one per line or comma-separated)"
+					>
+						<TextBlock Text="Import watchlist…" />
+					</Button>
+					<Button Classes="pickerRow" Click="OnExportClick">
+						<TextBlock
+							TextTrimming="CharacterEllipsis"
+							Text="{Binding ActiveWatchlist.Name, StringFormat='Export {0}…', FallbackValue='Export…'}"
+						/>
+					</Button>
+					<Separator Margin="0,2" />
+					<!-- The shown watchlist's own columns: rename (pencil), delete (✕), add -->
+					<TextBlock Classes="secondary" FontSize="12" Margin="8,2" Text="Columns" />
+					<ItemsControl ItemsSource="{Binding CustomColumns}">
+						<ItemsControl.ItemTemplate>
+							<DataTemplate x:DataType="vm:WatchlistColumnItemViewModel">
+								<Panel MinHeight="30">
+									<Grid ColumnDefinitions="*,Auto,Auto" IsVisible="{Binding IsIdle}">
+										<TextBlock
+											Margin="8,0"
+											VerticalAlignment="Center"
+											TextTrimming="CharacterEllipsis"
+											Text="{Binding Name}"
+										/>
+										<Button
+											Grid.Column="1"
+											Classes="frameAction"
+											VerticalAlignment="Center"
+											ToolTip.Tip="Rename"
+											Command="{Binding Owner.BeginRenameColumnCommand}"
+											CommandParameter="{Binding}"
+										>
+											<PathIcon Data="{StaticResource FrameRenameIcon}" />
+										</Button>
+										<Button
+											Grid.Column="2"
+											Classes="frameAction close"
+											VerticalAlignment="Center"
+											ToolTip.Tip="Delete"
+											Command="{Binding Owner.AskDeleteColumnCommand}"
+											CommandParameter="{Binding}"
+										>
+											<PathIcon Data="{StaticResource FrameCloseIcon}" />
+										</Button>
+									</Grid>
+									<TextBox
+										Classes="watchlistName"
+										Text="{Binding RenameText}"
+										PlaceholderText="Column name"
+										IsVisible="{Binding IsRenaming}"
+										PropertyChanged="OnRenameBoxPropertyChanged"
+										KeyDown="OnRenameBoxKeyDown"
+										LostFocus="OnRenameBoxLostFocus"
+									/>
+									<Grid
+										ColumnDefinitions="*,Auto,Auto"
+										ColumnSpacing="6"
+										IsVisible="{Binding IsConfirmingDelete}"
+									>
+										<TextBlock
+											VerticalAlignment="Center"
+											TextTrimming="CharacterEllipsis"
+											Text="Delete with its values?"
+										/>
+										<Button
+											Grid.Column="1"
+											Content="Cancel"
+											Command="{Binding Owner.CancelDeleteColumnCommand}"
+											CommandParameter="{Binding}"
+										/>
+										<Button
+											Grid.Column="2"
+											Classes="danger"
+											Content="Delete"
+											Command="{Binding Owner.ConfirmDeleteColumnCommand}"
+											CommandParameter="{Binding}"
+										/>
+									</Grid>
+								</Panel>
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
+					<Button
+						Classes="pickerRow"
+						Command="{Binding AddColumnCommand}"
+						IsEnabled="{Binding CanAddColumn}"
+					>
+						<StackPanel Orientation="Horizontal" Spacing="6">
+							<TextBlock Classes="secondary" Text="+" />
+							<TextBlock Text="Add column" />
 						</StackPanel>
 					</Button>
 				</StackPanel>
