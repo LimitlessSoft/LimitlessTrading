@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using LT.App.Helpers;
 using LT.Contracts.Dtos.AccountPerformance;
 using LT.Contracts.Helpers;
 using static LT.App.Widgets.AccountPerformance.ChartDrawing;
@@ -170,7 +171,7 @@ public class EquityCurveChart : Control
 		}
 		var hovered = points[hoveredIndex];
 		var readout = Text(
-			$"{hovered.Date.ToString("ddd dd MMM yyyy", CultureInfo.CurrentCulture)}   Net liq {hovered.Value.ToString("#,0.00", CultureInfo.CurrentCulture)}",
+			$"{hovered.Date.ToString("ddd dd MMM yyyy", CultureInfo.CurrentCulture)}   Net liq {Sensitive.Apply(hovered.Value.ToString("#,0.00", CultureInfo.CurrentCulture))}",
 			12,
 			LabelBrush
 		);

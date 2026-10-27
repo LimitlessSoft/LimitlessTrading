@@ -4,6 +4,7 @@
 	xmlns:vm="using:LT.App.Widgets.AccountPerformance"
 	xmlns:controls="using:LT.App.Controls"
 	xmlns:enums="using:LT.Contracts.Enums"
+	xmlns:helpers="using:LT.App.Helpers"
 	x:Class="LT.App.Widgets.AccountPerformance.AccountPerformanceView"
 	x:DataType="vm:AccountPerformanceViewModel"
 >
@@ -56,6 +57,7 @@
 			/>
 			<Grid ColumnDefinitions="*,Auto">
 				<ComboBox
+					Classes="sensitive"
 					HorizontalAlignment="Stretch"
 					PlaceholderText="Connect to load accounts"
 					ItemsSource="{Binding Store.Accounts}"
@@ -100,7 +102,7 @@
 								<DataTemplate x:DataType="vm:ReturnStatViewModel">
 									<Grid ColumnDefinitions="*,Auto,Auto" Margin="0,3">
 										<TextBlock Classes="secondary" Text="{Binding Label}" />
-										<TextBlock
+										<controls:SensitiveTextBlock
 											Grid.Column="1"
 											Classes="value"
 											FontWeight="SemiBold"
@@ -123,7 +125,7 @@
 						</ItemsControl>
 						<Grid ColumnDefinitions="*,Auto" Margin="0,3">
 							<TextBlock Classes="secondary" Text="Max drawdown (range)" />
-							<TextBlock
+							<controls:SensitiveTextBlock
 								Grid.Column="1"
 								Classes="value"
 								Classes.negative="{Binding MaxDrawdownDown}"
@@ -198,6 +200,7 @@
 				<!-- Equity curve -->
 				<TextBlock Classes="sectionTitle" Text="Equity (net liquidation)" />
 				<vm:EquityCurveChart
+					helpers:Sensitive.Redraws="True"
 					Height="180"
 					Days="{Binding RangeDays}"
 					CashMovements="{Binding RangeCashMovements}"
@@ -206,6 +209,7 @@
 				<!-- Daily P&L bars -->
 				<TextBlock Classes="sectionTitle" Text="Daily P&amp;L" />
 				<vm:DailyPnlBarChart
+					helpers:Sensitive.Redraws="True"
 					Height="140"
 					Days="{Binding RangeDays}"
 					CashMovements="{Binding RangeCashMovements}"
@@ -221,7 +225,7 @@
 						FontWeight="SemiBold"
 						Text="{Binding MonthTitle}"
 					/>
-					<TextBlock
+					<controls:SensitiveTextBlock
 						Grid.Column="2"
 						Margin="0,0,8,0"
 						VerticalAlignment="Center"
@@ -259,8 +263,10 @@
 								Classes="day"
 								Classes.outside="{Binding !IsInMonth}"
 								Classes.today="{Binding IsToday}"
-								ToolTip.Tip="{Binding ToolTipText}"
 							>
+								<ToolTip.Tip>
+									<controls:SensitiveTextBlock Text="{Binding ToolTipText}" />
+								</ToolTip.Tip>
 								<Panel>
 									<Rectangle
 										Classes="tint"
@@ -287,7 +293,7 @@
 									</ItemsControl>
 									<StackPanel Margin="4,2">
 										<TextBlock Classes="secondary" FontSize="10" Text="{Binding DayText}" />
-										<TextBlock
+										<controls:SensitiveTextBlock
 											FontSize="11"
 											HorizontalAlignment="Right"
 											Classes.positive="{Binding IsUp}"

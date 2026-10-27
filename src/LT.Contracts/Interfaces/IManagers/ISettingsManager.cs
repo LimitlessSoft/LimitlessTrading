@@ -23,4 +23,8 @@ public interface ISettingsManager
 	void SaveLayout(LayoutDto layout);
 	string? GetSelectedAccount();
 	void SaveSelectedAccount(string? account);
+
+	/// <summary>Privacy mode: sensitive values (accounts, balances, P&amp;L) show masked.</summary>
+	bool GetHideSensitiveValues();
+	void SaveHideSensitiveValues(bool hide);
 }

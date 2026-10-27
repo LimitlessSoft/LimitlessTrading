@@ -3,6 +3,7 @@
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:LT.App.Widgets.Positions"
 	xmlns:helpers="using:LT.App.Helpers"
+	xmlns:controls="using:LT.App.Controls"
 	x:Class="LT.App.Widgets.Positions.PositionsView"
 	x:DataType="vm:PositionsViewModel"
 >
@@ -19,7 +20,11 @@
 				Text="Connect to TWS / IB Gateway to load positions."
 				IsVisible="{Binding ShowConnectHint}"
 			/>
-			<TextBlock VerticalAlignment="Center" Classes="secondary" Text="{Binding TotalsText}" />
+			<controls:SensitiveTextBlock
+				VerticalAlignment="Center"
+				Classes="secondary"
+				Text="{Binding TotalsText}"
+			/>
 			<TextBlock
 				VerticalAlignment="Center"
 				Classes="warning"
@@ -44,7 +49,7 @@
 			HeadersVisibility="Column"
 		>
 			<DataGrid.Columns>
-				<DataGridTextColumn
+				<controls:SensitiveTextColumn
 					x:DataType="vm:PositionRowViewModel"
 					Header="Account"
 					Binding="{Binding Account}"
@@ -69,17 +74,17 @@
 					Header="Ccy"
 					Binding="{Binding Currency}"
 				/>
-				<DataGridTextColumn
+				<controls:SensitiveTextColumn
 					x:DataType="vm:PositionRowViewModel"
 					Header="Quantity"
 					Binding="{Binding Quantity}"
 				/>
-				<DataGridTextColumn
+				<controls:SensitiveTextColumn
 					x:DataType="vm:PositionRowViewModel"
 					Header="Avg cost"
 					Binding="{Binding AverageCost}"
 				/>
-				<DataGridTextColumn
+				<controls:SensitiveTextColumn
 					x:DataType="vm:PositionRowViewModel"
 					Header="Market value"
 					Binding="{Binding MarketValue}"
@@ -87,7 +92,7 @@
 				<DataGridTemplateColumn Header="Unrealized P&amp;L">
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:PositionRowViewModel">
-							<TextBlock
+							<controls:SensitiveTextBlock
 								Classes="value"
 								Margin="8,0"
 								VerticalAlignment="Center"
@@ -101,7 +106,7 @@
 				<DataGridTemplateColumn Header="Daily P&amp;L">
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:PositionRowViewModel">
-							<TextBlock
+							<controls:SensitiveTextBlock
 								Classes="value"
 								Margin="8,0"
 								VerticalAlignment="Center"
@@ -112,7 +117,7 @@
 						</DataTemplate>
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
-				<DataGridTextColumn
+				<controls:SensitiveTextColumn
 					x:DataType="vm:PositionRowViewModel"
 					Header="Realized P&amp;L"
 					Binding="{Binding RealizedPnl}"

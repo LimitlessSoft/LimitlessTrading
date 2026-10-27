@@ -17,6 +17,9 @@ public class SettingsEntity
 	public List<ContractEntity> RecentContracts { get; set; } = [];
 	public string? SelectedAccount { get; set; }
 
+	/// <summary>Privacy mode (the eye in the title bar); off in settings saved before it.</summary>
+	public bool HideSensitiveValues { get; set; }
+
 	/// <summary>Named chart setups (timeframe, indicators, …), applied from a chart's header.</summary>
 	public List<ChartTemplateEntity> ChartTemplates { get; set; } = [];
 

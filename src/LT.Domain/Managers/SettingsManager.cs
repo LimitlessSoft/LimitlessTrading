@@ -99,4 +99,13 @@ public class SettingsManager(ISettingsRepository settingsRepository, IIbkrApiCli
 		settings.SelectedAccount = account;
 		settingsRepository.Save(settings);
 	}
+
+	public bool GetHideSensitiveValues() => settingsRepository.Get().HideSensitiveValues;
+
+	public void SaveHideSensitiveValues(bool hide)
+	{
+		var settings = settingsRepository.Get();
+		settings.HideSensitiveValues = hide;
+		settingsRepository.Save(settings);
+	}
 }

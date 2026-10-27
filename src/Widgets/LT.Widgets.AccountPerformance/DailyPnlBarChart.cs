@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using LT.App.Helpers;
 using LT.Contracts.Dtos.AccountPerformance;
 using LT.Contracts.Helpers;
 using static LT.App.Widgets.AccountPerformance.ChartDrawing;
@@ -127,7 +128,7 @@ public class DailyPnlBarChart : Control
 		}
 		var (hoveredDate, hoveredValue) = bars[hovered];
 		var readout = Text(
-			$"{hoveredDate.ToString("ddd dd MMM yyyy", CultureInfo.CurrentCulture)}   Daily P&L {hoveredValue.ToString("+#,0.00;-#,0.00;0.00", CultureInfo.CurrentCulture)}",
+			$"{hoveredDate.ToString("ddd dd MMM yyyy", CultureInfo.CurrentCulture)}   Daily P&L {Sensitive.Apply(hoveredValue.ToString("+#,0.00;-#,0.00;0.00", CultureInfo.CurrentCulture))}",
 			12,
 			hoveredValue >= 0 ? UpBrush : DownBrush
 		);

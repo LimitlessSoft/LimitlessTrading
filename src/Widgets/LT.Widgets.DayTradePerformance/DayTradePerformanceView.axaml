@@ -3,6 +3,7 @@
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:controls="using:LT.App.Controls"
 	xmlns:vm="using:LT.App.Widgets.DayTradePerformance"
+	xmlns:helpers="using:LT.App.Helpers"
 	x:Class="LT.App.Widgets.DayTradePerformance.DayTradePerformanceView"
 	x:DataType="vm:DayTradePerformanceViewModel"
 >
@@ -35,6 +36,7 @@
 				<Button Content="›" Command="{Binding NextDayCommand}" />
 				<Button Content="Today" Command="{Binding TodayCommand}" IsVisible="{Binding !IsToday}" />
 				<ComboBox
+					Classes="sensitive"
 					MinWidth="120"
 					PlaceholderText="Account"
 					ItemsSource="{Binding Store.Accounts}"
@@ -61,6 +63,7 @@
 
 			<!-- intraday P&L curve -->
 			<vm:PnlCurveChart
+				helpers:Sensitive.Redraws="True"
 				Grid.Row="1"
 				MinHeight="120"
 				Samples="{Binding Curve}"
@@ -69,7 +72,7 @@
 			<WrapPanel Grid.Row="2" Classes="stats" Margin="0,6,0,0">
 				<StackPanel>
 					<TextBlock Classes="secondary" Text="Daily P&amp;L" />
-					<TextBlock
+					<controls:SensitiveTextBlock
 						FontWeight="SemiBold"
 						Classes.positive="{Binding CurveUp}"
 						Classes.negative="{Binding CurveDown}"
@@ -78,15 +81,15 @@
 				</StackPanel>
 				<StackPanel>
 					<TextBlock Classes="secondary" Text="Session high" />
-					<TextBlock Classes="value" Text="{Binding CurveHigh}" />
+					<controls:SensitiveTextBlock Classes="value" Text="{Binding CurveHigh}" />
 				</StackPanel>
 				<StackPanel>
 					<TextBlock Classes="secondary" Text="Session low" />
-					<TextBlock Classes="value" Text="{Binding CurveLow}" />
+					<controls:SensitiveTextBlock Classes="value" Text="{Binding CurveLow}" />
 				</StackPanel>
 				<StackPanel>
 					<TextBlock Classes="secondary" Text="Max drawdown" />
-					<TextBlock Classes="value" Text="{Binding MaxDrawdown}" />
+					<controls:SensitiveTextBlock Classes="value" Text="{Binding MaxDrawdown}" />
 				</StackPanel>
 			</WrapPanel>
 
@@ -100,7 +103,7 @@
 				<WrapPanel Classes="stats">
 					<StackPanel>
 						<TextBlock Classes="secondary" Text="Net P&amp;L" />
-						<TextBlock
+						<controls:SensitiveTextBlock
 							FontWeight="SemiBold"
 							Classes.positive="{Binding NetUp}"
 							Classes.negative="{Binding NetDown}"
@@ -117,11 +120,11 @@
 					</StackPanel>
 					<StackPanel>
 						<TextBlock Classes="secondary" Text="Avg win" />
-						<TextBlock Classes="value" Text="{Binding AverageWin}" />
+						<controls:SensitiveTextBlock Classes="value" Text="{Binding AverageWin}" />
 					</StackPanel>
 					<StackPanel>
 						<TextBlock Classes="secondary" Text="Avg loss" />
-						<TextBlock Classes="value" Text="{Binding AverageLoss}" />
+						<controls:SensitiveTextBlock Classes="value" Text="{Binding AverageLoss}" />
 					</StackPanel>
 					<StackPanel>
 						<TextBlock Classes="secondary" Text="Profit factor" />
@@ -129,23 +132,23 @@
 					</StackPanel>
 					<StackPanel>
 						<TextBlock Classes="secondary" Text="Expectancy" />
-						<TextBlock Classes="value" Text="{Binding Expectancy}" />
+						<controls:SensitiveTextBlock Classes="value" Text="{Binding Expectancy}" />
 					</StackPanel>
 					<StackPanel>
 						<TextBlock Classes="secondary" Text="Largest win" />
-						<TextBlock Classes="value" Text="{Binding LargestWin}" />
+						<controls:SensitiveTextBlock Classes="value" Text="{Binding LargestWin}" />
 					</StackPanel>
 					<StackPanel>
 						<TextBlock Classes="secondary" Text="Largest loss" />
-						<TextBlock Classes="value" Text="{Binding LargestLoss}" />
+						<controls:SensitiveTextBlock Classes="value" Text="{Binding LargestLoss}" />
 					</StackPanel>
 					<StackPanel>
 						<TextBlock Classes="secondary" Text="Gross" />
-						<TextBlock Classes="value" Text="{Binding GrossPnl}" />
+						<controls:SensitiveTextBlock Classes="value" Text="{Binding GrossPnl}" />
 					</StackPanel>
 					<StackPanel>
 						<TextBlock Classes="secondary" Text="Commissions" />
-						<TextBlock Classes="value" Text="{Binding Commissions}" />
+						<controls:SensitiveTextBlock Classes="value" Text="{Binding Commissions}" />
 					</StackPanel>
 				</WrapPanel>
 			</Border>
@@ -184,7 +187,7 @@
 						Header="Side"
 						Binding="{Binding Side}"
 					/>
-					<DataGridTextColumn
+					<controls:SensitiveTextColumn
 						x:DataType="vm:TradeRowViewModel"
 						Header="Qty"
 						Binding="{Binding Quantity}"
@@ -214,7 +217,7 @@
 						Header="Hold"
 						Binding="{Binding Hold}"
 					/>
-					<DataGridTextColumn
+					<controls:SensitiveTextColumn
 						x:DataType="vm:TradeRowViewModel"
 						Header="Comm."
 						Binding="{Binding Commission}"
@@ -222,7 +225,7 @@
 					<DataGridTemplateColumn x:DataType="vm:TradeRowViewModel" Header="Net P&amp;L">
 						<DataGridTemplateColumn.CellTemplate>
 							<DataTemplate x:DataType="vm:TradeRowViewModel">
-								<TextBlock
+								<controls:SensitiveTextBlock
 									VerticalAlignment="Center"
 									Margin="12,0"
 									Classes.positive="{Binding IsWin}"
@@ -232,7 +235,7 @@
 							</DataTemplate>
 						</DataGridTemplateColumn.CellTemplate>
 					</DataGridTemplateColumn>
-					<DataGridTextColumn
+					<controls:SensitiveTextColumn
 						x:DataType="vm:TradeRowViewModel"
 						Header="Account"
 						Binding="{Binding Account}"

@@ -5,6 +5,7 @@ using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
+using LT.App.Helpers;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Executions;
@@ -671,7 +672,7 @@ public partial class CandlestickChart : Control
 				hoveredFills
 					.Take(shown)
 					.Select(x =>
-						$"{(TradeMatchingHelpers.GetDirection(x.Side) > 0 ? "Buy" : "Sell")} {Math.Abs(x.Shares):#,0.####} @ {x.Price.ToString("N" + decimals, CultureInfo.CurrentCulture)}"
+						$"{(TradeMatchingHelpers.GetDirection(x.Side) > 0 ? "Buy" : "Sell")} {Sensitive.Apply(Math.Abs(x.Shares).ToString("#,0.####", CultureInfo.CurrentCulture))} @ {x.Price.ToString("N" + decimals, CultureInfo.CurrentCulture)}"
 					)
 			);
 			if (hoveredFills.Count > shown)
