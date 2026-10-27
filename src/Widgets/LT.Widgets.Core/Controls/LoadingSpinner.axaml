@@ -1,0 +1,115 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:local="using:LT.App.Controls"
+	x:Class="LT.App.Controls.LoadingSpinner"
+	IsHitTestVisible="False"
+>
+	<!-- Busy indicator for a widget body; see LoadingSpinner.axaml.cs. The animations only exist
+	     while :spinning is set, so a hidden spinner costs nothing -->
+	<UserControl.Styles>
+		<Style Selector="Border#Card">
+			<Setter Property="Background" Value="{DynamicResource PanelBackground}" />
+			<Setter Property="BorderBrush" Value="{DynamicResource PanelStroke}" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="CornerRadius" Value="10" />
+			<Setter Property="Padding" Value="18,16,18,12" />
+			<Setter Property="BoxShadow" Value="0 6 18 0 #66000000" />
+		</Style>
+		<Style Selector="Ellipse#Track">
+			<Setter Property="Stroke" Value="{DynamicResource PanelStroke}" />
+			<Setter Property="StrokeThickness" Value="3" />
+		</Style>
+		<Style Selector="Arc#Ring">
+			<Setter Property="Stroke" Value="{DynamicResource SystemAccentColor}" />
+			<Setter Property="StrokeThickness" Value="3" />
+			<Setter Property="StrokeLineCap" Value="Round" />
+			<Setter Property="StartAngle" Value="0" />
+			<Setter Property="SweepAngle" Value="90" />
+		</Style>
+		<Style Selector="Arc#Glow">
+			<Setter Property="Stroke" Value="{DynamicResource SystemAccentColor}" />
+			<Setter Property="StrokeThickness" Value="7" />
+			<Setter Property="StrokeLineCap" Value="Round" />
+			<Setter Property="Opacity" Value="0.18" />
+			<Setter Property="StartAngle" Value="0" />
+			<Setter Property="SweepAngle" Value="90" />
+		</Style>
+
+		<!-- The whole ring turns steadily... -->
+		<Style Selector="local|LoadingSpinner:spinning Panel#Spinner">
+			<Style.Animations>
+				<Animation Duration="0:0:1.4" IterationCount="INFINITE">
+					<KeyFrame Cue="0%">
+						<Setter Property="RotateTransform.Angle" Value="0" />
+					</KeyFrame>
+					<KeyFrame Cue="100%">
+						<Setter Property="RotateTransform.Angle" Value="360" />
+					</KeyFrame>
+				</Animation>
+			</Style.Animations>
+		</Style>
+		<!-- ...while the arc's head runs ahead and its tail catches up. The tail ends a full turn on
+		     from where it began with the arc as short as at the start, so the loop has no seam -->
+		<Style Selector="local|LoadingSpinner:spinning Arc.sweep">
+			<Style.Animations>
+				<Animation Duration="0:0:1.6" IterationCount="INFINITE">
+					<KeyFrame Cue="0%">
+						<Setter Property="StartAngle" Value="0" />
+						<Setter Property="SweepAngle" Value="18" />
+					</KeyFrame>
+					<KeyFrame Cue="50%" KeySpline="0.4,0,0.2,1">
+						<Setter Property="StartAngle" Value="60" />
+						<Setter Property="SweepAngle" Value="260" />
+					</KeyFrame>
+					<KeyFrame Cue="100%" KeySpline="0.4,0,0.2,1">
+						<Setter Property="StartAngle" Value="360" />
+						<Setter Property="SweepAngle" Value="18" />
+					</KeyFrame>
+				</Animation>
+			</Style.Animations>
+		</Style>
+		<Style Selector="local|LoadingSpinner:spinning TextBlock#Label">
+			<Style.Animations>
+				<Animation
+					Duration="0:0:1.8"
+					IterationCount="INFINITE"
+					PlaybackDirection="Alternate"
+					Easing="SineEaseInOut"
+				>
+					<KeyFrame Cue="0%">
+						<Setter Property="Opacity" Value="1" />
+					</KeyFrame>
+					<KeyFrame Cue="100%">
+						<Setter Property="Opacity" Value="0.45" />
+					</KeyFrame>
+				</Animation>
+			</Style.Animations>
+		</Style>
+	</UserControl.Styles>
+	<Border x:Name="Card" HorizontalAlignment="Center" VerticalAlignment="Center">
+		<StackPanel Spacing="10">
+			<Panel
+				x:Name="Spinner"
+				Width="40"
+				Height="40"
+				HorizontalAlignment="Center"
+				RenderTransformOrigin="50%,50%"
+			>
+				<Panel.RenderTransform>
+					<RotateTransform />
+				</Panel.RenderTransform>
+				<Ellipse x:Name="Track" Margin="2" />
+				<Arc x:Name="Glow" Classes="sweep" Margin="2" />
+				<Arc x:Name="Ring" Classes="sweep" Margin="2" />
+			</Panel>
+			<TextBlock
+				x:Name="Label"
+				Classes="secondary"
+				HorizontalAlignment="Center"
+				IsVisible="{Binding $parent[local:LoadingSpinner].Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+				Text="{Binding $parent[local:LoadingSpinner].Text}"
+			/>
+		</StackPanel>
+	</Border>
+</UserControl>

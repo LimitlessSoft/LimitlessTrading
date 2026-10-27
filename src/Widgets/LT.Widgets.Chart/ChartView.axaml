@@ -3,6 +3,7 @@
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:LT.App.Widgets.Chart"
 	xmlns:helpers="using:LT.App.Helpers"
+	xmlns:controls="using:LT.App.Controls"
 	x:Class="LT.App.Widgets.Chart.ChartView"
 	x:DataType="vm:ChartViewModel"
 >
@@ -417,6 +418,7 @@
 				</Flyout>
 			</FlyoutBase.AttachedFlyout>
 		</vm:CandlestickChart>
+		<controls:LoadingSpinner Text="Loading…" IsVisible="{Binding IsLoading}" />
 		<StackPanel
 			HorizontalAlignment="Center"
 			VerticalAlignment="Top"
@@ -424,7 +426,6 @@
 			Spacing="2"
 			IsHitTestVisible="False"
 		>
-			<TextBlock Classes="secondary" Text="Loading…" IsVisible="{Binding IsLoading}" />
 			<TextBlock
 				Classes="negative"
 				FontSize="12"

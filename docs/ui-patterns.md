@@ -792,8 +792,10 @@ alerts, Manage indicators…, Apply template, Templates…). The account perform
 **Indicators and panes.** Right-click → Manage indicators… adds and removes indicators; they draw on the
 price chart, on the volume bars or in panes of their own stacked under the price chart, each
 pane with its own scale and a legend (hover a row for hide / settings / remove). All panes share
-the horizontal viewport and the crosshair. The loading / error overlay sits top centre, clear of
-the legend. Details: [indicators.md](indicators.md).
+the horizontal viewport and the crosshair. While bars load, a `LoadingSpinner` (shared control in
+`LT.Widgets.Core/Controls`: an accent arc sweeping round a faint track, animated only while
+visible) sits in the middle of the chart; the error text sits top centre, clear of the legend.
+Details: [indicators.md](indicators.md).
 
 **Right margin.** A small grip in the time axis marks the end of the last bar; dragging it left
 leaves empty space after the latest bar (dragging right narrows it, double-clicking it removes
