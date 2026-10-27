@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using LT.Contracts.Dtos.Account;
+using LT.Contracts.Dtos.Calendar;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Executions;
@@ -328,6 +329,39 @@ public class FakeIbkrApiClient : IIbkrApiClient
 				Statuses = OrderStatusSource?.Invoke() ?? OrderStatuses.ToAsyncEnumerable(),
 			}
 		);
+	}
+
+	/// <summary>The WSH metadata JSON; thrown instead when <see cref="WshException"/> is set.</summary>
+	public string WshMetaData { get; set; } = "{}";
+
+	/// <summary>Thrown by every WSH request (an IB refusal such as 10276).</summary>
+	public Exception? WshException { get; set; }
+
+	/// <summary>Answers each event data request; the default is an empty list.</summary>
+	public Func<WshEventQueryDto, string> WshEventsBy { get; set; } = _ => "[]";
+
+	public int WshMetaDataCalls { get; private set; }
+
+	/// <summary>Every event data request, in order.</summary>
+	public List<WshEventQueryDto> WshEventRequests { get; } = [];
+
+	public Task<string> GetWshMetaDataAsync(CancellationToken cancellationToken = default)
+	{
+		WshMetaDataCalls++;
+		return WshException != null
+			? Task.FromException<string>(WshException)
+			: Task.FromResult(WshMetaData);
+	}
+
+	public Task<string> GetWshEventDataAsync(
+		WshEventQueryDto query,
+		CancellationToken cancellationToken = default
+	)
+	{
+		WshEventRequests.Add(query);
+		return WshException != null
+			? Task.FromException<string>(WshException)
+			: Task.FromResult(WshEventsBy(query));
 	}
 
 	public Task CancelOrderAsync(int orderId, CancellationToken cancellationToken = default)

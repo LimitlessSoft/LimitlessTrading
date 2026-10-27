@@ -26,5 +26,7 @@ public class AppSettingsDtoMapper : ILSCoreMapper<GeneralSettingsEntity, AppSett
 			ChartRedrawIntervalMs = source.ChartRedrawIntervalMs,
 			DisplayTimeZoneId = source.DisplayTimeZoneId,
 			PlayFillSound = source.PlayFillSound,
+			CalendarNasdaq = source.CalendarNasdaq,
+			CalendarWallStreetHorizon = source.CalendarWallStreetHorizon,
 		};
 }

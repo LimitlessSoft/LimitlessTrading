@@ -100,6 +100,18 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		"sound audio beep chime alert notification fill execution trade"
 	);
 
+	private readonly BoolSettingViewModel _calendarNasdaq = new(
+		"Nasdaq",
+		"Earnings dates (with the time and the EPS estimate), ex-dividend dates, splits and economic releases from nasdaq.com's public calendars. No account or setup. Unofficial: Nasdaq may change it without notice.",
+		"calendar nasdaq earnings dividends splits economic releases macro source"
+	);
+
+	private readonly BoolSettingViewModel _calendarWallStreetHorizon = new(
+		"IB Wall Street Horizon",
+		"Corporate events from IB (earnings, dividends, conferences, meetings …). Needs IB's paid \"Wall Street Horizon Corporate Event Data\" subscription and a connection; without it IB refuses and the calendar says so. Events both sources report are shown once.",
+		"calendar wsh wall street horizon ib corporate events subscription source"
+	);
+
 	private readonly BoolSettingViewModel _cacheEnabled = new(
 		"Cache data on disk",
 		"Keeps data fetched from IB to open things faster and to show the last known values, marked as cached, while IB can't be reached. Off: nothing is read from or written to the cache.",
@@ -209,6 +221,8 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		_stopGatewayOnExit.Value = settings.StopGatewayOnExit;
 		_checkForUpdates.Value = settings.CheckForUpdates;
 		_playFillSound.Value = settings.PlayFillSound;
+		_calendarNasdaq.Value = settings.CalendarNasdaq;
+		_calendarWallStreetHorizon.Value = settings.CalendarWallStreetHorizon;
 		_layoutStyle.Value = settings.LayoutStyle;
 		_cacheEnabled.Value = settings.CacheEnabled;
 		_cacheChartBars.Value = settings.CacheChartBars;
@@ -251,6 +265,10 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 				]
 			),
 			new SettingsPageViewModel("Market data", [new("Quotes", _marketDataType)]),
+			new SettingsPageViewModel(
+				SettingsPageNames.Calendar,
+				[new("Sources", _calendarNasdaq, _calendarWallStreetHorizon)]
+			),
 			new SettingsPageViewModel(
 				"Account history",
 				[
@@ -343,6 +361,8 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 					ChartRedrawIntervalMs = (int)(_chartRedrawInterval.Value ?? 0),
 					DisplayTimeZoneId = (_displayTimeZone.Value as TimeZoneOption)?.Id,
 					PlayFillSound = _playFillSound.Value,
+					CalendarNasdaq = _calendarNasdaq.Value,
+					CalendarWallStreetHorizon = _calendarWallStreetHorizon.Value,
 				}
 			);
 			// a lowered limit applies now, not at the next cache write

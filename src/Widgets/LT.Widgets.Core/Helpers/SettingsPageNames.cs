@@ -5,4 +5,7 @@ public static class SettingsPageNames
 {
 	/// <summary>Account history → IB Flex: the Flex token, query ids and setup steps.</summary>
 	public const string AccountHistory = "Account history";
+
+	/// <summary>Calendar → Sources: which sources the Calendar widget shows (Nasdaq, IB Wall Street Horizon).</summary>
+	public const string Calendar = "Calendar";
 }

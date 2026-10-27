@@ -602,4 +602,46 @@ public class SettingsManagerTests
 				}
 			)
 		);
+
+	// A fresh user sees calendar data without any setup; WSH needs a subscription most don't have
+	[Fact]
+	public void Calendar_shows_Nasdaq_and_not_Wall_Street_Horizon_by_default()
+	{
+		var settings = new SettingsManager(_settings, _ibkr).GetAppSettings();
+
+		Assert.True(settings.CalendarNasdaq);
+		Assert.False(settings.CalendarWallStreetHorizon);
+		Assert.Equal([CalendarSource.Nasdaq], CalendarHelpers.GetEnabledSources(settings));
+	}
+
+	[Fact]
+	public void Settings_saved_before_the_calendar_sources_load_with_the_defaults()
+	{
+		var general = JsonSerializer
+			.Deserialize<SettingsEntity>("""{ "General": { "PlayFillSound": false } }""")!
+			.General;
+
+		Assert.True(general.CalendarNasdaq);
+		Assert.False(general.CalendarWallStreetHorizon);
+	}
+
+	[Fact]
+	public void Calendar_sources_round_trip()
+	{
+		var manager = new SettingsManager(_settings, _ibkr);
+
+		manager.SaveAppSettings(
+			new SaveAppSettingsRequest
+			{
+				MarketDataType = MarketDataType.Live,
+				HeartbeatSeconds = ConnectionConstants.DefaultHeartbeatSeconds,
+				CalendarNasdaq = false,
+				CalendarWallStreetHorizon = true,
+			}
+		);
+
+		var saved = manager.GetAppSettings();
+		Assert.False(saved.CalendarNasdaq);
+		Assert.True(saved.CalendarWallStreetHorizon);
+	}
 }

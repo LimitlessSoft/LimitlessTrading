@@ -1,4 +1,5 @@
 using LT.Contracts.Dtos.Account;
+using LT.Contracts.Dtos.Calendar;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Executions;
@@ -174,6 +175,24 @@ public interface IIbkrApiClient
 	/// <summary>The provider's broad tape contracts; empty when it has none.</summary>
 	Task<IReadOnlyList<ContractDto>> GetBroadTapeContractsAsync(
 		string providerCode,
+		CancellationToken cancellationToken = default
+	);
+
+	/// <summary>
+	/// Wall Street Horizon's metadata, the JSON IB sends (reqWshMetaData): the event types and
+	/// filter fields. Go through <c>ICalendarManager</c>. IB's refusals throw
+	/// <see cref="Exceptions.IbkrRequestException"/> with its code (10276 without the WSH
+	/// subscription).
+	/// </summary>
+	Task<string> GetWshMetaDataAsync(CancellationToken cancellationToken = default);
+
+	/// <summary>
+	/// Wall Street Horizon corporate events, the JSON IB sends (reqWshEventData). Go through
+	/// <c>ICalendarManager</c>. IB's refusals throw <see cref="Exceptions.IbkrRequestException"/>
+	/// with its code (10276 without the WSH subscription).
+	/// </summary>
+	Task<string> GetWshEventDataAsync(
+		WshEventQueryDto query,
 		CancellationToken cancellationToken = default
 	);
 

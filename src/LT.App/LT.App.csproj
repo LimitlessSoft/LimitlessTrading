@@ -11,7 +11,12 @@
 	<!-- App icon: on the windows, and next to the executable for a Linux desktop entry -->
 	<ItemGroup>
 		<AvaloniaResource Include="Assets/limitlesstrading.ico" />
-		<None Include="Assets/limitlesstrading.png;Assets/limitlesstrading.svg" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="%(Filename)%(Extension)" />
+		<None
+			Include="Assets/limitlesstrading.png;Assets/limitlesstrading.svg"
+			CopyToOutputDirectory="PreserveNewest"
+			CopyToPublishDirectory="PreserveNewest"
+			Link="%(Filename)%(Extension)"
+		/>
 	</ItemGroup>
 
 	<ItemGroup>
@@ -19,11 +24,13 @@
 		<ProjectReference Include="..\LT.Domain\LT.Domain.csproj" />
 		<ProjectReference Include="..\LT.Repository\LT.Repository.csproj" />
 		<ProjectReference Include="..\LT.Sec\LT.Sec.csproj" />
+		<ProjectReference Include="..\LT.Nasdaq\LT.Nasdaq.csproj" />
 		<ProjectReference Include="..\LT.Ibkr\LT.Ibkr.csproj" />
 		<ProjectReference Include="..\LT.Indicators.Scripting\LT.Indicators.Scripting.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.Core\LT.Widgets.Core.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.Account\LT.Widgets.Account.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.AccountPerformance\LT.Widgets.AccountPerformance.csproj" />
+		<ProjectReference Include="..\Widgets\LT.Widgets.Calendar\LT.Widgets.Calendar.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.Chart\LT.Widgets.Chart.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.DayTradePerformance\LT.Widgets.DayTradePerformance.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.Executions\LT.Widgets.Executions.csproj" />

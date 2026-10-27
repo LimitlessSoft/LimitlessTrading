@@ -314,8 +314,8 @@ new instance) and lives in one of four wrappers:
   (`WorkspaceHelpers.GetDefaultPlacements`, sizes in `WorkspaceConstants`) the window is maximized
   with every side collapsed: Chart in the center on SPY at 5m (link group red); Watchlist on the
   left (unpinned); Account and Messages (pinned), Option chain and Order ticket (unpinned) on the
-  right. Positions, Orders, Executions, News, Account performance, Day trade performance, Depth
-  and Notes are closed.
+  right. Positions, Orders, Executions, News, Account performance, Day trade performance, Depth,
+  Notes and Calendar are closed.
 - **Order ticket** (`LT.Widgets.OrderTicket`, right side): takes its contract from the link group.
   Account, side, market / limit, quantity or amount in $ (market only), limit price, time in force
   (crypto: GTC / IOC). "Review order" validates (`IOrderManager.ValidateOrder`) and spells the
@@ -385,6 +385,41 @@ new instance) and lives in one of four wrappers:
   owns the stream), so the slot is free. Several Depth widgets can be open (each on its own link
   group's contract); past IB's three subscriptions, the extra one shows IB's refusal. Data from `IMarketDepthManager`
   ([ibkr-tws-api.md → Market depth](ibkr-tws-api.md#market-depth)).
+- **Calendar** (`LT.Widgets.Calendar`, right side, closed on first run, Ctrl+Alt+V): upcoming
+  earnings, other corporate events and economic releases of the **whole market**, merged from
+  the sources switched on in **Settings → Calendar → Sources** (`CalendarNasdaq`,
+  `CalendarWallStreetHorizon` in `GeneralSettingsEntity`): **Nasdaq** (on by default; no setup,
+  no IB connection — [architecture.md → External data: Nasdaq
+  calendar](architecture.md#external-data-nasdaq-calendar)) and **IB Wall Street Horizon** (off
+  by default: it needs IB's paid subscription, which the live account lacks —
+  [ibkr-tws-api.md → Wall Street Horizon](ibkr-tws-api.md#wall-street-horizon-calendar)). Range
+  buttons This week / Next week / This month (weeks Monday to Sunday, New York dates) and event
+  buttons All / Earnings / Economic / Other events (corporate events but earnings: ex-dividend
+  dates, splits, conferences, meetings), both saved per widget (`WidgetPlacementDto.CalendarRange`
+  / `CalendarFilter`, null = this week, all; `CalendarEventFilter.Economic` = 3 was appended).
+  **Sources…** opens Settings on that page (`SettingsPageNames.Calendar`). One list: a header per
+  day ("Thu 29 Oct · Tomorrow", its event count, a warning when WSH returned its 100-per-request
+  maximum), then its events — the day's economic releases first by time ("All day" first), then
+  corporate events before open / during market / after close / without a time. Each row: time
+  badge (Before open / After close, a release's clock time as Nasdaq gives it, or WSH's own
+  text), symbol (none for a release), company or release, detail (EPS estimate, dividend amount
+  and payment date, split ratio, a release's actual / consensus / previous) and the type or a
+  release's country; the tooltip repeats it all and names the source ("from Nasdaq"). An event
+  both sources report (same day, kind and symbol) shows once, the first source's (WSH) with
+  blanks filled from the other (`CalendarHelpers.Merge`). Clicking an event looks the symbol up
+  (`IContractManager.SearchSymbolAsync`, the listing with WSH's conId if it gave one; needs IB) and
+  sends it to the link group; headers and releases can't link anything. It never shows a bare
+  empty list: a source that failed while others answered is named in a warning line under the
+  status ("IB Wall Street Horizon: This IB account has no Wall Street Horizon subscription …",
+  "Nasdaq: … (HTTP 403)"); when none answered a notice replaces the list — no WSH subscription,
+  an unreadable answer, every source off ("No calendar source is on", where to turn one on) or
+  each source's failure; an empty range says "No earnings dates / economic releases / corporate
+  events / events between …". The status line counts events, says when they were loaded and from
+  which sources. It loads on open whether or not IB is connected, again on connect / disconnect
+  (WSH's availability changes; the other sources answer from memory) and when the sources change
+  in Settings (`ICalendarManager.SourcesChanged`). Switching range or filter cancels the load
+  running; Refresh and F5 ask every source again (otherwise answers of the last 30 minutes come
+  from memory, per source). Data from `ICalendarManager`, which merges every `ICalendarSource`.
 - **Notes** (`LT.Widgets.Notes`, a Tools widget, right side, closed on first run, Ctrl+Alt+S): a
   free-text pad, one wrapping multi-line text box, no Save button. Every Notes widget has a note
   of its own, its id saved in the layout (`WidgetPlacementDto.NoteId`), so it shows its text
@@ -610,7 +645,7 @@ fullscreen widget restores it first; its header doesn't start a drag while fulls
 
 ### Link groups
 
-Watchlist, Positions, Orders, Executions, Chart, Option chain, Order ticket, News and Depth can be linked:
+Watchlist, Positions, Orders, Executions, Chart, Option chain, Order ticket, News, Depth and Calendar can be linked:
 the chain icon left of the frame's close button opens a menu of ten color groups (Red, Green, Blue, Yellow, Orange, Purple, Cyan,
 Pink, Lime, White) or Not linked, and is tinted
 with the current one. Widgets in the same group show the same contract:
@@ -621,7 +656,7 @@ with the current one. Widgets in the same group show the same contract:
   every refresh and keep the same row selected (by permId / execId) without sending it again, so
   a refresh never pulls the group back. An execution's contract goes out without the fill's
   venue, so linked widgets ask through SMART.
-- Positions, Orders and Executions only send: a contract from the group doesn't filter or move
+- Positions, Orders, Executions and Calendar only send: a contract from the group doesn't filter or move
   their lists.
 - Joining a group shows the group's contract; joining an empty group gives it the widget's own.
 - New widgets start in Red, so out of the box they all follow each other. "Not linked" keeps a
@@ -804,10 +839,10 @@ subscription and frees the market-data line.
 | Ctrl+F | Focus the watchlist's add-symbol box |
 | Enter / Esc (ticker box) | Take the highlighted listing (or the typed ticker) / cancel |
 | Delete (watchlist) | Remove selected row |
-| F5 | Refresh chart, account, positions, orders, executions, day trade performance |
+| F5 | Refresh chart, account, positions, orders, executions, day trade performance, calendar |
 | Ctrl+, | Settings |
 | Ctrl+1 … Ctrl+9 | Show an open Watchlist, Positions, Orders, Executions, Account, Messages, Chart, Option chain, Order ticket, opening one if none is (collapses an expanded side widget); Ctrl+7 always opens a new chart in the current view |
-| Ctrl+Alt+W / P / O / E / A / M / C / B / N / R / J / K / S | Show and focus an open Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News, Account performance, Day trade performance, Depth, Notes, opening one if none is (works from floating windows too) |
+| Ctrl+Alt+W / P / O / E / A / M / C / B / N / R / J / K / S / V | Show and focus an open Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News, Account performance, Day trade performance, Depth, Notes, Calendar, opening one if none is (works from floating windows too) |
 | Esc (side or bottom widget) | Back to the last focused center widget; an unpinned widget collapses |
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous center view |
 | Alt+A (chart) | Add a price alert at the price under the pointer, or at the last price |

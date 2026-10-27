@@ -29,6 +29,7 @@ public class WidgetsMenuItem : MenuItem
 		WorkspaceTool.Depth,
 		WorkspaceTool.OrderTicket,
 		WorkspaceTool.News,
+		WorkspaceTool.Calendar,
 		WorkspaceTool.DayTradePerformance,
 		null,
 		WorkspaceTool.Notes,

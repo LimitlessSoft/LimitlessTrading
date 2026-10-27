@@ -43,6 +43,8 @@ public class WidgetPlacementDtoMapper : ILSCoreMapper<WidgetPlacementEntity, Wid
 			PerformanceShowCashMovements = source.PerformanceShowCashMovements,
 			WatchlistId = source.WatchlistId,
 			NoteId = source.NoteId,
+			CalendarRange = source.CalendarRange,
+			CalendarFilter = source.CalendarFilter,
 			ChartContract = source.ChartContract is { } contract
 				? new ContractDtoMapper().ToMapped(contract)
 				: null,

@@ -1,6 +1,7 @@
 using Avalonia.Input;
 using LT.App.Widgets.Account;
 using LT.App.Widgets.AccountPerformance;
+using LT.App.Widgets.Calendar;
 using LT.App.Widgets.Chart;
 using LT.App.Widgets.DayTradePerformance;
 using LT.App.Widgets.Depth;
@@ -37,6 +38,7 @@ public static class WidgetCatalog
 		new DayTradePerformanceWidget(),
 		new DepthWidget(),
 		new NotesWidget(),
+		new CalendarWidget(),
 	];
 
 	public static IWidgetDefinition Get(WorkspaceTool tool) =>

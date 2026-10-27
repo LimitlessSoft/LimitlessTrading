@@ -3,6 +3,7 @@ using IBKR.Net;
 using LSCore.Mapper.Domain;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Account;
+using LT.Contracts.Dtos.Calendar;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Executions;
@@ -417,6 +418,40 @@ public class IbkrApiClient : IIbkrApiClient
 		await _messages.WaitAsync(cancellationToken);
 		var executions = await RequireClient().GetExecutionsAsync(cancellationToken);
 		return executions.ToMappedList<Execution, ExecutionDto>();
+	}
+
+	// Without the WSH subscription IB answers 10276; the code goes out for ICalendarManager
+	public async Task<string> GetWshMetaDataAsync(CancellationToken cancellationToken = default)
+	{
+		await _messages.WaitAsync(cancellationToken);
+		try
+		{
+			return await RequireClient().GetWshMetaDataAsync(cancellationToken);
+		}
+		catch (IbkrException ex)
+		{
+			throw new IbkrRequestException(ex.Code, ex.ErrorText, ex);
+		}
+	}
+
+	public async Task<string> GetWshEventDataAsync(
+		WshEventQueryDto query,
+		CancellationToken cancellationToken = default
+	)
+	{
+		await _messages.WaitAsync(cancellationToken);
+		try
+		{
+			return await RequireClient()
+				.GetWshEventDataAsync(
+					query.ToMapped<WshEventQueryDto, WshEventDataRequest>(),
+					cancellationToken
+				);
+		}
+		catch (IbkrException ex)
+		{
+			throw new IbkrRequestException(ex.Code, ex.ErrorText, ex);
+		}
 	}
 
 	public async Task<PlacedOrderDto> PlaceOrderAsync(
