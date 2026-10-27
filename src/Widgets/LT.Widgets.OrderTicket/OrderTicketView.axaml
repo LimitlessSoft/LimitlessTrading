@@ -33,6 +33,7 @@
 			>
 				<TextBlock Grid.Row="0" VerticalAlignment="Center" Text="Account" />
 				<ComboBox
+					Classes="sensitive"
 					Grid.Row="0"
 					Grid.Column="1"
 					HorizontalAlignment="Stretch"

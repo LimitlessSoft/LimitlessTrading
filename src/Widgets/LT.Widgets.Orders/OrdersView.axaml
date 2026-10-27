@@ -4,6 +4,7 @@
 	xmlns:vm="using:LT.App.Widgets.Orders"
 	xmlns:helpers="using:LT.App.Helpers"
 	xmlns:dto="using:LT.Contracts.Dtos.Orders"
+	xmlns:controls="using:LT.App.Controls"
 	x:Class="LT.App.Widgets.Orders.OrdersView"
 	x:DataType="vm:OrdersViewModel"
 >
@@ -63,7 +64,7 @@
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
 				<DataGridTextColumn x:DataType="dto:OpenOrderDto" Header="Id" Binding="{Binding OrderId}" />
-				<DataGridTextColumn
+				<controls:SensitiveTextColumn
 					x:DataType="dto:OpenOrderDto"
 					Header="Account"
 					Binding="{Binding Account}"
@@ -83,12 +84,12 @@
 					Header="Side"
 					Binding="{Binding Action}"
 				/>
-				<DataGridTextColumn
+				<controls:SensitiveTextColumn
 					x:DataType="dto:OpenOrderDto"
 					Header="Quantity"
 					Binding="{Binding Quantity, StringFormat='{}{0:#,0.####}'}"
 				/>
-				<DataGridTextColumn
+				<controls:SensitiveTextColumn
 					x:DataType="dto:OpenOrderDto"
 					Header="Filled"
 					Binding="{Binding Filled, StringFormat='{}{0:#,0.####}'}"

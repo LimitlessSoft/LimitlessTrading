@@ -81,6 +81,27 @@ Business rules keep their fixed zones whatever is picked: trading days
 (`TradeJournalConstants.TradeDayTimeZoneId`, `AccountPerformanceConstants.TradingDayTimeZoneId`)
 and Flex statements (`FlexConstants.StatementTimeZoneId`).
 
+## Privacy mode (the eye in the title bar)
+
+The eye left of the main window's window buttons hides sensitive values everywhere — account ids,
+account values (net liq, cash, buying power, margin), P&L, position quantities, avg cost and market
+value, order and execution quantities, commissions, day-trade and account-performance figures and
+their charts' value axes and readouts — behind `Sensitive.Mask` ("••••••", always the same
+length). Symbols, quotes, prices, chart bars and option chains stay visible. The state is
+`PrivacyStore` (a store in `LT.Widgets.Core`, saved as `HideSensitiveValues` in `settings.json`, so
+it survives a restart); it pushes into `Sensitive.IsHidden`, the view side every window reads.
+
+Marking a value sensitive (only what is drawn changes; bound values and view models never see the
+mask, and everything on screen follows the switch at once):
+
+- a TextBlock → `controls:SensitiveTextBlock` (styled as a TextBlock; empty text stays empty);
+- a DataGrid text column → `controls:SensitiveTextColumn`;
+- an account picker → `ComboBox Classes="sensitive"` (its items become `SensitiveTextBlock`s);
+- a control that draws values itself → pass them through `Sensitive.Apply(text)` in `Render` and
+  set `helpers:Sensitive.Redraws="True"` on it.
+
+A text that mixes sensitive and plain parts is masked as a whole; split it when that hides too much.
+
 ## Settings window
 
 `Widgets/Settings`: a searchable tree of pages on the left, the selected page on the right. A page

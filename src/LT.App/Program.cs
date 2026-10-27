@@ -161,6 +161,7 @@ public static class Program
 		builder.Services.AddSingleton<LinkGroupStore>();
 		builder.Services.AddSingleton<AppearanceStore>();
 		builder.Services.AddSingleton<DisplayTimeStore>();
+		builder.Services.AddSingleton<PrivacyStore>();
 		builder.Services.AddSingleton<SettingsNavigator>();
 		builder.Services.AddSingleton<OrderTicketNavigator>();
 

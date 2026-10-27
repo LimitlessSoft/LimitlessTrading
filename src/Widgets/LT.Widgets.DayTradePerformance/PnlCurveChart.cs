@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
+using LT.App.Helpers;
 using LT.Contracts.Dtos.Performance;
 using LT.Contracts.Helpers;
 
@@ -116,7 +117,11 @@ public class PnlCurveChart : Control
 		{
 			var y = Math.Round(Y(value)) + 0.5;
 			context.DrawLine(GridPen, new Point(plot.X, y), new Point(plot.Right, y));
-			var label = Text(value.ToString("#,0.##", CultureInfo.CurrentCulture), 11, TextBrush);
+			var label = Text(
+				Sensitive.Apply(value.ToString("#,0.##", CultureInfo.CurrentCulture)),
+				11,
+				TextBrush
+			);
 			context.DrawText(label, new Point(plot.Right + 6, y - label.Height / 2));
 		}
 
@@ -178,7 +183,7 @@ public class PnlCurveChart : Control
 			context.DrawLine(CrosshairPen, new Point(x, plot.Y), new Point(x, plot.Bottom));
 		}
 		var readout = Text(
-			$"{ToShown(shown.Time):HH:mm:ss}   P&L {shown.Value.ToString("+#,0.00;-#,0.00;0.00", CultureInfo.CurrentCulture)}",
+			$"{ToShown(shown.Time):HH:mm:ss}   P&L {Sensitive.Apply(shown.Value.ToString("+#,0.00;-#,0.00;0.00", CultureInfo.CurrentCulture))}",
 			12,
 			shown.Value >= 0 ? UpBrush : DownBrush
 		);

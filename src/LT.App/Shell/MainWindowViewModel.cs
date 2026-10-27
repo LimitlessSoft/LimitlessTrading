@@ -30,6 +30,7 @@ public partial class MainWindowViewModel : ViewModelBase
 		AccountStore accountStore,
 		AppearanceStore appearance,
 		DisplayTimeStore displayTime,
+		PrivacyStore privacy,
 		ConnectionBarViewModel connectionBar,
 		TradingPageViewModel tradingPage,
 		UpdateViewModel update,
@@ -44,6 +45,7 @@ public partial class MainWindowViewModel : ViewModelBase
 		_displayTime = displayTime;
 		ConnectionBar = connectionBar;
 		Appearance = appearance;
+		Privacy = privacy;
 		Update = update;
 		CurrentPage = tradingPage;
 
@@ -66,6 +68,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
 	/// <summary>Cards or flush: the window carries the flush class the styles key on.</summary>
 	public AppearanceStore Appearance { get; }
+
+	/// <summary>Privacy mode, switched by the eye in the title bar.</summary>
+	public PrivacyStore Privacy { get; }
 
 	public UpdateViewModel Update { get; }
 

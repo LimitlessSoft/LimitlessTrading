@@ -3,6 +3,7 @@
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:LT.App.Widgets.Executions"
 	xmlns:helpers="using:LT.App.Helpers"
+	xmlns:controls="using:LT.App.Controls"
 	x:Class="LT.App.Widgets.Executions.ExecutionsView"
 	x:DataType="vm:ExecutionsViewModel"
 >
@@ -44,7 +45,7 @@
 					Binding="{Binding TimeText}"
 					SortMemberPath="Execution.Time"
 				/>
-				<DataGridTextColumn
+				<controls:SensitiveTextColumn
 					x:DataType="vm:ExecutionRowViewModel"
 					Header="Account"
 					Binding="{Binding Execution.Account}"
@@ -64,7 +65,7 @@
 					Header="Side"
 					Binding="{Binding Execution.Side}"
 				/>
-				<DataGridTextColumn
+				<controls:SensitiveTextColumn
 					x:DataType="vm:ExecutionRowViewModel"
 					Header="Shares"
 					Binding="{Binding Execution.Shares, StringFormat='{}{0:#,0.####}'}"
@@ -79,7 +80,7 @@
 					Header="Exchange"
 					Binding="{Binding Execution.Exchange}"
 				/>
-				<DataGridTextColumn
+				<controls:SensitiveTextColumn
 					x:DataType="vm:ExecutionRowViewModel"
 					Header="Commission"
 					Binding="{Binding Execution.Commission, StringFormat='{}{0:#,0.00##}'}"
@@ -89,7 +90,7 @@
 					Header="Ccy"
 					Binding="{Binding Execution.CommissionCurrency}"
 				/>
-				<DataGridTextColumn
+				<controls:SensitiveTextColumn
 					x:DataType="vm:ExecutionRowViewModel"
 					Header="Realized P&amp;L"
 					Binding="{Binding Execution.RealizedPnl, StringFormat='{}{0:+#,0.00;-#,0.00;0.00}'}"

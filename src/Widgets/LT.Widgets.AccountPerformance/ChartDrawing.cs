@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
+using LT.App.Helpers;
 using LT.Contracts.Dtos.AccountPerformance;
 using LT.Contracts.Enums;
 
@@ -149,7 +150,15 @@ internal static class ChartDrawing
 		if (movements is not { Count: > 0 })
 			return;
 		var text = Text(
-			"   " + string.Join(",  ", movements.Select(m => CashMovementText.Short(m))),
+			"   "
+				+ string.Join(
+					",  ",
+					movements.Select(m =>
+						Sensitive.IsHidden
+							? CashMovementText.Label(m.Kind)
+							: CashMovementText.Short(m)
+					)
+				),
 			12,
 			GetBrush(movements[0].Kind)
 		);
@@ -195,7 +204,7 @@ internal static class ChartDrawing
 		{
 			var lineY = Math.Round(y(value)) + 0.5;
 			context.DrawLine(GridPen, new Point(plot.X, lineY), new Point(plot.Right, lineY));
-			var label = Text(CompactNumber(value), 11, TextBrush);
+			var label = Text(Sensitive.Apply(CompactNumber(value)), 11, TextBrush);
 			context.DrawText(label, new Point(plot.Right + 6, lineY - label.Height / 2));
 		}
 	}
