@@ -50,8 +50,34 @@
 			IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
 		/>
 
+		<!-- Sorted by a hidden column: its header (and arrow) is off the grid, so this says so -->
+		<Grid
+			DockPanel.Dock="Top"
+			ColumnDefinitions="*,Auto"
+			Margin="0,0,0,4"
+			IsVisible="{Binding IsSortHidden}"
+		>
+			<TextBlock
+				Classes="secondary"
+				FontSize="12"
+				VerticalAlignment="Center"
+				TextTrimming="CharacterEllipsis"
+				Text="{Binding HiddenSortText}"
+			/>
+			<Button
+				Grid.Column="1"
+				Classes="frameAction close"
+				VerticalAlignment="Center"
+				ToolTip.Tip="Clear sort"
+				Command="{Binding ClearSortCommand}"
+			>
+				<PathIcon Data="{StaticResource FrameCloseIcon}" />
+			</Button>
+		</Grid>
+
 		<!-- Rows drag onto a chart (TickerDragDrop). Sorting is the view model's (OnGridSorting):
-		     pinned rows stay on top in pin order, the rest follow the clicked column. Custom
+		     pinned rows stay on top in pin order, the rest follow the clicked column. Right-click a
+		     header for the column menu (sort, hide, show others; OpenColumnMenu). Custom
 		     columns are added after these by the view (RebuildCustomColumns); only their cells are
 		     editable (click a selected row's cell or F2, Enter saves, Esc cancels) -->
 		<DataGrid

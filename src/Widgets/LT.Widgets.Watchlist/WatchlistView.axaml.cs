@@ -48,10 +48,16 @@ public partial class WatchlistView : UserControl
 	{
 		base.OnDataContextChanged(e);
 		if (_subscribed != null)
+		{
 			_subscribed.PropertyChanged -= OnViewModelPropertyChanged;
+			_subscribed.ColumnVisibilityChanged -= ApplyColumnVisibility;
+		}
 		_subscribed = ViewModel;
 		if (_subscribed != null)
+		{
 			_subscribed.PropertyChanged += OnViewModelPropertyChanged;
+			_subscribed.ColumnVisibilityChanged += ApplyColumnVisibility;
+		}
 		RebuildCustomColumns();
 	}
 
@@ -65,11 +71,123 @@ public partial class WatchlistView : UserControl
 	}
 
 	// The row menu is the grid's, so it would also open on a column header or the empty area
-	// below the rows; only a row opens it
+	// below the rows; only a row opens it. A column header opens the column menu instead
 	private void OnGridContextRequested(object? sender, ContextRequestedEventArgs e)
 	{
-		if (e.Source is not Visual source || source.FindAncestorOfType<DataGridRow>(true) == null)
-			e.Handled = true;
+		if (e.Source is not Visual source || source.FindAncestorOfType<DataGridRow>(true) != null)
+			return;
+		e.Handled = true;
+		if (
+			source.FindAncestorOfType<DataGridColumnHeader>(true) is { } header
+			&& FindColumn(header) is { } column
+		)
+			OpenColumnMenu(header, column);
+	}
+
+	// Sort the column either way, clear the sort, hide it; below, every column to show or hide
+	// (hidden ones too, so they can come back)
+	private void OpenColumnMenu(Control header, DataGridColumn column)
+	{
+		if (ViewModel is not { } viewModel || ToColumn(column.Tag) is not (var sortColumn, var id))
+			return;
+		var sorted =
+			viewModel.SortColumn == sortColumn
+			&& (sortColumn != WatchlistSortColumn.Custom || viewModel.SortCustomColumnId == id);
+		var menu = new MenuFlyout();
+		menu.Items.Add(
+			SortItem(
+				viewModel,
+				"Sort low to high",
+				sortColumn,
+				id,
+				ListSortDirection.Ascending,
+				sorted
+			)
+		);
+		menu.Items.Add(
+			SortItem(
+				viewModel,
+				"Sort high to low",
+				sortColumn,
+				id,
+				ListSortDirection.Descending,
+				sorted
+			)
+		);
+		var clear = new MenuItem
+		{
+			Header = "Clear sort",
+			IsEnabled = viewModel.SortColumn != WatchlistSortColumn.None,
+		};
+		clear.Click += (_, _) => viewModel.ClearSortCommand.Execute(null);
+		menu.Items.Add(clear);
+		var hide = new MenuItem
+		{
+			Header = "Hide column",
+			IsEnabled = viewModel.CanToggleColumn(sortColumn, id),
+		};
+		hide.Click += (_, _) => viewModel.SetColumnShown(sortColumn, id, false);
+		menu.Items.Add(hide);
+		menu.Items.Add(new Separator());
+		foreach (var option in viewModel.Columns)
+		{
+			var item = new MenuItem
+			{
+				Header = option.Name,
+				ToggleType = MenuItemToggleType.CheckBox,
+				IsChecked = option.IsShown,
+				IsEnabled = option.CanToggle,
+			};
+			item.Click += (_, _) =>
+				viewModel.SetColumnShown(option.Column, option.CustomColumnId, !option.IsShown);
+			menu.Items.Add(item);
+		}
+		menu.ShowAt(header, showAtPointer: true);
+	}
+
+	private static MenuItem SortItem(
+		WatchlistViewModel viewModel,
+		string text,
+		WatchlistSortColumn column,
+		string? customColumnId,
+		ListSortDirection direction,
+		bool sorted
+	)
+	{
+		var item = new MenuItem
+		{
+			Header = text,
+			ToggleType = MenuItemToggleType.Radio,
+			IsChecked = sorted && viewModel.SortDirection == direction,
+		};
+		item.Click += (_, _) => viewModel.SortBy(column, customColumnId, direction);
+		return item;
+	}
+
+	// A grid column's tag as the column it is: built-in by its sort column, custom by its id
+	private static (WatchlistSortColumn Column, string? CustomColumnId)? ToColumn(object? tag) =>
+		tag switch
+		{
+			WatchlistSortColumn column => (column, null),
+			string customColumnId => (WatchlistSortColumn.Custom, customColumnId),
+			_ => null,
+		};
+
+	private DataGridColumn? FindColumn(DataGridColumnHeader header) =>
+		Grid.Columns.FirstOrDefault(x =>
+			x.Header != null && ReferenceEquals(x.Header, header.Content)
+		);
+
+	// Hidden columns are off the grid; the rows may still be sorted by one
+	private void ApplyColumnVisibility()
+	{
+		if (ViewModel is not { } viewModel)
+			return;
+		foreach (var column in Grid.Columns)
+			if (ToColumn(column.Tag) is (var sortColumn, var id))
+				column.IsVisible = viewModel.IsColumnShown(sortColumn, id);
+		// Shown again: its header needs its sort arrow
+		Dispatcher.UIThread.Post(UpdateSortGlyphs, DispatcherPriority.Loaded);
 	}
 
 	// The grid's own sort can't keep pinned rows on top: the view model sorts instead
@@ -132,8 +250,8 @@ public partial class WatchlistView : UserControl
 		if (ViewModel is { } viewModel)
 			for (var i = 0; i < viewModel.CustomColumns.Count; i++)
 				Grid.Columns.Add(CreateCustomColumn(viewModel.CustomColumns[i], i));
-		// The new headers exist once the grid has laid them out
-		Dispatcher.UIThread.Post(UpdateSortGlyphs, DispatcherPriority.Loaded);
+		// The new headers exist once the grid has laid them out (posted there)
+		ApplyColumnVisibility();
 	}
 
 	private static DataGridTemplateColumn CreateCustomColumn(
@@ -194,9 +312,7 @@ public partial class WatchlistView : UserControl
 			return;
 		foreach (var header in Grid.GetVisualDescendants().OfType<DataGridColumnHeader>())
 		{
-			var column = Grid.Columns.FirstOrDefault(x =>
-				x.Header != null && ReferenceEquals(x.Header, header.Content)
-			);
+			var column = FindColumn(header);
 			var sorted = column?.Tag switch
 			{
 				WatchlistSortColumn sortColumn => sortColumn == viewModel.SortColumn,

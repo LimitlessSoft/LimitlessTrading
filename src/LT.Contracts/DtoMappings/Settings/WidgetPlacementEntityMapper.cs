@@ -42,6 +42,15 @@ public class WidgetPlacementEntityMapper : ILSCoreMapper<WidgetPlacementDto, Wid
 			OptionQuickOrderQuantity = source.OptionQuickOrderQuantity,
 			PerformanceShowCashMovements = source.PerformanceShowCashMovements,
 			WatchlistId = source.WatchlistId,
+			WatchlistHiddenColumns = source.WatchlistHiddenColumns is { } hiddenColumns
+				? [.. hiddenColumns]
+				: null,
+			WatchlistHiddenCustomColumns = source.WatchlistHiddenCustomColumns is { } hiddenCustom
+				? [.. hiddenCustom]
+				: null,
+			WatchlistSortBy = source.WatchlistSortBy,
+			WatchlistSortCustomColumnId = source.WatchlistSortCustomColumnId,
+			WatchlistSortDescending = source.WatchlistSortDescending,
 			NoteId = source.NoteId,
 			CalendarRange = source.CalendarRange,
 			CalendarFilter = source.CalendarFilter,

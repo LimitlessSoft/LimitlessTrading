@@ -12,8 +12,8 @@ namespace LT.App.Widgets.Watchlist;
 /// The watchlist's header title: the shown watchlist, opening a list of all of them. A row is
 /// picked by clicking its name, renamed in place (pencil; Enter or clicking away saves, Esc
 /// cancels) or deleted after an inline confirmation (✕); below them, rows add, import and export
-/// a watchlist, and the shown watchlist's custom columns are added, renamed and deleted the same
-/// way.
+/// a watchlist, and every column is listed to show or hide and sort by (hidden ones too); the
+/// shown watchlist's custom columns are added, renamed and deleted the same way.
 /// </summary>
 public partial class WatchlistTitleView : UserControl
 {

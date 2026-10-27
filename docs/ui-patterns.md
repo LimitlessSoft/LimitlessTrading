@@ -557,7 +557,7 @@ before the first trade), recomputed on every UI flush and sortable by its numeri
 (`MarketCapValue`). Only US stocks (STK in USD) get one; anything else, and stocks the SEC has no
 usable count for (ETFs, foreign filers), show "—". Starting a row's quote also starts its
 `ISharesOutstandingManager` lookup (cached on disk, so normally instant); the result is posted to
-the row on the UI thread. The built-in columns are fixed: nothing about them is persisted.
+the row on the UI thread. The built-in columns can't be renamed or moved, only hidden.
 
 **Custom columns.** Each watchlist can have up to `WatchlistConstants.MaxCustomColumns` (10)
 columns of its own, added, renamed and deleted in the header popup's "Columns" section (same
@@ -575,13 +575,32 @@ cells bind by index into the row's `Cells` (`WatchlistCellViewModel`: saved `Tex
 `EditText` for the edit box, saved on the grid's `CellEditEnded` commit). Only these columns are
 editable: the grid is not read-only, every built-in column is.
 
+**Managing columns.** The header popup's "Columns" section lists every column, built-in then
+custom (`WatchlistViewModel.Columns`, `WatchlistColumnOptionViewModel`): a check box shows or
+hides it, an arrow sorts by it (⇅ unsorted, ↑ / ↓ sorted; a click sorts or flips, like a header
+click), custom ones also rename (pencil) and delete (✕); "Clear sort" goes back to the saved
+order. Right-clicking a column header opens the same as a menu (`WatchlistView.OpenColumnMenu`:
+sort low to high / high to low, clear sort, hide column, then every column's show / hide check).
+**A hidden column can still be sorted by**: hiding only takes it off the grid
+(`DataGridColumn.IsVisible`, set by the view on `ColumnVisibilityChanged`), the order is computed
+from the rows as before and keeps following ticks; while the sorted column is hidden a line above
+the grid says "Sorted by Vol (hidden) ↓" with a ✕ to clear it (`HiddenSortText`). The last shown
+column can't be hidden (`WatchlistColumnHelpers.CanToggle`); every built-in column hidden while
+the last shown custom one is deleted (or the widget switches to a list without it) brings Symbol
+back (`ResolveHidden`). Both are kept **per widget** in its placement:
+`WidgetPlacementEntity.WatchlistHiddenColumns` (built-in, as `WatchlistSortColumn` values),
+`WatchlistHiddenCustomColumns` (column ids), `WatchlistSortBy` + `WatchlistSortCustomColumnId` +
+`WatchlistSortDescending` (null when unset; older layouts show everything, unsorted). A saved
+sort by an unknown or deleted column falls back to the saved order
+(`WatchlistSortHelpers.ResolveSort`, then the column check in `LoadColumns`).
+
 **Pinning and sorting.** Right-click a row > "Pin to top" (or "Unpin"). Pinned rows stay on top,
 with a small pin before the symbol, in the order they were pinned, whatever column is sorted;
 only the rows below follow the sort. Pins are kept per watchlist in `WatchlistEntity.Pinned`
 (conId + exchange, in pin order; settings from before pinning have none) through
 `IWatchlistManager.Pin` / `Unpin` / `GetPinned`; removing a row drops its pin. The DataGrid's own
 sort can't hold a group in place, so the view handles its `Sorting` event and the view model
-owns the sort (`SortColumn`, `SortDirection`, not persisted): a new column sorts ascending, the
+owns the sort (`SortColumn`, `SortDirection`, saved with the widget, see above): a new column sorts ascending, the
 sorted one flips. Every sortable column sorts by a number (`LastValue`, `ChangePercentValue`,
 `BidValue` for Bid / Ask, `VolumeValue`, `MarketCapValue`), rows without one yet last in either
 direction, ties in saved order; Symbol sorts ignoring case. A custom column sorts as
@@ -592,8 +611,9 @@ blank cells last either way (`GetCustomSortKey`); typing a value re-sorts at onc
 sorted column goes back to the saved order. `WatchlistSortHelpers.Order` gives
 the order and `CollectionHelpers.ApplyOrder` moves only the rows that have to (remove + insert:
 the DataGrid ignores Move), keeping the selection without re-publishing it to the link group.
-The order is re-applied on a header click, pin / unpin and add; while sorted by a quote column,
-ticks mark it stale and it re-sorts at most once per `WatchlistResortInterval` (1 s). The view
+The order is re-applied on a header click, pin / unpin and add; while sorted by a quote column
+(shown or hidden), ticks mark it stale (`FlushQuotes`, the UI flush timer; `ResortIfStale`, the
+resort timer) and it re-sorts at most once per `WatchlistResortInterval` (1 s). The view
 sets the header's sort arrow itself, as the grid only draws it for its own sort.
 
 **Import / export.** The header popup's "Export <name>…" saves the shown watchlist through the
