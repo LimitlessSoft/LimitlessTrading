@@ -4,6 +4,7 @@ using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using LT.Contracts.Dtos.PriceAlerts;
 using LT.Contracts.Enums;
+using LT.Contracts.Helpers;
 
 namespace LT.App.Widgets.Chart;
 
@@ -13,11 +14,21 @@ namespace LT.App.Widgets.Chart;
 /// alert (<see cref="AlertMoved"/>, at the price as shown on the axis); ✕ removes it
 /// (<see cref="AlertRemoved"/>). Triggered alerts stay as a grey dotted line until removed. Alerts
 /// outside the visible price range are not drawn.
+/// <para>
+/// While <see cref="IsPlacingAlert"/> (the toolbox's alert tool) a dashed preview line follows the
+/// pointer's price on the price chart, with its level on the axis, and a left click there raises
+/// <see cref="AlertPlaced"/> instead of panning or grabbing what is under it.
+/// </para>
 /// </summary>
 public partial class CandlestickChart
 {
 	public static readonly StyledProperty<IReadOnlyList<PriceAlertDto>?> AlertsProperty =
 		AvaloniaProperty.Register<CandlestickChart, IReadOnlyList<PriceAlertDto>?>(nameof(Alerts));
+
+	public static readonly StyledProperty<bool> IsPlacingAlertProperty = AvaloniaProperty.Register<
+		CandlestickChart,
+		bool
+	>(nameof(IsPlacingAlert));
 
 	// Grab distance (DIPs) above and below an alert line
 	private const double AlertHitHeight = 4;
@@ -33,7 +44,13 @@ public partial class CandlestickChart
 		1,
 		new ImmutableDashStyle([1, 3], 0)
 	);
+	private static readonly IPen AlertPreviewPen = new ImmutablePen(
+		AlertBrush,
+		1,
+		new ImmutableDashStyle([4, 3], 0)
+	);
 	private static readonly Cursor MoveVerticalCursor = new(StandardCursorType.SizeNorthSouth);
+	private static readonly Cursor PlaceCursor = new(StandardCursorType.Cross);
 
 	// The price scale as last drawn, for the price under a point
 	private ChartPane? _pricePane;
@@ -53,6 +70,19 @@ public partial class CandlestickChart
 		get => GetValue(AlertsProperty);
 		set => SetValue(AlertsProperty, value);
 	}
+
+	/// <summary>
+	/// The alert tool is armed: the pointer's price is previewed as a line and a left click on the
+	/// price chart places the alert (<see cref="AlertPlaced"/>).
+	/// </summary>
+	public bool IsPlacingAlert
+	{
+		get => GetValue(IsPlacingAlertProperty);
+		set => SetValue(IsPlacingAlertProperty, value);
+	}
+
+	/// <summary>The price chart was clicked while placing an alert: the price, as on the axis.</summary>
+	public event Action<double>? AlertPlaced;
 
 	/// <summary>An alert line was dragged to a new level: its id and the level.</summary>
 	public event Action<string, double>? AlertMoved;
@@ -175,6 +205,54 @@ public partial class CandlestickChart
 		}
 	}
 
+	// While placing: a dashed line at the pointer's price (as the axis rounds it), the direction it
+	// would get from the last close, and the level on the axis
+	private void DrawAlertPreview(DrawingContext context, double lastClose)
+	{
+		if (
+			!IsPlacingAlert
+			|| _pointer is not { } p
+			|| _pricePane is not { } pane
+			|| GetPriceAt(p) is not { } level
+		)
+			return;
+		var rect = pane.Rect;
+		var y = Math.Round(pane.Y(level)) + 0.5;
+		if (y < rect.Top || y > rect.Bottom)
+			return;
+		context.DrawLine(AlertPreviewPen, new Point(rect.X, y), new Point(rect.Right, y));
+		var arrow =
+			PriceAlertHelpers.GetCondition(level, lastClose) == PriceAlertCondition.CrossingUp
+				? "▲"
+				: "▼";
+		var label = Text($"Alert {arrow} · click to place", 11, AlertBrush);
+		context.DrawText(label, new Point(rect.Right - label.Width - 6, y - label.Height - 2));
+		var value = Text(
+			level.ToString("N" + _priceDecimals, System.Globalization.CultureInfo.CurrentCulture),
+			11,
+			Background
+		);
+		context.DrawRectangle(
+			AlertBrush,
+			null,
+			new Rect(rect.Right, y - value.Height / 2 - 2, PriceAxisWidth, value.Height + 4)
+		);
+		context.DrawText(value, new Point(rect.Right + 6, y - value.Height / 2));
+	}
+
+	// Left button while placing: the alert goes at the price under it (nothing off the price
+	// chart); the click starts nothing else. True when handled
+	private bool OnAlertPlacementPressed(PointerPressedEventArgs e, Point position)
+	{
+		if (!IsPlacingAlert || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+			return false;
+		e.Handled = true;
+		Focus();
+		if (GetPriceAt(position) is { } price && price > 0)
+			AlertPlaced?.Invoke(price);
+		return true;
+	}
+
 	// Left button on an alert: ✕ removes it, the line or tag starts dragging it. True when handled
 	private bool OnAlertPressed(PointerPressedEventArgs e, Point position)
 	{
@@ -226,6 +304,8 @@ public partial class CandlestickChart
 	{
 		if (_draggedAlert != null)
 			return MoveVerticalCursor;
+		if (IsPlacingAlert)
+			return position is { } over && GetPriceAt(over) != null ? PlaceCursor : null;
 		if (position is not { } p || _dragStart != null || _marginDragStartX != null)
 			return null;
 		if (HitAlertClose(p) != null)

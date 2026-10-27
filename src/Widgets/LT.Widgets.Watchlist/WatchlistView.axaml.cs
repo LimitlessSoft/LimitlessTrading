@@ -1,9 +1,11 @@
 using System.ComponentModel;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -34,6 +36,8 @@ public partial class WatchlistView : UserControl
 		};
 		SearchBox.Cancelled += () => SearchBox.Reset();
 		Grid.Loaded += (_, _) => UpdateSortGlyphs();
+		// Tunnel: runs before the grid's ContextMenu, which opens on the bubbling request
+		Grid.AddHandler(ContextRequestedEvent, OnGridContextRequested, RoutingStrategies.Tunnel);
 	}
 
 	public void FocusSearch() => SearchBox.FocusBox();
@@ -58,6 +62,14 @@ public partial class WatchlistView : UserControl
 			return;
 		ViewModel?.RemoveCommand.Execute(null);
 		e.Handled = true;
+	}
+
+	// The row menu is the grid's, so it would also open on a column header or the empty area
+	// below the rows; only a row opens it
+	private void OnGridContextRequested(object? sender, ContextRequestedEventArgs e)
+	{
+		if (e.Source is not Visual source || source.FindAncestorOfType<DataGridRow>(true) == null)
+			e.Handled = true;
 	}
 
 	// The grid's own sort can't keep pinned rows on top: the view model sorts instead

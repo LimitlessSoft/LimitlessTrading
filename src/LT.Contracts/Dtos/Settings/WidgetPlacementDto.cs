@@ -60,6 +60,9 @@ public class WidgetPlacementDto
 	/// </summary>
 	public bool ChartFollowTemplate { get; set; }
 
+	/// <summary>Chart instances: the toolbox bar above the plot is shown (null: older layouts, shown).</summary>
+	public bool? ChartShowToolbox { get; set; }
+
 	// News instances: what they show and which providers (keys "ibkr:BRFG"; null: all of them)
 	public NewsMode? NewsMode { get; set; }
 	public List<string>? NewsProviders { get; set; }
