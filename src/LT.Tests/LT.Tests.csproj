@@ -26,6 +26,8 @@
 		<ProjectReference Include="..\Widgets\LT.Widgets.OptionChain\LT.Widgets.OptionChain.csproj" />
 		<!-- Notes view model only (per-instance notes); its view is never created -->
 		<ProjectReference Include="..\Widgets\LT.Widgets.Notes\LT.Widgets.Notes.csproj" />
+		<!-- Messages view model only (copying rows); its view is never created -->
+		<ProjectReference Include="..\Widgets\LT.Widgets.Messages\LT.Widgets.Messages.csproj" />
 		<!-- Workspace model only (moving views between windows); no view or window is created -->
 		<ProjectReference Include="..\LT.App\LT.App.csproj" />
 	</ItemGroup>

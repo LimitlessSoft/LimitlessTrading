@@ -5,6 +5,7 @@ using LT.App.Stores;
 using LT.App.ViewModels;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Messages;
+using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IManagers;
 
 namespace LT.App.Widgets.Messages;
@@ -31,6 +32,18 @@ public partial class MessagesViewModel : ViewModelBase, IDisposable
 	{
 		_messageLogManager.Clear();
 		Messages.Clear();
+	}
+
+	/// <summary>
+	/// The clipboard text for the selected rows: one readable line each, in the table's order
+	/// (newest first) whatever order they were selected in; null when none is selected.
+	/// </summary>
+	public string? GetCopyText(IEnumerable<MessageRowViewModel> selected)
+	{
+		var rows = selected.ToHashSet();
+		if (rows.Count == 0)
+			return null;
+		return MessageHelpers.JoinCopyLines(Messages.Where(rows.Contains).Select(x => x.CopyLine));
 	}
 
 	/// <summary>The widget is closed: stops listening to the log and the display zone.</summary>
