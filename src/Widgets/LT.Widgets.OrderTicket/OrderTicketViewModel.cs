@@ -417,7 +417,11 @@ public partial class OrderTicketViewModel : ConnectedViewModelBase, ILinkable
 				{
 					await foreach (
 						var quote in _marketDataManager
-							.SubscribeQuotesAsync(contract, token)
+							.SubscribeQuotesAsync(
+								contract,
+								token,
+								owner: MarketDataStreamOwners.OrderTicket
+							)
 							.ConfigureAwait(false)
 					)
 						_pendingQuote.Set(quote);

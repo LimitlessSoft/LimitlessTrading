@@ -86,9 +86,12 @@ public class IbkrNewsSource(IIbkrApiClient ibkrApiClient, IMarketDataManager mar
 		if (codes.Count == 0)
 			yield break;
 
-		List<IAsyncEnumerable<NewsHeadlineDto>> streams = [];
+		// Each stream with what it streams (the contract or the broad tape), for the line list
+		List<(ContractDto Contract, IAsyncEnumerable<NewsHeadlineDto> Stream)> streams = [];
 		if (request.Contract is { } contract)
-			streams.Add(ibkrApiClient.SubscribeNewsAsync(contract, codes, cancellationToken));
+			streams.Add(
+				(contract, ibkrApiClient.SubscribeNewsAsync(contract, codes, cancellationToken))
+			);
 		else
 		{
 			// Several providers can share one tape (DJ-* → DJ:N_DJN): one subscription, one line
@@ -108,24 +111,33 @@ public class IbkrNewsSource(IIbkrApiClient ibkrApiClient, IMarketDataManager mar
 			{
 				var stream = ibkrApiClient.SubscribeNewsAsync(tape, null, cancellationToken);
 				streams.Add(
-					keep == null ? stream : stream.Where(x => keep.Contains(x.ProviderCode))
+					(tape, keep == null ? stream : stream.Where(x => keep.Contains(x.ProviderCode)))
 				);
 			}
 		}
 		if (streams.Count == 0)
 			throw new LSCoreBadRequestException(NewsValidationCodes.NVC_003.GetValidationMessage());
 
-		var lines = 0;
+		List<long> lines = [];
 		try
 		{
-			for (; lines < streams.Count; lines++)
-				marketDataManager.AcquireLine();
+			foreach (var (streamed, _) in streams)
+				lines.Add(
+					marketDataManager.AcquireLine(
+						MarketDataStreamKind.News,
+						streamed,
+						MarketDataStreamOwners.News
+					)
+				);
 
 			var symbol = request.Contract is { } linked
 				? ContractHelpers.GetDisplayName(linked)
 				: string.Empty;
 			await foreach (
-				var headline in AsyncEnumerableHelpers.MergeAsync(streams, cancellationToken)
+				var headline in AsyncEnumerableHelpers.MergeAsync(
+					streams.Select(x => x.Stream).ToList(),
+					cancellationToken
+				)
 			)
 			{
 				headline.SourceId = Id;
@@ -136,8 +148,8 @@ public class IbkrNewsSource(IIbkrApiClient ibkrApiClient, IMarketDataManager mar
 		}
 		finally
 		{
-			for (; lines > 0; lines--)
-				marketDataManager.ReleaseLine();
+			foreach (var line in lines)
+				marketDataManager.ReleaseLine(line);
 		}
 	}
 

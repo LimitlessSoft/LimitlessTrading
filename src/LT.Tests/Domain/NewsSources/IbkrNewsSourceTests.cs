@@ -2,6 +2,7 @@ using LSCore.Exceptions;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.News;
+using LT.Contracts.Enums;
 using LT.Contracts.Requests.News;
 using LT.Domain.Managers;
 using LT.Domain.NewsSources;
@@ -20,7 +21,7 @@ public class IbkrNewsSourceTests
 
 	public IbkrNewsSourceTests()
 	{
-		_marketData = new MarketDataManager(_ibkr);
+		_marketData = new MarketDataManager(_ibkr, TimeProvider.System);
 		_source = new IbkrNewsSource(_ibkr, _marketData);
 	}
 
@@ -92,6 +93,10 @@ public class IbkrNewsSourceTests
 		Assert.True(await live.MoveNextAsync());
 		Assert.Equal("AAPL", live.Current.Symbol);
 		Assert.Equal(1, _marketData.ActiveLines);
+		var line = Assert.Single(_marketData.GetActiveStreams());
+		Assert.Equal(MarketDataStreamKind.News, line.Kind);
+		Assert.Equal(MarketDataStreamOwners.News, line.Owner);
+		Assert.Same(Aapl, line.Contract);
 		var subscription = Assert.Single(_ibkr.NewsSubscriptions);
 		Assert.Equal(["DJ-N", "BRFG"], subscription.Providers!);
 
@@ -280,7 +285,7 @@ public class IbkrNewsSourceTests
 	public async Task A_live_subscription_is_refused_at_the_line_limit()
 	{
 		for (var i = 0; i < MarketDataConstants.MaxLines; i++)
-			_marketData.AcquireLine();
+			_marketData.AcquireLine(MarketDataStreamKind.News, new ContractDto());
 
 		await Assert.ThrowsAsync<LSCoreBadRequestException>(async () =>
 			await _source

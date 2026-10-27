@@ -167,7 +167,12 @@ public class FakeIbkrApiClient : IIbkrApiClient
 			await Task.Yield();
 			yield return tick;
 		}
+		if (KeepMarketDataOpen)
+			await Task.Delay(Timeout.Infinite, cancellationToken);
 	}
+
+	/// <summary>Keep quote streams open after their ticks until cancelled.</summary>
+	public bool KeepMarketDataOpen { get; set; }
 
 	/// <summary>Updates every depth subscription streams; then it ends, or stays open.</summary>
 	public List<MarketDepthUpdateDto> DepthUpdates { get; set; } = [];

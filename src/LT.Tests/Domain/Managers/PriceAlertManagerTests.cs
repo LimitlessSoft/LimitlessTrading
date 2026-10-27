@@ -293,7 +293,7 @@ public sealed class PriceAlertManagerTests : IDisposable
 	}
 
 	private PriceAlertManager Create(IPriceAlertRepository repository) =>
-		new(repository, new MarketDataManager(_ibkr), _log, _time);
+		new(repository, new MarketDataManager(_ibkr, TimeProvider.System), _log, _time);
 
 	private PriceAlertDto Add(ContractDto contract, double price, double current) =>
 		Add(_manager, contract, price, current);

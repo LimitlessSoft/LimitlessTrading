@@ -163,7 +163,7 @@ public class WatchlistViewModelInstanceTests : IDisposable
 			return new WatchlistViewModel(
 				_watchlists,
 				new ContractManager(_ibkr, _cache.Settings, _cache.Manager),
-				new MarketDataManager(_ibkr),
+				new MarketDataManager(_ibkr, TimeProvider.System),
 				new FakeConnectionManager(),
 				log,
 				new SettingsManager(_cache.Settings, _ibkr),

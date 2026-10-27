@@ -624,7 +624,12 @@ public partial class OptionChainViewModel
 				{
 					await foreach (
 						var quote in _marketDataManager
-							.SubscribeQuotesAsync(contract, token, genericTicks)
+							.SubscribeQuotesAsync(
+								contract,
+								token,
+								genericTicks,
+								MarketDataStreamOwners.OptionChain
+							)
 							.ConfigureAwait(false)
 					)
 						target.Set(quote);

@@ -112,7 +112,8 @@ public class OptionChainManager(
 			await foreach (
 				var quote in marketDataManager.SubscribeQuotesAsync(
 					request.Underlying,
-					timeout.Token
+					timeout.Token,
+					owner: MarketDataStreamOwners.OptionChainUnderlying
 				)
 			)
 			{

@@ -134,11 +134,88 @@
 							Classes="secondary"
 							Text="{Binding AccountsText}"
 						/>
-						<TextBlock
+						<!-- Clicking lists the market data lines in use (what fills the limit) -->
+						<Button
+							Classes="statusItem"
 							VerticalAlignment="Center"
-							Classes="secondary"
-							Text="{Binding MarketDataText}"
-						/>
+							ToolTip.Tip="Show the market data streams in use"
+						>
+							<TextBlock
+								VerticalAlignment="Center"
+								Classes="secondary"
+								Text="{Binding MarketDataText}"
+							/>
+							<Button.Flyout>
+								<Flyout Placement="TopEdgeAlignedLeft">
+									<DockPanel Width="640">
+										<StackPanel DockPanel.Dock="Top" Spacing="4" Margin="0,0,0,8">
+											<TextBlock FontWeight="SemiBold" Text="{Binding MarketDataText}" />
+											<TextBlock
+												Classes="secondary"
+												TextWrapping="Wrap"
+												IsVisible="{Binding HasMarketDataStreams}"
+												Text="{Binding MarketDataOwnersText}"
+											/>
+											<TextBlock
+												Classes="secondary"
+												IsVisible="{Binding !HasMarketDataStreams}"
+												Text="No market data streams open."
+											/>
+										</StackPanel>
+										<Grid
+											DockPanel.Dock="Top"
+											ColumnDefinitions="2*,1.2*,1.6*,70,60"
+											Margin="0,0,0,4"
+											IsVisible="{Binding HasMarketDataStreams}"
+										>
+											<TextBlock Grid.Column="0" Classes="secondary" Text="Contract" />
+											<TextBlock Grid.Column="1" Classes="secondary" Text="Stream" />
+											<TextBlock Grid.Column="2" Classes="secondary" Text="Opened by" />
+											<TextBlock Grid.Column="3" Classes="secondary" Text="Since" />
+											<TextBlock
+												Grid.Column="4"
+												Classes="secondary"
+												HorizontalAlignment="Right"
+												Text="Open for"
+											/>
+										</Grid>
+										<ScrollViewer MaxHeight="420">
+											<ItemsControl ItemsSource="{Binding MarketDataStreams}">
+												<ItemsControl.ItemTemplate>
+													<DataTemplate x:DataType="vm:MarketDataStreamRowViewModel">
+														<Grid ColumnDefinitions="2*,1.2*,1.6*,70,60" Margin="0,2">
+															<TextBlock
+																Grid.Column="0"
+																TextTrimming="CharacterEllipsis"
+																Text="{Binding ContractText}"
+																ToolTip.Tip="{Binding ContractText}"
+															/>
+															<TextBlock
+																Grid.Column="1"
+																TextTrimming="CharacterEllipsis"
+																Text="{Binding KindText}"
+															/>
+															<TextBlock
+																Grid.Column="2"
+																TextTrimming="CharacterEllipsis"
+																Text="{Binding OwnerText}"
+																ToolTip.Tip="{Binding OwnerText}"
+															/>
+															<TextBlock Grid.Column="3" Text="{Binding SinceText}" />
+															<TextBlock
+																Grid.Column="4"
+																HorizontalAlignment="Right"
+																Text="{Binding AgeText}"
+															/>
+														</Grid>
+													</DataTemplate>
+												</ItemsControl.ItemTemplate>
+											</ItemsControl>
+										</ScrollViewer>
+									</DockPanel>
+								</Flyout>
+							</Button.Flyout>
+						</Button>
 					</StackPanel>
 				</DockPanel>
 			</Border>

@@ -17,7 +17,11 @@ Mirrors the Termodom FE split (`pages/` + `widgets/`):
   logic, only layout.
 - **Shell** (`Shell/MainWindow`) = icon toolbar (for now a single hamburger holding every command), the current page, status bar.
   Connection state sits at the left of the status bar; clicking it opens the endpoint form
-  (`Widgets/ConnectionBar`, a flyout).
+  (`Widgets/ConnectionBar`, a flyout). The market data item (`streams N/90`) opens a flyout
+  listing every line in use — contract, quote / news (and generic ticks such as option IV), who
+  opened it and since when — from `IMarketDataManager.GetActiveStreams`, refreshed on
+  `StreamsChanged`. Callers pass an owner label (`MarketDataStreamOwners`) with each
+  subscription so the list says what fills the limit.
 
 ## Windows and the title bar
 

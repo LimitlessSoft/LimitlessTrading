@@ -182,8 +182,8 @@ merges every source for the News widget (see [ui-patterns.md](ui-patterns.md#wor
   time. Paging passes the oldest headline's time: IB returns headlines strictly before it. Times
   are UTC at minute resolution. Continuation headlines ("-2-", "-3-") are separate articles.
 - **Live headlines** are news ticks over `reqMktData` with quotes off (`mdoff,292`). Each
-  subscription uses a **market data line**, counted through `IMarketDataManager.AcquireLine` /
-  `ReleaseLine` like quotes: one per linked contract (all its providers in one request), one per
+  subscription uses a **market data line**, taken through `IMarketDataManager.AcquireLine` (it
+  returns the line's id) / `ReleaseLine(id)` like quotes, and listed under the owner "News": one per linked contract (all its providers in one request), one per
   broad tape. IB first replays recent headlines, mostly ones history already returned, so
   headlines are deduplicated on (source, provider, article id) in the manager and the widget.
 - **Broad tapes** (every headline of a provider, not tied to a symbol): BRFG (15 sub-tapes; we

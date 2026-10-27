@@ -191,7 +191,12 @@ public class ChartViewModelIndicatorTests : IDisposable
 	{
 		var settings = new SettingsManager(_cache.Settings, _ibkr);
 		var chart = new ChartViewModel(
-			new ChartManager(_ibkr, _cache.Manager, new MarketDataManager(_ibkr), _cache.Time),
+			new ChartManager(
+				_ibkr,
+				_cache.Manager,
+				new MarketDataManager(_ibkr, TimeProvider.System),
+				_cache.Time
+			),
 			new ContractManager(_ibkr, _cache.Settings, _cache.Manager),
 			_connection,
 			new MessageLogManager(),
@@ -207,7 +212,7 @@ public class ChartViewModelIndicatorTests : IDisposable
 			_templates,
 			new PriceAlertManager(
 				new InMemoryPriceAlertRepository(),
-				new MarketDataManager(_ibkr),
+				new MarketDataManager(_ibkr, TimeProvider.System),
 				new MessageLogManager(),
 				_cache.Time
 			),

@@ -33,7 +33,11 @@ public class OptionChainManagerTests
 	public OptionChainManagerTests() => LSCoreContainer.EnsureInitialized();
 
 	private OptionChainManager Manager() =>
-		new(_ibkr, new MarketDataManager(_ibkr), new CacheManager(_cache, _settings, _time));
+		new(
+			_ibkr,
+			new MarketDataManager(_ibkr, TimeProvider.System),
+			new CacheManager(_cache, _settings, _time)
+		);
 
 	private static readonly GetOptionChainRequest NovemberChain = new()
 	{
