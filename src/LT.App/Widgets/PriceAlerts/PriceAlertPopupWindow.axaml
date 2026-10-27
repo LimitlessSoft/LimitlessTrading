@@ -1,0 +1,101 @@
+<controls:AppWindow
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.PriceAlerts"
+	xmlns:controls="using:LT.App.Controls"
+	x:Class="LT.App.Widgets.PriceAlerts.PriceAlertPopupWindow"
+	x:DataType="vm:PriceAlertPopupViewModel"
+	Title="{Binding Title}"
+	Topmost="True"
+	CanMinimize="False"
+	Width="400"
+	MaxHeight="560"
+	SizeToContent="Height"
+	WindowStartupLocation="CenterScreen"
+>
+	<Window.Styles>
+		<Style Selector="Border.alert">
+			<Setter Property="Padding" Value="12,10" />
+			<Setter Property="CornerRadius" Value="6" />
+			<Setter Property="Background" Value="{DynamicResource FrameActionHoverBrush}" />
+		</Style>
+		<Style Selector="Border.marker">
+			<Setter Property="Width" Value="4" />
+			<Setter Property="CornerRadius" Value="2" />
+			<Setter Property="Background" Value="{DynamicResource WarningBrush}" />
+		</Style>
+	</Window.Styles>
+
+	<!-- Fired alerts, newest first; the alarm repeats until the last one is dismissed -->
+	<DockPanel Margin="16,12,16,16">
+		<DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+			<Button
+				DockPanel.Dock="Right"
+				Classes="accent"
+				Content="Dismiss all"
+				IsVisible="{Binding HasSeveral}"
+				Command="{Binding DismissAllCommand}"
+			/>
+			<TextBlock
+				VerticalAlignment="Center"
+				Classes="secondary"
+				TextWrapping="Wrap"
+				Text="The alarm sounds until every alert is dismissed."
+			/>
+		</DockPanel>
+
+		<ScrollViewer>
+			<ItemsControl ItemsSource="{Binding Alerts}">
+				<ItemsControl.ItemsPanel>
+					<ItemsPanelTemplate>
+						<StackPanel Spacing="8" />
+					</ItemsPanelTemplate>
+				</ItemsControl.ItemsPanel>
+				<ItemsControl.ItemTemplate>
+					<DataTemplate x:DataType="vm:PriceAlertPopupItem">
+						<Border Classes="alert">
+							<Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+								<Border Classes="marker" />
+								<StackPanel Grid.Column="1" Spacing="2">
+									<DockPanel>
+										<TextBlock
+											DockPanel.Dock="Right"
+											VerticalAlignment="Center"
+											Classes="secondary"
+											Text="{Binding TimeText}"
+										/>
+										<TextBlock
+											FontSize="16"
+											FontWeight="SemiBold"
+											TextTrimming="CharacterEllipsis"
+											Text="{Binding Symbol}"
+										/>
+									</DockPanel>
+									<TextBlock TextWrapping="Wrap" Text="{Binding Description}" />
+									<TextBlock
+										Classes="secondary"
+										IsVisible="{Binding LastText, Converter={x:Static ObjectConverters.IsNotNull}}"
+										Text="{Binding LastText}"
+									/>
+									<TextBlock
+										TextWrapping="Wrap"
+										FontStyle="Italic"
+										IsVisible="{Binding Note, Converter={x:Static ObjectConverters.IsNotNull}}"
+										Text="{Binding Note}"
+									/>
+								</StackPanel>
+								<Button
+									Grid.Column="2"
+									VerticalAlignment="Center"
+									Content="Dismiss"
+									Command="{Binding $parent[ItemsControl].((vm:PriceAlertPopupViewModel)DataContext).DismissCommand}"
+									CommandParameter="{Binding}"
+								/>
+							</Grid>
+						</Border>
+					</DataTemplate>
+				</ItemsControl.ItemTemplate>
+			</ItemsControl>
+		</ScrollViewer>
+	</DockPanel>
+</controls:AppWindow>

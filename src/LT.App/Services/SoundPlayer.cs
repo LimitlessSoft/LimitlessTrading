@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -24,12 +25,18 @@ public class SoundPlayer : ISoundPlayer
 	];
 
 	private int _playing;
-	private string? _fillPath;
+
+	// The generated sounds written so far, by file name
+	private readonly ConcurrentDictionary<string, string> _paths = new();
 
 	// The Linux player that worked last; tried first next time
 	private int _linuxPlayer;
 
-	public void PlayFill()
+	public void PlayFill() => Play(SoundConstants.FillFileName, SoundHelpers.CreateFillChime);
+
+	public void PlayAlarm() => Play(SoundConstants.AlarmFileName, SoundHelpers.CreateAlarm);
+
+	private void Play(string fileName, Func<int, byte[]> create)
 	{
 		if (Interlocked.Exchange(ref _playing, 1) == 1)
 			return;
@@ -37,12 +44,14 @@ public class SoundPlayer : ISoundPlayer
 		{
 			try
 			{
-				_fillPath ??= WriteSound(
-					SoundConstants.FillFileName,
-					SoundHelpers.CreateFillChime()
-				);
-				if (_fillPath != null)
-					await PlayFileAsync(_fillPath);
+				if (!_paths.TryGetValue(fileName, out var path))
+				{
+					path = WriteSound(fileName, create(SoundConstants.SampleRate));
+					if (path != null)
+						_paths[fileName] = path;
+				}
+				if (path != null)
+					await PlayFileAsync(path);
 			}
 			catch (Exception)
 			{

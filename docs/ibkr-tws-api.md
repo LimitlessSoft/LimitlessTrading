@@ -296,7 +296,8 @@ deduplicated by IB's execution id, so the same fill from either stays one:
   up to 30 s. Setting *General → Sounds* (`PlayFillSound`, on by default). Playback is
   `ISoundPlayer` (`LT.App/Services/SoundPlayer.cs`): a generated WAV in the app data folder's
   `sounds/`, played by winmm `PlaySound` (Windows), `afplay` (macOS) or `paplay` / `pw-play` /
-  `aplay` (Linux), off the calling thread and never throwing.
+  `aplay` (Linux), off the calling thread and never throwing. The same player plays the price
+  alert alarm (`PlayAlarm`, see *Price alerts* in ui-patterns.md).
 - It follows each managed account's `reqPnL` (up to `TradeJournalConstants.MaxPnlAccounts`) on
   the shared subscription and keeps DailyPnl as a curve: at most one point per account every
   10 s (a newer value replaces the point inside that window, so short spikes can be missed),

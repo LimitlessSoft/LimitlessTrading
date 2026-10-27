@@ -7,6 +7,7 @@ using LT.App.Stores;
 using LT.App.Widgets.ConnectionBar;
 using LT.App.Widgets.Gateway;
 using LT.App.Widgets.PatchNotes;
+using LT.App.Widgets.PriceAlerts;
 using LT.App.Widgets.Settings;
 using LT.App.Workspace;
 using LT.Contracts.Constants;
@@ -131,6 +132,8 @@ public static class Program
 		// One list of price alerts for every chart and the watcher (each fires once)
 		builder.Services.AddSingleton<IPriceAlertRepository, PriceAlertRepository>();
 		builder.Services.AddSingleton<IPriceAlertManager, PriceAlertManager>();
+		// The fired alerts waiting in the popup and the one alarm repeating for them
+		builder.Services.AddSingleton<IPriceAlertAlarmManager, PriceAlertAlarmManager>();
 		builder.Services.AddSingleton<IFlexImportManager, FlexImportManager>();
 		// Shares one SEC lookup per ticker between watchlists
 		builder.Services.AddSingleton<ISharesOutstandingManager, SharesOutstandingManager>();
@@ -185,6 +188,7 @@ public static class Program
 		builder.Services.AddTransient<SettingsViewModel>();
 		builder.Services.AddTransient<GatewayViewModel>();
 		builder.Services.AddTransient<PatchNotesViewModel>();
+		builder.Services.AddTransient<PriceAlertPopupViewModel>();
 		foreach (var widget in WidgetCatalog.Definitions)
 			builder.Services.AddTransient(widget.ViewModelType);
 

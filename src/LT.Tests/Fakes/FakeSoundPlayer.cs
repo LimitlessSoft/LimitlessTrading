@@ -6,6 +6,7 @@ namespace LT.Tests.Fakes;
 public class FakeSoundPlayer : ISoundPlayer
 {
 	public int FillsPlayed { get; private set; }
+	public int AlarmsPlayed { get; private set; }
 	public Exception? Error { get; set; }
 
 	public void PlayFill()
@@ -13,5 +14,12 @@ public class FakeSoundPlayer : ISoundPlayer
 		if (Error != null)
 			throw Error;
 		FillsPlayed++;
+	}
+
+	public void PlayAlarm()
+	{
+		if (Error != null)
+			throw Error;
+		AlarmsPlayed++;
 	}
 }

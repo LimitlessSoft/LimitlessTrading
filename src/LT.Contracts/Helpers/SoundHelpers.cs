@@ -18,6 +18,22 @@ public static class SoundHelpers
 		return ToWav(samples, sampleRate);
 	}
 
+	/// <summary>
+	/// The price alert alarm: two quick high-low pairs (A5, E5), about 0.7 s, made to be repeated
+	/// and noticed.
+	/// </summary>
+	public static byte[] CreateAlarm(int sampleRate = SoundConstants.SampleRate)
+	{
+		var samples = new List<short>();
+		for (var i = 0; i < 2; i++)
+		{
+			AddTone(samples, sampleRate, 880.0, 0.13);
+			AddTone(samples, sampleRate, 659.3, 0.13);
+			AddSilence(samples, sampleRate, 0.08);
+		}
+		return ToWav(samples, sampleRate);
+	}
+
 	/// <summary>Mono 16-bit PCM WAV (RIFF) of the samples.</summary>
 	public static byte[] ToWav(IReadOnlyList<short> samples, int sampleRate)
 	{
@@ -46,6 +62,9 @@ public static class SoundHelpers
 		writer.Flush();
 		return stream.ToArray();
 	}
+
+	private static void AddSilence(List<short> samples, int sampleRate, double seconds) =>
+		samples.AddRange(new short[(int)(sampleRate * seconds)]);
 
 	// A sine with a 5 ms attack and an exponential decay, so it neither clicks nor drones
 	private static void AddTone(List<short> samples, int sampleRate, double hz, double seconds)
