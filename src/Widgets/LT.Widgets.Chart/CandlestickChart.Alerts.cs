@@ -198,9 +198,9 @@ public partial class CandlestickChart
 			context.DrawRectangle(
 				brush,
 				null,
-				new Rect(rect.Right, y - value.Height / 2 - 2, PriceAxisWidth, value.Height + 4)
+				new Rect(rect.Right, y - value.Height / 2 - 2, _priceAxisWidth, value.Height + 4)
 			);
-			context.DrawText(value, new Point(rect.Right + 6, y - value.Height / 2));
+			context.DrawText(value, new Point(AxisLabelX(rect), y - value.Height / 2));
 		}
 	}
 
@@ -234,9 +234,9 @@ public partial class CandlestickChart
 		context.DrawRectangle(
 			AlertBrush,
 			null,
-			new Rect(rect.Right, y - value.Height / 2 - 2, PriceAxisWidth, value.Height + 4)
+			new Rect(rect.Right, y - value.Height / 2 - 2, _priceAxisWidth, value.Height + 4)
 		);
-		context.DrawText(value, new Point(rect.Right + 6, y - value.Height / 2));
+		context.DrawText(value, new Point(AxisLabelX(rect), y - value.Height / 2));
 	}
 
 	// Left button while placing: the alert goes at the price under it (nothing off the price

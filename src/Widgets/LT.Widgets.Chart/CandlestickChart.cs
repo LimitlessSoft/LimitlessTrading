@@ -86,7 +86,6 @@ public partial class CandlestickChart : Control
 		bool
 	>(nameof(FitBars));
 
-	private const double PriceAxisWidth = 72;
 	private const double TimeAxisHeight = 22;
 	private const double TopPadding = 24;
 	private const double VolumeFraction = 0.18;
@@ -164,9 +163,15 @@ public partial class CandlestickChart : Control
 	private static readonly ImmutableSolidColorBrush AxisLabelBrush = new ImmutableSolidColorBrush(
 		Color.Parse("#3A4150")
 	);
+	private static readonly IPen AxisBorderPen = new ImmutablePen(
+		new ImmutableSolidColorBrush(Color.Parse("#2E3440")),
+		1
+	);
 	private static readonly Cursor ResizeCursor = new(StandardCursorType.SizeWestEast);
 	private static readonly TimeZoneInfo TradeDayZone = TradeJournalHelpers.GetTradeDayTimeZone();
 
+	// Width of the price axis, fitted to its labels every render (see LayOut)
+	private double _priceAxisWidth = 56;
 	private double _barSpacing = DefaultBarSpacing;
 	private int _offset;
 
@@ -354,7 +359,11 @@ public partial class CandlestickChart : Control
 		_legendButtons.Clear();
 
 		var bars = Bars;
-		if (bars is not { Count: > 0 } || size.Width < PriceAxisWidth + 20 || size.Height < 80)
+		if (
+			bars is not { Count: > 0 }
+			|| size.Width < ChartConstants.MinPriceAxisWidth + 20
+			|| size.Height < 80
+		)
 		{
 			var empty = Text("No data", 13, TextBrush);
 			context.DrawText(
@@ -369,107 +378,41 @@ public partial class CandlestickChart : Control
 			return;
 		}
 
-		var plot = new Rect(
-			0,
-			TopPadding,
-			size.Width - PriceAxisWidth,
-			size.Height - TopPadding - TimeAxisHeight
-		);
 		var indicators = Indicators ?? [];
 		var overlays = indicators.Where(x => x.Pane == IndicatorPane.Overlay).ToList();
 		var volumeIndicators = indicators.Where(x => x.Pane == IndicatorPane.Volume).ToList();
 		var separate = indicators.Where(x => x.Pane == IndicatorPane.Separate).ToList();
 
-		// Price chart (with the volume bars at its bottom) on top, one pane per separate indicator under it
-		var paneHeight = IndicatorChartHelpers.GetPaneHeight(plot.Height, separate.Count);
-		var mainHeight = plot.Height - paneHeight * separate.Count;
-		var volumeHeight = mainHeight * VolumeFraction;
-		var priceRect = new Rect(plot.X, plot.Y, plot.Width, mainHeight - volumeHeight - 6);
-		var volumeRect = new Rect(
-			plot.X,
-			plot.Y + mainHeight - volumeHeight,
-			plot.Width,
-			volumeHeight
-		);
+		// The price axis fits its widest label. That depends on the scale, which depends on the
+		// visible bars, which depend on the axis width: lay out with last frame's width, and again
+		// (once growing, never shrinking) while the labels need a different one.
+		var layout = LayOut(bars, size, _priceAxisWidth, overlays, volumeIndicators, separate);
+		for (var pass = 0; pass < 2; pass++)
+		{
+			var needed = MeasurePriceAxis(layout);
+			if (needed == _priceAxisWidth || (pass > 0 && needed < _priceAxisWidth))
+				break;
+			_priceAxisWidth = Math.Min(needed, size.Width - 20);
+			layout = LayOut(bars, size, _priceAxisWidth, overlays, volumeIndicators, separate);
+		}
 
-		_plot = plot;
-		_barSpacing = ChartViewportHelpers.GetBarSpacing(
-			_barSpacing,
-			_fitted,
-			bars.Count,
-			RightMargin,
-			plot.Width,
-			MaxBarSpacing
-		);
-		_offset = Math.Clamp(_offset, 0, bars.Count - 1);
-		var rightMargin = ChartViewportHelpers.ClampRightMargin(
-			RightMargin,
-			plot.Width,
-			_barSpacing
-		);
-		var rightEdge = ChartViewportHelpers.GetRightEdge(bars.Count, _offset, rightMargin);
-		var (start, end) = ChartViewportHelpers.GetVisibleRange(
-			bars.Count,
+		var (
+			plot,
+			priceRect,
+			volumeRect,
+			price,
+			volume,
+			panes,
 			rightEdge,
-			plot.Width,
-			_barSpacing
-		);
-
-		var low = double.MaxValue;
-		var high = double.MinValue;
-		decimal maxVolume = 0;
-		for (var i = start; i < end; i++)
-		{
-			low = Math.Min(low, bars[i].Low);
-			high = Math.Max(high, bars[i].High);
-			maxVolume = Math.Max(maxVolume, bars[i].Volume);
-		}
-		// Overlays on the price scale widen it, like the bars do
-		if (
-			IndicatorChartHelpers.GetRange(
-				overlays.Where(x => x.IsVisible).SelectMany(x => x.Plots),
-				start,
-				end
-			) is
-			{ } overlayRange
-		)
-		{
-			low = Math.Min(low, overlayRange.Min);
-			high = Math.Max(high, overlayRange.Max);
-		}
-		if (high <= low)
-		{
-			high += 0.5;
-			low -= 0.5;
-		}
-		var padding = (high - low) * 0.06;
-		low -= padding;
-		high += padding;
-		var volumeMax = (double)maxVolume;
-		if (
-			IndicatorChartHelpers.GetRange(
-				volumeIndicators.Where(x => x.IsVisible).SelectMany(x => x.Plots),
-				start,
-				end
-			) is
-			{ } volumeRange
-		)
-			volumeMax = Math.Max(volumeMax, volumeRange.Max);
-
-		var price = new ChartPane(priceRect, low, high);
-		var volume = new ChartPane(volumeRect, 0, volumeMax > 0 ? volumeMax : 1);
-		var panes = new List<(ChartPane Pane, IndicatorResultDto Result)>();
-		for (var k = 0; k < separate.Count; k++)
-		{
-			var rect = new Rect(
-				plot.X,
-				plot.Y + mainHeight + k * paneHeight + PaneGap,
-				plot.Width,
-				Math.Max(1, paneHeight - PaneGap)
-			);
-			var (min, max) = IndicatorChartHelpers.GetPaneScale(separate[k], start, end);
-			panes.Add((new ChartPane(rect, min, max), separate[k]));
-		}
+			start,
+			end,
+			low,
+			high,
+			maxVolume,
+			step,
+			decimals
+		) = layout;
+		_plot = plot;
 		_panes = [.. panes.Select(x => x.Pane)];
 
 		double Y(double value) => price.Y(value);
@@ -497,8 +440,6 @@ public partial class CandlestickChart : Control
 		}
 
 		// price grid + axis labels
-		var step = NiceStep((high - low) / Math.Max(2, priceRect.Height / 48));
-		var decimals = step >= 1 ? 2 : Math.Min(6, (int)Math.Ceiling(-Math.Log10(step)) + 1);
 		for (var value = Math.Ceiling(low / step) * step; value <= high; value += step)
 		{
 			var y = Math.Round(Y(value)) + 0.5;
@@ -508,8 +449,15 @@ public partial class CandlestickChart : Control
 				11,
 				TextBrush
 			);
-			context.DrawText(label, new Point(plot.Right + 6, y - label.Height / 2));
+			context.DrawText(label, new Point(AxisLabelX(plot), y - label.Height / 2));
 		}
+
+		// Borders: the price axis' left edge down the whole chart, the time axis' top across it;
+		// the price tags drawn later cover the axis border where they sit
+		var borderX = Math.Round(plot.Right) + 0.5;
+		var borderY = Math.Round(plot.Bottom) + 0.5;
+		context.DrawLine(AxisBorderPen, new Point(borderX, 0), new Point(borderX, size.Height));
+		context.DrawLine(AxisBorderPen, new Point(0, borderY), new Point(size.Width, borderY));
 
 		// time labels
 		var labelEvery = Math.Max(1, (int)Math.Ceiling(96 / _barSpacing));
@@ -596,11 +544,11 @@ public partial class CandlestickChart : Control
 					new Rect(
 						plot.Right,
 						beY - label.Height / 2 - 2,
-						PriceAxisWidth,
+						_priceAxisWidth,
 						label.Height + 4
 					)
 				);
-				context.DrawText(label, new Point(plot.Right + 6, beY - label.Height / 2));
+				context.DrawText(label, new Point(AxisLabelX(plot), beY - label.Height / 2));
 			}
 		}
 
@@ -620,9 +568,14 @@ public partial class CandlestickChart : Control
 			context.DrawRectangle(
 				LastPriceBrush,
 				null,
-				new Rect(plot.Right, lastY - label.Height / 2 - 2, PriceAxisWidth, label.Height + 4)
+				new Rect(
+					plot.Right,
+					lastY - label.Height / 2 - 2,
+					_priceAxisWidth,
+					label.Height + 4
+				)
 			);
-			context.DrawText(label, new Point(plot.Right + 6, lastY - label.Height / 2));
+			context.DrawText(label, new Point(AxisLabelX(plot), lastY - label.Height / 2));
 		}
 
 		// crosshair: through every pane, the value of the pane under the pointer on the axis
@@ -705,6 +658,174 @@ public partial class CandlestickChart : Control
 			);
 	}
 
+	/// <summary>Where everything goes for a price axis <paramref name="axisWidth"/> wide.</summary>
+	private readonly record struct ChartLayout(
+		Rect Plot,
+		Rect PriceRect,
+		Rect VolumeRect,
+		ChartPane Price,
+		ChartPane Volume,
+		List<(ChartPane Pane, IndicatorResultDto Result)> Panes,
+		double RightEdge,
+		int Start,
+		int End,
+		double Low,
+		double High,
+		decimal MaxVolume,
+		double Step,
+		int Decimals
+	);
+
+	// Plot and panes, the visible bars (zoom and pan clamped to the plot) and every pane's scale
+	private ChartLayout LayOut(
+		IReadOnlyList<BarDto> bars,
+		Size size,
+		double axisWidth,
+		List<IndicatorResultDto> overlays,
+		List<IndicatorResultDto> volumeIndicators,
+		List<IndicatorResultDto> separate
+	)
+	{
+		var plot = new Rect(
+			0,
+			TopPadding,
+			size.Width - axisWidth,
+			size.Height - TopPadding - TimeAxisHeight
+		);
+
+		// Price chart (with the volume bars at its bottom) on top, one pane per separate indicator under it
+		var paneHeight = IndicatorChartHelpers.GetPaneHeight(plot.Height, separate.Count);
+		var mainHeight = plot.Height - paneHeight * separate.Count;
+		var volumeHeight = mainHeight * VolumeFraction;
+		var priceRect = new Rect(plot.X, plot.Y, plot.Width, mainHeight - volumeHeight - 6);
+		var volumeRect = new Rect(
+			plot.X,
+			plot.Y + mainHeight - volumeHeight,
+			plot.Width,
+			volumeHeight
+		);
+
+		_barSpacing = ChartViewportHelpers.GetBarSpacing(
+			_barSpacing,
+			_fitted,
+			bars.Count,
+			RightMargin,
+			plot.Width,
+			MaxBarSpacing
+		);
+		_offset = Math.Clamp(_offset, 0, bars.Count - 1);
+		var rightMargin = ChartViewportHelpers.ClampRightMargin(
+			RightMargin,
+			plot.Width,
+			_barSpacing
+		);
+		var rightEdge = ChartViewportHelpers.GetRightEdge(bars.Count, _offset, rightMargin);
+		var (start, end) = ChartViewportHelpers.GetVisibleRange(
+			bars.Count,
+			rightEdge,
+			plot.Width,
+			_barSpacing
+		);
+
+		var low = double.MaxValue;
+		var high = double.MinValue;
+		decimal maxVolume = 0;
+		for (var i = start; i < end; i++)
+		{
+			low = Math.Min(low, bars[i].Low);
+			high = Math.Max(high, bars[i].High);
+			maxVolume = Math.Max(maxVolume, bars[i].Volume);
+		}
+		// Overlays on the price scale widen it, like the bars do
+		if (
+			IndicatorChartHelpers.GetRange(
+				overlays.Where(x => x.IsVisible).SelectMany(x => x.Plots),
+				start,
+				end
+			) is
+			{ } overlayRange
+		)
+		{
+			low = Math.Min(low, overlayRange.Min);
+			high = Math.Max(high, overlayRange.Max);
+		}
+		if (high <= low)
+		{
+			high += 0.5;
+			low -= 0.5;
+		}
+		var padding = (high - low) * 0.06;
+		low -= padding;
+		high += padding;
+		var volumeMax = (double)maxVolume;
+		if (
+			IndicatorChartHelpers.GetRange(
+				volumeIndicators.Where(x => x.IsVisible).SelectMany(x => x.Plots),
+				start,
+				end
+			) is
+			{ } volumeRange
+		)
+			volumeMax = Math.Max(volumeMax, volumeRange.Max);
+
+		var price = new ChartPane(priceRect, low, high);
+		var volume = new ChartPane(volumeRect, 0, volumeMax > 0 ? volumeMax : 1);
+		var panes = new List<(ChartPane Pane, IndicatorResultDto Result)>();
+		for (var k = 0; k < separate.Count; k++)
+		{
+			var rect = new Rect(
+				plot.X,
+				plot.Y + mainHeight + k * paneHeight + PaneGap,
+				plot.Width,
+				Math.Max(1, paneHeight - PaneGap)
+			);
+			var (min, max) = IndicatorChartHelpers.GetPaneScale(separate[k], start, end);
+			panes.Add((new ChartPane(rect, min, max), separate[k]));
+		}
+
+		var step = NiceStep((high - low) / Math.Max(2, priceRect.Height / 48));
+		var decimals = step >= 1 ? 2 : Math.Min(6, (int)Math.Ceiling(-Math.Log10(step)) + 1);
+		return new ChartLayout(
+			plot,
+			priceRect,
+			volumeRect,
+			price,
+			volume,
+			panes,
+			rightEdge,
+			start,
+			end,
+			low,
+			high,
+			maxVolume,
+			step,
+			decimals
+		);
+	}
+
+	// Width the price axis needs: every label on it (grid, last price, break-even, alerts,
+	// crosshair) is a value within a pane's scale, so the scale's ends are the widest
+	private static double MeasurePriceAxis(ChartLayout layout)
+	{
+		double Width(double value, int decimals) =>
+			Text(value.ToString("N" + decimals, CultureInfo.CurrentCulture), 11, TextBrush).Width;
+		var widths = new List<double>
+		{
+			Width(layout.Low, layout.Decimals),
+			Width(layout.High, layout.Decimals),
+		};
+		foreach (var (pane, result) in layout.Panes)
+		{
+			var decimals = GetDecimals(result, pane);
+			widths.Add(Width(pane.Min, decimals));
+			widths.Add(Width(pane.Max, decimals));
+		}
+		return ChartViewportHelpers.GetPriceAxisWidth(widths);
+	}
+
+	// Left edge of the labels on the price axis right of the plot ending at rect.Right
+	private static double AxisLabelX(Rect rect) => rect.Right + 1 + ChartConstants.PriceAxisPadding;
+
 	private void DrawAxisLabel(
 		DrawingContext context,
 		double x,
@@ -721,9 +842,12 @@ public partial class CandlestickChart : Control
 		context.DrawRectangle(
 			AxisLabelBrush,
 			null,
-			new Rect(x, y - label.Height / 2 - 2, PriceAxisWidth, label.Height + 4)
+			new Rect(x, y - label.Height / 2 - 2, _priceAxisWidth, label.Height + 4)
 		);
-		context.DrawText(label, new Point(x + 6, y - label.Height / 2));
+		context.DrawText(
+			label,
+			new Point(x + 1 + ChartConstants.PriceAxisPadding, y - label.Height / 2)
+		);
 	}
 
 	// The break line between the last bar and the right margin: a grip in the time axis, and a

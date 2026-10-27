@@ -61,7 +61,7 @@ public partial class CandlestickChart
 		context.DrawLine(
 			PaneSeparatorPen,
 			new Point(rect.Left, separatorY),
-			new Point(rect.Right + PriceAxisWidth, separatorY)
+			new Point(rect.Right + _priceAxisWidth, separatorY)
 		);
 		var step = NiceStep((pane.Max - pane.Min) / Math.Max(1, rect.Height / 32));
 		var decimals = GetDecimals(result, pane);
@@ -75,7 +75,7 @@ public partial class CandlestickChart
 				TextBrush
 			);
 			if (y - label.Height / 2 >= rect.Top && y + label.Height / 2 <= rect.Bottom)
-				context.DrawText(label, new Point(rect.Right + 6, y - label.Height / 2));
+				context.DrawText(label, new Point(AxisLabelX(rect), y - label.Height / 2));
 		}
 		DrawIndicatorPlots(context, [result], pane, view, bars, false);
 	}

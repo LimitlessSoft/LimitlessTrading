@@ -8,6 +8,12 @@ public static class ChartConstants
 	/// <summary>Half-width (DIPs) of the margin handle's grab area in the time axis.</summary>
 	public const double MarginHandleHitWidth = 5;
 
+	/// <summary>Space (DIPs) on each side of the price axis labels.</summary>
+	public const double PriceAxisPadding = 4;
+
+	/// <summary>The price axis is never narrower than this (DIPs), however short its labels.</summary>
+	public const double MinPriceAxisWidth = 32;
+
 	/// <summary>An indicator pane's share of the chart height while there is room.</summary>
 	public const double IndicatorPaneFraction = 0.2;
 
