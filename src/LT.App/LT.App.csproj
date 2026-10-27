@@ -11,7 +11,12 @@
 	<!-- App icon: on the windows, and next to the executable for a Linux desktop entry -->
 	<ItemGroup>
 		<AvaloniaResource Include="Assets/limitlesstrading.ico" />
-		<None Include="Assets/limitlesstrading.png;Assets/limitlesstrading.svg" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="%(Filename)%(Extension)" />
+		<None
+			Include="Assets/limitlesstrading.png;Assets/limitlesstrading.svg"
+			CopyToOutputDirectory="PreserveNewest"
+			CopyToPublishDirectory="PreserveNewest"
+			Link="%(Filename)%(Extension)"
+		/>
 	</ItemGroup>
 
 	<ItemGroup>
