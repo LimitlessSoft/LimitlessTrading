@@ -11,12 +11,13 @@ namespace LT.Tests.Domain.Managers;
 public class WatchlistManagerTests
 {
 	private readonly InMemorySettingsRepository _settings = new();
+	private readonly FakeContractManager _contracts = new();
 	private readonly WatchlistManager _manager;
 
 	public WatchlistManagerTests()
 	{
 		LSCoreContainer.EnsureInitialized();
-		_manager = new WatchlistManager(_settings);
+		_manager = new WatchlistManager(_settings, _contracts);
 	}
 
 	[Fact]
@@ -331,7 +332,7 @@ public class WatchlistManagerTests
 			""";
 		var settings = new InMemorySettingsRepository();
 		settings.Save(JsonSerializer.Deserialize<SettingsEntity>(json)!);
-		var manager = new WatchlistManager(settings);
+		var manager = new WatchlistManager(settings, new FakeContractManager());
 
 		Assert.Empty(manager.GetPinned("w1"));
 		Assert.Equal(["AAPL"], manager.GetItems("w1").Select(x => x.Symbol));
@@ -373,7 +374,9 @@ public class WatchlistManagerTests
 
 		Assert.Equal(
 			["MSFT", "AAPL"],
-			new WatchlistManager(reloaded).GetPinned(_manager.GetActive().Id).Select(x => x.Symbol)
+			new WatchlistManager(reloaded, new FakeContractManager())
+				.GetPinned(_manager.GetActive().Id)
+				.Select(x => x.Symbol)
 		);
 	}
 

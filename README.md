@@ -97,29 +97,55 @@ Modifying orders is not built.
 - An IBKR account — start with a **paper** account
 - The offline/stable **IB Gateway** installer from Interactive Brokers
 
-**Linux: run a release**
+**Linux: install a release**
 
-1. Install the [.NET 10 runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
-   (`dotnet-runtime-10.0` in most package managers).
-2. Download `LimitlessTrading-<version>-linux-x64.tar.gz` from
-   [Releases](https://github.com/LimitlessSoft/LimitlessTrading/releases), then:
+Install the [.NET 10 runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
+(`dotnet-runtime-10.0` in most package managers), then paste this whole block into a terminal. It
+downloads the latest release into `~/Apps/LimitlessTrading`, puts a `limitlesstrading` command on
+`PATH` and adds LimitlessTrading with its icon to your app menu:
 
 ```bash
-mkdir -p ~/Apps ~/.local/bin
-tar -xzf LimitlessTrading-*-linux-x64.tar.gz -C ~/Apps
+(
+set -e
+url=$(curl -fsSL https://api.github.com/repos/LimitlessSoft/LimitlessTrading/releases/latest \
+  | grep -o 'https://[^"]*-linux-x64\.tar\.gz' | head -n 1)
+mkdir -p ~/Apps ~/.local/bin ~/.local/share/applications
+rm -rf ~/Apps/LimitlessTrading
+curl -fL "$url" | tar -xz -C ~/Apps
 ln -sfn ~/Apps/LimitlessTrading/LimitlessTrading ~/.local/bin/limitlesstrading
-limitlesstrading
+cat > ~/.local/share/applications/limitlesstrading.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Name=LimitlessTrading
+GenericName=Trading
+Comment=Interactive Brokers — TWS, but better
+Exec=$HOME/Apps/LimitlessTrading/LimitlessTrading
+Icon=$HOME/Apps/LimitlessTrading/limitlesstrading.png
+Terminal=false
+Categories=Office;Finance;
+StartupWMClass=LimitlessTrading
+EOF
+update-desktop-database ~/.local/share/applications 2>/dev/null || true
+echo "Installed ${url##*/}"
+)
 ```
 
-Unpack it into a folder you own (here `~/Apps`), not into `/usr/local/bin` or `/opt`: the
-self-updater swaps the whole folder, so its parent must be writable. Put only the link in a `bin`
-folder. `~/.local/bin` is on `PATH` in most distros; if `limitlesstrading` isn't found, add
-`export PATH="$HOME/.local/bin:$PATH"` to `~/.bashrc` and open a new terminal.
+Run it again any time to reinstall the latest release; your settings live in `~/.config` and are
+kept. To uninstall:
+
+```bash
+rm -rf ~/Apps/LimitlessTrading ~/.local/bin/limitlesstrading ~/.local/share/applications/limitlesstrading.desktop
+```
+
+The app lives in a folder you own (`~/Apps`), not in `/usr/local/bin` or `/opt`: the self-updater
+swaps the whole folder, so its parent must be writable. `~/.local/bin` is on `PATH` in most
+distros; if `limitlesstrading` isn't found, add `export PATH="$HOME/.local/bin:$PATH"` to
+`~/.bashrc` and open a new terminal.
 
 The app checks for a newer release on start and every 6 hours (Settings → Check for updates). When
 one is out, an **Update** button shows in the title bar: one click downloads it, checks its SHA-256,
 swaps it into the folder and restarts, and the running IB Gateway is kept, so there's no new
-login. The link keeps working after an update.
+login. The command and the menu entry keep working after an update.
 
 Windows and macOS builds come later; until then, build from source (.NET SDK 10.0.4xx):
 

@@ -373,7 +373,9 @@ new instance) and lives in one of four wrappers:
   of the book stays in sight. Columns: price (bids green, asks red, best row bold), size, running
   total from the best row out, and the exchange or market maker (SMART / Level 2 depth). A bar
   behind each row shows its size against the largest row on either side. The spread line shows
-  spread and mid. The SMART toggle (on by default) switches between SMART depth and the listing
+  spread and mid, and under them a bar split by the size resting on all shown bid rows (left,
+  green) against all shown ask rows (right, red), each end labelled with its total and share
+  (`OrderBookHelpers.GetSideTotals`; rows past the requested depth aren't counted). The SMART toggle (on by default) switches between SMART depth and the listing
   exchange's own book; a contract on one exchange (crypto on PAXOS, forex on IDEALPRO) always
   uses that exchange. Prices show as many decimals as the book needs (2–6). Updates are read on
   the thread pool, the latest book is drawn every 100 ms (`MarketDepthConstants.UiFlushInterval`),
@@ -554,7 +556,23 @@ before the first trade), recomputed on every UI flush and sortable by its numeri
 (`MarketCapValue`). Only US stocks (STK in USD) get one; anything else, and stocks the SEC has no
 usable count for (ETFs, foreign filers), show "—". Starting a row's quote also starts its
 `ISharesOutstandingManager` lookup (cached on disk, so normally instant); the result is posted to
-the row on the UI thread. Columns are fixed: nothing about them is persisted.
+the row on the UI thread. The built-in columns are fixed: nothing about them is persisted.
+
+**Custom columns.** Each watchlist can have up to `WatchlistConstants.MaxCustomColumns` (10)
+columns of its own, added, renamed and deleted in the header popup's "Columns" section (same
+pencil / ✕ / inline confirmation as watchlists; "+ Add column" adds "Column N" and opens its
+name). They show after the built-in ones; a cell holds free text or a number (at most
+`CellValueMaxLength`, 200, trimmed; blank clears it). Edit a cell by clicking it on the selected
+row (or F2): Enter or leaving the cell saves, Esc cancels. They are kept per watchlist in
+`WatchlistEntity.Columns` (`WatchlistColumnEntity`: id, name, non-empty `Cells` by conId +
+exchange, like pins; older settings have none) through `IWatchlistManager.GetColumns` /
+`SaveColumn` / `DeleteColumn` / `SetCell`; removing an item drops its values, and every change
+raises `Changed`, so other widgets on the list follow. The grid columns are built by the view
+(`WatchlistView.RebuildCustomColumns`, tagged with the column id) whenever
+`WatchlistViewModel.CustomColumns` is replaced (only when columns are added, renamed or removed);
+cells bind by index into the row's `Cells` (`WatchlistCellViewModel`: saved `Text`, and
+`EditText` for the edit box, saved on the grid's `CellEditEnded` commit). Only these columns are
+editable: the grid is not read-only, every built-in column is.
 
 **Pinning and sorting.** Right-click a row > "Pin to top" (or "Unpin"). Pinned rows stay on top,
 with a small pin before the symbol, in the order they were pinned, whatever column is sorted;
@@ -565,12 +583,38 @@ sort can't hold a group in place, so the view handles its `Sorting` event and th
 owns the sort (`SortColumn`, `SortDirection`, not persisted): a new column sorts ascending, the
 sorted one flips. Every sortable column sorts by a number (`LastValue`, `ChangePercentValue`,
 `BidValue` for Bid / Ask, `VolumeValue`, `MarketCapValue`), rows without one yet last in either
-direction, ties in saved order; Symbol sorts ignoring case. `WatchlistSortHelpers.Order` gives
+direction, ties in saved order; Symbol sorts ignoring case. A custom column sorts as
+`WatchlistSortColumn.Custom` plus its id (`SortCustomColumnId`): values that read as numbers
+(`WatchlistSortHelpers.TryParseNumber`: invariant culture, optional thousands commas such as
+"1,234.5", a "+" or a trailing "%"; "1,5" is text) by value and before text, text ignoring case,
+blank cells last either way (`GetCustomSortKey`); typing a value re-sorts at once, deleting the
+sorted column goes back to the saved order. `WatchlistSortHelpers.Order` gives
 the order and `CollectionHelpers.ApplyOrder` moves only the rows that have to (remove + insert:
 the DataGrid ignores Move), keeping the selection without re-publishing it to the link group.
 The order is re-applied on a header click, pin / unpin and add; while sorted by a quote column,
 ticks mark it stale and it re-sorts at most once per `WatchlistResortInterval` (1 s). The view
 sets the header's sort arrow itself, as the grid only draws it for its own sort.
+
+**Import / export.** The header popup's "Export <name>…" saves the shown watchlist through the
+storage provider's save picker as `{ "format": "LimitlessTrading.Watchlist", "version": 1,
+"name", "columns": [names], "items": [{ "contract": {...}, "pin": n, "values": { column: value
+} }] }` (camelCase, items in saved order, `IWatchlistManager.Export`, `WatchlistFileHelpers`).
+"Import watchlist…" reads a file (at most `WatchlistConstants.MaxFileLength`, 1 MB) and always
+creates a new watchlist that the widget then shows (and that becomes active); a taken name gets
+" (2)" …. `IWatchlistManager.ImportAsync` reads JSON (content starting with `{`) as an export:
+any property case, comments, trailing commas and unknown fields are accepted, the whole file is
+checked first (`ImportWatchlistRequestValidator`: our format, 1–200 items each with a conId,
+valid distinct column names, values not too long) and the items, pins, columns and values are
+added as they were, no IB request needed. Anything else is a plain list of symbols: one per line
+or separated by commas, semicolons or tabs, quotes, "#" comment lines and a leading
+"Symbol" / "Ticker" header dropped (`WatchlistFileHelpers.ParseSymbols`); the list is checked
+(`ImportWatchlistSymbolsRequestValidator`: 1–200 entries that look like tickers) before any is
+looked up, then each symbol is resolved to its first listing through
+`IContractManager.SearchSymbolAsync` **one at a time**, so the lookups queue behind
+`RequestThrottle` (and the contract cache) instead of bursting. Symbols IB doesn't know are left
+out and named in the widget's status line; none found adds nothing. A symbol list needs the
+connection (the widget says so instead of starting); errors (not a watchlist file, too big, …)
+are validation messages (`WVC_015`–`WVC_021`) in the widget's error line, and nothing is added.
 
 ### Pinned side widgets
 
@@ -802,6 +846,7 @@ subscription and frees the market-data line.
 | Esc (side or bottom widget) | Back to the last focused center widget; an unpinned widget collapses |
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous center view |
 | Alt+A (chart) | Add a price alert at the price under the pointer, or at the last price |
+| Esc (chart) | Disarm the toolbox's armed tool (e.g. placing an alert) |
 | Ctrl+Shift+F | Fullscreen the current widget (the one last clicked or typed in, framed in light blue), or restore it |
 | Ctrl+Shift+N | New empty workspace window |
 
@@ -821,14 +866,31 @@ while a text box has focus. On macOS, Cmd works in place of Ctrl.
 library): candles, volume, price grid, last-price line, crosshair + OHLCV readout. Wheel zooms,
 drag pans, double-click resets (zoom and pan, not the right margin); the right button doesn't
 pan — releasing it opens the chart's context menu (Add alert at …, Remove alert, Remove triggered
-alerts, Manage indicators…, Apply template, Templates…). The account performance widget's `EquityCurveChart` and
+alerts, Manage indicators…, Apply template, Templates…, Show toolbox). The account performance widget's `EquityCurveChart` and
 `DailyPnlBarChart` are drawn the same way (same palette, `ChartDrawing`).
+
+**Toolbox.** A thin bar between the widget header (ticker, timeframe, period, RTH / ETH) and
+the plot holds the chart's tools (`ChartViewModel.Tools`, one `ChartToolItem` per `ChartTool`;
+a new tool is a value appended to the enum plus an entry in `CreateTools`). Each chart shows or
+hides it — right-click → *Show toolbox* (a check item) or the bar's ✕ — saved per chart in the
+layout (`ChartShowToolbox`; null in older layouts is shown, the default). It is not part of a
+chart template. A tool's button arms it (`ActiveTool`, the button highlighted) for the next click
+on the chart; the button again, Esc (while the chart widget has the keyboard) or hiding the bar
+disarm it. The only tool so far is **Alert**: while armed, a dashed violet preview line follows
+the pointer's price on the price chart (rounded as the axis shows it) with its level on the
+axis and the direction it would get (▲ / ▼, from the last close), the cursor is a cross, and a
+left click there adds the alert (`ChartViewModel.PlaceAlert` → the same create flow as *Add
+alert*) and disarms. The click doesn't pan, drag an alert line or hit a legend; a click off the
+price chart does nothing, the right button still opens the menu. Disabled (and disarmed) while
+the chart has no bars.
 
 **Indicators and panes.** Right-click → Manage indicators… adds and removes indicators; they draw on the
 price chart, on the volume bars or in panes of their own stacked under the price chart, each
 pane with its own scale and a legend (hover a row for hide / settings / remove). All panes share
-the horizontal viewport and the crosshair. The loading / error overlay sits top centre, clear of
-the legend. Details: [indicators.md](indicators.md).
+the horizontal viewport and the crosshair. While bars load, a `LoadingSpinner` (shared control in
+`LT.Widgets.Core/Controls`: an accent arc sweeping round a faint track, animated only while
+visible) sits in the middle of the chart; the error text sits top centre, clear of the legend.
+Details: [indicators.md](indicators.md).
 
 **Right margin.** A small grip in the time axis marks the end of the last bar; dragging it left
 leaves empty space after the latest bar (dragging right narrows it, double-clicking it removes
@@ -855,8 +917,9 @@ positions) and when off the visible price range. Each chart follows positions on
 `reqPositions` stream; new fills appear when the journal records them (every 30 s).
 
 **Price alerts.** Right-click → *Add alert at <price>* (the price under the pointer, rounded as
-the axis shows it; the last price when opened off the price chart) or Alt+A while the chart has
-the keyboard (a click gives it) adds an alert with no dialog. Its direction is told from the
+the axis shows it; the last price when opened off the price chart), Alt+A while the chart has
+the keyboard (a click gives it) or the toolbox's Alert tool (click the price; see *Toolbox*)
+adds an alert with no dialog. Its direction is told from the
 chart's last close: a level above it fires once the price is at or above it, one at or below it
 once the price is at or below it (`PriceAlertHelpers.GetCondition` / `IsCrossed`; a level, not a
 pair of prices, so a gap or a move while disconnected fires on the first price seen). Each alert

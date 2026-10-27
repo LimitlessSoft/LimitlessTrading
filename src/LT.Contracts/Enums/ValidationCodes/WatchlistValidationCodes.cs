@@ -27,4 +27,43 @@ public enum WatchlistValidationCodes
 
 	[LSCoreValidationMessage("{0} is not in the watchlist.")]
 	WVC_008,
+
+	[LSCoreValidationMessage("Column name is required.")]
+	WVC_009,
+
+	[LSCoreValidationMessage("Column name can be at most {0} characters long.")]
+	WVC_010,
+
+	[LSCoreValidationMessage("A column named {0} already exists.")]
+	WVC_011,
+
+	[LSCoreValidationMessage("A watchlist can have at most {0} custom columns.")]
+	WVC_012,
+
+	[LSCoreValidationMessage("That column no longer exists.")]
+	WVC_013,
+
+	[LSCoreValidationMessage("A value can be at most {0} characters long.")]
+	WVC_014,
+
+	[LSCoreValidationMessage("This file is not a watchlist file or a list of symbols.")]
+	WVC_015,
+
+	[LSCoreValidationMessage("The file has no symbols.")]
+	WVC_016,
+
+	[LSCoreValidationMessage("The file is larger than {0} MB.")]
+	WVC_017,
+
+	[LSCoreValidationMessage("{0} is not a symbol.")]
+	WVC_018,
+
+	[LSCoreValidationMessage("None of the symbols were found: {0}.")]
+	WVC_019,
+
+	[LSCoreValidationMessage("Connect to IB to import a list of symbols.")]
+	WVC_020,
+
+	[LSCoreValidationMessage("{0} in the file has no contract id.")]
+	WVC_021,
 }

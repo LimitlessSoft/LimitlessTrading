@@ -8,6 +8,8 @@
 	<UserControl.Resources>
 		<SolidColorBrush x:Key="DepthBidBarBrush" Color="#3326A69A" />
 		<SolidColorBrush x:Key="DepthAskBarBrush" Color="#33EF5350" />
+		<SolidColorBrush x:Key="DepthBidTotalBrush" Color="#8026A69A" />
+		<SolidColorBrush x:Key="DepthAskTotalBrush" Color="#80EF5350" />
 
 		<!-- One ladder row: size bar behind price · size · total · exchange -->
 		<DataTemplate x:Key="DepthRowTemplate" x:DataType="vm:DepthLevelViewModel">
@@ -110,7 +112,28 @@
 					BorderBrush="{DynamicResource PanelStroke}"
 					BorderThickness="0,1"
 				>
-					<TextBlock Classes="secondary" HorizontalAlignment="Center" Text="{Binding SpreadText}" />
+					<StackPanel Spacing="3">
+						<TextBlock
+							Classes="secondary"
+							HorizontalAlignment="Center"
+							Text="{Binding SpreadText}"
+						/>
+						<!-- Size resting on all shown bid rows (left) against all ask rows (right) -->
+						<Panel Height="16" IsVisible="{Binding HasTotals}">
+							<vm:SplitBar
+								Fraction="{Binding BidShare}"
+								LeftFill="{StaticResource DepthBidTotalBrush}"
+								RightFill="{StaticResource DepthAskTotalBrush}"
+							/>
+							<TextBlock
+								Classes="cell"
+								Margin="4,0"
+								TextAlignment="Left"
+								Text="{Binding BidTotalText}"
+							/>
+							<TextBlock Classes="cell" Margin="4,0" Text="{Binding AskTotalText}" />
+						</Panel>
+					</StackPanel>
 				</Border>
 				<ItemsControl
 					ItemsSource="{Binding Bids}"

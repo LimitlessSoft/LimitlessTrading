@@ -250,6 +250,11 @@
 		<FluentTheme />
 		<StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
 
+		<!-- App icon on every window (taskbar, Alt+Tab) -->
+		<Style Selector=":is(Window)">
+			<Setter Property="Icon" Value="avares://LimitlessTrading/Assets/limitlesstrading.ico" />
+		</Style>
+
 		<Style Selector="Border.panel">
 			<Setter Property="Background" Value="{DynamicResource PanelBackground}" />
 			<Setter Property="BorderBrush" Value="{DynamicResource PanelStroke}" />

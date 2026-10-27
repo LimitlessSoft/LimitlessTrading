@@ -45,7 +45,8 @@ namespace LT.App.Widgets.Chart;
 /// </para>
 /// <para>
 /// The contract's price alerts are drawn on it and added, moved and removed from it; see
-/// ChartViewModel.Alerts.cs.
+/// ChartViewModel.Alerts.cs. The toolbox bar above the plot (shown or hidden per chart) arms
+/// tools such as placing an alert with a click; see ChartViewModel.Toolbox.cs.
 /// </para>
 /// </summary>
 public partial class ChartViewModel
@@ -230,6 +231,7 @@ public partial class ChartViewModel
 		if (!placement.ChartLinked)
 			Link.Group = LinkGroup.None;
 		RightMargin = Math.Max(0, placement.ChartRightMargin ?? 0);
+		ShowToolbox = placement.ChartShowToolbox ?? true;
 		_indicators = [.. placement.ChartIndicators ?? []];
 		RefreshChartIndicators();
 		ScheduleIndicators();
@@ -249,6 +251,7 @@ public partial class ChartViewModel
 		placement.ChartIndicators = _indicators.Count > 0 ? [.. _indicators] : null;
 		placement.ChartTemplateId = _templateId;
 		placement.ChartFollowTemplate = FollowTemplate;
+		placement.ChartShowToolbox = ShowToolbox;
 	}
 
 	public override void Dispose()
@@ -412,6 +415,7 @@ public partial class ChartViewModel
 	{
 		LoadTrades();
 		LoadAlerts();
+		RefreshTools();
 		UpdateBreakEven();
 		_load?.Cancel();
 		_load?.Dispose();
@@ -775,6 +779,7 @@ public partial class ChartViewModel
 		if (!IsContinuation(oldValue, newValue))
 			IndicatorResults = [.. IndicatorResults.Select(IndicatorChartHelpers.WithoutPlots)];
 		ScheduleIndicators();
+		RefreshTools();
 	}
 
 	public void RefreshIndicatorChoices() =>

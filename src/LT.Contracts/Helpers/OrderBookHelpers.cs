@@ -71,6 +71,19 @@ public static class OrderBookHelpers
 	}
 
 	/// <summary>
+	/// Size resting on each side of the book, summed over its rows (only the rows that were asked
+	/// for, so the deep book past them isn't counted), and the bid side's share of both, 0–1; the
+	/// share is null while both sides are empty.
+	/// </summary>
+	public static (decimal Bids, decimal Asks, double? BidShare) GetSideTotals(OrderBookDto book)
+	{
+		var bids = book.Bids.Sum(x => x.Size);
+		var asks = book.Asks.Sum(x => x.Size);
+		var total = bids + asks;
+		return (bids, asks, total > 0 ? (double)(bids / total) : null);
+	}
+
+	/// <summary>
 	/// Decimals that show every price of the book exactly (forex quotes in fifths of a pip,
 	/// 1.11825): at least 2, at most 6.
 	/// </summary>

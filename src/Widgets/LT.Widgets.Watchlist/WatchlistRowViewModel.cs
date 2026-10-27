@@ -62,6 +62,14 @@ public partial class WatchlistRowViewModel(ContractDto contract) : ViewModelBase
 
 	public bool IsPinned => PinIndex is not null;
 
+	/// <summary>Its values in the watchlist's custom columns, in their order (grid binds by index).</summary>
+	[ObservableProperty]
+	public partial IReadOnlyList<WatchlistCellViewModel> Cells { get; set; } = [];
+
+	/// <summary>Its saved value in a custom column; empty when it has none.</summary>
+	public string GetCustomValue(string? columnId) =>
+		Cells.FirstOrDefault(x => x.ColumnId == columnId)?.Text ?? string.Empty;
+
 	[ObservableProperty]
 	public partial bool IsUp { get; set; }
 

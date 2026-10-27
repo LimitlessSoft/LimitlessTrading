@@ -22,7 +22,10 @@ public class WatchlistViewModelPinTests : IDisposable
 
 	public WatchlistViewModelPinTests()
 	{
-		_watchlists = new WatchlistManager(_cache.Settings);
+		_watchlists = new WatchlistManager(
+			_cache.Settings,
+			new ContractManager(_ibkr, _cache.Settings, _cache.Manager)
+		);
 		// Saved order, with the last prices pushed below
 		foreach (var (conId, symbol) in new[] { (1, "SPY"), (2, "AAPL"), (3, "MSFT"), (4, "NVDA") })
 			_watchlists.Add(
