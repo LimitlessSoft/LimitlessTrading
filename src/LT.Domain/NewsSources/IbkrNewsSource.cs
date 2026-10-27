@@ -18,7 +18,9 @@ namespace LT.Domain.NewsSources;
 /// <summary>
 /// News of the IB account's API providers (BRFG, DJ-N …). Live headlines are news ticks over
 /// reqMktData, so each subscription (one per contract, one per broad tape) counts a market data
-/// line. Broad tape contracts are looked up once per provider. Registered as a singleton.
+/// line. Broad tape contracts are looked up once per provider; the DJ-* providers share one tape
+/// (<see cref="NewsConstants.SharedBroadTapes"/>), subscribed once and filtered to the selected
+/// providers. Registered as a singleton.
 /// </summary>
 public class IbkrNewsSource(IIbkrApiClient ibkrApiClient, IMarketDataManager marketDataManager)
 	: INewsSource
@@ -88,6 +90,9 @@ public class IbkrNewsSource(IIbkrApiClient ibkrApiClient, IMarketDataManager mar
 		if (request.Contract is { } contract)
 			streams.Add(ibkrApiClient.SubscribeNewsAsync(contract, codes, cancellationToken));
 		else
+		{
+			// Several providers can share one tape (DJ-* → DJ:N_DJN): one subscription, one line
+			List<(string, ContractDto)> tapes = [];
 			foreach (var code in codes)
 				if (
 					await NewsHelpers.ResolveBroadTapeAsync(
@@ -98,7 +103,15 @@ public class IbkrNewsSource(IIbkrApiClient ibkrApiClient, IMarketDataManager mar
 					) is
 					{ } tape
 				)
-					streams.Add(ibkrApiClient.SubscribeNewsAsync(tape, null, cancellationToken));
+					tapes.Add((code, tape));
+			foreach (var (tape, keep) in NewsHelpers.GroupBroadTapes(tapes))
+			{
+				var stream = ibkrApiClient.SubscribeNewsAsync(tape, null, cancellationToken);
+				streams.Add(
+					keep == null ? stream : stream.Where(x => keep.Contains(x.ProviderCode))
+				);
+			}
+		}
 		if (streams.Count == 0)
 			throw new LSCoreBadRequestException(NewsValidationCodes.NVC_003.GetValidationMessage());
 

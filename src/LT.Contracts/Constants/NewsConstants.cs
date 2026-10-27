@@ -27,6 +27,25 @@ public static class NewsConstants
 	/// <summary>A provider's broad tape covering all of its sub-tapes, e.g. BRFG:BRFG_ALL.</summary>
 	public const string AllTapeSuffix = "_ALL";
 
+	/// <summary>
+	/// Providers without a broad tape of their own whose headlines all come on another provider's
+	/// tape (exchange, symbol). The Dow Jones API providers share <c>DJ:N_DJN</c>, which carries
+	/// DJ-N, DJ-RT, DJ-RTA, DJ-RTE and DJ-RTG mixed; IB rejects them as exchange (321). DJ has
+	/// ~7,200 topic tapes, so the contract is built here rather than looked up.
+	/// <c>DJ:S_ALL</c>, <c>DJ:M_ALL</c> and the DJTOP tapes miss headlines: don't use them.
+	/// </summary>
+	public static readonly IReadOnlyDictionary<
+		string,
+		(string Exchange, string Symbol)
+	> SharedBroadTapes = new Dictionary<string, (string Exchange, string Symbol)>
+	{
+		["DJ-N"] = ("DJ", "DJ:N_DJN"),
+		["DJ-RT"] = ("DJ", "DJ:N_DJN"),
+		["DJ-RTA"] = ("DJ", "DJ:N_DJN"),
+		["DJ-RTE"] = ("DJ", "DJ:N_DJN"),
+		["DJ-RTG"] = ("DJ", "DJ:N_DJN"),
+	};
+
 	/// <summary>IB errors meaning "this provider has no broad tape" (321 invalid source, 200 no definition).</summary>
 	public static readonly IReadOnlyList<int> NoBroadTapeErrorCodes = [321, 200];
 
