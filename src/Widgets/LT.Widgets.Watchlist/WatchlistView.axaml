@@ -29,19 +29,34 @@
 			IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
 		/>
 
+		<!-- Import / export result -->
+		<TextBlock
+			DockPanel.Dock="Top"
+			Classes="secondary"
+			FontSize="12"
+			TextWrapping="Wrap"
+			Margin="0,0,0,6"
+			Text="{Binding StatusMessage}"
+			IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+		/>
+
 		<!-- Rows drag onto a chart (TickerDragDrop). Sorting is the view model's (OnGridSorting):
-		     pinned rows stay on top in pin order, the rest follow the clicked column -->
+		     pinned rows stay on top in pin order, the rest follow the clicked column. Custom
+		     columns are added after these by the view (RebuildCustomColumns); only their cells are
+		     editable (click a selected row's cell or F2, Enter saves, Esc cancels) -->
 		<DataGrid
 			x:Name="Grid"
 			helpers:TickerDragDrop.IsSource="True"
 			ItemsSource="{Binding Rows}"
 			SelectedItem="{Binding SelectedRow}"
-			IsReadOnly="True"
+			IsReadOnly="False"
 			CanUserSortColumns="True"
 			GridLinesVisibility="Horizontal"
 			HeadersVisibility="Column"
 			KeyDown="OnGridKeyDown"
 			Sorting="OnGridSorting"
+			PreparingCellForEdit="OnPreparingCellForEdit"
+			CellEditEnded="OnCellEditEnded"
 		>
 			<DataGrid.ContextMenu>
 				<ContextMenu>
@@ -60,6 +75,7 @@
 			</DataGrid.ContextMenu>
 			<DataGrid.Columns>
 				<DataGridTemplateColumn
+					IsReadOnly="True"
 					Header="Symbol"
 					Width="*"
 					MinWidth="130"
@@ -108,6 +124,7 @@
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
 				<DataGridTemplateColumn
+					IsReadOnly="True"
 					Header="Last"
 					Width="Auto"
 					SortMemberPath="LastValue"
@@ -125,6 +142,7 @@
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
 				<DataGridTemplateColumn
+					IsReadOnly="True"
 					Header="Chg %"
 					Width="Auto"
 					SortMemberPath="ChangePercentValue"
@@ -152,6 +170,7 @@
 				</DataGridTemplateColumn>
 				<!-- Sorts by bid -->
 				<DataGridTemplateColumn
+					IsReadOnly="True"
 					Header="Bid / Ask"
 					Width="Auto"
 					SortMemberPath="BidValue"
@@ -167,6 +186,7 @@
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
 				<DataGridTemplateColumn
+					IsReadOnly="True"
 					Header="Vol"
 					Width="Auto"
 					SortMemberPath="VolumeValue"
@@ -185,6 +205,7 @@
 				</DataGridTemplateColumn>
 				<!-- SEC shares outstanding × last; US stocks only -->
 				<DataGridTemplateColumn
+					IsReadOnly="True"
 					Header="Mkt Cap"
 					Width="Auto"
 					SortMemberPath="MarketCapValue"

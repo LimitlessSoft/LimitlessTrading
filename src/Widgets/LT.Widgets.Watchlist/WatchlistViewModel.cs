@@ -3,6 +3,7 @@ using System.ComponentModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LSCore.Validation.Contracts;
 using LT.App.Controls;
 using LT.App.Helpers;
 using LT.App.Stores;
@@ -13,6 +14,7 @@ using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Dtos.Watchlists;
 using LT.Contracts.Enums;
+using LT.Contracts.Enums.ValidationCodes;
 using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IManagers;
 using LT.Contracts.Requests.Watchlists;
@@ -147,7 +149,10 @@ public partial class WatchlistViewModel
 		if (reload)
 			LoadRows();
 		else
+		{
+			LoadColumns();
 			LoadPins();
+		}
 	}
 
 	/// <summary>The column the unpinned rows are sorted by (header click); pinned rows stay on top.</summary>
@@ -157,13 +162,24 @@ public partial class WatchlistViewModel
 	[ObservableProperty]
 	public partial ListSortDirection SortDirection { get; private set; }
 
+	/// <summary>The custom column sorted by, when <see cref="SortColumn"/> is <see cref="WatchlistSortColumn.Custom"/>.</summary>
+	[ObservableProperty]
+	public partial string? SortCustomColumnId { get; private set; }
+
 	/// <summary>A sortable column's header was clicked: sort by it, or flip its direction.</summary>
-	public void SortBy(WatchlistSortColumn column)
+	public void SortBy(WatchlistSortColumn column) => Sort(column, null);
+
+	/// <summary>A custom column's header was clicked: sort by its values, or flip the direction.</summary>
+	public void SortByCustom(string columnId) => Sort(WatchlistSortColumn.Custom, columnId);
+
+	private void Sort(WatchlistSortColumn column, string? customColumnId)
 	{
-		(SortColumn, SortDirection) = WatchlistSortHelpers.NextSort(
+		(SortColumn, SortCustomColumnId, SortDirection) = WatchlistSortHelpers.NextSort(
 			SortColumn,
+			SortCustomColumnId,
 			SortDirection,
-			column
+			column,
+			customColumnId
 		);
 		ApplyOrder();
 	}
@@ -215,7 +231,10 @@ public partial class WatchlistViewModel
 			row => row.PinIndex,
 			SortColumn,
 			SortDirection,
-			(row, column) => row.GetSortKey(column)
+			(row, column) =>
+				column == WatchlistSortColumn.Custom
+					? WatchlistSortHelpers.GetCustomSortKey(row.GetCustomValue(SortCustomColumnId))
+					: row.GetSortKey(column)
 		);
 		var selected = SelectedRow;
 		_reordering = true;
@@ -385,11 +404,264 @@ public partial class WatchlistViewModel
 			_savedOrder.Add(row);
 			Rows.Add(row);
 		}
+		LoadColumns();
 		LoadPins();
 		SelectedRow = Rows.FirstOrDefault();
 		if (IsConnected)
 			foreach (var row in Rows)
 				Start(row);
+	}
+
+	/// <summary>The watchlist's custom columns, in their order (grid columns and the header popup's list).</summary>
+	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(CanAddColumn))]
+	public partial IReadOnlyList<WatchlistColumnItemViewModel> CustomColumns { get; private set; } =
+	[];
+
+	/// <summary>Another custom column fits (the header popup's "+ Add column").</summary>
+	public bool CanAddColumn => CustomColumns.Count < WatchlistConstants.MaxCustomColumns;
+
+	/// <summary>An import is running (its symbols are being looked up): no second one meanwhile.</summary>
+	[ObservableProperty]
+	public partial bool IsImporting { get; private set; }
+
+	/// <summary>The last import or export result ("Imported …"); errors go to ErrorMessage.</summary>
+	[ObservableProperty]
+	public partial string? StatusMessage { get; private set; }
+
+	/// <summary>Adds "Column N" after the others and opens its name for editing.</summary>
+	[RelayCommand]
+	private void AddColumn()
+	{
+		string? id = null;
+		if (
+			!Run(() =>
+				id = _watchlistManager
+					.SaveColumn(
+						new SaveWatchlistColumnRequest
+						{
+							WatchlistId = _watchlistId,
+							Name = _watchlistManager.GetNewColumnName(_watchlistId),
+						}
+					)
+					.Id
+			)
+		)
+			return;
+		LoadColumns();
+		if (CustomColumns.FirstOrDefault(x => x.Id == id) is { } item)
+			BeginRenameColumn(item);
+	}
+
+	[RelayCommand]
+	private void BeginRenameColumn(WatchlistColumnItemViewModel item)
+	{
+		foreach (var column in CustomColumns)
+			column.IsConfirmingDelete = column.IsRenaming = false;
+		item.RenameText = item.Name;
+		item.IsRenaming = true;
+	}
+
+	/// <summary>Saves the typed column name; on an error (blank, taken) the name box stays open.</summary>
+	[RelayCommand]
+	private void CommitRenameColumn(WatchlistColumnItemViewModel item)
+	{
+		if (!item.IsRenaming)
+			return;
+		// Closed first: hiding the box fires its LostFocus, which must not commit again
+		item.IsRenaming = false;
+		if (item.RenameText.Trim() == item.Name)
+			return;
+		if (
+			Run(() =>
+				_watchlistManager.SaveColumn(
+					new SaveWatchlistColumnRequest
+					{
+						WatchlistId = _watchlistId,
+						ColumnId = item.Id,
+						Name = item.RenameText,
+					}
+				)
+			)
+		)
+			LoadColumns();
+		else
+			item.IsRenaming = true;
+	}
+
+	[RelayCommand]
+	private void CancelRenameColumn(WatchlistColumnItemViewModel item)
+	{
+		item.IsRenaming = false;
+		ErrorMessage = null;
+	}
+
+	[RelayCommand]
+	private void AskDeleteColumn(WatchlistColumnItemViewModel item)
+	{
+		foreach (var column in CustomColumns)
+			column.IsConfirmingDelete = column.IsRenaming = false;
+		item.IsConfirmingDelete = true;
+	}
+
+	[RelayCommand]
+	private void ConfirmDeleteColumn(WatchlistColumnItemViewModel item)
+	{
+		if (Run(() => _watchlistManager.DeleteColumn(_watchlistId, item.Id)))
+			LoadColumns();
+	}
+
+	[RelayCommand]
+	private void CancelDeleteColumn(WatchlistColumnItemViewModel item) =>
+		item.IsConfirmingDelete = false;
+
+	/// <summary>
+	/// A custom cell's edit was committed: saves the value (blank clears it) and re-sorts when
+	/// sorted by that column. A refused value (too long) leaves the cell as it was.
+	/// </summary>
+	public void SetCell(WatchlistRowViewModel row, string columnId, string? text)
+	{
+		if (row.Cells.FirstOrDefault(x => x.ColumnId == columnId) is not { } cell)
+			return;
+		var value = text?.Trim() ?? string.Empty;
+		if (value == cell.Text)
+			return;
+		if (
+			!Run(() =>
+				_watchlistManager.SetCell(
+					new SetWatchlistCellRequest
+					{
+						WatchlistId = _watchlistId,
+						ColumnId = columnId,
+						Contract = row.Contract,
+						Value = value,
+					}
+				)
+			)
+		)
+		{
+			cell.EditText = cell.Text;
+			return;
+		}
+		cell.Text = cell.EditText = value;
+		if (SortColumn == WatchlistSortColumn.Custom && SortCustomColumnId == columnId)
+			ApplyOrder();
+	}
+
+	// The custom columns and every row's values in them; the column list is replaced only when
+	// columns were added, renamed, moved or removed (the grid rebuilds its columns then)
+	private void LoadColumns()
+	{
+		var columns = _watchlistManager.GetColumns(_watchlistId);
+		if (
+			!WatchlistHelpers.IsSameColumns(columns, [.. CustomColumns.Select(x => (x.Id, x.Name))])
+		)
+			CustomColumns = [.. columns.Select(x => new WatchlistColumnItemViewModel(this, x))];
+		foreach (var row in _savedOrder)
+		{
+			var values = columns.Select(x =>
+				(x.Id, Value: WatchlistHelpers.GetCellValue(x, row.Contract))
+			);
+			if (row.Cells.Select(x => x.ColumnId).SequenceEqual(columns.Select(x => x.Id)))
+			{
+				foreach (var (cell, value) in row.Cells.Zip(values))
+					if (cell.Text != value.Value)
+						cell.Text = cell.EditText = value.Value;
+			}
+			else
+				row.Cells = [.. values.Select(x => new WatchlistCellViewModel(x.Id, x.Value))];
+		}
+		if (SortColumn != WatchlistSortColumn.Custom)
+			return;
+		// A deleted sorted column: back to the saved order
+		if (columns.All(x => x.Id != SortCustomColumnId))
+		{
+			SortColumn = WatchlistSortColumn.None;
+			SortCustomColumnId = null;
+		}
+		ApplyOrder();
+	}
+
+	/// <summary>The shown watchlist as a JSON file (export).</summary>
+	public string ExportWatchlist() => _watchlistManager.Export(_watchlistId);
+
+	/// <summary>A file name to suggest for exporting the shown watchlist.</summary>
+	public string GetExportFileName() =>
+		WatchlistFileHelpers.GetFileName(ActiveWatchlist?.Name ?? string.Empty);
+
+	/// <summary>The export was written (or failed, with the reason).</summary>
+	public void OnExported(string fileName, Exception? error)
+	{
+		if (error != null)
+		{
+			StatusMessage = null;
+			ErrorMessage = ErrorMessageHelpers.ToUserMessage(error);
+			return;
+		}
+		ErrorMessage = null;
+		StatusMessage = $"Exported {ActiveWatchlist?.Name} to {fileName}";
+	}
+
+	/// <summary>A file that couldn't be read.</summary>
+	public void ShowFileError(string message)
+	{
+		StatusMessage = null;
+		ErrorMessage = message;
+	}
+
+	/// <summary>
+	/// Adds the file's watchlist (an export, or a list of symbols looked up on IB) and shows it.
+	/// A list of symbols needs the connection.
+	/// </summary>
+	public async Task ImportAsync(string content, string fileName)
+	{
+		if (IsImporting)
+			return;
+		StatusMessage = null;
+		ErrorMessage = null;
+		var isSymbolList = !WatchlistFileHelpers.IsJson(content);
+		if (isSymbolList && !IsConnected)
+		{
+			ErrorMessage = WatchlistValidationCodes.WVC_020.GetValidationMessage();
+			return;
+		}
+		IsImporting = true;
+		if (isSymbolList)
+			StatusMessage = $"Importing {fileName}…";
+		try
+		{
+			var result = await _watchlistManager.ImportAsync(
+				content,
+				fileName,
+				isSymbolList ? _session : CancellationToken.None
+			);
+			// Shown here, and where the next new watchlist widget opens (the manager made it active)
+			_watchlistId = result.Watchlist.Id;
+			LoadWatchlists();
+			LoadRows();
+			StatusMessage =
+				$"Imported {result.Watchlist.Name} ("
+				+ (result.Watchlist.Count == 1 ? "1 symbol" : $"{result.Watchlist.Count} symbols")
+				+ ")"
+				+ (
+					result.NotFound.Count > 0
+						? $"; not found: {WatchlistFileHelpers.JoinSymbols(result.NotFound)}"
+						: string.Empty
+				);
+		}
+		catch (OperationCanceledException)
+		{
+			StatusMessage = null;
+		}
+		catch (Exception ex)
+		{
+			StatusMessage = null;
+			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
+		}
+		finally
+		{
+			IsImporting = false;
+		}
 	}
 
 	/// <summary>Clicking a row sends its contract to the link group.</summary>
@@ -466,7 +738,13 @@ public partial class WatchlistViewModel
 		{
 			_changing = true;
 			_watchlistManager.Add(_watchlistId, contract);
-			var row = new WatchlistRowViewModel(contract);
+			var row = new WatchlistRowViewModel(contract)
+			{
+				Cells =
+				[
+					.. CustomColumns.Select(x => new WatchlistCellViewModel(x.Id, string.Empty)),
+				],
+			};
 			_savedOrder.Add(row);
 			Rows.Add(row);
 			ApplyOrder();

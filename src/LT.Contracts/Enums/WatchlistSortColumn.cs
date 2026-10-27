@@ -10,4 +10,7 @@ public enum WatchlistSortColumn
 	Bid,
 	Volume,
 	MarketCap,
+
+	/// <summary>A custom column; which one is kept beside the sort (its id).</summary>
+	Custom,
 }
