@@ -201,7 +201,8 @@ public partial class CandlestickChart : Control
 			TimeZoneProperty,
 			IndicatorsProperty,
 			RegularHoursProperty,
-			AlertsProperty
+			AlertsProperty,
+			IsPlacingAlertProperty
 		);
 		ClipToBoundsProperty.OverrideDefaultValue<CandlestickChart>(true);
 		FocusableProperty.OverrideDefaultValue<CandlestickChart>(true);
@@ -298,6 +299,8 @@ public partial class CandlestickChart : Control
 			|| change.Property == TimeframeProperty
 		)
 			_tradesDirty = true;
+		if (change.Property == IsPlacingAlertProperty)
+			UpdateHandleHover(_pointer);
 		if (change.Property == FitBarsProperty)
 		{
 			ResetView();
@@ -647,6 +650,8 @@ public partial class CandlestickChart : Control
 					}
 		}
 
+		DrawAlertPreview(context, bars[^1].Close);
+
 		var b = bars[hovered];
 		var readout = Text(
 			$"{FormatTime(ToShown(b.Time), null)}   O {b.Open.ToString("N" + decimals)}   H {b.High.ToString("N" + decimals)}   L {b.Low.ToString("N" + decimals)}   C {b.Close.ToString("N" + decimals)}   V {b.Volume:#,0}",
@@ -755,8 +760,14 @@ public partial class CandlestickChart : Control
 
 	private void UpdateHandleHover(Point? position)
 	{
-		_handleHovered = position is { } p && _dragStart == null && IsOnMarginHandle(p);
-		var dragging = _dragStart != null || _marginDragStartX != null || _draggedAlert != null;
+		_handleHovered =
+			position is { } p && _dragStart == null && !IsPlacingAlert && IsOnMarginHandle(p);
+		// Placing an alert: a click places it, so nothing under the pointer reads as clickable
+		var dragging =
+			_dragStart != null
+			|| _marginDragStartX != null
+			|| _draggedAlert != null
+			|| IsPlacingAlert;
 		UpdateLegendHover(dragging ? null : position);
 		Cursor =
 			GetAlertCursor(position) is { } alertCursor ? alertCursor
@@ -864,6 +875,11 @@ public partial class CandlestickChart : Control
 	{
 		base.OnPointerPressed(e);
 		var position = e.GetPosition(this);
+		if (OnAlertPlacementPressed(e, position))
+		{
+			UpdateHandleHover(position);
+			return;
+		}
 		if (HitLegend(position) is { } legend)
 		{
 			e.Handled = true;
