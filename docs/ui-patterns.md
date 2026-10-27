@@ -345,7 +345,8 @@ new instance) and lives in one of four wrappers:
   (Load older pages back). The header title ("News · AAPL") is a `TickerTitle`: a ticker typed
   there (Enter or clicking away) becomes the contract, moves the link group along and switches
   All news back to Linked; Esc cancels. *All news* subscribes to the broad tape of each selected provider that
-  has one (chips without one are dimmed in that mode). Provider chips choose what is asked for
+  has one (the DJ-* providers share one tape, filtered to the selected ones; chips without one
+  are dimmed in that mode). Provider chips choose what is asked for
   (changes within 400 ms restart the feed once); the text box filters the list locally. Rows:
   time, provider badge, headline, sentiment ▲/▼ when the provider scores it; newest first, at
   most 500 (live headlines push the oldest out). Selecting one loads its article into the

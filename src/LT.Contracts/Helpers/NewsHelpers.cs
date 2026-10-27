@@ -128,8 +128,23 @@ public static partial class NewsHelpers
 		) ?? tapes.FirstOrDefault();
 
 	/// <summary>
-	/// A provider's broad tape from <paramref name="cache"/>, or looked up with
-	/// <paramref name="fetchTapes"/> and remembered (also "none"). A failed lookup isn't cached.
+	/// The tape another provider's headlines come on (<see cref="NewsConstants.SharedBroadTapes"/>,
+	/// e.g. DJ-RT → DJ:N_DJN), or null when the provider isn't one of those.
+	/// </summary>
+	public static ContractDto? GetSharedBroadTape(string providerCode) =>
+		NewsConstants.SharedBroadTapes.TryGetValue(providerCode, out var tape)
+			? new ContractDto
+			{
+				Symbol = tape.Symbol,
+				SecurityType = NewsConstants.NewsSecurityType,
+				Exchange = tape.Exchange,
+			}
+			: null;
+
+	/// <summary>
+	/// A provider's broad tape: its shared one (<see cref="GetSharedBroadTape"/>, never looked
+	/// up), else from <paramref name="cache"/>, or looked up with <paramref name="fetchTapes"/>
+	/// and remembered (also "none"). A failed lookup isn't cached.
 	/// </summary>
 	public static async Task<ContractDto?> ResolveBroadTapeAsync(
 		IDictionary<string, ContractDto?> cache,
@@ -138,11 +153,42 @@ public static partial class NewsHelpers
 		CancellationToken cancellationToken
 	)
 	{
+		if (GetSharedBroadTape(providerCode) is { } shared)
+			return shared;
 		if (cache.TryGetValue(providerCode, out var cached))
 			return cached;
 		var tape = PickBroadTape(await fetchTapes(providerCode, cancellationToken));
 		cache[providerCode] = tape;
 		return tape;
+	}
+
+	/// <summary>
+	/// The providers' broad tapes, each tape once (in first-seen order), with the provider codes
+	/// whose headlines to keep from it: null for a provider's own tape (all of it), the selected
+	/// codes for a shared one (DJ:N_DJN carries every DJ-* provider, only the chosen are kept).
+	/// </summary>
+	public static List<(ContractDto Tape, IReadOnlySet<string>? ProviderCodes)> GroupBroadTapes(
+		IEnumerable<(string ProviderCode, ContractDto Tape)> tapes
+	)
+	{
+		var groups = new List<(ContractDto Tape, HashSet<string> Codes, bool Shared)>();
+		foreach (var (code, tape) in tapes)
+		{
+			var index = groups.FindIndex(x =>
+				x.Tape.ConId == tape.ConId
+				&& x.Tape.Symbol == tape.Symbol
+				&& x.Tape.Exchange == tape.Exchange
+			);
+			var shared = NewsConstants.SharedBroadTapes.ContainsKey(code);
+			if (index < 0)
+				groups.Add((tape, [code], shared));
+			else
+			{
+				groups[index].Codes.Add(code);
+				groups[index] = groups[index] with { Shared = groups[index].Shared || shared };
+			}
+		}
+		return [.. groups.Select(x => (x.Tape, x.Shared ? (IReadOnlySet<string>?)x.Codes : null))];
 	}
 
 	/// <summary>IB sends text and HTML with the same type; HTML has tags.</summary>

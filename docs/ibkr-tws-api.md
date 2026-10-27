@@ -186,9 +186,16 @@ merges every source for the News widget (see [ui-patterns.md](ui-patterns.md#wor
   `ReleaseLine` like quotes: one per linked contract (all its providers in one request), one per
   broad tape. IB first replays recent headlines, mostly ones history already returned, so
   headlines are deduplicated on (source, provider, article id) in the manager and the widget.
-- **Broad tapes** (every headline of a provider, not tied to a symbol) exist only for BRFG (15
-  sub-tapes; we use `BRFG:BRFG_ALL`), BRFUPDN (`BRFUPDN:BRF_ALL`) and DJNL (`DJNL:DJNL_ALL`).
-  The DJ-* providers fail the lookup with 321 or 200, which `IbkrApiClient` turns into "none".
+- **Broad tapes** (every headline of a provider, not tied to a symbol): BRFG (15 sub-tapes; we
+  use `BRFG:BRFG_ALL`), BRFUPDN (`BRFUPDN:BRF_ALL`) and DJNL (`DJNL:DJNL_ALL`) have their own,
+  looked up by provider code. The Dow Jones API providers (DJ-N, DJ-RT, DJ-RTA, DJ-RTE, DJ-RTG)
+  fail that lookup with 321 ("Valid are: BRFG, BRFUPDN, DJ, DJNL, BZ, DJTOP, FLY"): their
+  headlines come on the ~7,200 topic tapes of exchange `DJ`, and `DJ:N_DJN` carries all five
+  mixed on one stream (live probe 2026-10-27: 55/55 distinct headlines seen across 19 tapes).
+  `DJ:S_ALL`, `DJ:M_ALL` and the DJTOP tapes miss headlines. `NewsConstants.SharedBroadTapes`
+  maps the DJ-* codes to that tape, built without a lookup; `IbkrNewsSource` subscribes it once
+  (one line) for any number of selected DJ-* providers and keeps only their headlines. Other
+  providers without a tape fail with 321 or 200, which `IbkrApiClient` turns into "none".
   The subscription needs security type `NEWS` and the provider code as exchange, so
   `IbkrContractMapper` sends those for `NEWS` contracts (the lookup's reply says exchange `NEWS`,
   which IB then rejects with 321). `IbkrNewsSource` looks each provider up once per app run.

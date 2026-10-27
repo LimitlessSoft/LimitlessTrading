@@ -136,12 +136,19 @@ public class CalendarViewModelTests : IDisposable
 					},
 				]
 				: [];
-		Open();
-		TestUiThread.Invoke(() => Calendar.Filter = CalendarEventFilter.Economic);
+		// Switched in the same UI job that creates it: another test's RunJobs on the shared UI
+		// thread can't start the first load with every calendar in between
+		_calendar = TestUiThread.Invoke(() =>
+		{
+			var calendar = CreateCalendar();
+			calendar.Filter = CalendarEventFilter.Economic;
+			return calendar;
+		});
 
 		await Loaded();
 
 		Assert.True(Calendar.IsEconomic);
+		Assert.NotEmpty(_nasdaq.Requests);
 		Assert.All(_nasdaq.Requests, x => Assert.Equal(NasdaqCalendar.Economic, x.Calendar));
 		var row = Assert.IsType<CalendarEventRowViewModel>(Calendar.Items[1]);
 		Assert.Equal("08:30", row.TimeText);

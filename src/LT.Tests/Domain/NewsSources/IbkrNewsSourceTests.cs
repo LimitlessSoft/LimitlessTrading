@@ -27,10 +27,10 @@ public class IbkrNewsSourceTests
 	private static NewsProviderDto Provider(string code) =>
 		new() { SourceId = NewsConstants.IbkrSourceId, Code = code };
 
-	private static NewsHeadlineDto Headline(string articleId) =>
+	private static NewsHeadlineDto Headline(string articleId, string providerCode = "DJ-N") =>
 		new()
 		{
-			ProviderCode = "DJ-N",
+			ProviderCode = providerCode,
 			ArticleId = articleId,
 			Time = new DateTimeOffset(2026, 10, 26, 12, 0, 0, TimeSpan.Zero),
 		};
@@ -134,7 +134,7 @@ public class IbkrNewsSourceTests
 			.SubscribeHeadlinesAsync(
 				new SubscribeNewsRequest
 				{
-					Providers = [Provider("BRFG"), Provider("DJ-N"), Provider("DJNL")],
+					Providers = [Provider("BRFG"), Provider("BZ"), Provider("DJNL")],
 				},
 				Ct
 			)
@@ -158,7 +158,7 @@ public class IbkrNewsSourceTests
 		await Assert.ThrowsAsync<LSCoreBadRequestException>(async () =>
 			await _source
 				.SubscribeHeadlinesAsync(
-					new SubscribeNewsRequest { Providers = [Provider("DJ-N")] },
+					new SubscribeNewsRequest { Providers = [Provider("BZ")] },
 					Ct
 				)
 				.ToListAsync(Ct)
@@ -176,11 +176,104 @@ public class IbkrNewsSourceTests
 		};
 
 		Assert.True(await _source.HasBroadTapeAsync("DJNL", Ct));
-		Assert.False(await _source.HasBroadTapeAsync("DJ-N", Ct));
+		Assert.False(await _source.HasBroadTapeAsync("BZ", Ct));
 		Assert.True(await _source.HasBroadTapeAsync("DJNL", Ct));
-		Assert.False(await _source.HasBroadTapeAsync("DJ-N", Ct));
+		Assert.False(await _source.HasBroadTapeAsync("BZ", Ct));
 
 		Assert.Equal(2, _ibkr.BroadTapeCalls);
+	}
+
+	[Theory]
+	[InlineData("DJ-N")]
+	[InlineData("DJ-RT")]
+	[InlineData("DJ-RTA")]
+	[InlineData("DJ-RTE")]
+	[InlineData("DJ-RTG")]
+	public async Task Dow_jones_providers_have_the_shared_tape_without_a_lookup(string code)
+	{
+		Assert.True(await _source.HasBroadTapeAsync(code, Ct));
+		Assert.Equal(0, _ibkr.BroadTapeCalls);
+	}
+
+	[Fact]
+	public async Task Dow_jones_providers_share_one_subscription_next_to_their_own_tapes()
+	{
+		_ibkr.BroadTapes = new()
+		{
+			["BRFG"] =
+			[
+				new ContractDto
+				{
+					ConId = 2,
+					Symbol = "BRFG:BRFG_ALL",
+					SecurityType = "NEWS",
+				},
+			],
+		};
+		_ibkr.LiveNews = [Headline("1", "DJ-RT")];
+		await using var live = _source
+			.SubscribeHeadlinesAsync(
+				new SubscribeNewsRequest
+				{
+					Providers =
+					[
+						Provider("DJ-N"),
+						Provider("BRFG"),
+						Provider("DJ-RT"),
+						Provider("DJ-RTG"),
+					],
+				},
+				Ct
+			)
+			.GetAsyncEnumerator(Ct);
+
+		Assert.True(await live.MoveNextAsync());
+		await _ibkr.WaitForNewsSubscriptionsAsync(2, Ct);
+		Assert.Equal(2, _marketData.ActiveLines);
+		Assert.Equal(2, _ibkr.NewsSubscriptions.Count);
+		Assert.Single(_ibkr.NewsSubscriptions, x => x.Contract.ConId == 2);
+		var dowJones = Assert.Single(_ibkr.NewsSubscriptions, x => x.Contract.Exchange == "DJ");
+		Assert.Equal(
+			("DJ:N_DJN", "NEWS"),
+			(dowJones.Contract.Symbol, dowJones.Contract.SecurityType)
+		);
+		Assert.Null(dowJones.Providers);
+		Assert.Equal(1, _ibkr.BroadTapeCalls); // BRFG only
+
+		await live.DisposeAsync();
+		Assert.Equal(0, _marketData.ActiveLines);
+	}
+
+	[Fact]
+	public async Task The_shared_tape_keeps_only_the_selected_providers_headlines()
+	{
+		_ibkr.LiveNews =
+		[
+			Headline("1", "DJ-N"),
+			Headline("2", "DJ-RT"),
+			Headline("3", "DJ-RTE"),
+			Headline("4", "DJ-RTA"),
+		];
+		await using var live = _source
+			.SubscribeHeadlinesAsync(
+				new SubscribeNewsRequest { Providers = [Provider("DJ-RT"), Provider("DJ-RTA")] },
+				Ct
+			)
+			.GetAsyncEnumerator(Ct);
+
+		Assert.True(await live.MoveNextAsync());
+		var first = live.Current;
+		Assert.True(await live.MoveNextAsync());
+
+		Assert.Equal(
+			[("DJ-RT", "2"), ("DJ-RTA", "4")],
+			[
+				(first.ProviderCode, first.ArticleId),
+				(live.Current.ProviderCode, live.Current.ArticleId),
+			]
+		);
+		Assert.Single(_ibkr.NewsSubscriptions);
+		Assert.Equal(1, _marketData.ActiveLines);
 	}
 
 	[Fact]
