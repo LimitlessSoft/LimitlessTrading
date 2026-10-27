@@ -145,4 +145,39 @@ public class ChartViewportHelpersTests
 		Assert.Equal(40, ChartViewportHelpers.GetFitBarSpacing(3, 0, PlotWidth, 40));
 		Assert.Equal(40, ChartViewportHelpers.GetFitBarSpacing(0, 0, PlotWidth, 40));
 	}
+
+	[Fact]
+	public void A_fitted_view_fits_again_when_the_plot_widens()
+	{
+		// A restored 5-minute Today chart at 12:35 (38 RTH bars, a margin of 5) is first laid out
+		// 253 wide, then gets its real width; fitted once at 253 its bars filled only the right
+		// part of the plot
+		const int bars = 38;
+		const double margin = 5;
+		var first = ChartViewportHelpers.GetBarSpacing(8, true, bars, margin, 253, 40);
+
+		var spacing = ChartViewportHelpers.GetBarSpacing(first, true, bars, margin, 534, 40);
+
+		Assert.Equal(ChartViewportHelpers.GetFitBarSpacing(bars, margin, 534, 40), spacing);
+		var edge = ChartViewportHelpers.GetRightEdge(bars, 0, margin);
+		var left = ChartViewportHelpers.GetBarX(0, edge, 534, spacing) - spacing / 2;
+		// The bars span the plot: only the spare slot is left of the first one
+		Assert.InRange(left, 0, spacing * 1.001);
+	}
+
+	[Fact]
+	public void A_fitted_view_fits_the_bars_that_arrive()
+	{
+		var first = ChartViewportHelpers.GetBarSpacing(8, true, 18, 0, PlotWidth, 40);
+
+		var spacing = ChartViewportHelpers.GetBarSpacing(first, true, 200, 0, PlotWidth, 40);
+
+		Assert.Equal(ChartViewportHelpers.GetFitBarSpacing(200, 0, PlotWidth, 40), spacing);
+	}
+
+	[Fact]
+	public void A_zoomed_view_keeps_its_zoom_when_the_plot_is_resized()
+	{
+		Assert.Equal(12.5, ChartViewportHelpers.GetBarSpacing(12.5, false, 38, 5, 534, 40));
+	}
 }
