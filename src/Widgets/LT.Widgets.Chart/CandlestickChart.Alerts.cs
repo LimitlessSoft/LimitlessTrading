@@ -9,7 +9,7 @@ using LT.Contracts.Helpers;
 namespace LT.App.Widgets.Chart;
 
 /// <summary>
-/// Price alerts on the price chart: a line at each level with a tag at the plot's right end
+/// Price alerts on the price chart: a line at each level with a tag at the plot's left end
 /// (direction, note, ✕) and the level on the price axis. Dragging the line or its tag moves the
 /// alert (<see cref="AlertMoved"/>, at the price as shown on the axis); ✕ removes it
 /// (<see cref="AlertRemoved"/>). Triggered alerts stay as a grey dotted line until removed. Alerts
@@ -166,7 +166,7 @@ public partial class CandlestickChart
 				new Point(rect.Right, y)
 			);
 
-			// Tag at the plot's right end: direction (or "fired"), the note, then ✕
+			// Tag at the plot's left end: direction (or "fired"), the note, then ✕
 			var arrow = alert.Condition == PriceAlertCondition.CrossingUp ? "▲" : "▼";
 			var text = triggered ? $"Alert {arrow} fired" : $"Alert {arrow}";
 			if (!string.IsNullOrWhiteSpace(alert.Note))
@@ -176,9 +176,8 @@ public partial class CandlestickChart
 			var height = label.Height + 4;
 			var closeWidth = height;
 			var tagWidth = Math.Min(label.Width + 10, Math.Max(40, rect.Width / 2));
-			var right = rect.Right - 4;
-			var closeRect = new Rect(right - closeWidth, y - height / 2, closeWidth, height);
-			var tag = new Rect(closeRect.X - tagWidth, closeRect.Y, tagWidth, height);
+			var tag = new Rect(rect.X + 4, y - height / 2, tagWidth, height);
+			var closeRect = new Rect(tag.Right, tag.Y, closeWidth, height);
 			context.DrawRectangle(brush, null, tag);
 			using (context.PushClip(tag.Deflate(new Thickness(5, 0))))
 				context.DrawText(label, new Point(tag.X + 5, y - label.Height / 2));
