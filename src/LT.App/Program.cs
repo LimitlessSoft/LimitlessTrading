@@ -12,17 +12,20 @@ using LT.App.Workspace;
 using LT.Contracts.Constants;
 using LT.Contracts.Enums;
 using LT.Contracts.Interfaces.IApiClients;
+using LT.Contracts.Interfaces.ICalendarSources;
 using LT.Contracts.Interfaces.IEngines;
 using LT.Contracts.Interfaces.IManagers;
 using LT.Contracts.Interfaces.INewsSources;
 using LT.Contracts.Interfaces.IProcesses;
 using LT.Contracts.Interfaces.IRepositories;
+using LT.Domain.CalendarSources;
 using LT.Domain.Managers;
 using LT.Domain.NewsSources;
 using LT.Ibkr;
 using LT.Ibkr.Flex;
 using LT.Ibkr.Gateway;
 using LT.Indicators.Scripting;
+using LT.Nasdaq;
 using LT.Repository.Repositories;
 using LT.Sec;
 using Microsoft.Extensions.DependencyInjection;
@@ -99,12 +102,22 @@ public static class Program
 			SecApiClient.CreateHttpClient(),
 			services.GetRequiredService<TimeProvider>()
 		));
+		// One HttpClient and one pacing state for every Nasdaq calendar request
+		builder.Services.AddSingleton<INasdaqApiClient>(services => new NasdaqApiClient(
+			NasdaqApiClient.CreateHttpClient(),
+			services.GetRequiredService<TimeProvider>()
+		));
 		builder.Services.AddSingleton<IMessageLogManager, MessageLogManager>();
 		builder.Services.AddSingleton<IConnectionManager, ConnectionManager>();
 		builder.Services.AddSingleton<IGatewayProcess, GatewayProcess>();
 		builder.Services.AddSingleton<IGatewayManager, GatewayManager>();
 		builder.Services.AddSingleton<IMarketDataManager, MarketDataManager>();
 		builder.Services.AddSingleton<IMarketDepthManager, MarketDepthManager>();
+		// Calendar: every ICalendarSource is merged by the calendar manager, in this order (the
+		// first source reporting an event is the one shown); each keeps its own answers
+		builder.Services.AddSingleton<ICalendarSource, WshCalendarSource>();
+		builder.Services.AddSingleton<ICalendarSource, NasdaqCalendarSource>();
+		builder.Services.AddSingleton<ICalendarManager, CalendarManager>();
 		builder.Services.AddSingleton<ISettingsManager, SettingsManager>();
 		builder.Services.AddSingleton<IAppUpdater, AppUpdater>();
 		builder.Services.AddSingleton<IUpdateManager, UpdateManager>();

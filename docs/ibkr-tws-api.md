@@ -7,7 +7,7 @@ this app's license. How each message looks on the wire is in that repo's `docs/p
 file covers how the app uses it, IB's limits and the quirks we have hit. Read it before touching
 `LT.Ibkr`.
 
-`IBKR.Net` comes from nuget.org (0.7.0).
+`IBKR.Net` comes from nuget.org (0.8.0).
 
 ### Extending IBKR.Net
 
@@ -134,11 +134,15 @@ Limits / caveats:
 | `SubscribeMarketDepthAsync` | `reqMktDepth` | Order book changes (insert / update / delete per row and side), one exchange or SMART depth with each row's exchange (0.6.0) — see [Market depth](#market-depth) |
 | `SubscribeTickByTickAsync` | `reqTickByTickData` | Last / AllLast / BidAsk / MidPoint ticks, IB time in whole seconds (0.7.0); used by the chart's tick-by-tick live updates — see [Tick-by-tick](#tick-by-tick) |
 | `GetMarketDepthExchangesAsync` | `reqMktDepthExchanges` | The exchanges IB serves depth for (306 on the live account); not used by the app yet |
+| `GetWshMetaDataAsync` / `GetWshEventDataAsync` | `reqWshMetaData` / `reqWshEventData` | Wall Street Horizon corporate events as raw JSON (0.8.0); needs the WSH subscription, else 10276 — see [Wall Street Horizon](#wall-street-horizon-calendar) |
 
 ### Not covered yet
 
 - Option greeks and per-option implied volatility (`tickOptionComputation`).
 - Scanners (`reqScannerSubscription`); news bulletins (`reqNewsBulletins`).
+- Wall Street Horizon answers (`104` / `105`): requests and the 10276 refusal are recorded, the
+  data frames and their JSON are not (no subscription) — see
+  [Wall Street Horizon](#wall-street-horizon-calendar).
 - Matching symbols (`reqMatchingSymbols`): search is by exact symbol + type via
   `reqContractDetails`.
 - `reqAccountUpdates` (portfolio with market value / P&L per position in one stream).
@@ -223,6 +227,47 @@ account on 2026-10-26 (read-only); the wire format is in IBKR.Net's `docs/protoc
   served). IB sends deletes and updates past the end of a side (seen on PAXOS, several in a row);
   they are ignored.
 - Requests go through the message throttle like every other.
+
+## Wall Street Horizon (calendar)
+
+`IIbkrApiClient.GetWshMetaDataAsync` / `GetWshEventDataAsync` pass WSH's JSON through as text;
+`WshCalendarSource` (a singleton `ICalendarSource`) turns it into events, which `ICalendarManager`
+merges with the Calendar widget's other sources (`CalendarHelpers`, see
+[ui-patterns.md](ui-patterns.md#workspace-ltappworkspace)). WSH is **off by default** (Settings →
+Calendar); Nasdaq's public calendars are the default source
+([architecture.md](architecture.md#external-data-nasdaq-calendar)). Recorded
+read-only on the live account on 2026-10-26 (IBKR.Net `docs/protocol.md`, "Wall Street Horizon").
+
+- **Subscription.** WSH data needs IB's **"Wall Street Horizon Corporate Event Data"** market
+  data subscription (IBKR Client Portal → Settings → Market Data Subscriptions). The live account
+  doesn't have it: every request — metadata, event data by conId or by filter — is answered
+  within milliseconds by **10276 "News feed is not allowed."** for its request id
+  (`CalendarConstants.NotSubscribedErrorCodes`). The source turns that into
+  `CalendarStatus.NotSubscribed` with a message naming the subscription; the widget shows it in
+  its warning line next to the other sources' events, or in place of the list when WSH is the
+  only source on. Other refusals, and not being connected, are shown with IB's code the same way.
+- **Market-wide filter.** Event data takes a JSON filter instead of a contract:
+  `{"country":"All","limit":100,"wshe_ed":"true",…}` — every country, a result limit and one
+  `"<tag>":"true"` per event type (`CalendarHelpers.BuildEventFilter`). This is the shape of IB's
+  own examples (`wshe_ed` earnings dates, `wshe_bod` board meetings); IB sent it out unchanged
+  and refused it only for the missing subscription, so **whether it returns market-wide events,
+  and what the answer looks like, is not verified.** The other event type tags come from the
+  metadata; without any there, earnings and board meetings are asked for.
+- **Limits.** IB's documentation caps a WSH request at 100 events; unverified. The source asks
+  one day per request (`MaxEventsPerRequest` = 100, start = end = the day), after the metadata,
+  strictly one after another (a `SemaphoreSlim`; every request through the message throttle): a
+  month is at most 32 requests (`MaxDaysPerLoad` = 31). A day returning 100 events is marked "may
+  have more". Days are kept in memory for 30 minutes (`EventsTtl`); Refresh / F5 asks again. The
+  metadata is asked for on every load, since WSH wants it before event data.
+- **Answers not seen.** IBKR.Net reads the replies (`104` metadata, `105` events) as request id
+  plus one JSON document, the layout the ib_async client decodes. The JSON is read leniently
+  (`CalendarHelpers.ParseEvents`): events from the root array or the first list found in an
+  object, symbol / company / conId / date / time by their usual names (also inside a nested
+  `data` object), `BMO` / `AMC` / `DMH` or the words as before open / after close / during
+  market; events without a date go on the day asked for. An answer it can't read is shown as
+  "could not be read" with the start of IB's text (`CalendarStatus.Unreadable`), never as an
+  empty list. **With a subscription, record the replies first** and tighten the reader to them.
+- Dates are New York dates (`CalendarHelpers.GetToday`); weeks start on Monday.
 
 ## Trade journal
 

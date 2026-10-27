@@ -3,6 +3,7 @@ using LT.App.Shell;
 using LT.App.Stores;
 using LT.App.Widgets.Account;
 using LT.App.Widgets.AccountPerformance;
+using LT.App.Widgets.Calendar;
 using LT.App.Widgets.Chart;
 using LT.App.Widgets.DayTradePerformance;
 using LT.App.Widgets.Executions;
@@ -208,6 +209,9 @@ public class WorkspaceWindows : IWorkspaceHost
 					break;
 				case ExecutionsViewModel executions:
 					executions.Refresh();
+					break;
+				case CalendarViewModel calendar:
+					calendar.Refresh();
 					break;
 				case DayTradePerformanceViewModel performance:
 					_ = performance.RefreshAsync();

@@ -12,11 +12,13 @@
 		<ProjectReference Include="..\LT.Indicators.Sdk\LT.Indicators.Sdk.csproj" />
 		<ProjectReference Include="..\LT.Indicators.Scripting\LT.Indicators.Scripting.csproj" />
 		<ProjectReference Include="..\LT.Sec\LT.Sec.csproj" />
+		<ProjectReference Include="..\LT.Nasdaq\LT.Nasdaq.csproj" />
 		<!-- UI-free helpers only (FlexStatusHelpers); no view is created in tests -->
 		<ProjectReference Include="..\Widgets\LT.Widgets.Core\LT.Widgets.Core.csproj" />
 		<!-- Chart view model only (dropping a ticker); its view is never created -->
 		<ProjectReference Include="..\Widgets\LT.Widgets.Chart\LT.Widgets.Chart.csproj" />
 		<!-- DepthFeed only (closing frees the depth slot); no view is created -->
+		<ProjectReference Include="..\Widgets\LT.Widgets.Calendar\LT.Widgets.Calendar.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.Depth\LT.Widgets.Depth.csproj" />
 		<!-- Watchlist row view model only (market cap); its view is never created -->
 		<ProjectReference Include="..\Widgets\LT.Widgets.Watchlist\LT.Widgets.Watchlist.csproj" />

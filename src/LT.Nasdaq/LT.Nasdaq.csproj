@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<!-- nasdaq.com's public calendar JSON (earnings, dividends, splits, economic releases); no IB code -->
+	<ItemGroup>
+		<ProjectReference Include="..\LT.Contracts\LT.Contracts.csproj" />
+	</ItemGroup>
+</Project>

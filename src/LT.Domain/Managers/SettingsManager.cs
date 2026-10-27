@@ -45,6 +45,8 @@ public class SettingsManager(ISettingsRepository settingsRepository, IIbkrApiCli
 			? null
 			: request.DisplayTimeZoneId;
 		settings.General.PlayFillSound = request.PlayFillSound;
+		settings.General.CalendarNasdaq = request.CalendarNasdaq;
+		settings.General.CalendarWallStreetHorizon = request.CalendarWallStreetHorizon;
 		settingsRepository.Save(settings);
 		if (ibkrApiClient.IsConnected)
 			ibkrApiClient.SetMarketDataType(request.MarketDataType);

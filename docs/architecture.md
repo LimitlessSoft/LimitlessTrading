@@ -38,10 +38,12 @@ src/
 ├── LT.Domain/
 │   ├── Managers/                  # IConnectionManager → ConnectionManager, …
 │   ├── NewsSources/               # INewsSource implementations (IbkrNewsSource)
+│   ├── CalendarSources/           # ICalendarSource implementations (WshCalendarSource, NasdaqCalendarSource)
 │   └── Validators/                # LSCoreValidatorBase<TRequest>
 ├── LT.Repository/
 │   └── Repositories/              # SettingsRepository (JSON in the user's app-data folder)
 ├── LT.Sec/                       # SecApiClient + SecJsonParser: SEC EDGAR (shares outstanding)
+├── LT.Nasdaq/                    # NasdaqApiClient + NasdaqCalendarParser: nasdaq.com calendars
 ├── LT.Ibkr/
 │   ├── DtoMappings/               # IBKR.Net types ↔ LT.Contracts DTOs
 │   ├── Gateway/                   # GatewayProcess — starts / stops IB Gateway's launcher
@@ -99,7 +101,8 @@ LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
   Code moved out of `LT.App` kept its `LT.App.*` namespaces (`LT.App.Widgets.<Widget>`,
   `LT.App.Stores`, …).
 - `LT.Sec` is the typed client of SEC EDGAR (public JSON over HTTPS, no IB): the second external
-  API, in its own project like `LT.Ibkr`, referencing only `LT.Contracts`.
+  API, in its own project like `LT.Ibkr`, referencing only `LT.Contracts`. `LT.Nasdaq` (Nasdaq's
+  calendar JSON) is the third, the same way.
 - `LT.App` is the composition root: it references every layer only to wire DI. ViewModels inject
   **managers** (`IConnectionManager`), never repositories or `IIbkrApiClient` directly — same rule as
   Termodom controllers.
@@ -111,8 +114,11 @@ LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
 `Foo : IFoo` as **transient** plus all `LSCoreValidatorBase<T>` validators. Then:
 
 - Stateful services (`IIbkrApiClient`, `IConnectionManager`, `IMarketDataManager`,
-  `IMarketDepthManager`, `IMessageLogManager`, `ISettingsManager`, `INewsManager`, both
+  `IMarketDepthManager`, `ICalendarManager`, `IMessageLogManager`, `ISettingsManager`, `INewsManager`, both
   repositories) are re-registered as **singletons after** the scan — the last registration wins.
+- Calendar sources (`ICalendarSource`) are registered the same way as news sources below, in the
+  order the calendar merges them (`WshCalendarSource`, then `NasdaqCalendarSource`); the Nasdaq
+  client is a singleton with its own `HttpClient` like the SEC one.
 - News sources (`INewsSource`) don't match the `Foo : IFoo` convention, so each is registered
   explicitly (`AddSingleton<INewsSource, IbkrNewsSource>()`); `NewsManager` takes all of them
   (`IEnumerable<INewsSource>`). A new source (RSS, Benzinga …) is one class and one line there.
@@ -223,6 +229,37 @@ cache, so the Cache settings don't apply) keyed by SEC ticker: a count is looked
 7 days, "nothing usable" after 3. One lookup per ticker runs at a time; `SecApiClient` sends one
 request at a time, 125 ms apart (the SEC allows 10/s). After a failure no lookup starts for
 5 minutes, the failure is logged once (source "SEC") and a stale count is used if there is one.
+
+### External data: Nasdaq calendar
+
+The Calendar widget's default source (IB's Wall Street Horizon needs a paid subscription) is
+nasdaq.com's own calendar pages' JSON, `https://api.nasdaq.com/api/calendar/<calendar>?date=yyyy-MM-dd`
+(`INasdaqApiClient` → `LT.Nasdaq/NasdaqApiClient`, read by `NasdaqCalendarParser`, used by
+`NasdaqCalendarSource`). **Unofficial and undocumented:** no key or account, no published limits
+or terms for API use, and it may change or disappear without notice — then the widget names
+Nasdaq's failure in its warning line and the other source still shows. Checked on 2026-10-27,
+all four answer:
+
+| Calendar | Rows | Date semantics |
+|---|---|---|
+| `earnings` | `data.rows`: `symbol`, `name`, `time` (`time-pre-market` / `time-after-hours` / `time-not-supplied`), `epsForecast`, `fiscalQuarterEnding`, `marketCap` … | the day asked; ~170–620 rows on a busy day |
+| `dividends` | `data.calendar.rows`: `symbol`, `companyName`, `dividend_Ex_Date`, `payment_Date`, `record_Date`, `dividend_Rate` (a number) … | ex-date = the day asked |
+| `splits` | `data.rows`: `symbol`, `name`, `ratio` ("3 : 1"), `executionDate` | **ignores the day:** every split known from it on, each on its own effective date |
+| `economicevents` | `data.rows`: `gmt` (a clock time, US Eastern by the look of it despite the name, or "All Day"), `country`, `eventName`, `actual`, `consensus`, `previous` (`&nbsp;` for none), `description` | **a day behind:** `date=D` lists D−1's releases, so D+1 is asked for (`NasdaqConstants.EconomicDateOffsetDays`) |
+
+Every answer is `{"data":…,"message":…,"status":{"rCode":200,"bCodeMessage":[…]}}`: a day without
+rows has `rows: null` (dividends also a `message`), a day Nasdaq has no record of `data: null` and
+business code 1002 — both are an empty day; another code (1011 "Bad or No parameter") is shown as
+Nasdaq's refusal, and an answer in another shape as "can't read", never as an empty list. Nasdaq
+doesn't answer at all without a browser `User-Agent` (the request hangs), so the client sends one
+with a browser `Accept` (`NasdaqConstants.UserAgent`).
+
+Requests (`CalendarHelpers.GetNasdaqRequests`): splits once per load, from its first day; then
+day by day earnings and dividends (weekdays only — no rows on the weekend days tried) and economic
+releases (every day; there are weekend releases and holidays) — only the calendars the widget's
+filter shows. A week of everything is 18 requests, a month at most ~80. `NasdaqApiClient` sends
+one at a time, 250 ms apart; `NasdaqCalendarSource` keeps each answer for 30 minutes
+(`CalendarConstants.EventsTtl`, Refresh asks again) and stops at the first failed request.
 
 ### Data cache
 

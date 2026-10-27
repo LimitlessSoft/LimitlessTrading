@@ -28,4 +28,13 @@ public class SaveAppSettingsRequest
 
 	/// <summary>Play a short sound when an order fills (each new execution).</summary>
 	public bool PlayFillSound { get; set; } = true;
+
+	/// <summary>Calendar widget: show nasdaq.com's earnings, dividends, splits and economic releases (no setup).</summary>
+	public bool CalendarNasdaq { get; set; } = true;
+
+	/// <summary>
+	/// Calendar widget: show IB's Wall Street Horizon corporate events. Off by default: it needs a
+	/// paid IB subscription most accounts don't have (IB then refuses with 10276).
+	/// </summary>
+	public bool CalendarWallStreetHorizon { get; set; }
 }

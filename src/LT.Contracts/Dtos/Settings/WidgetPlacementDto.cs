@@ -75,4 +75,8 @@ public class WidgetPlacementDto
 
 	/// <summary>Notes instances: the note shown (null: a new, empty one).</summary>
 	public string? NoteId { get; set; }
+
+	/// <summary>Calendar instances: the days and events shown (null: this week, everything).</summary>
+	public CalendarRange? CalendarRange { get; set; }
+	public CalendarEventFilter? CalendarFilter { get; set; }
 }

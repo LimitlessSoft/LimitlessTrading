@@ -1,0 +1,197 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.Calendar"
+	x:Class="LT.App.Widgets.Calendar.CalendarView"
+	x:DataType="vm:CalendarViewModel"
+>
+	<!-- Toolbar (range, event type, refresh, sources), state lines, then one list: day headers,
+	     each followed by its events. A notice replaces the list when no source answered -->
+	<DockPanel>
+		<DockPanel.Styles>
+			<Style Selector="ToggleButton.mode">
+				<Setter Property="Padding" Value="10,3" />
+				<Setter Property="MinHeight" Value="0" />
+				<Setter Property="FontSize" Value="12" />
+			</Style>
+			<Style Selector="Border.badge">
+				<Setter Property="Background" Value="{DynamicResource PanelStroke}" />
+				<Setter Property="CornerRadius" Value="3" />
+				<Setter Property="Padding" Value="4,0" />
+				<Setter Property="VerticalAlignment" Value="Center" />
+				<Setter Property="HorizontalAlignment" Value="Left" />
+			</Style>
+			<Style Selector="Border.badge TextBlock">
+				<Setter Property="FontSize" Value="10" />
+				<Setter Property="Foreground" Value="{DynamicResource SecondaryText}" />
+			</Style>
+			<Style Selector="ListBoxItem" x:DataType="vm:CalendarItemViewModel">
+				<Setter Property="Padding" Value="6,3" />
+				<Setter Property="MinHeight" Value="0" />
+				<!-- Day headers group the events; only events can be clicked -->
+				<Setter Property="IsHitTestVisible" Value="{Binding IsSelectable}" />
+			</Style>
+			<Style Selector="Border#Notice">
+				<Setter Property="Background" Value="{DynamicResource PanelBackground}" />
+				<Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}" />
+				<Setter Property="BorderThickness" Value="1" />
+				<Setter Property="CornerRadius" Value="4" />
+				<Setter Property="Padding" Value="10,8" />
+			</Style>
+		</DockPanel.Styles>
+
+		<WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+			<StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,12,4">
+				<ToggleButton Classes="mode" Content="This week" IsChecked="{Binding IsThisWeek}" />
+				<ToggleButton Classes="mode" Content="Next week" IsChecked="{Binding IsNextWeek}" />
+				<ToggleButton Classes="mode" Content="This month" IsChecked="{Binding IsThisMonth}" />
+			</StackPanel>
+			<StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,12,4">
+				<ToggleButton Classes="mode" Content="All" IsChecked="{Binding IsAllEvents}" />
+				<ToggleButton
+					Classes="mode"
+					Content="Earnings"
+					ToolTip.Tip="Earnings dates only"
+					IsChecked="{Binding IsEarnings}"
+				/>
+				<ToggleButton
+					Classes="mode"
+					Content="Economic"
+					ToolTip.Tip="Economic releases: GDP, inflation, jobs, central bank speeches, bond auctions, holidays (Nasdaq)"
+					IsChecked="{Binding IsEconomic}"
+				/>
+				<ToggleButton
+					Classes="mode"
+					Content="Other events"
+					ToolTip.Tip="Corporate events other than earnings: ex-dividend dates, splits, conferences, meetings"
+					IsChecked="{Binding IsOtherEvents}"
+				/>
+			</StackPanel>
+			<StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,0,4">
+				<Button
+					Padding="10,3"
+					MinHeight="0"
+					FontSize="12"
+					Content="Refresh"
+					Command="{Binding RefreshCommand}"
+				/>
+				<Button
+					Padding="10,3"
+					MinHeight="0"
+					FontSize="12"
+					Content="Sources…"
+					ToolTip.Tip="Settings → Calendar: switch Nasdaq and IB Wall Street Horizon on or off"
+					Command="{Binding OpenSourcesCommand}"
+				/>
+			</StackPanel>
+		</WrapPanel>
+
+		<StackPanel DockPanel.Dock="Top" Spacing="2" Margin="0,0,0,6">
+			<TextBlock
+				Classes="secondary"
+				Text="{Binding StatusText}"
+				IsVisible="{Binding StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+			/>
+			<TextBlock
+				Classes="warning"
+				FontSize="11"
+				TextWrapping="Wrap"
+				Text="{Binding SourceWarningText}"
+				IsVisible="{Binding HasSourceWarning}"
+			/>
+			<TextBlock
+				Classes="negative"
+				TextWrapping="Wrap"
+				Text="{Binding ErrorMessage}"
+				IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+			/>
+		</StackPanel>
+
+		<Border x:Name="Notice" DockPanel.Dock="Top" IsVisible="{Binding HasNotice}">
+			<StackPanel Spacing="4">
+				<TextBlock
+					FontWeight="SemiBold"
+					Foreground="{DynamicResource WarningBrush}"
+					Text="{Binding NoticeTitle}"
+				/>
+				<SelectableTextBlock TextWrapping="Wrap" Text="{Binding NoticeText}" />
+			</StackPanel>
+		</Border>
+
+		<TextBlock
+			DockPanel.Dock="Top"
+			Classes="secondary"
+			Margin="0,8,0,0"
+			HorizontalAlignment="Center"
+			TextWrapping="Wrap"
+			Text="{Binding EmptyText}"
+			IsVisible="{Binding HasEmptyText}"
+		/>
+
+		<ListBox ItemsSource="{Binding Items}" SelectedItem="{Binding SelectedItem}">
+			<ListBox.DataTemplates>
+				<DataTemplate DataType="vm:CalendarDayHeaderViewModel">
+					<StackPanel Margin="0,6,0,0">
+						<DockPanel>
+							<TextBlock
+								DockPanel.Dock="Right"
+								Classes="secondary"
+								FontSize="11"
+								VerticalAlignment="Bottom"
+								Text="{Binding CountText}"
+							/>
+							<TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
+						</DockPanel>
+						<TextBlock
+							Classes="warning"
+							FontSize="11"
+							TextWrapping="Wrap"
+							Text="{Binding Warning}"
+							IsVisible="{Binding HasWarning}"
+						/>
+						<Border Height="1" Margin="0,3,0,0" Background="{DynamicResource PanelStroke}" />
+					</StackPanel>
+				</DataTemplate>
+				<DataTemplate DataType="vm:CalendarEventRowViewModel">
+					<Grid
+						ColumnDefinitions="92,64,*,Auto,Auto"
+						Background="Transparent"
+						ToolTip.Tip="{Binding ToolTipText}"
+					>
+						<Border Grid.Column="0" Classes="badge" IsVisible="{Binding HasTime}">
+							<TextBlock Text="{Binding TimeText}" />
+						</Border>
+						<TextBlock
+							Grid.Column="1"
+							FontWeight="SemiBold"
+							VerticalAlignment="Center"
+							Text="{Binding Event.Symbol}"
+						/>
+						<TextBlock
+							Grid.Column="2"
+							VerticalAlignment="Center"
+							TextTrimming="CharacterEllipsis"
+							Text="{Binding Event.Company}"
+						/>
+						<TextBlock
+							Grid.Column="3"
+							Margin="8,0,0,0"
+							FontSize="11"
+							VerticalAlignment="Center"
+							Text="{Binding Event.Detail}"
+							IsVisible="{Binding HasDetail}"
+						/>
+						<TextBlock
+							Grid.Column="4"
+							Margin="8,0,0,0"
+							Classes="secondary"
+							FontSize="11"
+							VerticalAlignment="Center"
+							Text="{Binding Event.TypeName}"
+						/>
+					</Grid>
+				</DataTemplate>
+			</ListBox.DataTemplates>
+		</ListBox>
+	</DockPanel>
+</UserControl>
