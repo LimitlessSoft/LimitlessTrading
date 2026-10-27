@@ -82,6 +82,22 @@ public partial class DepthViewModel : ConnectedViewModelBase, ILinkable, IWidget
 	[ObservableProperty]
 	public partial string? SpreadText { get; set; }
 
+	/// <summary>Size resting on the bid side of the shown rows, with its share, e.g. "1,200 · 60%".</summary>
+	[ObservableProperty]
+	public partial string? BidTotalText { get; set; }
+
+	/// <summary>Size resting on the ask side of the shown rows, with its share.</summary>
+	[ObservableProperty]
+	public partial string? AskTotalText { get; set; }
+
+	/// <summary>The bid side's share of the size on both sides, 0–1; the bar's split.</summary>
+	[ObservableProperty]
+	public partial double BidShare { get; set; } = 0.5;
+
+	/// <summary>Either side has size, so the bid/ask totals bar shows.</summary>
+	[ObservableProperty]
+	public partial bool HasTotals { get; set; }
+
 	/// <summary>Where the rows come from, e.g. "SMART depth" or "IEX depth".</summary>
 	[ObservableProperty]
 	public partial string? SourceText { get; set; }
@@ -200,6 +216,7 @@ public partial class DepthViewModel : ConnectedViewModelBase, ILinkable, IWidget
 		// Asks are listed worst first: the best ask is the last row, right above the spread
 		for (var i = 0; i < Asks.Count; i++)
 			Fill(Asks[Asks.Count - 1 - i], book.Asks, askTotals, i, decimals, largest);
+		ShowTotals(book);
 
 		if (book.Bids.Count == 0 || book.Asks.Count == 0)
 		{
@@ -240,11 +257,26 @@ public partial class DepthViewModel : ConnectedViewModelBase, ILinkable, IWidget
 		);
 	}
 
+	private void ShowTotals(OrderBookDto book)
+	{
+		var (bids, asks, bidShare) = OrderBookHelpers.GetSideTotals(book);
+		HasTotals = bidShare != null;
+		if (bidShare is not { } share)
+			return;
+		BidShare = share;
+		BidTotalText = $"{FormatSize(bids)} · {share:P0}";
+		AskTotalText = $"{1 - share:P0} · {FormatSize(asks)}";
+	}
+
 	private void ClearBook()
 	{
 		foreach (var row in Asks.Concat(Bids))
 			row.Clear();
 		SpreadText = null;
+		HasTotals = false;
+		BidTotalText = null;
+		AskTotalText = null;
+		BidShare = 0.5;
 	}
 
 	private static string FormatPrice(double price, int decimals) =>

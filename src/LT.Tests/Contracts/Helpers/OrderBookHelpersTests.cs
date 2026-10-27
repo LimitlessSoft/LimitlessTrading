@@ -133,6 +133,33 @@ public class OrderBookHelpersTests
 	}
 
 	[Fact]
+	public void Side_totals_sum_each_side_and_give_the_bid_share()
+	{
+		var book = new OrderBookDto
+		{
+			Bids = [new() { Price = 100, Size = 300 }, new() { Price = 99, Size = 0.5m }],
+			Asks = [new() { Price = 101, Size = 100 }, new() { Price = 102, Size = 99.5m }],
+		};
+
+		var (bids, asks, bidShare) = OrderBookHelpers.GetSideTotals(book);
+
+		Assert.Equal(300.5m, bids);
+		Assert.Equal(199.5m, asks);
+		Assert.Equal(0.601, bidShare!.Value, 6);
+	}
+
+	[Fact]
+	public void One_empty_side_gives_the_other_the_whole_bar_and_an_empty_book_none()
+	{
+		var bidsOnly = new OrderBookDto { Bids = [new() { Price = 100, Size = 10 }] };
+		var asksOnly = new OrderBookDto { Asks = [new() { Price = 101, Size = 10 }] };
+
+		Assert.Equal(1, OrderBookHelpers.GetSideTotals(bidsOnly).BidShare);
+		Assert.Equal(0, OrderBookHelpers.GetSideTotals(asksOnly).BidShare);
+		Assert.Equal((0m, 0m, null), OrderBookHelpers.GetSideTotals(new OrderBookDto()));
+	}
+
+	[Fact]
 	public void A_smart_routed_stock_gets_smart_depth_or_its_listing_exchange()
 	{
 		var aapl = new ContractDto

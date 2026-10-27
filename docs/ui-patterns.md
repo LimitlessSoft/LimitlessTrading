@@ -373,7 +373,9 @@ new instance) and lives in one of four wrappers:
   of the book stays in sight. Columns: price (bids green, asks red, best row bold), size, running
   total from the best row out, and the exchange or market maker (SMART / Level 2 depth). A bar
   behind each row shows its size against the largest row on either side. The spread line shows
-  spread and mid. The SMART toggle (on by default) switches between SMART depth and the listing
+  spread and mid, and under them a bar split by the size resting on all shown bid rows (left,
+  green) against all shown ask rows (right, red), each end labelled with its total and share
+  (`OrderBookHelpers.GetSideTotals`; rows past the requested depth aren't counted). The SMART toggle (on by default) switches between SMART depth and the listing
   exchange's own book; a contract on one exchange (crypto on PAXOS, forex on IDEALPRO) always
   uses that exchange. Prices show as many decimals as the book needs (2–6). Updates are read on
   the thread pool, the latest book is drawn every 100 ms (`MarketDepthConstants.UiFlushInterval`),
