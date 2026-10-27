@@ -118,12 +118,16 @@ public class WatchlistManagerImportExportTests
 	)]
 	[InlineData("{ \"format\": \"LimitlessTrading.Watchlist\", \"items\": [] }", "no symbols")]
 	[InlineData(
-		"{ \"format\": \"LimitlessTrading.Watchlist\", \"items\": [ { \"contract\": { \"symbol\": \"AAPL\" } } ] }",
-		"AAPL in the file has no contract id"
+		"{ \"format\": \"LimitlessTrading.Watchlist\", \"items\": [ { \"contract\": { \"conId\": 1 } }, { \"contract\": { \"exchange\": \"SMART\" } } ] }",
+		"Item 2 in the file has neither a contract id nor a symbol"
 	)]
 	[InlineData(
 		"{ \"format\": \"LimitlessTrading.Watchlist\", \"items\": [ { } ] }",
-		"Item 1 in the file has no contract id"
+		"Item 1 in the file has neither a contract id nor a symbol"
+	)]
+	[InlineData(
+		"{ \"format\": \"LimitlessTrading.Watchlist\", \"items\": [ { \"contract\": { \"conId\": 0, \"symbol\": \"MS{FT}\" } } ] }",
+		"MS{FT} is not a symbol"
 	)]
 	[InlineData(
 		"{ \"format\": \"LimitlessTrading.Watchlist\", \"columns\": [\"A\", \"a\"], \"items\": [ { \"contract\": { \"conId\": 1 } } ] }",
@@ -224,6 +228,98 @@ public class WatchlistManagerImportExportTests
 
 		Assert.Equal(before, _manager.GetWatchlists().Count);
 	}
+
+	[Fact]
+	public async Task File_items_without_a_conId_are_looked_up_one_at_a_time_with_their_pins_and_values()
+	{
+		_contracts.Found["AAPL"] = [Stock(265598, "AAPL")];
+		var json = """
+			{
+			  "format": "LimitlessTrading.Watchlist",
+			  "columns": ["Note"],
+			  "items": [
+			    { "contract": { "conId": 3, "symbol": "NVDA", "exchange": "SMART" } },
+			    { "contract": { "symbol": "aapl", "securityType": "STK" }, "pin": 0, "values": { "Note": "found" } },
+			    { "contract": { "conId": 0, "symbol": "NOPE" }, "values": { "Note": "lost" } },
+			  ],
+			}
+			""";
+
+		var result = await _manager.ImportAsync(json, "x.json", Ct);
+
+		// Only the items without a conId asked IB, one at a time
+		Assert.Equal(["aapl", "NOPE"], _contracts.Lookups);
+		Assert.Equal(1, _contracts.MaxConcurrent);
+		Assert.Equal(["NOPE"], result.NotFound);
+		var id = result.Watchlist.Id;
+		Assert.Equal(
+			[(3, "NVDA"), (265598, "AAPL")],
+			_manager.GetItems(id).Select(x => (x.ConId, x.Symbol))
+		);
+		Assert.Equal([265598], _manager.GetPinned(id).Select(x => x.ConId));
+		Assert.Equal(
+			[(265598, "found")],
+			_manager.GetColumns(id)[0].Cells.Select(x => (x.ConId, x.Value))
+		);
+	}
+
+	[Fact]
+	public async Task A_file_option_without_a_conId_is_found_by_expiry_strike_and_right()
+	{
+		_contracts.Found["AAPL"] =
+		[
+			Option(1001, "20261218", 200, "C"),
+			Option(1002, "20261218", 200, "P"),
+			Option(1003, "20261218", 210, "C"),
+			Option(1004, "20270115", 200, "C"),
+		];
+		var json = """
+			{
+			  "format": "LimitlessTrading.Watchlist",
+			  "items": [
+			    { "contract": { "symbol": "AAPL", "securityType": "OPT", "lastTradeDateOrContractMonth": "20261218", "strike": 200, "right": "CALL" } },
+			    { "contract": { "symbol": "AAPL", "securityType": "OPT", "lastTradeDateOrContractMonth": "202612", "strike": 200 } },
+			  ],
+			}
+			""";
+
+		var result = await _manager.ImportAsync(json, "x.json", Ct);
+
+		// The second is a call or a put: ambiguous, so it is reported rather than guessed
+		Assert.Equal([1001], _manager.GetItems(result.Watchlist.Id).Select(x => x.ConId));
+		Assert.Equal(["AAPL 202612 200"], result.NotFound);
+	}
+
+	[Fact]
+	public async Task A_file_whose_items_without_a_conId_are_all_unknown_is_refused()
+	{
+		var before = _manager.GetWatchlists().Count;
+
+		var ex = await Assert.ThrowsAnyAsync<Exception>(() =>
+			_manager.ImportAsync(
+				"""{ "format": "LimitlessTrading.Watchlist", "items": [ { "contract": { "symbol": "FOO" } } ] }""",
+				"x.json",
+				Ct
+			)
+		);
+
+		Assert.Contains("None of the symbols were found: FOO", ex.Message);
+		Assert.Equal(before, _manager.GetWatchlists().Count);
+	}
+
+	private static ContractDto Option(int conId, string expiry, double strike, string right) =>
+		new()
+		{
+			ConId = conId,
+			Symbol = "AAPL",
+			SecurityType = "OPT",
+			Exchange = "SMART",
+			Currency = "USD",
+			LastTradeDateOrContractMonth = expiry,
+			Strike = strike,
+			Right = right,
+			Multiplier = "100",
+		};
 
 	private string AddColumn(string name) =>
 		_manager.SaveColumn(new SaveWatchlistColumnRequest { WatchlistId = _id, Name = name }).Id;

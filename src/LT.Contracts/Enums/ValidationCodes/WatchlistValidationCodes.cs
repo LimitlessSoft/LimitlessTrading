@@ -61,9 +61,9 @@ public enum WatchlistValidationCodes
 	[LSCoreValidationMessage("None of the symbols were found: {0}.")]
 	WVC_019,
 
-	[LSCoreValidationMessage("Connect to IB to import a list of symbols.")]
+	[LSCoreValidationMessage("Connect to IB to look up the symbols in this file.")]
 	WVC_020,
 
-	[LSCoreValidationMessage("{0} in the file has no contract id.")]
+	[LSCoreValidationMessage("{0} in the file has neither a contract id nor a symbol.")]
 	WVC_021,
 }

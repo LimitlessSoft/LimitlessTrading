@@ -104,6 +104,31 @@ public class ContractManager(
 		return cached.Value;
 	}
 
+	public async Task<IReadOnlyList<ContractDetailsDto>> FindAsync(
+		ContractDto contract,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var query = ContractHelpers.ToFindQuery(contract);
+		if (query.Symbol.Length == 0)
+			throw new LSCoreBadRequestException(
+				ContractValidationCodes.CTVC_001.GetValidationMessage()
+			);
+		if (query.SecurityType.Length == 0)
+			return await SearchSymbolAsync(query.Symbol, cancellationToken);
+
+		// An empty answer may be a hiccup; it is never kept for days
+		var cached = await cacheManager.GetOrFetchAsync(
+			CacheType.Contracts,
+			ContractHelpers.GetFindCacheKey(query),
+			CacheConstants.ContractTtl,
+			async ct => (await ibkrApiClient.SearchContractsAsync(query, ct)).ToList(),
+			cancellationToken,
+			x => x.Count > 0
+		);
+		return cached.Value;
+	}
+
 	public async Task<ContractDto> ResolveTickerAsync(
 		string ticker,
 		CancellationToken cancellationToken = default

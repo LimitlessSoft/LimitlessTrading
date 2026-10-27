@@ -88,4 +88,21 @@ public class WatchlistFileHelpersTests
 	[Fact]
 	public void Export_file_name_drops_characters_file_systems_refuse() =>
 		Assert.Equal("US_Tech.json", WatchlistFileHelpers.GetFileName("US/Tech"));
+
+	[Theory]
+	[InlineData("AAPL\nMSFT", true)]
+	[InlineData(
+		"{ \"format\": \"LimitlessTrading.Watchlist\", \"items\": [ { \"contract\": { \"conId\": 1 } } ] }",
+		false
+	)]
+	[InlineData(
+		"{ \"format\": \"LimitlessTrading.Watchlist\", \"items\": [ { \"contract\": { \"conId\": 1 } }, { \"contract\": { \"symbol\": \"AAPL\" } } ] }",
+		true
+	)]
+	[InlineData("{ \"items\": [ { } ] }", false)]
+	[InlineData("{ not json", false)]
+	public void Lookups_are_needed_for_symbol_lists_and_file_items_without_a_conId(
+		string content,
+		bool needsLookup
+	) => Assert.Equal(needsLookup, WatchlistFileHelpers.NeedsLookup(content));
 }

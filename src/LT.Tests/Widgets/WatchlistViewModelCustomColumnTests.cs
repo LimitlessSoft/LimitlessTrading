@@ -140,7 +140,27 @@ public class WatchlistViewModelCustomColumnTests : IDisposable
 			_watchlist.ImportAsync("AAPL\nMSFT", "x.txt").GetAwaiter().GetResult()
 		);
 
-		Assert.Equal("Connect to IB to import a list of symbols.", _watchlist.ErrorMessage);
+		Assert.Equal("Connect to IB to look up the symbols in this file.", _watchlist.ErrorMessage);
+		Assert.Equal(before, _watchlists.GetWatchlists().Count);
+		Assert.Equal(0, _ibkr.SearchCalls);
+	}
+
+	[Fact]
+	public void A_watchlist_file_with_items_without_a_conId_needs_the_connection()
+	{
+		var before = _watchlists.GetWatchlists().Count;
+
+		TestUiThread.Invoke(() =>
+			_watchlist
+				.ImportAsync(
+					"""{ "format": "LimitlessTrading.Watchlist", "items": [ { "contract": { "symbol": "AAPL" } } ] }""",
+					"x.json"
+				)
+				.GetAwaiter()
+				.GetResult()
+		);
+
+		Assert.Equal("Connect to IB to look up the symbols in this file.", _watchlist.ErrorMessage);
 		Assert.Equal(before, _watchlists.GetWatchlists().Count);
 		Assert.Equal(0, _ibkr.SearchCalls);
 	}

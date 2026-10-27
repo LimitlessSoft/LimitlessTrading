@@ -15,8 +15,9 @@ using LT.Contracts.Requests.Watchlists;
 namespace LT.Domain.Managers;
 
 /// <summary>
-/// Plain symbol lists are imported through <see cref="IContractManager"/> one symbol at a time, so
-/// the lookups queue behind IB's request pacing instead of bursting.
+/// Plain symbol lists, and file items without a conId, are looked up through
+/// <see cref="IContractManager"/> one at a time, so the lookups queue behind IB's request pacing
+/// instead of bursting.
 /// </summary>
 public class WatchlistManager(
 	ISettingsRepository settingsRepository,
@@ -363,6 +364,45 @@ public class WatchlistManager(
 				);
 			var request = WatchlistFileHelpers.ToRequest(file);
 			request.Validate();
+
+			// Items without a conId are looked up by their fields, one at a time (IB's pacing);
+			// those IB doesn't know, or that stay ambiguous, are left out and returned
+			var items = new List<WatchlistImportItemDto>();
+			for (var i = 0; i < request.Items.Count; i++)
+			{
+				var item = request.Items[i];
+				if (item.Contract is { ConId: > 0 })
+				{
+					items.Add(item);
+					continue;
+				}
+				ContractDto? contract = null;
+				try
+				{
+					contract = ContractHelpers.PickMatch(
+						item.Contract!,
+						await contractManager.FindAsync(item.Contract!, cancellationToken)
+					);
+				}
+				// IB answers an unknown contract with an error
+				catch (Exception ex) when (ex is not OperationCanceledException) { }
+				if (contract == null)
+				{
+					notFound.Add(WatchlistFileHelpers.DescribeItem(item.Contract, i));
+					continue;
+				}
+				// Its pin and values follow it: they are matched by the resolved listing
+				item.Contract = contract;
+				items.Add(item);
+			}
+			if (items.Count == 0)
+				throw new LSCoreBadRequestException(
+					WatchlistValidationCodes.WVC_019.GetValidationMessage(
+						WatchlistFileHelpers.JoinSymbols(notFound)
+					)
+				);
+			request.Items = items;
+
 			watchlist = WatchlistFileHelpers.ToEntity(
 				request,
 				WatchlistFileHelpers.GetImportName(request.Name, fileName)

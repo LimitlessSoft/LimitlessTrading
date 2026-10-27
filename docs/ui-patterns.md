@@ -603,9 +603,17 @@ storage provider's save picker as `{ "format": "LimitlessTrading.Watchlist", "ve
 creates a new watchlist that the widget then shows (and that becomes active); a taken name gets
 " (2)" …. `IWatchlistManager.ImportAsync` reads JSON (content starting with `{`) as an export:
 any property case, comments, trailing commas and unknown fields are accepted, the whole file is
-checked first (`ImportWatchlistRequestValidator`: our format, 1–200 items each with a conId,
-valid distinct column names, values not too long) and the items, pins, columns and values are
-added as they were, no IB request needed. Anything else is a plain list of symbols: one per line
+checked first (`ImportWatchlistRequestValidator`: our format, 1–200 items each with a conId or
+a ticker-like symbol, valid distinct column names, values not too long) and the items, pins,
+columns and values are added as they were, no IB request needed. An item without a conId (a
+hand-made or generated file) is looked up by its fields one at a time
+(`IContractManager.FindAsync`: no security type searches the symbol like a ticker box, else one
+cached search with every given field, stocks via SMART) and `ContractHelpers.PickMatch` picks
+the listing: every given field must match (expiry by prefix, right by first letter), then no
+type prefers stock, no currency USD, a given exchange the listing on it or primary there; more
+than one conId left is ambiguous. Unknown or ambiguous items are left out (with their pin and
+values) and named in the status line, like unknown symbols; such a file needs the connection
+(`WatchlistFileHelpers.NeedsLookup`). Anything else is a plain list of symbols: one per line
 or separated by commas, semicolons or tabs, quotes, "#" comment lines and a leading
 "Symbol" / "Ticker" header dropped (`WatchlistFileHelpers.ParseSymbols`); the list is checked
 (`ImportWatchlistSymbolsRequestValidator`: 1–200 entries that look like tickers) before any is
