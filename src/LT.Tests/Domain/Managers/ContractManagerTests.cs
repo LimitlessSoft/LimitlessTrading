@@ -247,4 +247,82 @@ public class ContractManagerTests
 		Assert.Equal(756733, contract.ConId);
 		Assert.Equal(calls, _ibkr.SearchCalls);
 	}
+
+	[Fact]
+	public async Task Find_asks_ib_with_every_given_field_and_stocks_via_smart()
+	{
+		_ibkr.SearchResults = [new ContractDetailsDto { Contract = Stock(265598, "AAPL") }];
+
+		await Manager()
+			.FindAsync(
+				new ContractDto
+				{
+					ConId = -1,
+					Symbol = " aapl ",
+					SecurityType = "stk",
+					Exchange = "NASDAQ",
+					Currency = "usd",
+				},
+				Ct
+			);
+
+		Assert.Equal(
+			(0, "AAPL", "STK", "SMART", "USD"),
+			(
+				_ibkr.LastSearch!.ConId,
+				_ibkr.LastSearch.Symbol,
+				_ibkr.LastSearch.SecurityType,
+				_ibkr.LastSearch.Exchange,
+				_ibkr.LastSearch.Currency
+			)
+		);
+	}
+
+	[Fact]
+	public async Task Find_of_an_option_keeps_its_expiry_strike_and_right_and_is_cached()
+	{
+		var option = new ContractDto
+		{
+			Symbol = "AAPL",
+			SecurityType = "OPT",
+			LastTradeDateOrContractMonth = "20261218",
+			Strike = 200,
+			Right = "c",
+		};
+		_ibkr.SearchResults = [new ContractDetailsDto { Contract = Stock(1001, "AAPL") }];
+
+		await Manager().FindAsync(option, Ct);
+		await Manager().FindAsync(option, Ct);
+
+		Assert.Equal(1, _ibkr.SearchCalls);
+		Assert.Equal(
+			("", "20261218", 200d, "C"),
+			(
+				_ibkr.LastSearch!.Exchange,
+				_ibkr.LastSearch.LastTradeDateOrContractMonth,
+				_ibkr.LastSearch.Strike,
+				_ibkr.LastSearch.Right
+			)
+		);
+	}
+
+	[Fact]
+	public async Task Find_without_a_security_type_searches_the_symbol_like_a_ticker_box()
+	{
+		_ibkr.SearchBy = q =>
+			q.SecurityType == "STK"
+				? [new ContractDetailsDto { Contract = Stock(756733, "SPY") }]
+				: throw new InvalidOperationException("No security definition");
+
+		var results = await Manager().FindAsync(new ContractDto { Symbol = "spy" }, Ct);
+
+		Assert.Equal(756733, Assert.Single(results).Contract.ConId);
+		Assert.Equal(MarketDataConstants.SymbolSearchTypes.Count, _ibkr.SearchCalls);
+	}
+
+	[Fact]
+	public async Task Find_without_a_symbol_is_rejected() =>
+		await Assert.ThrowsAsync<LSCoreBadRequestException>(() =>
+			Manager().FindAsync(new ContractDto { SecurityType = "STK" }, Ct)
+		);
 }

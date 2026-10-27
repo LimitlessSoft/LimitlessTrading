@@ -10,7 +10,7 @@ namespace LT.Domain.Validators.Watchlists;
 
 /// <summary>
 /// The file must be ours and hold between one and the most items a watchlist can, each with a
-/// contract id; its columns valid, distinct names, and their values not too long. The first
+/// contract id or a symbol to look it up by; its columns valid, distinct names, and their values not too long. The first
 /// problem is reported, so the user can fix the file.
 /// </summary>
 public class ImportWatchlistRequestValidator : LSCoreValidatorBase<ImportWatchlistRequest>
@@ -39,10 +39,24 @@ public class ImportWatchlistRequestValidator : LSCoreValidatorBase<ImportWatchli
 			);
 		var missing = request
 			.Items.Select((item, index) => (item, index))
-			.FirstOrDefault(x => x.item.Contract is not { ConId: > 0 });
+			.FirstOrDefault(x =>
+				x.item.Contract is not { ConId: > 0 }
+				&& string.IsNullOrWhiteSpace(x.item.Contract?.Symbol)
+			);
 		if (missing.item != null)
 			return WatchlistValidationCodes.WVC_021.GetValidationMessage(
 				WatchlistFileHelpers.DescribeItem(missing.item.Contract, missing.index)
+			);
+		// One without a conId is looked up by its symbol, which must look like one
+		var badSymbol = request
+			.Items.Select(x => x.Contract!)
+			.FirstOrDefault(x =>
+				x.ConId <= 0
+				&& !WatchlistFileHelpers.IsValidSymbol((x.Symbol ?? string.Empty).Trim())
+			);
+		if (badSymbol != null)
+			return WatchlistValidationCodes.WVC_018.GetValidationMessage(
+				(badSymbol.Symbol ?? string.Empty).Trim()
 			);
 		if (request.Columns.Count > WatchlistConstants.MaxCustomColumns)
 			return WatchlistValidationCodes.WVC_012.GetValidationMessage(

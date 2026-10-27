@@ -19,6 +19,18 @@ public interface IContractManager
 		CancellationToken cancellationToken = default
 	);
 
+	/// <summary>
+	/// Every listing IB has for a contract known only by its fields, not its conId (a hand-made
+	/// watchlist file): with no security type, <see cref="SearchSymbolAsync"/>; else one search
+	/// with the symbol and whatever else is given (exchange, currency, expiry, strike, right,
+	/// multiplier, trading class, local symbol), stocks via SMART. Cached like the searches;
+	/// <c>ContractHelpers.PickMatch</c> picks the one meant.
+	/// </summary>
+	Task<IReadOnlyList<ContractDetailsDto>> FindAsync(
+		ContractDto contract,
+		CancellationToken cancellationToken = default
+	);
+
 	/// <summary>Resolves a typed ticker to its first listing and remembers it as recent.</summary>
 	Task<ContractDto> ResolveTickerAsync(
 		string ticker,

@@ -77,10 +77,13 @@ public interface IWatchlistManager
 
 	/// <summary>
 	/// Adds a watchlist read from a file and makes it the active one. An exported JSON file is
-	/// checked whole and added as it was (items, pins, columns, values). Anything else is read as
+	/// checked whole and added as it was (items, pins, columns, values); an item without a conId
+	/// (a hand-made file) is looked up by its fields one at a time
+	/// (<see cref="IContractManager.FindAsync"/>, <c>ContractHelpers.PickMatch</c>) and, when IB
+	/// doesn't know it or it stays ambiguous, left out and returned. Anything else is read as
 	/// a list of symbols (one per line or comma-separated), checked, then looked up one at a
 	/// time (IB's pacing), each as its first listing; symbols IB doesn't know are left out and
-	/// returned. Nothing is added when the file is invalid or no symbol was found. The name is
+	/// returned. Nothing is added when the file is invalid or nothing was found. The name is
 	/// the file's (or <paramref name="fileName"/> without its extension), " (2)" … when taken.
 	/// <see cref="Changed"/> is raised on the calling context once the watchlist is added.
 	/// </summary>

@@ -611,7 +611,8 @@ public partial class WatchlistViewModel
 
 	/// <summary>
 	/// Adds the file's watchlist (an export, or a list of symbols looked up on IB) and shows it.
-	/// A list of symbols needs the connection.
+	/// A list of symbols, or an export with items without a conId (looked up by their fields),
+	/// needs the connection.
 	/// </summary>
 	public async Task ImportAsync(string content, string fileName)
 	{
@@ -619,21 +620,21 @@ public partial class WatchlistViewModel
 			return;
 		StatusMessage = null;
 		ErrorMessage = null;
-		var isSymbolList = !WatchlistFileHelpers.IsJson(content);
-		if (isSymbolList && !IsConnected)
+		var needsLookup = WatchlistFileHelpers.NeedsLookup(content);
+		if (needsLookup && !IsConnected)
 		{
 			ErrorMessage = WatchlistValidationCodes.WVC_020.GetValidationMessage();
 			return;
 		}
 		IsImporting = true;
-		if (isSymbolList)
+		if (needsLookup)
 			StatusMessage = $"Importing {fileName}…";
 		try
 		{
 			var result = await _watchlistManager.ImportAsync(
 				content,
 				fileName,
-				isSymbolList ? _session : CancellationToken.None
+				needsLookup ? _session : CancellationToken.None
 			);
 			// Shown here, and where the next new watchlist widget opens (the manager made it active)
 			_watchlistId = result.Watchlist.Id;

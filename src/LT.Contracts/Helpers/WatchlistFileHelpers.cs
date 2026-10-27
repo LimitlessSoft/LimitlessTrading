@@ -256,7 +256,23 @@ public static class WatchlistFileHelpers
 			: name;
 	}
 
-	/// <summary>An import item in messages: its symbol, else "Item N" (1-based).</summary>
+	/// <summary>
+	/// An import item in messages: its name (symbol; an option's expiry, strike and right too),
+	/// else "Item N" (1-based).
+	/// </summary>
 	public static string DescribeItem(ContractDto? contract, int index) =>
-		!string.IsNullOrWhiteSpace(contract?.Symbol) ? contract.Symbol : $"Item {index + 1}";
+		!string.IsNullOrWhiteSpace(contract?.Symbol)
+			? ContractHelpers.GetDisplayName(contract).Trim()
+			: $"Item {index + 1}";
+
+	/// <summary>
+	/// Whether importing the content asks IB: a list of symbols, or an export with an item that
+	/// has no conId (looked up by its fields). JSON that isn't an export asks nothing (refused).
+	/// </summary>
+	public static bool NeedsLookup(string content)
+	{
+		if (!IsJson(content))
+			return true;
+		return Parse(content)?.Items?.Any(x => x?.Contract is { ConId: <= 0 }) == true;
+	}
 }
