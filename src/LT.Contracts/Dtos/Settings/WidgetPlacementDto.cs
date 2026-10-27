@@ -76,6 +76,22 @@ public class WidgetPlacementDto
 	/// <summary>Watchlist instances: the watchlist shown (null or deleted: the active one).</summary>
 	public string? WatchlistId { get; set; }
 
+	/// <summary>Watchlist instances: built-in columns hidden (null: none; older layouts).</summary>
+	public List<WatchlistSortColumn>? WatchlistHiddenColumns { get; set; }
+
+	/// <summary>Watchlist instances: custom columns hidden, by column id (null: none).</summary>
+	public List<string>? WatchlistHiddenCustomColumns { get; set; }
+
+	/// <summary>
+	/// Watchlist instances: the column the unpinned rows are sorted by, hidden or not (null:
+	/// older layouts, the saved order); a custom one by <see cref="WatchlistSortCustomColumnId"/>.
+	/// </summary>
+	public WatchlistSortColumn? WatchlistSortBy { get; set; }
+	public string? WatchlistSortCustomColumnId { get; set; }
+
+	/// <summary>Watchlist instances: the sort runs high to low (null: ascending).</summary>
+	public bool? WatchlistSortDescending { get; set; }
+
 	/// <summary>Notes instances: the note shown (null: a new, empty one).</summary>
 	public string? NoteId { get; set; }
 

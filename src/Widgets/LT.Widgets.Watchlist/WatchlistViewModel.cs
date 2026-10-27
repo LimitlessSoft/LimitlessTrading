@@ -53,6 +53,10 @@ public partial class WatchlistViewModel
 	// Rows are being moved: the grid drops and restores the selection, which isn't a new pick
 	private bool _reordering;
 
+	// Columns taken off the grid (saved per widget); the rows can still be sorted by them
+	private HashSet<WatchlistSortColumn> _hiddenColumns = [];
+	private HashSet<string> _hiddenCustomColumns = [];
+
 	public WatchlistViewModel(
 		IWatchlistManager watchlistManager,
 		IContractManager contractManager,
@@ -84,45 +88,85 @@ public partial class WatchlistViewModel
 		_flushTimer = new DispatcherTimer(
 			MarketDataConstants.UiFlushInterval,
 			DispatcherPriority.Background,
-			(_, _) =>
-			{
-				var changed = false;
-				foreach (var row in Rows)
-					changed |= row.Flush();
-				if (changed && WatchlistSortHelpers.DependsOnQuotes(SortColumn))
-					_resortPending = true;
-			}
+			(_, _) => FlushQuotes()
 		);
 		_flushTimer.Start();
 
 		_resortTimer = new DispatcherTimer(
 			MarketDataConstants.WatchlistResortInterval,
 			DispatcherPriority.Background,
-			(_, _) =>
-			{
-				if (_resortPending)
-					ApplyOrder();
-			}
+			(_, _) => ResortIfStale()
 		);
 		_resortTimer.Start();
 	}
 
-	/// <summary>A saved widget shows its own watchlist again (a deleted one: the active one).</summary>
+	/// <summary>
+	/// The UI flush (timer): applies the quotes that came since the last one; when sorted by a
+	/// quote column, shown or hidden, the order goes stale for <see cref="ResortIfStale"/>.
+	/// </summary>
+	public void FlushQuotes()
+	{
+		var changed = false;
+		foreach (var row in Rows)
+			changed |= row.Flush();
+		if (changed && WatchlistSortHelpers.DependsOnQuotes(SortColumn))
+			_resortPending = true;
+	}
+
+	/// <summary>The resort tick (timer): re-sorts when quotes or share counts moved the sorted column.</summary>
+	public void ResortIfStale()
+	{
+		if (_resortPending)
+			ApplyOrder();
+	}
+
+	/// <summary>
+	/// A saved widget shows its own watchlist again (a deleted one: the active one), with its
+	/// hidden columns and its sort.
+	/// </summary>
 	public void LoadState(WidgetPlacementDto placement)
 	{
+		_hiddenColumns = [.. placement.WatchlistHiddenColumns ?? []];
+		_hiddenCustomColumns = [.. placement.WatchlistHiddenCustomColumns ?? []];
+		(SortColumn, SortCustomColumnId, SortDirection) = WatchlistSortHelpers.ResolveSort(
+			placement.WatchlistSortBy,
+			placement.WatchlistSortCustomColumnId,
+			placement.WatchlistSortDescending
+		);
 		var id = WatchlistHelpers.ResolveShownId(
 			placement.WatchlistId,
 			_watchlistManager.GetActive().Id,
 			_watchlistManager.GetWatchlists()
 		);
-		if (id == _watchlistId)
-			return;
-		_watchlistId = id;
-		LoadWatchlists();
-		LoadRows();
+		if (id != _watchlistId)
+		{
+			_watchlistId = id;
+			LoadWatchlists();
+			LoadRows();
+		}
+		else
+			// Checks the sorted custom column still exists
+			LoadColumns();
+		ApplyHiddenColumns();
+		ApplyOrder();
 	}
 
-	public void SaveState(WidgetPlacementDto placement) => placement.WatchlistId = _watchlistId;
+	public void SaveState(WidgetPlacementDto placement)
+	{
+		placement.WatchlistId = _watchlistId;
+		placement.WatchlistHiddenColumns =
+			_hiddenColumns.Count > 0
+				? [.. WatchlistColumnHelpers.BuiltInColumns.Where(_hiddenColumns.Contains)]
+				: null;
+		placement.WatchlistHiddenCustomColumns =
+			_hiddenCustomColumns.Count > 0 ? [.. _hiddenCustomColumns.Order()] : null;
+		placement.WatchlistSortBy = SortColumn != WatchlistSortColumn.None ? SortColumn : null;
+		placement.WatchlistSortCustomColumnId = SortCustomColumnId;
+		placement.WatchlistSortDescending =
+			SortColumn != WatchlistSortColumn.None && SortDirection == ListSortDirection.Descending
+				? true
+				: null;
+	}
 
 	private void OnAppSettingsChanged(AppSettingsDto settings) =>
 		Dispatcher.UIThread.Post(RestartSession);
@@ -168,6 +212,195 @@ public partial class WatchlistViewModel
 
 	/// <summary>A sortable column's header was clicked: sort by it, or flip its direction.</summary>
 	public void SortBy(WatchlistSortColumn column) => Sort(column, null);
+
+	/// <summary>
+	/// A column's sort arrow in the header popup, hidden column or not: sort by it, or flip the
+	/// direction, as a header click does.
+	/// </summary>
+	[RelayCommand]
+	private void SortByColumn(WatchlistColumnOptionViewModel option) =>
+		Sort(option.Column, option.CustomColumnId);
+
+	/// <summary>Sorts by a column in a given direction (the header menu), hidden or not.</summary>
+	public void SortBy(
+		WatchlistSortColumn column,
+		string? customColumnId,
+		ListSortDirection direction
+	)
+	{
+		if (column == WatchlistSortColumn.None)
+		{
+			ClearSort();
+			return;
+		}
+		(SortColumn, SortCustomColumnId, SortDirection) = (
+			column,
+			column == WatchlistSortColumn.Custom ? customColumnId : null,
+			direction
+		);
+		ApplyOrder();
+	}
+
+	/// <summary>Back to the watchlist's saved order (pinned rows stay on top).</summary>
+	[RelayCommand]
+	private void ClearSort()
+	{
+		(SortColumn, SortCustomColumnId, SortDirection) = (
+			WatchlistSortColumn.None,
+			null,
+			ListSortDirection.Ascending
+		);
+		ApplyOrder();
+	}
+
+	/// <summary>Sorted by a column (the header popup's "Clear sort").</summary>
+	public bool HasSort => SortColumn != WatchlistSortColumn.None;
+
+	/// <summary>Sorted by a column that is hidden: the grid has no arrow for it, so a line says so.</summary>
+	public bool IsSortHidden =>
+		SortColumn != WatchlistSortColumn.None && !IsColumnShown(SortColumn, SortCustomColumnId);
+
+	/// <summary>The line above the grid while sorted by a hidden column ("Sorted by Vol ↓").</summary>
+	public string? HiddenSortText =>
+		IsSortHidden
+			? $"Sorted by {GetColumnName(SortColumn, SortCustomColumnId)} (hidden) "
+				+ (SortDirection == ListSortDirection.Descending ? "↓" : "↑")
+			: null;
+
+	partial void OnSortColumnChanged(WatchlistSortColumn value) => UpdateColumnOptions();
+
+	partial void OnSortDirectionChanged(ListSortDirection value) => UpdateColumnOptions();
+
+	partial void OnSortCustomColumnIdChanged(string? value) => UpdateColumnOptions();
+
+	/// <summary>The grid's names of the built-in columns (headers, the header popup's list).</summary>
+	public static string GetBuiltInName(WatchlistSortColumn column) =>
+		column switch
+		{
+			WatchlistSortColumn.Symbol => "Symbol",
+			WatchlistSortColumn.Last => "Last",
+			WatchlistSortColumn.ChangePercent => "Chg %",
+			WatchlistSortColumn.Bid => "Bid / Ask",
+			WatchlistSortColumn.Volume => "Vol",
+			WatchlistSortColumn.MarketCap => "Mkt Cap",
+			_ => column.ToString(),
+		};
+
+	private string GetColumnName(WatchlistSortColumn column, string? customColumnId) =>
+		column == WatchlistSortColumn.Custom
+			? CustomColumns.FirstOrDefault(x => x.Id == customColumnId)?.Name ?? string.Empty
+			: GetBuiltInName(column);
+
+	/// <summary>
+	/// Every column, built-in then custom, as the header popup's list: show / hide, sort, and for
+	/// custom ones rename and delete.
+	/// </summary>
+	[ObservableProperty]
+	public partial IReadOnlyList<WatchlistColumnOptionViewModel> Columns { get; private set; } = [];
+
+	/// <summary>A column was shown or hidden: the view shows or hides its grid column.</summary>
+	public event Action? ColumnVisibilityChanged;
+
+	/// <summary>Whether a column is on the grid; a custom one by its id.</summary>
+	public bool IsColumnShown(WatchlistSortColumn column, string? customColumnId) =>
+		column == WatchlistSortColumn.Custom
+			? customColumnId == null || !_hiddenCustomColumns.Contains(customColumnId)
+			: !_hiddenColumns.Contains(column);
+
+	/// <summary>Whether a column can be shown or hidden: the last shown one can't be hidden.</summary>
+	public bool CanToggleColumn(WatchlistSortColumn column, string? customColumnId) =>
+		WatchlistColumnHelpers.CanToggle(IsColumnShown(column, customColumnId), ShownColumnCount);
+
+	/// <summary>A column's check box in the header popup was flipped.</summary>
+	public void SetColumnShown(WatchlistColumnOptionViewModel option, bool shown) =>
+		SetColumnShown(option.Column, option.CustomColumnId, shown);
+
+	/// <summary>
+	/// Shows or hides a column (header popup, header menu); hiding the last shown one is refused.
+	/// The sort is kept: rows stay sorted by a hidden column.
+	/// </summary>
+	public void SetColumnShown(WatchlistSortColumn column, string? customColumnId, bool shown)
+	{
+		if (
+			column == WatchlistSortColumn.None
+			|| (column == WatchlistSortColumn.Custom && customColumnId == null)
+			|| IsColumnShown(column, customColumnId) == shown
+		)
+			return;
+		if (shown || CanToggleColumn(column, customColumnId))
+		{
+			if (column == WatchlistSortColumn.Custom)
+			{
+				if (shown)
+					_hiddenCustomColumns.Remove(customColumnId!);
+				else
+					_hiddenCustomColumns.Add(customColumnId!);
+			}
+			else if (shown)
+				_hiddenColumns.Remove(column);
+			else
+				_hiddenColumns.Add(column);
+			ColumnVisibilityChanged?.Invoke();
+		}
+		// A refused flip puts its check box back
+		UpdateColumnOptions();
+	}
+
+	// The hidden columns never leave the grid empty (every built-in one hidden and the last shown
+	// custom one deleted, or on another watchlist: Symbol comes back); the view and the list follow
+	private void ApplyHiddenColumns()
+	{
+		_hiddenColumns = WatchlistColumnHelpers.ResolveHidden(
+			_hiddenColumns,
+			CustomColumns.Count(x => !_hiddenCustomColumns.Contains(x.Id))
+		);
+		ColumnVisibilityChanged?.Invoke();
+		UpdateColumnOptions();
+	}
+
+	private int ShownColumnCount =>
+		WatchlistColumnHelpers.BuiltInColumns.Count(x => !_hiddenColumns.Contains(x))
+		+ CustomColumns.Count(x => !_hiddenCustomColumns.Contains(x.Id));
+
+	// The list is rebuilt when the custom columns change (and once at first)
+	private void RebuildColumnOptions()
+	{
+		Columns =
+		[
+			.. WatchlistColumnHelpers.BuiltInColumns.Select(x => new WatchlistColumnOptionViewModel(
+				this,
+				x,
+				GetBuiltInName(x),
+				null
+			)),
+			.. CustomColumns.Select(x => new WatchlistColumnOptionViewModel(
+				this,
+				WatchlistSortColumn.Custom,
+				x.Name,
+				x
+			)),
+		];
+		UpdateColumnOptions();
+	}
+
+	// Every row of the list follows the shown columns and the sort; so does the hidden sort line
+	private void UpdateColumnOptions()
+	{
+		var shownCount = ShownColumnCount;
+		foreach (var option in Columns)
+		{
+			var shown = IsColumnShown(option.Column, option.CustomColumnId);
+			option.Update(
+				shown,
+				WatchlistColumnHelpers.CanToggle(shown, shownCount),
+				option.Column == SortColumn && option.CustomColumnId == SortCustomColumnId,
+				SortDirection == ListSortDirection.Descending
+			);
+		}
+		OnPropertyChanged(nameof(HasSort));
+		OnPropertyChanged(nameof(IsSortHidden));
+		OnPropertyChanged(nameof(HiddenSortText));
+	}
 
 	/// <summary>A custom column's header was clicked: sort by its values, or flip the direction.</summary>
 	public void SortByCustom(string columnId) => Sort(WatchlistSortColumn.Custom, columnId);
@@ -555,8 +788,13 @@ public partial class WatchlistViewModel
 		var columns = _watchlistManager.GetColumns(_watchlistId);
 		if (
 			!WatchlistHelpers.IsSameColumns(columns, [.. CustomColumns.Select(x => (x.Id, x.Name))])
+			|| Columns.Count == 0
 		)
+		{
 			CustomColumns = [.. columns.Select(x => new WatchlistColumnItemViewModel(this, x))];
+			RebuildColumnOptions();
+			ApplyHiddenColumns();
+		}
 		foreach (var row in _savedOrder)
 		{
 			var values = columns.Select(x =>
@@ -573,11 +811,12 @@ public partial class WatchlistViewModel
 		}
 		if (SortColumn != WatchlistSortColumn.Custom)
 			return;
-		// A deleted sorted column: back to the saved order
+		// A deleted sorted column (or one of another watchlist): back to the saved order
 		if (columns.All(x => x.Id != SortCustomColumnId))
 		{
 			SortColumn = WatchlistSortColumn.None;
 			SortCustomColumnId = null;
+			SortDirection = ListSortDirection.Ascending;
 		}
 		ApplyOrder();
 	}

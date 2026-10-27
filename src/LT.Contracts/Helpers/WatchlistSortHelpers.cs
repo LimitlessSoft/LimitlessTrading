@@ -84,6 +84,36 @@ public static partial class WatchlistSortHelpers
 		: (column, customColumnId, ListSortDirection.Ascending);
 
 	/// <summary>
+	/// The sort a saved widget restores (hidden columns included): <c>None</c> for an unknown
+	/// column (a newer version's) or a custom column without an id, ascending unless
+	/// <paramref name="descending"/>. A custom column that no longer exists is dropped when the
+	/// columns load.
+	/// </summary>
+	public static (
+		WatchlistSortColumn Column,
+		string? CustomColumnId,
+		ListSortDirection Direction
+	) ResolveSort(WatchlistSortColumn? column, string? customColumnId, bool? descending)
+	{
+		var direction =
+			descending == true ? ListSortDirection.Descending : ListSortDirection.Ascending;
+		return column switch
+		{
+			WatchlistSortColumn.Custom when !string.IsNullOrEmpty(customColumnId) => (
+				WatchlistSortColumn.Custom,
+				customColumnId,
+				direction
+			),
+			{ } builtIn when WatchlistColumnHelpers.BuiltInColumns.Contains(builtIn) => (
+				builtIn,
+				null,
+				direction
+			),
+			_ => (WatchlistSortColumn.None, null, ListSortDirection.Ascending),
+		};
+	}
+
+	/// <summary>
 	/// A custom column cell's sort key; null when blank (sorted last either way). Values that are
 	/// numbers (<see cref="TryParseNumber"/>) sort by value and before text; text sorts ignoring
 	/// case. Descending reverses both, so text comes first there.
