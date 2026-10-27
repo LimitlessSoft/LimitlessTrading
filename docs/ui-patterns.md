@@ -769,6 +769,7 @@ subscription and frees the market-data line.
 | Esc (side or bottom widget) | Back to the last focused center widget; an unpinned widget collapses |
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous center view |
 | Alt+A (chart) | Add a price alert at the price under the pointer, or at the last price |
+| Esc (chart) | Disarm the toolbox's armed tool (e.g. placing an alert) |
 | Ctrl+Shift+F | Fullscreen the current widget (the one last clicked or typed in, framed in light blue), or restore it |
 | Ctrl+Shift+N | New empty workspace window |
 
@@ -788,8 +789,23 @@ while a text box has focus. On macOS, Cmd works in place of Ctrl.
 library): candles, volume, price grid, last-price line, crosshair + OHLCV readout. Wheel zooms,
 drag pans, double-click resets (zoom and pan, not the right margin); the right button doesn't
 pan — releasing it opens the chart's context menu (Add alert at …, Remove alert, Remove triggered
-alerts, Manage indicators…, Apply template, Templates…). The account performance widget's `EquityCurveChart` and
+alerts, Manage indicators…, Apply template, Templates…, Show toolbox). The account performance widget's `EquityCurveChart` and
 `DailyPnlBarChart` are drawn the same way (same palette, `ChartDrawing`).
+
+**Toolbox.** A thin bar between the widget header (ticker, timeframe, period, RTH / ETH) and
+the plot holds the chart's tools (`ChartViewModel.Tools`, one `ChartToolItem` per `ChartTool`;
+a new tool is a value appended to the enum plus an entry in `CreateTools`). Each chart shows or
+hides it — right-click → *Show toolbox* (a check item) or the bar's ✕ — saved per chart in the
+layout (`ChartShowToolbox`; null in older layouts is shown, the default). It is not part of a
+chart template. A tool's button arms it (`ActiveTool`, the button highlighted) for the next click
+on the chart; the button again, Esc (while the chart widget has the keyboard) or hiding the bar
+disarm it. The only tool so far is **Alert**: while armed, a dashed violet preview line follows
+the pointer's price on the price chart (rounded as the axis shows it) with its level on the
+axis and the direction it would get (▲ / ▼, from the last close), the cursor is a cross, and a
+left click there adds the alert (`ChartViewModel.PlaceAlert` → the same create flow as *Add
+alert*) and disarms. The click doesn't pan, drag an alert line or hit a legend; a click off the
+price chart does nothing, the right button still opens the menu. Disabled (and disarmed) while
+the chart has no bars.
 
 **Indicators and panes.** Right-click → Manage indicators… adds and removes indicators; they draw on the
 price chart, on the volume bars or in panes of their own stacked under the price chart, each
@@ -824,8 +840,9 @@ positions) and when off the visible price range. Each chart follows positions on
 `reqPositions` stream; new fills appear when the journal records them (every 30 s).
 
 **Price alerts.** Right-click → *Add alert at <price>* (the price under the pointer, rounded as
-the axis shows it; the last price when opened off the price chart) or Alt+A while the chart has
-the keyboard (a click gives it) adds an alert with no dialog. Its direction is told from the
+the axis shows it; the last price when opened off the price chart), Alt+A while the chart has
+the keyboard (a click gives it) or the toolbox's Alert tool (click the price; see *Toolbox*)
+adds an alert with no dialog. Its direction is told from the
 chart's last close: a level above it fires once the price is at or above it, one at or below it
 once the price is at or below it (`PriceAlertHelpers.GetCondition` / `IsCrossed`; a level, not a
 pair of prices, so a gap or a move while disconnected fires on the first price seen). Each alert

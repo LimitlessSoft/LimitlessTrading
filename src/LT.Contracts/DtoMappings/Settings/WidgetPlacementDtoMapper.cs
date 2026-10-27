@@ -36,6 +36,7 @@ public class WidgetPlacementDtoMapper : ILSCoreMapper<WidgetPlacementEntity, Wid
 				: null,
 			ChartTemplateId = source.ChartTemplateId,
 			ChartFollowTemplate = source.ChartFollowTemplate,
+			ChartShowToolbox = source.ChartShowToolbox,
 			NewsMode = source.NewsMode,
 			NewsProviders = source.NewsProviders is { } providers ? [.. providers] : null,
 			OptionQuickOrderQuantity = source.OptionQuickOrderQuantity,

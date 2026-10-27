@@ -29,7 +29,9 @@ namespace LT.App.Widgets.Chart;
 /// Price alerts: the menu's "Add alert at …" (or Alt+A while the chart has the keyboard) adds one
 /// at the price under the pointer, or at the last price when the pointer is elsewhere; "Remove
 /// alert at …" shows when the menu was opened on an alert line. Dragging a line and its ✕ are
-/// handled by the chart and reach the view model here.
+/// handled by the chart and reach the view model here. The toolbox's alert tool: the chart
+/// previews the line while it is armed and its click (<see cref="CandlestickChart.AlertPlaced"/>)
+/// places the alert; Esc disarms it.
 /// </para>
 /// </summary>
 public partial class ChartView : UserControl
@@ -40,6 +42,7 @@ public partial class ChartView : UserControl
 		Chart.IndicatorAction += OnIndicatorAction;
 		Chart.AlertMoved += (id, price) => ViewModel?.MoveAlert(id, price);
 		Chart.AlertRemoved += id => ViewModel?.RemoveAlert(id);
+		Chart.AlertPlaced += price => ViewModel?.PlaceAlert(price);
 		KeyDown += OnKeyDown;
 		ChartMenu.Opening += (_, _) => FillApplyTemplateMenu();
 		ChartMenu.Opening += (_, _) => FillAlertMenu();
@@ -132,9 +135,16 @@ public partial class ChartView : UserControl
 				$"Remove alert at {PriceAlertHelpers.FormatPrice(_menuAlert.Price)}";
 	}
 
-	// Alt+A (TradingView's): an alert at the pointer's price, or the last price
+	// Alt+A (TradingView's): an alert at the pointer's price, or the last price. Esc disarms the
+	// toolbox's armed tool
 	private void OnKeyDown(object? sender, KeyEventArgs e)
 	{
+		if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
+		{
+			if (ViewModel?.CancelTool() == true)
+				e.Handled = true;
+			return;
+		}
 		if (e.Key != Key.A || e.KeyModifiers != KeyModifiers.Alt || ViewModel is not { } viewModel)
 			return;
 		e.Handled = true;
