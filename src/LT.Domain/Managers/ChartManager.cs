@@ -139,7 +139,11 @@ public class ChartManager(
 		// Through the market data manager: the chart's quote line counts against the limit
 		QuoteDto? previous = null;
 		await foreach (
-			var quote in marketDataManager.SubscribeQuotesAsync(request.Contract, cancellationToken)
+			var quote in marketDataManager.SubscribeQuotesAsync(
+				request.Contract,
+				cancellationToken,
+				owner: MarketDataStreamOwners.Chart
+			)
 		)
 		{
 			var price = ChartLiveUpdateHelpers.GetLivePrice(

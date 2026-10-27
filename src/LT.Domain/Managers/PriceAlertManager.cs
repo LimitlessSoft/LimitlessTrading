@@ -252,7 +252,11 @@ public class PriceAlertManager(
 			{
 				await foreach (
 					var quote in marketDataManager
-						.SubscribeQuotesAsync(contract, cancellationToken)
+						.SubscribeQuotesAsync(
+							contract,
+							cancellationToken,
+							owner: MarketDataStreamOwners.PriceAlerts
+						)
 						.ConfigureAwait(false)
 				)
 					if (PriceAlertHelpers.GetPrice(quote, contract.SecurityType) is { } price)

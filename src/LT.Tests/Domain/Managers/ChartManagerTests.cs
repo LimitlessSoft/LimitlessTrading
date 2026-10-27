@@ -43,7 +43,7 @@ public class ChartManagerTests
 		_manager = new ChartManager(
 			_ibkr,
 			new CacheManager(_cache, _settings, _time),
-			_marketData = new MarketDataManager(_ibkr),
+			_marketData = new MarketDataManager(_ibkr, TimeProvider.System),
 			_time
 		);
 		_ibkr.HistoricalBars =
@@ -242,7 +242,7 @@ public class ChartManagerTests
 	public async Task Without_a_free_market_data_line_the_price_stream_fails()
 	{
 		for (var i = 0; i < MarketDataConstants.MaxLines; i++)
-			_marketData.AcquireLine();
+			_marketData.AcquireLine(MarketDataStreamKind.News, new ContractDto());
 
 		await Assert.ThrowsAsync<LSCoreBadRequestException>(async () =>
 			await _manager

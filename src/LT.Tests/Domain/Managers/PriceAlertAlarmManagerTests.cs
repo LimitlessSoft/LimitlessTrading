@@ -153,7 +153,10 @@ public class PriceAlertAlarmManagerTests
 		LSCoreContainer.EnsureInitialized();
 		var alerts = new PriceAlertManager(
 			new InMemoryPriceAlertRepository(),
-			new MarketDataManager(new FakeIbkrApiClient { IsConnected = true }),
+			new MarketDataManager(
+				new FakeIbkrApiClient { IsConnected = true },
+				TimeProvider.System
+			),
 			new MessageLogManager(),
 			_time
 		);

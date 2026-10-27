@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -22,6 +23,9 @@ public partial class MainWindowViewModel : ViewModelBase
 	private readonly AccountStore _accountStore;
 	private readonly IConnectionManager _connectionManager;
 	private readonly DisplayTimeStore _displayTime;
+
+	// 1 while a stream list refresh is posted: a burst of lines (a watchlist opening) posts one
+	private int _streamsRefreshPosted;
 
 	public MainWindowViewModel(
 		IConnectionManager connectionManager,
@@ -54,12 +58,17 @@ public partial class MainWindowViewModel : ViewModelBase
 		accountStore.PropertyChanged += (_, _) => UpdateAccountText();
 		displayTime.ZoneChanged += () => Apply(_connectionManager.Status);
 		settingsManager.AppSettingsChanged += _ => Dispatcher.UIThread.Post(UpdateStatusBar);
+		marketDataManager.StreamsChanged += OnStreamsChanged;
 		new DispatcherTimer(
 			TimeSpan.FromSeconds(1),
 			DispatcherPriority.Background,
-			(_, _) => UpdateStatusBar()
+			(_, _) =>
+			{
+				UpdateStatusBar();
+				UpdateStreamAges();
+			}
 		).Start();
-		UpdateStatusBar();
+		RefreshStreams();
 	}
 
 	public string Title => "LimitlessTrading";
@@ -87,6 +96,16 @@ public partial class MainWindowViewModel : ViewModelBase
 
 	[ObservableProperty]
 	public partial string MarketDataText { get; set; } = string.Empty;
+
+	/// <summary>The market data lines in use, oldest first (the status bar item's flyout).</summary>
+	public ObservableCollection<MarketDataStreamRowViewModel> MarketDataStreams { get; } = [];
+
+	/// <summary>Lines per owner, most first ("Watchlist · US 40, Chart 2"), above the list.</summary>
+	[ObservableProperty]
+	public partial string MarketDataOwnersText { get; set; } = string.Empty;
+
+	[ObservableProperty]
+	public partial bool HasMarketDataStreams { get; set; }
 
 	public LayoutDto GetLayout() => _settingsManager.GetLayout();
 
@@ -138,5 +157,40 @@ public partial class MainWindowViewModel : ViewModelBase
 
 	private void UpdateStatusBar() =>
 		MarketDataText =
-			$"Market data: {_settingsManager.GetAppSettings().MarketDataType} · lines {_marketDataManager.ActiveLines}/{MarketDataConstants.MaxLines}";
+			$"Market data: {_settingsManager.GetAppSettings().MarketDataType} · streams {_marketDataManager.ActiveLines}/{MarketDataConstants.MaxLines}";
+
+	// Any thread (the manager raises it where the line was taken or released)
+	private void OnStreamsChanged()
+	{
+		if (Interlocked.Exchange(ref _streamsRefreshPosted, 1) == 0)
+			Dispatcher.UIThread.Post(RefreshStreams, DispatcherPriority.Background);
+	}
+
+	// UI thread: the list follows the manager's snapshot, keeping rows that are still open
+	private void RefreshStreams()
+	{
+		Volatile.Write(ref _streamsRefreshPosted, 0);
+		var streams = _marketDataManager.GetActiveStreams();
+		var open = streams.Select(x => x.Id).ToHashSet();
+		for (var i = MarketDataStreams.Count - 1; i >= 0; i--)
+			if (!open.Contains(MarketDataStreams[i].Stream.Id))
+				MarketDataStreams.RemoveAt(i);
+		var shown = MarketDataStreams.Select(x => x.Stream.Id).ToHashSet();
+		foreach (var stream in streams)
+			if (!shown.Contains(stream.Id))
+				MarketDataStreams.Add(
+					new MarketDataStreamRowViewModel(stream, _displayTime.Format(stream.OpenedAt))
+				);
+		MarketDataOwnersText = MarketDataStreamHelpers.GetOwnerSummary(streams);
+		HasMarketDataStreams = streams.Count > 0;
+		UpdateStreamAges();
+		UpdateStatusBar();
+	}
+
+	private void UpdateStreamAges()
+	{
+		var now = _displayTime.Now;
+		foreach (var row in MarketDataStreams)
+			row.AgeText = MarketDataStreamHelpers.FormatAge(now - row.Stream.OpenedAt);
+	}
 }

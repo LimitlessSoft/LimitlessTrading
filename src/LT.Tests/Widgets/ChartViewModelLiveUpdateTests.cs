@@ -127,7 +127,12 @@ public class ChartViewModelLiveUpdateTests : IDisposable
 	private ChartViewModel CreateChart()
 	{
 		var chart = new ChartViewModel(
-			new ChartManager(_ibkr, _cache.Manager, new MarketDataManager(_ibkr), _cache.Time),
+			new ChartManager(
+				_ibkr,
+				_cache.Manager,
+				new MarketDataManager(_ibkr, TimeProvider.System),
+				_cache.Time
+			),
 			new ContractManager(_ibkr, _cache.Settings, _cache.Manager),
 			_connection,
 			_messages,
@@ -147,7 +152,7 @@ public class ChartViewModelLiveUpdateTests : IDisposable
 			new ChartTemplateManager(_cache.Settings),
 			new PriceAlertManager(
 				new InMemoryPriceAlertRepository(),
-				new MarketDataManager(_ibkr),
+				new MarketDataManager(_ibkr, TimeProvider.System),
 				new MessageLogManager(),
 				_cache.Time
 			),

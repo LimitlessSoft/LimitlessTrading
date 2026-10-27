@@ -6,6 +6,7 @@ using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 using LT.Domain.Managers;
 using LT.Tests.Fakes;
+using Microsoft.Extensions.Time.Testing;
 
 namespace LT.Tests.Domain.Managers;
 
@@ -24,7 +25,7 @@ public class MarketDataManagerTests
 			new MarketDataTickDto { Field = TickTypeHelpers.Ask, Price = 100.5 },
 		];
 
-		var quotes = await new MarketDataManager(_ibkr)
+		var quotes = await new MarketDataManager(_ibkr, TimeProvider.System)
 			.SubscribeQuotesAsync(Aapl, TestContext.Current.CancellationToken)
 			.ToListAsync(TestContext.Current.CancellationToken);
 
@@ -41,7 +42,7 @@ public class MarketDataManagerTests
 			new MarketDataTickDto { Field = TickTypeHelpers.Last, Price = 200 },
 			new MarketDataTickDto { Field = TickTypeHelpers.OptionImpliedVolatility, Value = 0.25 },
 		];
-		var manager = new MarketDataManager(_ibkr);
+		var manager = new MarketDataManager(_ibkr, TimeProvider.System);
 		var maxLines = 0;
 
 		await foreach (
@@ -60,7 +61,7 @@ public class MarketDataManagerTests
 	[Fact]
 	public async Task Releases_the_line_when_the_stream_ends()
 	{
-		var manager = new MarketDataManager(_ibkr);
+		var manager = new MarketDataManager(_ibkr, TimeProvider.System);
 
 		await manager
 			.SubscribeQuotesAsync(Aapl, TestContext.Current.CancellationToken)
@@ -72,7 +73,7 @@ public class MarketDataManagerTests
 	[Fact]
 	public async Task Refuses_more_than_the_line_limit()
 	{
-		var manager = new MarketDataManager(_ibkr);
+		var manager = new MarketDataManager(_ibkr, TimeProvider.System);
 		_ibkr.Ticks = [new MarketDataTickDto { Field = TickTypeHelpers.Bid, Price = 1 }];
 		var open = new List<IAsyncEnumerator<QuoteDto>>();
 		for (var i = 0; i < MarketDataConstants.MaxLines; i++)
@@ -91,10 +92,113 @@ public class MarketDataManagerTests
 				.MoveNextAsync()
 		);
 		Assert.Equal(MarketDataConstants.MaxLines, manager.ActiveLines);
+		Assert.Equal(MarketDataConstants.MaxLines, manager.GetActiveStreams().Count);
+		Assert.Throws<LSCoreBadRequestException>(() =>
+			manager.AcquireLine(MarketDataStreamKind.News, Aapl, MarketDataStreamOwners.News)
+		);
+		Assert.Equal(MarketDataConstants.MaxLines, manager.GetActiveStreams().Count);
 
 		foreach (var enumerator in open)
 			await enumerator.DisposeAsync();
 		Assert.Equal(0, manager.ActiveLines);
+		Assert.Empty(manager.GetActiveStreams());
+	}
+
+	[Fact]
+	public async Task An_open_quote_stream_is_listed_with_its_owner_and_open_time()
+	{
+		var time = new FakeTimeProvider(new DateTimeOffset(2026, 10, 27, 14, 30, 0, TimeSpan.Zero));
+		var manager = new MarketDataManager(_ibkr, time);
+		_ibkr.Ticks = [new MarketDataTickDto { Field = TickTypeHelpers.Bid, Price = 1 }];
+		var changes = 0;
+		manager.StreamsChanged += () => changes++;
+
+		await using var quotes = manager
+			.SubscribeQuotesAsync(
+				Aapl,
+				TestContext.Current.CancellationToken,
+				MarketDataConstants.OptionImpliedVolatilityGenericTick,
+				MarketDataStreamOwners.OptionChain
+			)
+			.GetAsyncEnumerator(TestContext.Current.CancellationToken);
+		Assert.Empty(manager.GetActiveStreams());
+		Assert.True(await quotes.MoveNextAsync());
+
+		var stream = Assert.Single(manager.GetActiveStreams());
+		Assert.Equal(MarketDataStreamKind.Quote, stream.Kind);
+		Assert.Same(Aapl, stream.Contract);
+		Assert.Equal("106", stream.GenericTicks);
+		Assert.Equal(MarketDataStreamOwners.OptionChain, stream.Owner);
+		Assert.Equal(time.GetUtcNow(), stream.OpenedAt);
+		Assert.Equal(1, changes);
+
+		await quotes.DisposeAsync();
+		Assert.Empty(manager.GetActiveStreams());
+		Assert.Equal(2, changes);
+	}
+
+	[Fact]
+	public async Task A_cancelled_quote_stream_leaves_the_list()
+	{
+		var manager = new MarketDataManager(_ibkr, TimeProvider.System);
+		_ibkr.Ticks = [new MarketDataTickDto { Field = TickTypeHelpers.Bid, Price = 1 }];
+		_ibkr.KeepMarketDataOpen = true;
+		using var cts = CancellationTokenSource.CreateLinkedTokenSource(
+			TestContext.Current.CancellationToken
+		);
+		var seen = new TaskCompletionSource();
+		var running = Task.Run(
+			async () =>
+			{
+				await foreach (
+					var _ in manager.SubscribeQuotesAsync(
+						Aapl,
+						cts.Token,
+						owner: MarketDataStreamOwners.Watchlist
+					)
+				)
+					seen.TrySetResult();
+			},
+			TestContext.Current.CancellationToken
+		);
+		await seen.Task.WaitAsync(TestContext.Current.CancellationToken);
+		Assert.Equal(
+			MarketDataStreamOwners.Watchlist,
+			Assert.Single(manager.GetActiveStreams()).Owner
+		);
+
+		await cts.CancelAsync();
+		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
+		Assert.Empty(manager.GetActiveStreams());
+		Assert.Equal(0, manager.ActiveLines);
+	}
+
+	[Fact]
+	public void A_line_taken_by_hand_is_listed_until_released_once()
+	{
+		var manager = new MarketDataManager(_ibkr, TimeProvider.System);
+		var tape = new ContractDto { Symbol = "BRFG:BRFG_ALL", SecurityType = "NEWS" };
+		var changes = 0;
+		manager.StreamsChanged += () => changes++;
+
+		var id = manager.AcquireLine(MarketDataStreamKind.News, tape, MarketDataStreamOwners.News);
+		var other = manager.AcquireLine(MarketDataStreamKind.News, Aapl);
+
+		Assert.Equal([id, other], manager.GetActiveStreams().Select(x => x.Id));
+		var stream = manager.GetActiveStreams()[0];
+		Assert.Equal(
+			(MarketDataStreamKind.News, MarketDataStreamOwners.News),
+			(stream.Kind, stream.Owner)
+		);
+		Assert.Same(tape, stream.Contract);
+
+		manager.ReleaseLine(id);
+		manager.ReleaseLine(id);
+		manager.ReleaseLine(12345);
+
+		Assert.Equal(other, Assert.Single(manager.GetActiveStreams()).Id);
+		Assert.Equal(1, manager.ActiveLines);
+		Assert.Equal(3, changes);
 	}
 
 	[Fact]
@@ -103,7 +207,7 @@ public class MarketDataManagerTests
 		_ibkr.IsConnected = false;
 
 		await Assert.ThrowsAsync<LSCoreBadRequestException>(async () =>
-			await new MarketDataManager(_ibkr)
+			await new MarketDataManager(_ibkr, TimeProvider.System)
 				.SubscribeQuotesAsync(Aapl, TestContext.Current.CancellationToken)
 				.ToListAsync(TestContext.Current.CancellationToken)
 		);
@@ -112,7 +216,7 @@ public class MarketDataManagerTests
 	[Fact]
 	public async Task Tick_by_tick_subscriptions_are_counted_against_ibs_limit_of_5()
 	{
-		var manager = new MarketDataManager(_ibkr);
+		var manager = new MarketDataManager(_ibkr, TimeProvider.System);
 		_ibkr.KeepTickByTickOpen = true;
 		using var cts = CancellationTokenSource.CreateLinkedTokenSource(
 			TestContext.Current.CancellationToken

@@ -1034,6 +1034,9 @@ public partial class WatchlistViewModel
 		var subscription = CancellationTokenSource.CreateLinkedTokenSource(_session);
 		row.Subscription = subscription;
 		var token = subscription.Token;
+		var owner = ActiveWatchlist is { } watchlist
+			? $"{MarketDataStreamOwners.Watchlist} · {watchlist.Name}"
+			: MarketDataStreamOwners.Watchlist;
 		_ = Task.Run(
 			async () =>
 			{
@@ -1041,7 +1044,7 @@ public partial class WatchlistViewModel
 				{
 					await foreach (
 						var quote in _marketDataManager
-							.SubscribeQuotesAsync(row.Contract, token)
+							.SubscribeQuotesAsync(row.Contract, token, owner: owner)
 							.ConfigureAwait(false)
 					)
 						row.Pending.Set(quote);
