@@ -262,8 +262,10 @@ new instance) and lives in one of four wrappers:
   one is cut to it and the status line says "… bars go back … at most"; a period with no bars
   yet (e.g. Today before the session) says "no bars since …". A chosen period is shown whole:
   the chart (`CandlestickChart.FitBars`, bound to `ChartViewModel.FitsPeriod`) zooms out until
-  every bar of the new series fits (also on double-click; the wheel can zoom in from there), while
-  Auto keeps the latest bars at the default zoom. Period is saved per chart, new charts start at
+  every bar of the new series fits (also on double-click; the wheel can zoom in from there) and
+  stays fitted as the plot is resized or bars arrive until the wheel zooms or the margin handle
+  is dragged (a restored chart is laid out narrower first; `ChartViewportHelpers.GetBarSpacing`),
+  while Auto keeps the latest bars at the default zoom. Period is saved per chart, new charts start at
   the last chart's period, and it is part of chart templates. A load superseded by another
   timeframe, period or contract never shows its bars or its error. There is no Reload button;
   F5 reloads.

@@ -86,6 +86,21 @@ public static class ChartViewportHelpers
 	}
 
 	/// <summary>
+	/// Bar spacing for a render: a fitted view (<paramref name="fitted"/>) fits its bars and the
+	/// right margin into the plot as it is now (<see cref="GetFitBarSpacing"/>), so it stays fitted
+	/// when the plot is resized or bars arrive; otherwise the current zoom,
+	/// <paramref name="barSpacing"/>.
+	/// </summary>
+	public static double GetBarSpacing(
+		double barSpacing,
+		bool fitted,
+		int barCount,
+		double rightMargin,
+		double plotWidth,
+		double maxSpacing
+	) => fitted ? GetFitBarSpacing(barCount, rightMargin, plotWidth, maxSpacing) : barSpacing;
+
+	/// <summary>
 	/// Margin while dragging its handle <paramref name="deltaX"/> DIPs from where the drag
 	/// started: left (negative) widens it, right narrows it.
 	/// </summary>

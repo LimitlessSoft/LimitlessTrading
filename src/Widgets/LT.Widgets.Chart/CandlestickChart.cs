@@ -30,7 +30,9 @@ namespace LT.App.Widgets.Chart;
 /// left (CandlestickChart.Indicators.cs) whose rows raise <see cref="IndicatorAction"/>.
 /// </para>
 /// <para>
-/// With <see cref="FitBars"/> (a chosen period) a new series zooms out to show all of its bars.
+/// With <see cref="FitBars"/> (a chosen period) a new series zooms out to show all of its bars,
+/// and keeps them all in view as the plot is resized or bars arrive until it is zoomed or its
+/// margin is dragged.
 /// </para>
 /// <para>
 /// With <see cref="RegularHours"/> set (intraday, pre- / post-market shown), bars outside the
@@ -168,8 +170,10 @@ public partial class CandlestickChart : Control
 	private double _barSpacing = DefaultBarSpacing;
 	private int _offset;
 
-	// The next render fits every bar into the plot (FitBars: a new series, double-click)
-	private bool _fitPending;
+	// Every render fits all bars into the plot (FitBars: a new series, double-click) until the
+	// view is zoomed or its margin dragged. Not just the first render: a restored chart is first
+	// laid out narrower than it ends up, and a fit to that width left the bars in its right part
+	private bool _fitted;
 	private Point? _pointer;
 	private Point? _dragStart;
 	private int _dragStartOffset;
@@ -326,7 +330,7 @@ public partial class CandlestickChart : Control
 	{
 		_offset = 0;
 		_barSpacing = DefaultBarSpacing;
-		_fitPending = FitBars;
+		_fitted = FitBars;
 		InvalidateVisual();
 	}
 
@@ -389,16 +393,14 @@ public partial class CandlestickChart : Control
 		);
 
 		_plot = plot;
-		if (_fitPending)
-		{
-			_fitPending = false;
-			_barSpacing = ChartViewportHelpers.GetFitBarSpacing(
-				bars.Count,
-				RightMargin,
-				plot.Width,
-				MaxBarSpacing
-			);
-		}
+		_barSpacing = ChartViewportHelpers.GetBarSpacing(
+			_barSpacing,
+			_fitted,
+			bars.Count,
+			RightMargin,
+			plot.Width,
+			MaxBarSpacing
+		);
 		_offset = Math.Clamp(_offset, 0, bars.Count - 1);
 		var rightMargin = ChartViewportHelpers.ClampRightMargin(
 			RightMargin,
@@ -908,6 +910,8 @@ public partial class CandlestickChart : Control
 				RightMargin = 0;
 			else
 			{
+				// The drag sets the margin at this zoom; fitting would rescale under it
+				_fitted = false;
 				_marginDragStartX = position.X;
 				_marginDragStartValue = ChartViewportHelpers.ClampRightMargin(
 					RightMargin,
@@ -963,6 +967,7 @@ public partial class CandlestickChart : Control
 	{
 		base.OnPointerWheelChanged(e);
 		// A fitted long period may be denser than the wheel goes; zooming out never jumps in
+		_fitted = false;
 		_barSpacing = Math.Clamp(
 			e.Delta.Y > 0 ? _barSpacing * 1.15 : _barSpacing / 1.15,
 			Math.Min(MinBarSpacing, _barSpacing),
