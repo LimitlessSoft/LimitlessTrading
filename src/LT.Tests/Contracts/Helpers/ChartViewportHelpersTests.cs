@@ -1,3 +1,4 @@
+using LT.Contracts.Constants;
 using LT.Contracts.Helpers;
 
 namespace LT.Tests.Contracts.Helpers;
@@ -179,5 +180,23 @@ public class ChartViewportHelpersTests
 	public void A_zoomed_view_keeps_its_zoom_when_the_plot_is_resized()
 	{
 		Assert.Equal(12.5, ChartViewportHelpers.GetBarSpacing(12.5, false, 38, 5, 534, 40));
+	}
+
+	[Fact]
+	public void The_price_axis_fits_its_widest_label_with_padding_and_border()
+	{
+		// 40.3 wide + 4 + 4 padding + 1 border = 49.3, rounded up
+		Assert.Equal(50, ChartViewportHelpers.GetPriceAxisWidth([31.2, 40.3, 12]));
+	}
+
+	[Fact]
+	public void The_price_axis_has_a_minimum_width()
+	{
+		Assert.Equal(ChartConstants.MinPriceAxisWidth, ChartViewportHelpers.GetPriceAxisWidth([6]));
+		Assert.Equal(ChartConstants.MinPriceAxisWidth, ChartViewportHelpers.GetPriceAxisWidth([]));
+		Assert.Equal(
+			ChartConstants.MinPriceAxisWidth,
+			ChartViewportHelpers.GetPriceAxisWidth([double.NaN])
+		);
 	}
 }

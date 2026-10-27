@@ -110,4 +110,18 @@ public static class ChartViewportHelpers
 		double plotWidth,
 		double barSpacing
 	) => ClampRightMargin(startMargin - deltaX / barSpacing, plotWidth, barSpacing);
+
+	/// <summary>
+	/// Width of the price axis for labels <paramref name="labelWidths"/> DIPs wide: the widest,
+	/// <see cref="ChartConstants.PriceAxisPadding"/> on each side and the 1-DIP border at its left
+	/// edge, rounded up to a whole DIP; at least <see cref="ChartConstants.MinPriceAxisWidth"/>.
+	/// </summary>
+	public static double GetPriceAxisWidth(IEnumerable<double> labelWidths)
+	{
+		var widest = labelWidths.Where(double.IsFinite).DefaultIfEmpty(0).Max();
+		return Math.Max(
+			ChartConstants.MinPriceAxisWidth,
+			Math.Ceiling(widest + 2 * ChartConstants.PriceAxisPadding + 1)
+		);
+	}
 }
