@@ -7,11 +7,13 @@ namespace LT.App.Services;
 
 /// <summary>
 /// Runs <see cref="IPriceAlertManager.WatchAsync"/> while the app is connected, so price alerts
-/// fire whether or not a chart shows their contract; every (re)connect starts it again.
+/// fire whether or not a chart shows their contract; every (re)connect starts it again. Every
+/// alert that fires goes to <see cref="IPriceAlertAlarmManager"/> (popup and repeating sound).
 /// </summary>
 public class PriceAlertService(
 	IConnectionManager connectionManager,
-	IPriceAlertManager priceAlertManager
+	IPriceAlertManager priceAlertManager,
+	IPriceAlertAlarmManager priceAlertAlarmManager
 ) : BackgroundService
 {
 	private readonly Lock _lock = new();
@@ -19,6 +21,7 @@ public class PriceAlertService(
 
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
+		priceAlertManager.AlertTriggered += priceAlertAlarmManager.OnTriggered;
 		connectionManager.StatusChanged += Apply;
 		Apply(connectionManager.Status);
 		try
@@ -29,6 +32,7 @@ public class PriceAlertService(
 		finally
 		{
 			connectionManager.StatusChanged -= Apply;
+			priceAlertManager.AlertTriggered -= priceAlertAlarmManager.OnTriggered;
 			lock (_lock)
 				Stop();
 		}

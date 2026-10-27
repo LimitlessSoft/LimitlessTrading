@@ -10,4 +10,10 @@ public interface ISoundPlayer
 	/// sound).
 	/// </summary>
 	void PlayFill();
+
+	/// <summary>
+	/// Starts the price alert alarm (a short urgent beep, played over and over by
+	/// IPriceAlertAlarmManager) and returns at once; never throws. Skipped while a sound plays.
+	/// </summary>
+	void PlayAlarm();
 }

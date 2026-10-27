@@ -927,9 +927,13 @@ is a violet line with a tag at the plot's right end (▲ / ▼, its note) and it
 dragging the line or tag moves it (the direction is told again, a triggered one is armed again),
 ✕ on the tag or right-click on the line → *Remove alert* deletes it. An alert fires once: it turns
 into a grey dotted "fired" line until removed (one by one, or *Remove triggered alerts*), the
-message log gets an entry (source "Alerts") and the main window shows a toast for
-`PriceAlertConstants.NotificationDuration` (Avalonia's `WindowNotificationManager`, bottom
-right). Alerts off the visible price range are not drawn.
+message log gets an entry (source "Alerts") and the **alert popup** opens: a topmost window not
+owned by any other (so it shows over every window, focused or minimized) listing every fired
+alert not dismissed yet, newest first — symbol, direction and level, the price that fired it, the
+note and the time — each with *Dismiss*, and *Dismiss all* when there are several. An alarm
+(`SoundHelpers.CreateAlarm`, two high-low beep pairs, about 0.7 s) plays at once and again every
+`PriceAlertConstants.AlarmRepeatInterval` (2 s) until the last alert is dismissed; closing the
+popup dismisses them all. Alerts off the visible price range are not drawn.
 
 - `IPriceAlertManager` (`PriceAlertManager`, a singleton) holds every alert, saved in
   `price-alerts.json`; `ChartViewModel.Alerts.cs` shows the charted contract's and refreshes on
@@ -942,8 +946,14 @@ right). Alerts off the visible price range are not drawn.
   line in the quote modes). Last trade price, the bid / ask midpoint for forex; delayed quotes
   count. A stream that fails is logged and opened again after `PriceAlertConstants.RetryDelay`
   (1 min); a contract whose alerts have all fired is no longer watched.
-- Not built yet: editing an alert's note (the field is stored and shown), an alerts list, sounds,
-  conditions other than crossing a price.
+- The popup's state is `IPriceAlertAlarmManager` (`PriceAlertAlarmManager`, a singleton fed
+  `AlertTriggered` by `PriceAlertService`): the pending alerts and one `TimeProvider` timer for
+  the alarm, through `ISoundPlayer.PlayAlarm`. `MainWindow` opens `PriceAlertPopupWindow`
+  (`LT.App/Widgets/PriceAlerts`) on its `Changed` (posted to the UI thread), brings it to the
+  front on a new alert and closes it once none is pending. Nothing is saved: an alert still in
+  the popup at exit doesn't ring again on the next start.
+- Not built yet: editing an alert's note (the field is stored and shown), an alerts list, a
+  setting to silence the alarm, conditions other than crossing a price.
 
 **Live updates.** After its history loads, a connected chart follows IB's 5-second real-time
 bars (`IChartManager.SubscribeRealtimeBarsAsync`, merged with `BarHelpers.Merge`). Settings →

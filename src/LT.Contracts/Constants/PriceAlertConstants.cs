@@ -19,6 +19,9 @@ public static class PriceAlertConstants
 	/// <summary>A contract's price stream that failed or ended is opened again after this.</summary>
 	public static readonly TimeSpan RetryDelay = TimeSpan.FromMinutes(1);
 
-	/// <summary>How long a triggered alert's notification stays on screen.</summary>
-	public static readonly TimeSpan NotificationDuration = TimeSpan.FromSeconds(15);
+	/// <summary>
+	/// The alarm of a fired alert plays again after this until the alert's popup is dismissed
+	/// (the sound itself is under a second).
+	/// </summary>
+	public static readonly TimeSpan AlarmRepeatInterval = TimeSpan.FromSeconds(2);
 }

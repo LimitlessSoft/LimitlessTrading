@@ -7,6 +7,8 @@ public static class SoundConstants
 
 	public const string FillFileName = "fill.wav";
 
+	public const string AlarmFileName = "alarm.wav";
+
 	public const int SampleRate = 22050;
 
 	/// <summary>A player still running after this is stopped.</summary>
