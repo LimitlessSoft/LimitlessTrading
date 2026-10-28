@@ -135,7 +135,8 @@ public class OptionChainViewModelQuickOrderTests : IDisposable
 			new LinkGroupStore(),
 			new AccountStore(_connection, settings),
 			_cache.Time,
-			new DisplayTimeStore(settings, _cache.Time)
+			new DisplayTimeStore(settings, _cache.Time),
+			new OrderTicketNavigator()
 		);
 	}
 

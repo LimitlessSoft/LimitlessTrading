@@ -85,6 +85,12 @@ public class WidgetPlacementDto
 	/// <summary>Option chain instances: contracts per one-click order (null: the default).</summary>
 	public int? OptionQuickOrderQuantity { get; set; }
 
+	/// <summary>
+	/// Option chain instances: quote columns hidden on both the call and the put side (null: none;
+	/// older layouts). The strike is always shown.
+	/// </summary>
+	public List<OptionQuoteColumn>? OptionHiddenColumns { get; set; }
+
 	/// <summary>Account performance: deposits, withdrawals and transfers marked (null: off).</summary>
 	public bool? PerformanceShowCashMovements { get; set; }
 

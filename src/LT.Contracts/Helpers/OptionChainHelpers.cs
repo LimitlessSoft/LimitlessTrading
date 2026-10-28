@@ -5,6 +5,7 @@ using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.MarketData;
 using LT.Contracts.Dtos.Options;
+using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Enums;
 using LT.Contracts.Enums.ValidationCodes;
 using LT.Contracts.Requests.Options;
@@ -362,4 +363,82 @@ public static partial class OptionChainHelpers
 		sigmaDistance is { } d
 			? d.ToString("+0.0;-0.0;0.0", CultureInfo.InvariantCulture) + "σ"
 			: null;
+
+	/// <summary>
+	/// The order ticket a click on the strike opens for its call or put (<paramref name="right"/>
+	/// "C" / "P"): buy <paramref name="quantity"/> contracts (the one-click quantity; 1 when that
+	/// isn't valid) on <paramref name="account"/>, market, with the limit box set to
+	/// <see cref="GetMidPrice"/>. Null when the strike has no such option. Nothing is sent: the
+	/// user picks market or limit, reviews and sends from the ticket.
+	/// </summary>
+	public static OrderDraftDto? GetOrderDraft(
+		OptionStrikeDto strike,
+		string right,
+		string? account,
+		decimal? quantity,
+		QuoteDto? quote
+	)
+	{
+		if (GetOption(strike, right) is not { } option)
+			return null;
+		return new OrderDraftDto
+		{
+			Contract = option,
+			Account = account ?? string.Empty,
+			Action = OrderAction.Buy,
+			Quantity = IsValidQuickOrderQuantity(quantity)
+				? quantity!.Value
+				: OrderConstants.QuickOrderQuantityDefault,
+			LimitPrice = GetMidPrice(quote),
+			Note =
+				$"{ContractHelpers.GetDisplayName(option)} from the option chain. Pick market or limit, review, then send.",
+		};
+	}
+
+	/// <summary>
+	/// A starting limit price for an option: the bid / ask mid, else the last price, rounded to
+	/// the cent; null with no positive price. Only a suggestion the user reviews (some options
+	/// trade in 0.05 steps).
+	/// </summary>
+	public static decimal? GetMidPrice(QuoteDto? quote)
+	{
+		if (quote?.Bid is { } bid && quote.Ask is { } ask && bid > 0 && ask >= bid)
+			return Math.Round(((decimal)bid + (decimal)ask) / 2, 2, MidpointRounding.AwayFromZero);
+		return quote?.Last is { } last && last > 0
+			? Math.Round((decimal)last, 2, MidpointRounding.AwayFromZero)
+			: null;
+	}
+
+	/// <summary>
+	/// The quote columns in the order the call side shows them (the put side mirrors it), as the
+	/// column menu lists them.
+	/// </summary>
+	public static IReadOnlyList<OptionQuoteColumn> QuoteColumns { get; } =
+	[
+		OptionQuoteColumn.Volume,
+		OptionQuoteColumn.Last,
+		OptionQuoteColumn.Ask,
+		OptionQuoteColumn.Bid,
+	];
+
+	/// <summary>A quote column's name in the column menu.</summary>
+	public static string GetColumnName(OptionQuoteColumn column) =>
+		column switch
+		{
+			OptionQuoteColumn.Volume => "Vol",
+			OptionQuoteColumn.Last => "Last",
+			OptionQuoteColumn.Ask => "Ask",
+			OptionQuoteColumn.Bid => "Bid",
+			_ => column.ToString(),
+		};
+
+	/// <summary>Saved hidden columns as a set, without unknown values (an edited layout file).</summary>
+	public static HashSet<OptionQuoteColumn> ResolveHiddenColumns(
+		IEnumerable<OptionQuoteColumn>? saved
+	) => [.. (saved ?? []).Where(QuoteColumns.Contains)];
+
+	/// <summary>Hidden columns as saved: in menu order, null when none is hidden.</summary>
+	public static List<OptionQuoteColumn>? ToSavedHiddenColumns(
+		IReadOnlySet<OptionQuoteColumn> hidden
+	) => hidden.Count > 0 ? [.. QuoteColumns.Where(hidden.Contains)] : null;
 }

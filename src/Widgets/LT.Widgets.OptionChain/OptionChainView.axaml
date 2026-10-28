@@ -2,6 +2,7 @@
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:LT.App.Widgets.OptionChain"
+	xmlns:enums="using:LT.Contracts.Enums"
 	x:Class="LT.App.Widgets.OptionChain.OptionChainView"
 	x:DataType="vm:OptionChainViewModel"
 >
@@ -130,6 +131,15 @@
 		     No Maximum: a typo above the cap stays visible and is refused on click instead of being
 		     clamped into a 100-contract order -->
 		<DockPanel DockPanel.Dock="Top" Margin="2,0,0,6">
+			<!-- Which quote columns show, on both sides; also on a header's right-click -->
+			<Button
+				x:Name="ColumnsButton"
+				DockPanel.Dock="Right"
+				Margin="8,0,0,0"
+				VerticalAlignment="Center"
+				Content="Columns"
+				ToolTip.Tip="Show or hide columns (also: right-click a column header)"
+			/>
 			<StackPanel
 				DockPanel.Dock="Right"
 				Orientation="Horizontal"
@@ -209,10 +219,70 @@
 				<Style Selector="Border.strike.atm">
 					<Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
 				</Style>
-				<!-- In the money: calls below the underlying price, puts above it; the strike
-				     column belongs to neither side and only marks the ATM strike -->
-				<Style Selector="Border.itm">
-					<Setter Property="Background" Value="{DynamicResource ItmBrush}" />
+				<!-- Calls' cells are tinted green, puts' red; in the money (calls below the
+				     underlying price, puts above it) the tint is stronger. The strike column belongs
+				     to neither side and keeps its σ colouring -->
+				<Style Selector="Border.call">
+					<Setter Property="Background" Value="{DynamicResource CallSideBrush}" />
+				</Style>
+				<Style Selector="Border.call.itm">
+					<Setter Property="Background" Value="{DynamicResource CallItmBrush}" />
+				</Style>
+				<Style Selector="Border.put">
+					<Setter Property="Background" Value="{DynamicResource PutSideBrush}" />
+				</Style>
+				<Style Selector="Border.put.itm">
+					<Setter Property="Background" Value="{DynamicResource PutItmBrush}" />
+				</Style>
+				<!-- Strike cell: its call half (calls' side) and put half open an order ticket for
+				     that option. Transparent over the σ colour; hovering the cell shows the C / P
+				     badges, the half under the pointer brightens its own -->
+				<Style Selector="Button.strikeHalf">
+					<Setter Property="HorizontalAlignment" Value="Stretch" />
+					<Setter Property="VerticalAlignment" Value="Stretch" />
+					<Setter Property="VerticalContentAlignment" Value="Center" />
+					<Setter Property="Padding" Value="3,0" />
+					<Setter Property="MinHeight" Value="0" />
+					<Setter Property="CornerRadius" Value="0" />
+					<Setter Property="BorderThickness" Value="0" />
+					<Setter Property="Background" Value="Transparent" />
+				</Style>
+				<Style Selector="Button.strikeHalf.call">
+					<Setter Property="HorizontalContentAlignment" Value="Left" />
+				</Style>
+				<Style Selector="Button.strikeHalf.put">
+					<Setter Property="HorizontalContentAlignment" Value="Right" />
+				</Style>
+				<Style Selector="Button.strikeHalf:not(:disabled)">
+					<Setter Property="Cursor" Value="Hand" />
+				</Style>
+				<Style Selector="Button.strikeHalf:pressed">
+					<Setter Property="RenderTransform" Value="none" />
+				</Style>
+				<Style Selector="Button.strikeHalf:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.strikeHalf:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.strikeHalf:disabled /template/ ContentPresenter#PART_ContentPresenter">
+					<Setter Property="Background" Value="Transparent" />
+				</Style>
+				<Style Selector="Border.badge">
+					<Setter Property="Opacity" Value="0" />
+					<Setter Property="CornerRadius" Value="3" />
+					<Setter Property="Padding" Value="4,0" />
+				</Style>
+				<Style Selector="Border.badge TextBlock">
+					<Setter Property="FontSize" Value="10" />
+					<Setter Property="FontWeight" Value="SemiBold" />
+					<Setter Property="Foreground" Value="White" />
+				</Style>
+				<Style Selector="Border.badge.call">
+					<Setter Property="Background" Value="{DynamicResource PositiveBrush}" />
+				</Style>
+				<Style Selector="Border.badge.put">
+					<Setter Property="Background" Value="{DynamicResource NegativeBrush}" />
+				</Style>
+				<Style Selector="Grid.strikeCell:pointerover Button.strikeHalf:not(:disabled) Border.badge">
+					<Setter Property="Opacity" Value="0.45" />
+				</Style>
+				<Style Selector="Grid.strikeCell Button.strikeHalf:pointerover:not(:disabled) Border.badge">
+					<Setter Property="Opacity" Value="1" />
 				</Style>
 				<!-- One-click trading: ask cells buy, bid cells sell. Only they get the hand cursor
 				     and a translucent buy / sell tint on hover, drawn over the ITM shade; disabled
@@ -253,10 +323,15 @@
 				</Style>
 			</DataGrid.Styles>
 			<DataGrid.Columns>
-				<DataGridTemplateColumn Header="Call vol" Width="*" CellStyleClasses="quote">
+				<DataGridTemplateColumn
+					Header="Call vol"
+					Width="*"
+					CellStyleClasses="quote"
+					Tag="{x:Static enums:OptionQuoteColumn.Volume}"
+				>
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:OptionRowViewModel">
-							<Border Classes.itm="{Binding IsCallInTheMoney}">
+							<Border Classes="call" Classes.itm="{Binding IsCallInTheMoney}">
 								<TextBlock
 									HorizontalAlignment="Center"
 									VerticalAlignment="Center"
@@ -266,10 +341,15 @@
 						</DataTemplate>
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
-				<DataGridTemplateColumn Header="Call last" Width="*" CellStyleClasses="quote">
+				<DataGridTemplateColumn
+					Header="Call last"
+					Width="*"
+					CellStyleClasses="quote"
+					Tag="{x:Static enums:OptionQuoteColumn.Last}"
+				>
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:OptionRowViewModel">
-							<Border Classes.itm="{Binding IsCallInTheMoney}">
+							<Border Classes="call" Classes.itm="{Binding IsCallInTheMoney}">
 								<TextBlock
 									HorizontalAlignment="Center"
 									VerticalAlignment="Center"
@@ -279,10 +359,15 @@
 						</DataTemplate>
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
-				<DataGridTemplateColumn Header="Call ask" Width="*" CellStyleClasses="quote">
+				<DataGridTemplateColumn
+					Header="Call ask"
+					Width="*"
+					CellStyleClasses="quote"
+					Tag="{x:Static enums:OptionQuoteColumn.Ask}"
+				>
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:OptionRowViewModel">
-							<Border Classes.itm="{Binding IsCallInTheMoney}">
+							<Border Classes="call" Classes.itm="{Binding IsCallInTheMoney}">
 								<Button
 									Classes="quickTrade buy"
 									Command="{Binding BuyCallCommand}"
@@ -295,10 +380,15 @@
 						</DataTemplate>
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
-				<DataGridTemplateColumn Header="Call bid" Width="*" CellStyleClasses="quote">
+				<DataGridTemplateColumn
+					Header="Call bid"
+					Width="*"
+					CellStyleClasses="quote"
+					Tag="{x:Static enums:OptionQuoteColumn.Bid}"
+				>
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:OptionRowViewModel">
-							<Border Classes.itm="{Binding IsCallInTheMoney}">
+							<Border Classes="call" Classes.itm="{Binding IsCallInTheMoney}">
 								<Button
 									Classes="quickTrade sell"
 									Command="{Binding SellCallCommand}"
@@ -313,29 +403,58 @@
 				<DataGridTemplateColumn Header="Strike" Width="*" CellStyleClasses="strike">
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:OptionRowViewModel">
-							<Border
-								Classes="strike"
-								Classes.atm="{Binding IsAtm}"
-								Classes.sigma1="{Binding IsWithinOneSigma}"
-								Classes.sigma2="{Binding IsWithinTwoSigma}"
-								Classes.sigma3="{Binding IsWithinThreeSigma}"
-								Classes.sigma4="{Binding IsBeyondThreeSigma}"
-								ToolTip.Tip="{Binding SigmaText}"
-							>
-								<TextBlock
-									FontWeight="SemiBold"
-									HorizontalAlignment="Center"
-									VerticalAlignment="Center"
-									Text="{Binding StrikeText}"
-								/>
-							</Border>
+							<Grid Classes="strikeCell" ColumnDefinitions="*,*">
+								<Border
+									Grid.ColumnSpan="2"
+									Classes="strike"
+									Classes.atm="{Binding IsAtm}"
+									Classes.sigma1="{Binding IsWithinOneSigma}"
+									Classes.sigma2="{Binding IsWithinTwoSigma}"
+									Classes.sigma3="{Binding IsWithinThreeSigma}"
+									Classes.sigma4="{Binding IsBeyondThreeSigma}"
+								>
+									<TextBlock
+										FontWeight="SemiBold"
+										HorizontalAlignment="Center"
+										VerticalAlignment="Center"
+										Text="{Binding StrikeText}"
+									/>
+								</Border>
+								<Button
+									Grid.Column="0"
+									Classes="strikeHalf call"
+									Command="{Binding OpenCallTicketCommand}"
+									ToolTip.Tip="{Binding CallTicketTip}"
+									ToolTip.ShowOnDisabled="True"
+								>
+									<Border Classes="badge call">
+										<TextBlock Text="C" />
+									</Border>
+								</Button>
+								<Button
+									Grid.Column="1"
+									Classes="strikeHalf put"
+									Command="{Binding OpenPutTicketCommand}"
+									ToolTip.Tip="{Binding PutTicketTip}"
+									ToolTip.ShowOnDisabled="True"
+								>
+									<Border Classes="badge put">
+										<TextBlock Text="P" />
+									</Border>
+								</Button>
+							</Grid>
 						</DataTemplate>
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
-				<DataGridTemplateColumn Header="Put bid" Width="*" CellStyleClasses="quote">
+				<DataGridTemplateColumn
+					Header="Put bid"
+					Width="*"
+					CellStyleClasses="quote"
+					Tag="{x:Static enums:OptionQuoteColumn.Bid}"
+				>
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:OptionRowViewModel">
-							<Border Classes.itm="{Binding IsPutInTheMoney}">
+							<Border Classes="put" Classes.itm="{Binding IsPutInTheMoney}">
 								<Button
 									Classes="quickTrade sell"
 									Command="{Binding SellPutCommand}"
@@ -347,10 +466,15 @@
 						</DataTemplate>
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
-				<DataGridTemplateColumn Header="Put ask" Width="*" CellStyleClasses="quote">
+				<DataGridTemplateColumn
+					Header="Put ask"
+					Width="*"
+					CellStyleClasses="quote"
+					Tag="{x:Static enums:OptionQuoteColumn.Ask}"
+				>
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:OptionRowViewModel">
-							<Border Classes.itm="{Binding IsPutInTheMoney}">
+							<Border Classes="put" Classes.itm="{Binding IsPutInTheMoney}">
 								<Button
 									Classes="quickTrade buy"
 									Command="{Binding BuyPutCommand}"
@@ -363,10 +487,15 @@
 						</DataTemplate>
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
-				<DataGridTemplateColumn Header="Put last" Width="*" CellStyleClasses="quote">
+				<DataGridTemplateColumn
+					Header="Put last"
+					Width="*"
+					CellStyleClasses="quote"
+					Tag="{x:Static enums:OptionQuoteColumn.Last}"
+				>
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:OptionRowViewModel">
-							<Border Classes.itm="{Binding IsPutInTheMoney}">
+							<Border Classes="put" Classes.itm="{Binding IsPutInTheMoney}">
 								<TextBlock
 									HorizontalAlignment="Center"
 									VerticalAlignment="Center"
@@ -376,10 +505,15 @@
 						</DataTemplate>
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
-				<DataGridTemplateColumn Header="Put vol" Width="*" CellStyleClasses="quote">
+				<DataGridTemplateColumn
+					Header="Put vol"
+					Width="*"
+					CellStyleClasses="quote"
+					Tag="{x:Static enums:OptionQuoteColumn.Volume}"
+				>
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate x:DataType="vm:OptionRowViewModel">
-							<Border Classes.itm="{Binding IsPutInTheMoney}">
+							<Border Classes="put" Classes.itm="{Binding IsPutInTheMoney}">
 								<TextBlock
 									HorizontalAlignment="Center"
 									VerticalAlignment="Center"

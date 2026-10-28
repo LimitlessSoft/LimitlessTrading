@@ -14,6 +14,12 @@ public class OrderDraftDto
 	public OrderAction Action { get; init; }
 	public decimal Quantity { get; init; }
 
+	/// <summary>
+	/// Put in the ticket's limit price box (e.g. an option's mid), so switching to a limit order
+	/// starts from it; the order type stays market. Null leaves the box empty.
+	/// </summary>
+	public decimal? LimitPrice { get; init; }
+
 	/// <summary>Why the ticket is pre-filled, shown above it; null for none.</summary>
 	public string? Note { get; init; }
 }
