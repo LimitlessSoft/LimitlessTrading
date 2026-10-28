@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LT.App.Stores;
@@ -29,6 +31,12 @@ public partial class WorkspaceViewModel : ViewModelBase
 	// Center widget last clicked or typed in: where Esc in a side or bottom widget returns focus
 	private string? _lastCenterId;
 
+	// Set once the constructor has placed everything: IsShown is worked out from then on
+	private readonly bool _ready;
+
+	// Open DeferShown scopes: IsShown is worked out when the last one ends
+	private int _shownDeferrals;
+
 	public WorkspaceViewModel(
 		Func<WorkspaceTool, object> createContent,
 		WorkspaceLayoutDto layout,
@@ -40,6 +48,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 		_host = host;
 		Appearance = appearance;
 		Bottom.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasBottomWidgets));
+		Widgets.CollectionChanged += OnWidgetsChanged;
 		LeftWidth = layout.LeftWidth;
 		RightWidth = layout.RightWidth;
 		BottomHeight = layout.BottomHeight;
@@ -73,6 +82,8 @@ public partial class WorkspaceViewModel : ViewModelBase
 		LeftActive = Left.FirstOrDefault(x => x.Id == layout.LeftWidgetId);
 		RightActive = Right.FirstOrDefault(x => x.Id == layout.RightWidgetId);
 		BottomActive = Bottom.FirstOrDefault(x => x.Id == layout.BottomWidgetId);
+		_ready = true;
+		UpdateShown();
 	}
 
 	/// <summary>
@@ -113,7 +124,17 @@ public partial class WorkspaceViewModel : ViewModelBase
 		// The widget framed as current stays only if it is still on screen
 		if (CurrentWidget is { IsCenter: true } current && !IsInView(newValue, current.Id))
 			CurrentWidget = null;
+		UpdateShown();
 	}
+
+	/// <summary>
+	/// The window showing this workspace is minimized (set by <see cref="WorkspaceView"/>): none
+	/// of its widgets counts as shown but floating ones, whose own window decides.
+	/// </summary>
+	[ObservableProperty]
+	public partial bool IsWindowMinimized { get; set; }
+
+	partial void OnIsWindowMinimizedChanged(bool value) => UpdateShown();
 
 	public void SelectView(CenterViewItem view)
 	{
@@ -337,6 +358,8 @@ public partial class WorkspaceViewModel : ViewModelBase
 	{
 		if (!Widgets.Contains(widget))
 			return false;
+		// Collapsing it on its way out isn't hiding it: the adopting window decides
+		using var _ = DeferShown();
 		if (FullscreenWidget == widget)
 			FullscreenWidget = null;
 		if (widget.Dock != null)
@@ -500,6 +523,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 	{
 		oldValue?.IsFullscreen = false;
 		newValue?.IsFullscreen = true;
+		UpdateShown();
 	}
 
 	/// <summary>
@@ -545,6 +569,7 @@ public partial class WorkspaceViewModel : ViewModelBase
 	/// </summary>
 	public WidgetItem Spawn(WorkspaceTool tool)
 	{
+		using var _ = DeferShown();
 		var widget = CreateItem(NewId(tool), tool);
 		Place(widget, GetSpawnDock(tool));
 		Reveal(widget);
@@ -613,6 +638,8 @@ public partial class WorkspaceViewModel : ViewModelBase
 		string? viewId = null
 	)
 	{
+		// Placed, then expanded or shown: it is told once, at the end
+		using var _ = DeferShown();
 		if (dock == WidgetDock.Center)
 		{
 			var view =
@@ -857,11 +884,73 @@ public partial class WorkspaceViewModel : ViewModelBase
 	{
 		OnPropertyChanged(nameof(HasCenterWidgets));
 		CenterChanged?.Invoke();
+		UpdateShown();
 	}
 
-	private static void Activate(WidgetItem? oldValue, WidgetItem? newValue)
+	private void Activate(WidgetItem? oldValue, WidgetItem? newValue)
 	{
 		oldValue?.IsActive = false;
 		newValue?.IsActive = true;
+		UpdateShown();
 	}
+
+	// A widget joins or leaves this workspace; its dock and floating window state decide whether
+	// it is on screen
+	private void OnWidgetsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+	{
+		foreach (var widget in e.OldItems?.OfType<WidgetItem>() ?? [])
+			widget.PropertyChanged -= OnWidgetPropertyChanged;
+		foreach (var widget in e.NewItems?.OfType<WidgetItem>() ?? [])
+			widget.PropertyChanged += OnWidgetPropertyChanged;
+		UpdateShown();
+	}
+
+	private void OnWidgetPropertyChanged(object? sender, PropertyChangedEventArgs e)
+	{
+		if (e.PropertyName is nameof(WidgetItem.Dock) or nameof(WidgetItem.IsFloatMinimized))
+			UpdateShown();
+	}
+
+	// Tells every placed widget whether it is on screen. One without a dock (moving, or released
+	// to another window) keeps what it had, so a move doesn't stop and restart its streams.
+	private void UpdateShown()
+	{
+		if (!_ready || _shownDeferrals > 0)
+			return;
+		foreach (var widget in Widgets.ToList())
+			if (widget.Dock is { } dock)
+				widget.IsShown = GetShown(widget, dock);
+	}
+
+	// Several steps that each move a widget (dock, tree, expanded) count once, at the end, so a
+	// widget moved from one shown place to another never looks hidden in between
+	private Deferral DeferShown()
+	{
+		_shownDeferrals++;
+		return new Deferral(this);
+	}
+
+	private readonly struct Deferral(WorkspaceViewModel workspace) : IDisposable
+	{
+		public void Dispose()
+		{
+			if (--workspace._shownDeferrals == 0)
+				workspace.UpdateShown();
+		}
+	}
+
+	// Floating: its own window decides (an owned window may stay on screen when the owner is
+	// minimized). Fullscreen covers the window. Center: in the shown view. Sides: expanded.
+	private bool GetShown(WidgetItem widget, WidgetDock dock) =>
+		dock == WidgetDock.Floating
+			? !widget.IsFloatMinimized
+			: !IsWindowMinimized
+				&& (
+					FullscreenWidget == widget
+					|| (
+						dock == WidgetDock.Center
+							? IsInView(SelectedView, widget.Id)
+							: widget.IsActive
+					)
+				);
 }

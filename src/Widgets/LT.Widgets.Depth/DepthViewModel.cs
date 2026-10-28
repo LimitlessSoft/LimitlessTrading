@@ -28,6 +28,9 @@ public partial class DepthViewModel : ConnectedViewModelBase, ILinkable, IWidget
 	private CancellationToken _session = new(true);
 	private ContractDto? _contract;
 
+	// Placed in the workspace (IWidgetOpenState); the feed runs only while also shown
+	private bool _isOpen = true;
+
 	public DepthViewModel(
 		IMarketDepthManager marketDepthManager,
 		IConnectionManager connectionManager,
@@ -116,9 +119,21 @@ public partial class DepthViewModel : ConnectedViewModelBase, ILinkable, IWidget
 	// The workspace closed or reopened the widget: a closed one holds no depth subscription
 	public void SetOpen(bool isOpen)
 	{
-		if (isOpen == _feed.IsOpen)
+		_isOpen = isOpen;
+		UpdateFeedOpen();
+	}
+
+	// Hidden (inactive view, collapsed panel, minimized window): its slot, one of IB's three,
+	// goes back; shown again, the book subscribes again. Connected or not: the feed also waits for
+	// the session
+	protected override void OnShownChanged() => UpdateFeedOpen();
+
+	private void UpdateFeedOpen()
+	{
+		var open = _isOpen && IsShown;
+		if (open == _feed.IsOpen)
 			return;
-		_feed.SetOpen(isOpen);
+		_feed.SetOpen(open);
 		ClearBook();
 		ErrorMessage = null;
 		ShowWaiting();

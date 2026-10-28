@@ -443,7 +443,9 @@ new instance) and lives in one of four wrappers:
   rows are fixed view models refilled in place. IB's refusals (no depth subscription, three
   subscriptions already open) show as the widget's error. Closing the widget cancels its depth
   subscription at once (`IWidgetOpenState`, called by `WorkspaceViewModel.Close`; `DepthFeed`
-  owns the stream), so the slot is free. Several Depth widgets can be open (each on its own link
+  owns the stream), so the slot is free; so does hiding it (an inactive view, a collapsed panel,
+  a minimized window — see [Lifetime of subscriptions](#lifetime-of-subscriptions)), and showing
+  it subscribes again. Several Depth widgets can be open (each on its own link
   group's contract); past IB's three subscriptions, the extra one shows IB's refusal. Data from `IMarketDepthManager`
   ([ibkr-tws-api.md → Market depth](ibkr-tws-api.md#market-depth)).
 - **Calendar** (`LT.Widgets.Calendar`, right side, closed on first run, Ctrl+Alt+V): upcoming
@@ -944,6 +946,28 @@ burst (an `Interlocked` flag), the UI thread drains the queue — see `ChartLive
 A widget that subscribes to a stream holds a `CancellationTokenSource`, cancels it when the
 connection drops or the widget is closed. Cancelling ends the `await foreach`, which cancels the IB
 subscription and frees the market-data line.
+
+**Hidden widgets hold no lines.** The workspace tells every widget view model whether it is on
+screen (`IWidgetVisibility.SetShown`, in `LT.Widgets.Core/Workspace`): `WorkspaceViewModel`
+works out `WidgetItem.IsShown` — a center widget only in the shown view, a side or bottom widget
+only while expanded (or fullscreen), a floating widget unless its own window is minimized
+(`WidgetItem.IsFloatMinimized`), and nothing of a minimized workspace window but its floating
+widgets (`IsWindowMinimized`; `WorkspaceView` follows both windows' `WindowState`). A widget being
+moved (drop, spawn, another window) is told once, where it lands, so a move from one shown place to
+another doesn't restart its streams. A view model the workspace never tells (the order ticket in
+the Close-position dialog) counts as shown.
+
+`ConnectedViewModelBase` turns that into a second scope inside the connection session: the
+**streams** scope, live while connected *and* shown. `OnStreamsStarted(token)` runs on connect
+(after `OnConnected`) and when shown again; `OnStreamsStopped()` when hidden and before
+`OnDisconnected`; `StreamsToken` / `IsStreaming` for streams started later (a new contract, a
+chain that finished loading); `OnShownChanged()` for anything that follows visibility whether
+connected or not. Market data streams belong in this scope, loads and orders in the session.
+A hidden widget keeps its rows and last values, so showing it again only waits for fresh quotes.
+Using it: the option chain (underlying and every row), the order ticket (its quote line) and Depth
+(its depth subscription, `_isOpen && IsShown`). The watchlist already streams only rows its grid
+reports on screen (none while hidden; see Watchlists). Charts and news keep streaming while
+hidden: a chart's bars and a news feed would miss what arrives meanwhile.
 
 ## Keyboard shortcuts
 
