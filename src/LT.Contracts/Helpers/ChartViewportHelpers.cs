@@ -47,6 +47,25 @@ public static class ChartViewportHelpers
 		double barSpacing
 	) => (int)Math.Floor(rightEdge - (plotRight - x) / barSpacing);
 
+	/// <summary>X of a bar position (fractional; bar <c>i</c>'s centre is position <c>i</c>).</summary>
+	public static double GetPositionX(
+		double position,
+		double rightEdge,
+		double plotRight,
+		double barSpacing
+	) => plotRight - (rightEdge - position - 0.5) * barSpacing;
+
+	/// <summary>
+	/// Bar position under <paramref name="x"/> (fractional; the inverse of
+	/// <see cref="GetPositionX"/>). Rounded, it is the bar <see cref="GetBarIndexAt"/> gives.
+	/// </summary>
+	public static double GetPositionAt(
+		double x,
+		double rightEdge,
+		double plotRight,
+		double barSpacing
+	) => rightEdge - 0.5 - (plotRight - x) / barSpacing;
+
 	/// <summary>X of the line between the last bar and the right margin.</summary>
 	public static double GetMarginHandleX(
 		int barCount,

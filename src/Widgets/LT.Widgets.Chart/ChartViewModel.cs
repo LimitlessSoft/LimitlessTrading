@@ -53,7 +53,9 @@ namespace LT.App.Widgets.Chart;
 /// <para>
 /// The contract's price alerts are drawn on it and added, moved and removed from it; see
 /// ChartViewModel.Alerts.cs. The toolbox bar above the plot (shown or hidden per chart) arms
-/// tools such as placing an alert with a click; see ChartViewModel.Toolbox.cs.
+/// tools such as placing an alert with a click; see ChartViewModel.Toolbox.cs. Its Draw button
+/// turns on drawing mode: trend lines, shapes, Fibonacci levels, measures and notes, kept per
+/// contract; see ChartViewModel.Drawings.cs.
 /// </para>
 /// </summary>
 public partial class ChartViewModel
@@ -113,6 +115,7 @@ public partial class ChartViewModel
 		IIndicatorManager indicatorManager,
 		IChartTemplateManager chartTemplateManager,
 		IPriceAlertManager priceAlertManager,
+		IChartDrawingManager chartDrawingManager,
 		AccountStore accountStore,
 		LinkGroupStore linkGroupStore,
 		DisplayTimeStore displayTime,
@@ -131,6 +134,7 @@ public partial class ChartViewModel
 		_indicatorManager = indicatorManager;
 		_chartTemplateManager = chartTemplateManager;
 		_priceAlertManager = priceAlertManager;
+		_chartDrawingManager = chartDrawingManager;
 		_settingsManager = settingsManager;
 		_timeProvider = timeProvider;
 		_accountStore = accountStore;
@@ -145,6 +149,7 @@ public partial class ChartViewModel
 		indicatorManager.DefinitionsChanged += OnIndicatorDefinitionsChanged;
 		tradeJournalManager.FillsChanged += OnFillsChanged;
 		priceAlertManager.AlertsChanged += OnAlertsChanged;
+		chartDrawingManager.DrawingsChanged += OnDrawingsChangedElsewhere;
 		accountStore.PropertyChanged += OnAccountChanged;
 		settingsManager.AppSettingsChanged += OnAppSettingsChanged;
 		Link = new ContractLink(linkGroupStore, () => _contract);
@@ -251,6 +256,9 @@ public partial class ChartViewModel
 			Link.Group = LinkGroup.None;
 		RightMargin = Math.Max(0, placement.ChartRightMargin ?? 0);
 		ShowToolbox = placement.ChartShowToolbox ?? true;
+		IsDrawingMode = placement.ChartDrawingMode ?? false;
+		DrawingsLocked = placement.ChartDrawingsLocked ?? false;
+		DrawingsHidden = placement.ChartDrawingsHidden ?? false;
 		_indicators = [.. placement.ChartIndicators ?? []];
 		RefreshChartIndicators();
 		ScheduleIndicators();
@@ -271,6 +279,9 @@ public partial class ChartViewModel
 		placement.ChartTemplateId = _templateId;
 		placement.ChartFollowTemplate = FollowTemplate;
 		placement.ChartShowToolbox = ShowToolbox;
+		placement.ChartDrawingMode = IsDrawingMode ? true : null;
+		placement.ChartDrawingsLocked = DrawingsLocked ? true : null;
+		placement.ChartDrawingsHidden = DrawingsHidden ? true : null;
 	}
 
 	public override void Dispose()
@@ -284,6 +295,7 @@ public partial class ChartViewModel
 		_indicatorManager.DefinitionsChanged -= OnIndicatorDefinitionsChanged;
 		_tradeJournalManager.FillsChanged -= OnFillsChanged;
 		_priceAlertManager.AlertsChanged -= OnAlertsChanged;
+		_chartDrawingManager.DrawingsChanged -= OnDrawingsChangedElsewhere;
 		_accountStore.PropertyChanged -= OnAccountChanged;
 		_settingsManager.AppSettingsChanged -= OnAppSettingsChanged;
 		DisplayTime.ZoneChanged -= _status.Rebuild;
@@ -532,6 +544,9 @@ public partial class ChartViewModel
 	{
 		LoadTrades();
 		LoadAlerts();
+		// A pending "Remove all" named the symbol shown before
+		IsConfirmingRemoveAllDrawings = false;
+		LoadDrawings();
 		RefreshTools();
 		UpdateBreakEven();
 		_load?.Cancel();

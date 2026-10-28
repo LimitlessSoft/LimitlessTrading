@@ -233,4 +233,39 @@ public class ChartViewportHelpersTests
 			ChartViewportHelpers.GetPriceAxisWidth([double.NaN])
 		);
 	}
+
+	[Fact]
+	public void A_bar_position_maps_to_its_bar_centre_and_back()
+	{
+		var edge = ChartViewportHelpers.GetRightEdge(100, 0, 0);
+
+		Assert.Equal(
+			ChartViewportHelpers.GetBarX(42, edge, PlotRight, Spacing),
+			ChartViewportHelpers.GetPositionX(42, edge, PlotRight, Spacing)
+		);
+		Assert.Equal(
+			42.3,
+			ChartViewportHelpers.GetPositionAt(
+				ChartViewportHelpers.GetPositionX(42.3, edge, PlotRight, Spacing),
+				edge,
+				PlotRight,
+				Spacing
+			),
+			9
+		);
+	}
+
+	[Theory]
+	[InlineData(397)]
+	[InlineData(403)]
+	[InlineData(406)]
+	public void A_rounded_position_is_the_bar_slot_under_the_point(double x)
+	{
+		var edge = ChartViewportHelpers.GetRightEdge(100, 0, 0);
+
+		Assert.Equal(
+			ChartViewportHelpers.GetBarIndexAt(x, edge, PlotRight, Spacing),
+			(int)Math.Floor(ChartViewportHelpers.GetPositionAt(x, edge, PlotRight, Spacing) + 0.5)
+		);
+	}
 }

@@ -205,7 +205,8 @@ SDK copy, [indicators.md](indicators.md#script-files)). IB Flex imports go into 
 `Source = Flex`, fills carrying their Flex `TradeId`); the import's progress is in
 `flex-import.json`, and the Flex token in `settings.json` (`SettingsEntity.Flex`, plain text).
 Chart price alerts (active and fired) are in `price-alerts.json` (`PriceAlertRepository`, apart
-from `settings.json` so an alert firing on a price stream never races a settings save). None of
+from `settings.json` so an alert firing on a price stream never races a settings save); chart
+drawings, per contract (ConId), in `chart-drawings.json` (`ChartDrawingRepository`). None of
 these are part of the cache, so Clear cache and the size limit never touch them; nor do they touch
 the Notes widgets' text, `notes.json` (one entry per note id). All live under the OS app-data folder
 (`Environment.SpecialFolder.ApplicationData`: `%APPDATA%\LimitlessTrading` on Windows,

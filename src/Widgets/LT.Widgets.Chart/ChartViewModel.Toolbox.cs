@@ -8,7 +8,9 @@ namespace LT.App.Widgets.Chart;
 /// its ✕), saved with the chart; shown by default. A tool is armed by its button and used by the
 /// next click on the chart; clicking the button again or Esc disarms it. The alert tool shows a
 /// preview line at the pointer's price and adds an alert where the price chart is clicked (like
-/// Add alert, the direction told from the last close).
+/// Add alert, the direction told from the last close). The bar's Draw button turns drawing mode
+/// on and off (ChartViewModel.Drawings.cs); an alert tool and a drawing tool are never armed
+/// together.
 /// </summary>
 public partial class ChartViewModel
 {
@@ -43,11 +45,14 @@ public partial class ChartViewModel
 		ActiveTool = ActiveTool == item.Tool || !CanUseTool(item.Tool) ? null : item.Tool;
 	}
 
-	/// <summary>Esc: disarms the armed tool. False when none was.</summary>
+	/// <summary>
+	/// Esc: disarms the armed tool (the cursor again for a drawing tool), else drops the selected
+	/// drawing. False when there was nothing to undo.
+	/// </summary>
 	public bool CancelTool()
 	{
 		if (ActiveTool == null)
-			return false;
+			return CancelDrawingTool();
 		ActiveTool = null;
 		return true;
 	}
@@ -68,6 +73,9 @@ public partial class ChartViewModel
 	{
 		foreach (var item in Tools)
 			item.IsActive = item.Tool == value;
+		// One armed tool at a time: an alert tool puts the drawing tool down
+		if (value != null)
+			ActiveDrawingKind = null;
 	}
 
 	// A hidden bar leaves no tool armed
@@ -84,6 +92,7 @@ public partial class ChartViewModel
 			item.IsEnabled = CanUseTool(item.Tool);
 		if (ActiveTool is { } tool && !CanUseTool(tool))
 			ActiveTool = null;
+		RefreshDrawingTools();
 	}
 
 	private bool CanUseTool(ChartTool tool) =>

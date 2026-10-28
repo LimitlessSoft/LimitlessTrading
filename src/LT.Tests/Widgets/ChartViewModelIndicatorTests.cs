@@ -216,6 +216,7 @@ public class ChartViewModelIndicatorTests : IDisposable
 				new MessageLogManager(),
 				_cache.Time
 			),
+			new ChartDrawingManager(new InMemoryChartDrawingRepository()),
 			new AccountStore(_connection, settings),
 			new LinkGroupStore(),
 			new DisplayTimeStore(settings, _cache.Time),

@@ -132,6 +132,9 @@ public static class Program
 		// One list of price alerts for every chart and the watcher (each fires once)
 		builder.Services.AddSingleton<IPriceAlertRepository, PriceAlertRepository>();
 		builder.Services.AddSingleton<IPriceAlertManager, PriceAlertManager>();
+		// One list of drawings per contract for every chart of it
+		builder.Services.AddSingleton<IChartDrawingRepository, ChartDrawingRepository>();
+		builder.Services.AddSingleton<IChartDrawingManager, ChartDrawingManager>();
 		// The fired alerts waiting in the popup and the one alarm repeating for them
 		builder.Services.AddSingleton<IPriceAlertAlarmManager, PriceAlertAlarmManager>();
 		builder.Services.AddSingleton<IFlexImportManager, FlexImportManager>();

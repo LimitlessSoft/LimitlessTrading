@@ -46,6 +46,11 @@ namespace LT.App.Widgets.Chart;
 /// Price alerts (<see cref="Alerts"/>) are lines that drag to a new level and have a ✕ to remove
 /// them (CandlestickChart.Alerts.cs).
 /// </para>
+/// <para>
+/// Drawings (<see cref="Drawings"/>: trend lines, shapes, Fibonacci levels, measures, notes) are
+/// anchored at a time and a price; in drawing mode they are drawn, selected and moved with the
+/// pointer (CandlestickChart.Drawings.cs).
+/// </para>
 /// </summary>
 public partial class CandlestickChart : Control
 {
@@ -228,7 +233,13 @@ public partial class CandlestickChart : Control
 			RegularHoursProperty,
 			FitStartProperty,
 			AlertsProperty,
-			IsPlacingAlertProperty
+			IsPlacingAlertProperty,
+			DrawingsProperty,
+			IsDrawingModeProperty,
+			DrawingToolProperty,
+			SelectedDrawingIdProperty,
+			DrawingsLockedProperty,
+			DrawingsHiddenProperty
 		);
 		ClipToBoundsProperty.OverrideDefaultValue<CandlestickChart>(true);
 		FocusableProperty.OverrideDefaultValue<CandlestickChart>(true);
@@ -346,6 +357,7 @@ public partial class CandlestickChart : Control
 			_tradesDirty = true;
 		if (change.Property == IsPlacingAlertProperty)
 			UpdateHandleHover(_pointer);
+		OnDrawingPropertyChanged(change);
 		// A view the user hasn't moved follows the period's start (also when it is bound after
 		// the bars); a moved one stays where it is
 		if (change.Property == FitStartProperty && !_moved)
@@ -439,6 +451,7 @@ public partial class CandlestickChart : Control
 			_pricePane = null;
 			_alertLines.Clear();
 			_alertCloseButtons.Clear();
+			_drawn.Clear();
 			return;
 		}
 
@@ -594,6 +607,12 @@ public partial class CandlestickChart : Control
 
 		DrawTrades(context, bars, priceRect, X, Y);
 		DrawMarginHandle(context, plot, bars.Count, rightEdge);
+
+		// Drawings, under the price lines (break-even, alerts, last price)
+		_pricePane = price;
+		_priceDecimals = decimals;
+		_rightEdge = rightEdge;
+		DrawDrawings(context, plot, decimals);
 
 		// break-even of the open position
 		if (BreakEvenPrice is { } breakEven)
@@ -959,16 +978,24 @@ public partial class CandlestickChart : Control
 	private void UpdateHandleHover(Point? position)
 	{
 		_handleHovered =
-			position is { } p && _dragStart == null && !IsPlacingAlert && IsOnMarginHandle(p);
-		// Placing an alert: a click places it, so nothing under the pointer reads as clickable
+			position is { } p
+			&& _dragStart == null
+			&& !IsPlacingAlert
+			&& !IsDrawingToolArmed
+			&& IsOnMarginHandle(p);
+		// Placing an alert or a drawing: a click places it, so nothing under the pointer reads
+		// as clickable
 		var dragging =
 			_dragStart != null
 			|| _marginDragStartX != null
 			|| _draggedAlert != null
-			|| IsPlacingAlert;
+			|| IsPlacingAlert
+			|| _edit != null
+			|| IsDrawingToolArmed;
 		UpdateLegendHover(dragging ? null : position);
 		Cursor =
 			GetAlertCursor(position) is { } alertCursor ? alertCursor
+			: GetDrawingCursor(position) is { } drawingCursor ? drawingCursor
 			: _handleHovered || _marginDragStartX != null ? ResizeCursor
 			: !dragging && position is { } q && HitLegend(q) != null ? HandCursor
 			: null;
@@ -1051,7 +1078,9 @@ public partial class CandlestickChart : Control
 		base.OnPointerMoved(e);
 		var position = e.GetPosition(this);
 		_pointer = position;
-		if (_draggedAlert != null)
+		if (_stroke != null || _edit != null)
+			OnDrawingPointerMoved(position);
+		else if (_draggedAlert != null)
 			DragAlert(position);
 		else if (_marginDragStartX is { } marginStart)
 			RightMargin = ChartViewportHelpers.DragRightMargin(
@@ -1098,9 +1127,22 @@ public partial class CandlestickChart : Control
 		if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed)
 		{
 			MenuPoint = position;
+			// The right button drops a drawing being placed
+			CancelDrawing();
+			return;
+		}
+		if (OnDrawingToolPressed(e, position))
+		{
+			UpdateHandleHover(position);
 			return;
 		}
 		if (OnAlertPressed(e, position))
+		{
+			e.Handled = true;
+			UpdateHandleHover(position);
+			return;
+		}
+		if (OnDrawingPressed(e, position))
 		{
 			e.Handled = true;
 			UpdateHandleHover(position);
@@ -1139,6 +1181,7 @@ public partial class CandlestickChart : Control
 	protected override void OnPointerReleased(PointerReleasedEventArgs e)
 	{
 		base.OnPointerReleased(e);
+		OnDrawingReleased(e.GetPosition(this));
 		OnAlertReleased();
 		_dragStart = null;
 		_marginDragStartX = null;
@@ -1154,6 +1197,10 @@ public partial class CandlestickChart : Control
 		_draggedAlert = null;
 		_dragStart = null;
 		_marginDragStartX = null;
+		// A drawing being moved goes back, a stroke is dropped; clicked points stay
+		_edit = null;
+		_stroke = null;
+		_newPressAt = null;
 		UpdateHandleHover(_pointer);
 	}
 

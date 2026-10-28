@@ -2,6 +2,7 @@ using LSCore.DependencyInjection;
 using LSCore.Mapper.Contracts;
 using LSCore.Validation.Domain;
 using LT.Contracts.DtoMappings.AccountPerformance;
+using LT.Contracts.DtoMappings.ChartDrawings;
 using LT.Contracts.DtoMappings.Charts;
 using LT.Contracts.DtoMappings.Contracts;
 using LT.Contracts.DtoMappings.Executions;
@@ -11,6 +12,7 @@ using LT.Contracts.DtoMappings.PriceAlerts;
 using LT.Contracts.DtoMappings.Settings;
 using LT.Contracts.DtoMappings.Watchlists;
 using LT.Contracts.Dtos.AccountPerformance;
+using LT.Contracts.Dtos.ChartDrawings;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Executions;
@@ -21,6 +23,7 @@ using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Dtos.Watchlists;
 using LT.Contracts.Entities;
 using LT.Contracts.Requests.Calendar;
+using LT.Contracts.Requests.ChartDrawings;
 using LT.Contracts.Requests.ChartTemplates;
 using LT.Contracts.Requests.Connection;
 using LT.Contracts.Requests.Contracts;
@@ -35,6 +38,7 @@ using LT.Contracts.Requests.PriceAlerts;
 using LT.Contracts.Requests.Settings;
 using LT.Contracts.Requests.Watchlists;
 using LT.Domain.Validators.Calendar;
+using LT.Domain.Validators.ChartDrawings;
 using LT.Domain.Validators.ChartTemplates;
 using LT.Domain.Validators.Connection;
 using LT.Domain.Validators.Contracts;
@@ -195,6 +199,18 @@ public static class LSCoreContainer
 				.AddSingleton<
 					LSCoreValidatorBase<MovePriceAlertRequest>,
 					MovePriceAlertRequestValidator
+				>()
+				.AddSingleton<
+					ILSCoreMapper<ChartDrawingEntity, ChartDrawingDto>,
+					ChartDrawingDtoMapper
+				>()
+				.AddSingleton<
+					LSCoreValidatorBase<CreateChartDrawingRequest>,
+					CreateChartDrawingRequestValidator
+				>()
+				.AddSingleton<
+					LSCoreValidatorBase<UpdateChartDrawingRequest>,
+					UpdateChartDrawingRequestValidator
 				>()
 				.BuildServiceProvider();
 		}

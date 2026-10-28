@@ -7,8 +7,10 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using LT.Contracts.Constants;
+using LT.Contracts.Dtos.ChartDrawings;
 using LT.Contracts.Dtos.Indicators;
 using LT.Contracts.Dtos.PriceAlerts;
+using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 
 namespace LT.App.Widgets.Chart;
@@ -33,6 +35,12 @@ namespace LT.App.Widgets.Chart;
 /// previews the line while it is armed and its click (<see cref="CandlestickChart.AlertPlaced"/>)
 /// places the alert; Esc disarms it.
 /// </para>
+/// <para>
+/// Drawings: the chart raises a finished drawing, a moved one and a double-clicked note; they
+/// reach the view model here. A note's text is typed in a box opened at the pointer (Enter or
+/// clicking away keeps it, Esc drops it). Esc first drops a drawing being placed or moved, then
+/// goes back to the cursor (or drops the selection); Delete removes the selected drawing.
+/// </para>
 /// </summary>
 public partial class ChartView : UserControl
 {
@@ -44,6 +52,9 @@ public partial class ChartView : UserControl
 		Chart.AlertRemoved += id => ViewModel?.RemoveAlert(id);
 		Chart.AlertPlaced += price => ViewModel?.PlaceAlert(price);
 		Chart.OlderBarsNeeded += () => ViewModel?.LoadOlderBars();
+		Chart.DrawingCreated += OnDrawingCreated;
+		Chart.DrawingEdited += (id, points) => ViewModel?.UpdateDrawing(id, points);
+		Chart.DrawingTextEditRequested += OnDrawingTextEditRequested;
 		DataContextChanged += (_, _) => OnViewModelChanged();
 		KeyDown += OnKeyDown;
 		ChartMenu.Opening += (_, _) => FillApplyTemplateMenu();
@@ -155,14 +166,93 @@ public partial class ChartView : UserControl
 	{
 		if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
 		{
-			if (ViewModel?.CancelTool() == true)
+			if (Chart.CancelDrawing() || ViewModel?.CancelTool() == true)
 				e.Handled = true;
+			return;
+		}
+		// Delete (Backspace on a Mac keyboard) removes the selected drawing; not while typing
+		if (
+			e.Key is Key.Delete or Key.Back
+			&& e.KeyModifiers == KeyModifiers.None
+			&& e.Source is not TextBox
+			&& ViewModel is { IsDrawingMode: true, SelectedDrawingId: not null } drawingChart
+		)
+		{
+			drawingChart.DeleteSelectedDrawing();
+			e.Handled = true;
 			return;
 		}
 		if (e.Key != Key.A || e.KeyModifiers != KeyModifiers.Alt || ViewModel is not { } viewModel)
 			return;
 		e.Handled = true;
 		viewModel.AddAlert(Chart.PointerPrice ?? viewModel.LastPrice);
+	}
+
+	// A note asks for its text first; every other drawing is added as drawn
+	private void OnDrawingCreated(ChartDrawingKind kind, IReadOnlyList<ChartDrawingPointDto> points)
+	{
+		if (ViewModel is not { } viewModel)
+			return;
+		if (kind != ChartDrawingKind.Text)
+		{
+			viewModel.AddDrawing(kind, points);
+			return;
+		}
+		viewModel.EndDrawingTool();
+		EditDrawingText(null, text => viewModel.AddDrawing(kind, points, text));
+	}
+
+	private void OnDrawingTextEditRequested(string id)
+	{
+		if (ViewModel is not { } viewModel || viewModel.GetDrawing(id) is not { } drawing)
+			return;
+		EditDrawingText(drawing.Text, text => viewModel.UpdateDrawing(id, drawing.Points, text));
+	}
+
+	// A box at the pointer for a note's text: Enter or clicking away keeps it (when not empty),
+	// Esc drops it
+	private void EditDrawingText(string? text, Action<string> commit)
+	{
+		var box = new TextBox
+		{
+			Width = 260,
+			Text = text,
+			PlaceholderText = "Note (Enter to place)",
+			MaxLength = ChartDrawingConstants.MaxTextLength,
+		};
+		var flyout = new Flyout { Content = box };
+		var finished = false;
+		void Finish(bool keep)
+		{
+			if (finished)
+				return;
+			finished = true;
+			if (keep && !string.IsNullOrWhiteSpace(box.Text))
+				commit(box.Text.Trim());
+		}
+		box.KeyDown += (_, e) =>
+		{
+			if (e.Key is not (Key.Enter or Key.Escape))
+				return;
+			e.Handled = true;
+			Finish(e.Key == Key.Enter);
+			flyout.Hide();
+		};
+		flyout.Opened += (_, _) =>
+			Dispatcher.UIThread.Post(
+				() =>
+				{
+					box.Focus();
+					box.SelectAll();
+				},
+				DispatcherPriority.Loaded
+			);
+		flyout.Closed += (_, _) =>
+		{
+			Finish(true);
+			Chart.Focus();
+		};
+		flyout.ShowAt(Chart, showAtPointer: true);
 	}
 
 	private void OnIndicatorAction(string instanceId, ChartIndicatorAction action)

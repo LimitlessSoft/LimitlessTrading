@@ -983,7 +983,8 @@ hidden: a chart's bars and a news feed would miss what arrives meanwhile.
 | Esc (side or bottom widget) | Back to the last focused center widget; an unpinned widget collapses |
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous center view |
 | Alt+A (chart) | Add a price alert at the price under the pointer, or at the last price |
-| Esc (chart) | Disarm the toolbox's armed tool (e.g. placing an alert) |
+| Esc (chart) | Drop a drawing being placed or moved; else disarm the toolbox's armed tool (placing an alert, a drawing tool → the cursor); else drop the selected drawing |
+| Delete / Backspace (chart, drawing mode) | Remove the selected drawing (not while drawings are locked) |
 | Ctrl+Shift+F | Fullscreen the current widget (the one last clicked or typed in, framed in light blue), or restore it |
 | Ctrl+Shift+N | New empty workspace window |
 
@@ -1003,7 +1004,9 @@ while a text box has focus. On macOS, Cmd works in place of Ctrl.
 library): candles, volume, price grid, last-price line, crosshair + OHLCV readout. Wheel zooms,
 drag pans, double-click resets (zoom and pan, not the right margin); the right button doesn't
 pan — releasing it opens the chart's context menu (Add alert at …, Remove alert, Remove triggered
-alerts, Manage indicators…, Apply template, Templates…, Show toolbox). The account performance widget's `EquityCurveChart` and
+alerts, Manage indicators…, Apply template, Templates…, Show toolbox). Drawings (trend lines,
+shapes, Fibonacci, measures, notes) are drawn on the price chart; in drawing mode they take the
+pointer instead (see *Drawing mode*). The account performance widget's `EquityCurveChart` and
 `DailyPnlBarChart` are drawn the same way (same palette, `ChartDrawing`).
 
 **Toolbox.** A thin bar between the widget header (ticker, timeframe, period, RTH / ETH) and
@@ -1020,6 +1023,57 @@ left click there adds the alert (`ChartViewModel.PlaceAlert` → the same create
 alert*) and disarms. The click doesn't pan, drag an alert line or hit a legend; a click off the
 price chart does nothing, the right button still opens the menu. Disabled (and disarmed) while
 the chart has no bars.
+
+**Drawing mode.** The toolbox's first button, **Draw** (highlighted while on), turns drawing mode
+on for that chart (`ChartViewModel.IsDrawingMode`, saved per chart as `ChartDrawingMode`; null in
+older layouts is off): a palette of tools appears down the plot's left edge
+(`ChartViewModel.DrawingToolGroups`, one `ChartDrawingToolItem` each; it scrolls when the chart is
+short), grouped and split by lines — cursor; trend line, ray, extended line, horizontal line,
+horizontal ray, vertical line, arrow; parallel channel; rectangle, ellipse, triangle; Fibonacci
+retracement and trend-based extension; price range and date range; text and brush; then the
+actions delete selected, remove all (asked first, over the plot), lock and hide. Icons are stroked
+paths on the 24 × 24 grid in the button's colour; each has a tooltip saying how to draw it.
+
+- **Drawing.** A tool's button arms it (the button again: the cursor; arming one disarms the
+  Alert tool and vice versa; disabled while the chart has no bars). Each click on the price chart
+  places a point — or press, drag and release places two — with a preview following the pointer;
+  one-point tools (horizontal line / ray, vertical line, text) are done on the click, three-point
+  ones (channel: the trend line then a point its parallel goes through; triangle; extension: the
+  move's start and end, then where the next leg starts) on the third. The brush draws while the
+  button is held. A finished drawing is selected and the cursor armed again. A text note opens a
+  box at the pointer: Enter or clicking away places it, Esc drops it; double-clicking a note with
+  the cursor edits it. Esc drops the drawing being placed (the tool stays armed), the right button
+  too.
+- **Anchoring.** Every point is a time and a price (`ChartDrawingPointDto`), so drawings follow
+  pan, zoom, resize, new bars and older pages put in front; all but the brush snap to bar centres.
+  A time between two bars (a gap) is interpolated, before the first or after the last bar
+  extrapolated at the timeframe's bar length, so a drawing can reach into the right margin
+  (`ChartDrawingHelpers.GetBarPosition` / `GetTimeAt`, `ChartViewportHelpers.GetPositionX` /
+  `GetPositionAt`). They are drawn on the price chart only, under the break-even, alert and
+  last-price lines; a vertical line runs through every pane and tags its time on the time axis, a
+  horizontal line / ray tags its price on the price axis. Fib levels: retracement 0 at the second
+  point to 1 at the first, plus 1.618; extension 0 at the third point, 1 one whole move on
+  (`ChartDrawingConstants`). The price range labels the change and %, the date range the bars and
+  the time between its points.
+- **Editing.** With the cursor a click selects the drawing under it (the newest on top; anchors
+  shown as circles), dragging it moves it whole (bar-snapped) and dragging an anchor moves that
+  point (a stroke shows only its ends). A click elsewhere drops the selection and pans as usual.
+  Delete (or the palette's) removes the selected one. **Lock** stops selecting, moving and
+  deleting them one by one (Remove all still works); **hide** stops drawing them; arming a tool
+  shows them again. Lock and hide are saved per chart (`ChartDrawingsLocked`,
+  `ChartDrawingsHidden`).
+- **Off.** With drawing mode off the palette is hidden and the drawings stay on the chart, but they
+  don't take the pointer: drag pans, double-click resets, the alert tool works as without them.
+- **Kept per contract.** `IChartDrawingManager` (`ChartDrawingManager`, a singleton) holds the
+  drawings of every contract by ConId, saved in `chart-drawings.json`; every chart of a symbol
+  shows the same ones whatever its timeframe, and a change on one reaches the others
+  (`DrawingsChanged`, posted to the UI thread). Validation: `CreateChartDrawingRequest` /
+  `UpdateChartDrawingRequest`, messages `ChartDrawingValidationCodes`, limits
+  `ChartDrawingConstants` (500 per contract, 5,000 in all, 2,000 points per stroke, 500
+  characters per note). `ChartDrawingKind` is saved as a number: append only. Not part of a chart
+  template.
+- Not built yet: colours, line styles and widths per drawing; a magnet to bar OHLC; undo; copy /
+  clone; keeping a tool armed for several drawings; per-drawing hide or lock; editing fib levels.
 
 **Indicators and panes.** Right-click → Manage indicators… adds and removes indicators; they draw on the
 price chart, on the volume bars or in panes of their own stacked under the price chart, each
