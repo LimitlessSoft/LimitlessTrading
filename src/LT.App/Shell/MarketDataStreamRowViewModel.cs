@@ -14,7 +14,8 @@ public partial class MarketDataStreamRowViewModel(MarketDataStreamDto stream, st
 
 	public string KindText { get; } = MarketDataStreamHelpers.GetKindText(stream);
 
-	public string OwnerText { get; } = string.IsNullOrEmpty(stream.Owner) ? "—" : stream.Owner;
+	/// <summary>Every owner of the line; a shared one also says how many subscriptions read it.</summary>
+	public string OwnerText { get; } = MarketDataStreamHelpers.GetOwnerText(stream);
 
 	/// <summary>When it was opened, in the display time zone.</summary>
 	public string SinceText { get; } = sinceText;

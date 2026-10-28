@@ -19,6 +19,10 @@ public partial class WatchlistView : UserControl
 {
 	private WatchlistViewModel? _subscribed;
 
+	// The rows on screen are reported to the view model once per layout burst
+	private bool _shownRowsPosted;
+	private DataGridRowsPresenter? _rowsPresenter;
+
 	public WatchlistView()
 	{
 		InitializeComponent();
@@ -36,6 +40,14 @@ public partial class WatchlistView : UserControl
 		};
 		SearchBox.Cancelled += () => SearchBox.Reset();
 		Grid.Loaded += (_, _) => UpdateSortGlyphs();
+		// Rows realized, recycled or moved (scrolling, sorting, resizing) show up as layout passes;
+		// a hidden or closed widget reports none, so its rows give their lines back
+		Grid.LayoutUpdated += (_, _) => PostShownRows();
+		Grid.DetachedFromVisualTree += (_, _) =>
+		{
+			_rowsPresenter = null;
+			PostShownRows();
+		};
 		// Tunnel: runs before the grid's ContextMenu, which opens on the bubbling request
 		Grid.AddHandler(ContextRequestedEvent, OnGridContextRequested, RoutingStrategies.Tunnel);
 	}
@@ -59,6 +71,45 @@ public partial class WatchlistView : UserControl
 			_subscribed.ColumnVisibilityChanged += ApplyColumnVisibility;
 		}
 		RebuildCustomColumns();
+		PostShownRows();
+	}
+
+	private void PostShownRows()
+	{
+		if (_shownRowsPosted)
+			return;
+		_shownRowsPosted = true;
+		Dispatcher.UIThread.Post(ReportShownRows, DispatcherPriority.Background);
+	}
+
+	// The rows the grid has laid out inside its viewport (recycled rows are hidden or outside it)
+	private void ReportShownRows()
+	{
+		_shownRowsPosted = false;
+		if (ViewModel is not { } viewModel)
+			return;
+		var shown = new List<WatchlistRowViewModel>();
+		if (
+			Grid.IsEffectivelyVisible
+			&& TopLevel.GetTopLevel(Grid) != null
+			&& Grid.Bounds.Height > 0
+		)
+		{
+			_rowsPresenter ??= Grid.GetVisualDescendants()
+				.OfType<DataGridRowsPresenter>()
+				.FirstOrDefault();
+			if (_rowsPresenter != null)
+				foreach (var row in _rowsPresenter.Children.OfType<DataGridRow>())
+					if (
+						row.IsVisible
+						&& row.DataContext is WatchlistRowViewModel item
+						&& row.TranslatePoint(default, _rowsPresenter) is { } top
+						&& top.Y + row.Bounds.Height > 0
+						&& top.Y < _rowsPresenter.Bounds.Height
+					)
+						shown.Add(item);
+		}
+		viewModel.SetShownRows(shown);
 	}
 
 	private void OnGridKeyDown(object? sender, KeyEventArgs e)

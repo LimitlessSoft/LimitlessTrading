@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using LT.App.Helpers;
 using LT.App.ViewModels;
+using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.MarketData;
 using LT.Contracts.Enums;
@@ -18,7 +19,38 @@ public partial class WatchlistRowViewModel(ContractDto contract) : ViewModelBase
 	/// <summary>Newest quote written by the market data task; applied on the UI flush.</summary>
 	public LatestValue<QuoteDto> Pending { get; } = new();
 
+	/// <summary>Its live quote stream; null while it isn't streaming (off screen, or no free line).</summary>
 	public CancellationTokenSource? Subscription { get; set; }
+
+	/// <summary>When it went off screen while streaming; its line is released a little later.</summary>
+	public DateTimeOffset? HiddenSince { get; set; }
+
+	/// <summary>When its last quote (live or snapshot) was shown; null before the first.</summary>
+	public DateTimeOffset? LastQuoteAt { get; set; }
+
+	/// <summary>A snapshot of it is running.</summary>
+	public bool IsSnapshotRunning { get; set; }
+
+	/// <summary>After a failed snapshot, the next one waits until then.</summary>
+	public DateTimeOffset? SnapshotRetryAt { get; set; }
+
+	/// <summary>After finding no free line, streaming it live is tried again from then.</summary>
+	public DateTimeOffset? LiveRetryAt { get; set; }
+
+	/// <summary>The last error written to the message log for it, so a repeat isn't logged again.</summary>
+	public string? LoggedError { get; set; }
+
+	/// <summary>
+	/// On screen but not streaming: no market data line was free, so its quote is a snapshot,
+	/// refreshed every <c>MarketDataConstants.WatchlistSnapshotRefreshInterval</c>.
+	/// </summary>
+	[ObservableProperty]
+	public partial bool IsLineLimited { get; set; }
+
+	/// <summary>The tooltip of the row's "S" mark (<see cref="IsLineLimited"/>).</summary>
+	public static string LineLimitedTip { get; } =
+		"No free market data line: a snapshot, refreshed about every "
+		+ $"{MarketDataConstants.WatchlistSnapshotRefreshInterval.TotalSeconds:0} seconds";
 
 	// Market cap inputs: the latest flushed quote and the SEC share count (null until known)
 	private QuoteDto? _quote;

@@ -21,7 +21,9 @@ Mirrors the Termodom FE split (`pages/` + `widgets/`):
   listing every line in use — contract, quote / news (and generic ticks such as option IV), who
   opened it and since when — from `IMarketDataManager.GetActiveStreams`, refreshed on
   `StreamsChanged`. Callers pass an owner label (`MarketDataStreamOwners`) with each
-  subscription so the list says what fills the limit.
+  subscription so the list says what fills the limit. Quote subscriptions of one contract share
+  a line, so a shared line lists every owner and how many subscriptions read it ("Watchlist ·
+  US, Chart (2)"), and the summary counts it for each owner.
 
 ## Windows and the title bar
 
@@ -613,9 +615,33 @@ of SPY, MSFT, NVDA and TSLA (`WatchlistHelpers.CreateFirstRunSettings`).
 The **Mkt Cap** column is the SEC's shares outstanding × the row's last price (previous close
 before the first trade), recomputed on every UI flush and sortable by its numeric value
 (`MarketCapValue`). Only US stocks (STK in USD) get one; anything else, and stocks the SEC has no
-usable count for (ETFs, foreign filers), show "—". Starting a row's quote also starts its
-`ISharesOutstandingManager` lookup (cached on disk, so normally instant); the result is posted to
-the row on the UI thread. The built-in columns can't be renamed or moved, only hidden.
+usable count for (ETFs, foreign filers), show "—". Every row's `ISharesOutstandingManager`
+lookup starts on connect (and when the row is added; cached on disk, so normally instant); the
+result is posted to the row on the UI thread. The built-in columns can't be renamed or moved,
+only hidden.
+
+**Only the rows on screen stream.** A watchlist holds up to 200 symbols and IB serves ~100 lines
+per account, so the view reports the rows it has on screen (`WatchlistView.ReportShownRows`: the
+grid's realized `DataGridRow`s inside its rows presenter, after every layout pass, coalesced;
+none while the widget is hidden or detached) to `WatchlistViewModel.SetShownRows`. Those, and
+`WatchlistLiveRowBuffer` (5) rows on either side (`WatchlistStreamingHelpers.GetLiveRange`;
+pinned rows are on top, so they count when shown), stream through
+`IMarketDataManager.SubscribeQuotesAsync`. Before the grid first reports, the first
+`WatchlistInitialLiveRows` (30) stream. A row that leaves the range keeps its line for
+`WatchlistLiveReleaseDelay` (3 s) so scrolling back and forth doesn't resubscribe. Every other row
+gets **snapshots** (`IMarketDataManager.GetQuoteSnapshotAsync`, no line): the snapshot timer
+(`WatchlistSnapshotCheckInterval`, 2 s, `RefreshOffScreen`) keeps up to
+`WatchlistSnapshotsInFlight` (10) running, picking rows without a quote first, then those whose
+last quote is older than `WatchlistSnapshotRefreshInterval` (30 s); IB answers each in ~11 s, so a
+200-row list is filled in about 3–4 minutes. Rows keep their last values, so sorting by a quote
+column still covers the whole list (off-screen values are up to a few minutes old). A failed
+snapshot (no subscription) shows the row's error icon, is logged once and waits
+`WatchlistSnapshotErrorRetry` (5 min). **No free line** degrades instead of erroring: the
+watchlist leaves `WatchlistReservedLines` (10) of the app's 90 for charts and the option chain,
+and a row on screen that finds no line (that reserve, the app's limit or IB's `101 Max number of
+tickers`, `MarketDataErrorHelpers.IsNoFreeLine`) shows snapshots, marked with a small "S"
+(`IsLineLimited`), tries to stream again after 30 s, and the message log hears it once per
+connection.
 
 **Custom columns.** Each watchlist can have up to `WatchlistConstants.MaxCustomColumns` (10)
 columns of its own, added, renamed and deleted in the header popup's "Columns" section (same

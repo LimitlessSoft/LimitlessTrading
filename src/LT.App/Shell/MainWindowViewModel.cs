@@ -188,15 +188,21 @@ public partial class MainWindowViewModel : ViewModelBase
 			Dispatcher.UIThread.Post(RefreshStreams, DispatcherPriority.Background);
 	}
 
-	// UI thread: the list follows the manager's snapshot, keeping rows that are still open
+	// UI thread: the list follows the manager's snapshot, keeping rows that are still open; a
+	// shared line whose owners changed comes as a new entry and replaces its row in place
 	private void RefreshStreams()
 	{
 		Volatile.Write(ref _streamsRefreshPosted, 0);
 		var streams = _marketDataManager.GetActiveStreams();
-		var open = streams.Select(x => x.Id).ToHashSet();
+		var open = streams.ToDictionary(x => x.Id);
 		for (var i = MarketDataStreams.Count - 1; i >= 0; i--)
-			if (!open.Contains(MarketDataStreams[i].Stream.Id))
+			if (!open.TryGetValue(MarketDataStreams[i].Stream.Id, out var stream))
 				MarketDataStreams.RemoveAt(i);
+			else if (!ReferenceEquals(stream, MarketDataStreams[i].Stream))
+				MarketDataStreams[i] = new MarketDataStreamRowViewModel(
+					stream,
+					_displayTime.Format(stream.OpenedAt)
+				);
 		var shown = MarketDataStreams.Select(x => x.Stream.Id).ToHashSet();
 		foreach (var stream in streams)
 			if (!shown.Contains(stream.Id))

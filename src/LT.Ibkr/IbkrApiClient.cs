@@ -120,8 +120,11 @@ public class IbkrApiClient : IIbkrApiClient
 		return await RequireClient().GetServerTimeAsync(cancellationToken);
 	}
 
+	public MarketDataType? MarketDataType { get; private set; }
+
 	public void SetMarketDataType(MarketDataType marketDataType)
 	{
+		MarketDataType = marketDataType;
 		if (_client is { } client)
 			_ = SendQuietlyAsync(() =>
 				client.SetMarketDataTypeAsync((IBKR.Net.MarketDataType)marketDataType)
@@ -155,20 +158,61 @@ public class IbkrApiClient : IIbkrApiClient
 		return parameters.ToMappedList<OptionChainParameters, OptionChainParametersDto>();
 	}
 
-	public IAsyncEnumerable<MarketDataTickDto> SubscribeMarketDataAsync(
+	// IB's refusals (101 no free line, 354 / 10089 / 10090 no subscription) go out with their code
+	public async IAsyncEnumerable<MarketDataTickDto> SubscribeMarketDataAsync(
 		ContractDto contract,
-		CancellationToken cancellationToken = default,
+		[EnumeratorCancellation] CancellationToken cancellationToken = default,
 		string genericTicks = ""
-	) =>
-		StreamAsync<MarketDataTick, MarketDataTickDto>(
-			(client, ct) =>
-				client.SubscribeMarketDataAsync(
-					contract.ToMapped<ContractDto, Contract>(),
-					genericTicks,
-					cancellationToken: ct
-				),
-			cancellationToken
-		);
+	)
+	{
+		await using var ticks = StreamAsync<MarketDataTick, MarketDataTickDto>(
+				(client, ct) =>
+					client.SubscribeMarketDataAsync(
+						contract.ToMapped<ContractDto, Contract>(),
+						genericTicks,
+						cancellationToken: ct
+					),
+				cancellationToken
+			)
+			.GetAsyncEnumerator(cancellationToken);
+		while (true)
+		{
+			bool more;
+			try
+			{
+				more = await ticks.MoveNextAsync();
+			}
+			catch (IbkrException ex)
+			{
+				// The message keeps IB's code and text, as the stream's error showed before
+				throw new IbkrRequestException(ex.Code, ex.Message, ex);
+			}
+			if (!more)
+				break;
+			yield return ticks.Current;
+		}
+	}
+
+	public async Task<IReadOnlyList<MarketDataTickDto>> GetMarketDataSnapshotAsync(
+		ContractDto contract,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var client = RequireClient();
+		await _messages.WaitAsync(cancellationToken);
+		try
+		{
+			var ticks = await client.GetMarketDataSnapshotAsync(
+				contract.ToMapped<ContractDto, Contract>(),
+				cancellationToken
+			);
+			return [.. ticks.Select(x => x.ToMapped<MarketDataTick, MarketDataTickDto>())];
+		}
+		catch (IbkrException ex)
+		{
+			throw new IbkrRequestException(ex.Code, ex.Message, ex);
+		}
+	}
 
 	// IB's refusals (309 too many, 354 / 10089 no subscription) go out with their code
 	public async IAsyncEnumerable<MarketDepthUpdateDto> SubscribeMarketDepthAsync(

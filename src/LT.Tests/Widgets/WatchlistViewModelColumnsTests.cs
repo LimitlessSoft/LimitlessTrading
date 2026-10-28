@@ -319,7 +319,8 @@ public class WatchlistViewModelColumnsTests : IDisposable
 					log,
 					_cache.Time
 				),
-				new LinkGroupStore()
+				new LinkGroupStore(),
+				TimeProvider.System
 			);
 		});
 		_widgets.Add(widget);

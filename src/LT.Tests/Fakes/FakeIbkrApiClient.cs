@@ -25,7 +25,7 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	public Exception? ServerTimeException { get; set; }
 	public int ConnectCount { get; private set; }
 	public int DisconnectCount { get; private set; }
-	public MarketDataType? MarketDataType { get; private set; }
+	public MarketDataType? MarketDataType { get; set; }
 
 	public List<PositionDto> Positions { get; set; } = [];
 	public List<MarketDataTickDto> Ticks { get; set; } = [];
@@ -164,24 +164,90 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	/// <summary>Generic tick lists asked for, in order.</summary>
 	public List<string> GenericTicksRequested { get; } = [];
 
+	/// <summary>Contracts of the quote streams asked for, in order.</summary>
+	public List<ContractDto> MarketDataRequested { get; } = [];
+
+	/// <summary>Quote streams open now (asked for and not ended or cancelled yet).</summary>
+	public int OpenMarketDataStreams => Volatile.Read(ref _openMarketDataStreams);
+	private int _openMarketDataStreams;
+
 	public async IAsyncEnumerable<MarketDataTickDto> SubscribeMarketDataAsync(
 		ContractDto contract,
 		[EnumeratorCancellation] CancellationToken cancellationToken = default,
 		string genericTicks = ""
 	)
 	{
-		GenericTicksRequested.Add(genericTicks);
-		foreach (var tick in Ticks)
+		lock (MarketDataRequested)
 		{
-			await Task.Yield();
-			yield return tick;
+			GenericTicksRequested.Add(genericTicks);
+			MarketDataRequested.Add(contract);
 		}
-		if (KeepMarketDataOpen)
-			await Task.Delay(Timeout.Infinite, cancellationToken);
+		Interlocked.Increment(ref _openMarketDataStreams);
+		try
+		{
+			if (MarketDataExceptionFor?.Invoke(contract) is { } refused)
+				throw refused;
+			foreach (var tick in TicksFor?.Invoke(contract) ?? Ticks)
+			{
+				await Task.Yield();
+				yield return tick;
+			}
+			if (MarketDataStreamGate is { } gate)
+			{
+				await foreach (var tick in gate.Reader.ReadAllAsync(cancellationToken))
+					yield return tick;
+			}
+			else if (KeepMarketDataOpen)
+				await Task.Delay(Timeout.Infinite, cancellationToken);
+		}
+		finally
+		{
+			Interlocked.Decrement(ref _openMarketDataStreams);
+		}
 	}
 
 	/// <summary>Keep quote streams open after their ticks until cancelled.</summary>
 	public bool KeepMarketDataOpen { get; set; }
+
+	/// <summary>Ticks of a contract's stream (instead of <see cref="Ticks"/>).</summary>
+	public Func<ContractDto, IReadOnlyList<MarketDataTickDto>>? TicksFor { get; set; }
+
+	/// <summary>Refuses a contract's quote stream with this exception (an IB error), when set.</summary>
+	public Func<ContractDto, Exception?>? MarketDataExceptionFor { get; set; }
+
+	/// <summary>
+	/// After its ticks, each stream reads this channel: write to push ticks, complete it (with an
+	/// exception for an IB error) to end every stream.
+	/// </summary>
+	public System.Threading.Channels.Channel<MarketDataTickDto>? MarketDataStreamGate { get; set; }
+
+	/// <summary>Contracts of the snapshots asked for, in order.</summary>
+	public List<ContractDto> SnapshotsRequested { get; } = [];
+
+	/// <summary>A snapshot's ticks; empty when unset.</summary>
+	public Func<ContractDto, IReadOnlyList<MarketDataTickDto>>? SnapshotTicks { get; set; }
+
+	/// <summary>Fails a contract's snapshot with this exception (an IB error), when set.</summary>
+	public Func<ContractDto, Exception?>? SnapshotExceptionFor { get; set; }
+
+	/// <summary>Snapshots wait for this before answering (as IB's 11 s); none when null.</summary>
+	public TaskCompletionSource? SnapshotGate { get; set; }
+
+	public async Task<IReadOnlyList<MarketDataTickDto>> GetMarketDataSnapshotAsync(
+		ContractDto contract,
+		CancellationToken cancellationToken = default
+	)
+	{
+		lock (SnapshotsRequested)
+			SnapshotsRequested.Add(contract);
+		if (SnapshotGate is { } gate)
+			await gate.Task.WaitAsync(cancellationToken);
+		else
+			await Task.Yield();
+		if (SnapshotExceptionFor?.Invoke(contract) is { } error)
+			throw error;
+		return SnapshotTicks?.Invoke(contract) ?? [];
+	}
 
 	/// <summary>Updates every depth subscription streams; then it ends, or stays open.</summary>
 	public List<MarketDepthUpdateDto> DepthUpdates { get; set; } = [];

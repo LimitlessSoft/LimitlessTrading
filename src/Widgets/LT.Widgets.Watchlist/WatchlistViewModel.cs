@@ -31,6 +31,8 @@ public partial class WatchlistViewModel
 	private readonly ISettingsManager _settingsManager;
 	private readonly DispatcherTimer _flushTimer;
 	private readonly DispatcherTimer _resortTimer;
+	private readonly DispatcherTimer _snapshotTimer;
+	private readonly TimeProvider _time;
 	private readonly IContractManager _contractManager;
 	private readonly IMarketDataManager _marketDataManager;
 	private readonly IMessageLogManager _messageLogManager;
@@ -57,6 +59,13 @@ public partial class WatchlistViewModel
 	private HashSet<WatchlistSortColumn> _hiddenColumns = [];
 	private HashSet<string> _hiddenCustomColumns = [];
 
+	// The rows the grid has on screen; null until the view first reports (the first rows stream
+	// then), empty while the widget is hidden
+	private HashSet<WatchlistRowViewModel>? _shown;
+
+	// "No free line" is logged once per connection, not per row
+	private bool _noFreeLineLogged;
+
 	public WatchlistViewModel(
 		IWatchlistManager watchlistManager,
 		IContractManager contractManager,
@@ -65,10 +74,12 @@ public partial class WatchlistViewModel
 		IMessageLogManager messageLogManager,
 		ISettingsManager settingsManager,
 		ISharesOutstandingManager sharesOutstandingManager,
-		LinkGroupStore linkGroupStore
+		LinkGroupStore linkGroupStore,
+		TimeProvider timeProvider
 	)
 		: base(connectionManager)
 	{
+		_time = timeProvider;
 		_watchlistManager = watchlistManager;
 		_contractManager = contractManager;
 		_marketDataManager = marketDataManager;
@@ -98,6 +109,13 @@ public partial class WatchlistViewModel
 			(_, _) => ResortIfStale()
 		);
 		_resortTimer.Start();
+
+		_snapshotTimer = new DispatcherTimer(
+			MarketDataConstants.WatchlistSnapshotCheckInterval,
+			DispatcherPriority.Background,
+			(_, _) => RefreshOffScreen()
+		);
+		_snapshotTimer.Start();
 	}
 
 	/// <summary>
@@ -107,8 +125,13 @@ public partial class WatchlistViewModel
 	public void FlushQuotes()
 	{
 		var changed = false;
+		var now = _time.GetUtcNow();
 		foreach (var row in Rows)
-			changed |= row.Flush();
+			if (row.Flush())
+			{
+				changed = true;
+				row.LastQuoteAt = now;
+			}
 		if (changed && WatchlistSortHelpers.DependsOnQuotes(SortColumn))
 			_resortPending = true;
 	}
@@ -624,13 +647,16 @@ public partial class WatchlistViewModel
 		OnPropertyChanged(nameof(CanDelete));
 	}
 
-	// The shown watchlist's rows, streaming when connected
+	// The shown watchlist's rows; when connected the ones on screen stream, the others get
+	// snapshots. Until the grid reports the new rows on screen none streams
 	private void LoadRows()
 	{
 		foreach (var row in Rows)
 			Stop(row);
 		Rows.Clear();
 		_savedOrder.Clear();
+		if (_shown != null)
+			_shown = [];
 		foreach (var contract in _watchlistManager.GetItems(_watchlistId))
 		{
 			var row = new WatchlistRowViewModel(contract);
@@ -640,9 +666,11 @@ public partial class WatchlistViewModel
 		LoadColumns();
 		LoadPins();
 		SelectedRow = Rows.FirstOrDefault();
-		if (IsConnected)
-			foreach (var row in Rows)
-				Start(row);
+		if (!IsConnected)
+			return;
+		foreach (var row in Rows)
+			LoadSharesOutstanding(row, _session);
+		RefreshOffScreen();
 	}
 
 	/// <summary>The watchlist's custom columns, in their order (grid columns and the header popup's list).</summary>
@@ -925,8 +953,17 @@ public partial class WatchlistViewModel
 	protected override void OnConnected(CancellationToken session)
 	{
 		_session = session;
+		_noFreeLineLogged = false;
 		foreach (var row in Rows)
-			Start(row);
+		{
+			// A restarted session (settings changed) ended the old streams and snapshots
+			Stop(row);
+			row.IsSnapshotRunning = false;
+			row.SnapshotRetryAt = row.LiveRetryAt = null;
+			row.IsLineLimited = false;
+			LoadSharesOutstanding(row, session);
+		}
+		RefreshOffScreen();
 	}
 
 	protected override void OnDisconnected()
@@ -939,6 +976,7 @@ public partial class WatchlistViewModel
 	{
 		_flushTimer.Stop();
 		_resortTimer.Stop();
+		_snapshotTimer.Stop();
 		_settingsManager.AppSettingsChanged -= OnAppSettingsChanged;
 		_watchlistManager.Changed -= OnWatchlistsChanged;
 		foreach (var row in Rows)
@@ -990,7 +1028,11 @@ public partial class WatchlistViewModel
 			ApplyOrder();
 			SelectedRow = row;
 			if (IsConnected)
-				Start(row);
+			{
+				LoadSharesOutstanding(row, _session);
+				// Streams if on screen (once the grid has it), else gets a snapshot soon
+				UpdateLiveRows();
+			}
 			ErrorMessage = null;
 			LoadWatchlists();
 		}
@@ -1028,6 +1070,121 @@ public partial class WatchlistViewModel
 			LoadPins();
 	}
 
+	/// <summary>
+	/// The view reports the rows on screen (after layout, scrolling, sorting); none while the
+	/// widget is hidden. Those, and a few around them, stream live.
+	/// </summary>
+	public void SetShownRows(IReadOnlyCollection<WatchlistRowViewModel> rows)
+	{
+		if (_shown != null && _shown.SetEquals(rows))
+			return;
+		_shown = [.. rows];
+		UpdateLiveRows();
+	}
+
+	/// <summary>
+	/// The snapshot tick (timer): rows scrolled away a while ago give their line back, rows on
+	/// screen without one try again, and off-screen rows due a refresh get snapshots, a few at a
+	/// time and oldest first. Off-screen rows keep their last values, so sorting by a quote column
+	/// still covers the whole list.
+	/// </summary>
+	public void RefreshOffScreen()
+	{
+		if (!IsConnected)
+			return;
+		var now = _time.GetUtcNow();
+		foreach (var row in Rows)
+			if (
+				row.Subscription != null
+				&& row.HiddenSince is { } since
+				&& now - since >= MarketDataConstants.WatchlistLiveReleaseDelay
+			)
+				Stop(row);
+		UpdateLiveRows();
+
+		var free =
+			MarketDataConstants.WatchlistSnapshotsInFlight - Rows.Count(x => x.IsSnapshotRunning);
+		if (free <= 0)
+			return;
+		var due = Rows.Where(x =>
+				x.Subscription == null
+				&& !x.IsSnapshotRunning
+				&& WatchlistStreamingHelpers.IsSnapshotDue(
+					x.LastQuoteAt,
+					x.SnapshotRetryAt,
+					now,
+					MarketDataConstants.WatchlistSnapshotRefreshInterval
+				)
+			)
+			.OrderBy(x => x.LastQuoteAt ?? DateTimeOffset.MinValue)
+			.Take(free)
+			.ToList();
+		foreach (var row in due)
+			Snapshot(row);
+	}
+
+	// The rows on screen (plus a buffer) stream live; the others leave their line a little after
+	// going off screen (RefreshOffScreen), so scrolling back and forth doesn't resubscribe
+	private void UpdateLiveRows()
+	{
+		if (!IsConnected)
+			return;
+		var now = _time.GetUtcNow();
+		(int Start, int End)? range =
+			_shown != null
+				? WatchlistStreamingHelpers.GetLiveRange(
+					Rows.Count,
+					_shown.Select(Rows.IndexOf),
+					MarketDataConstants.WatchlistLiveRowBuffer
+				)
+			: Rows.Count > 0
+				? (0, Math.Min(Rows.Count, MarketDataConstants.WatchlistInitialLiveRows))
+			: null;
+		for (var i = 0; i < Rows.Count; i++)
+		{
+			var row = Rows[i];
+			if (range is { } live && i >= live.Start && i < live.End)
+			{
+				row.HiddenSince = null;
+				if (row.Subscription == null && !(row.LiveRetryAt > now))
+					TryStartLive(row, now);
+			}
+			else
+			{
+				row.IsLineLimited = false;
+				if (row.Subscription != null)
+					row.HiddenSince ??= now;
+			}
+		}
+	}
+
+	// Leaves MarketDataConstants.WatchlistReservedLines free for charts, the option chain and
+	// alerts; without a line the row shows snapshots
+	private void TryStartLive(WatchlistRowViewModel row, DateTimeOffset now)
+	{
+		if (
+			_marketDataManager.ActiveLines
+			>= MarketDataConstants.MaxLines - MarketDataConstants.WatchlistReservedLines
+		)
+			OnNoFreeLine(row, now);
+		else
+			Start(row);
+	}
+
+	private void OnNoFreeLine(WatchlistRowViewModel row, DateTimeOffset now)
+	{
+		row.IsLineLimited = true;
+		row.LiveRetryAt = now + MarketDataConstants.WatchlistSnapshotRefreshInterval;
+		if (_noFreeLineLogged)
+			return;
+		_noFreeLineLogged = true;
+		_messageLogManager.Add(
+			MessageSeverity.Info,
+			MessageLogConstants.SourceMarketData,
+			$"Watchlist {ActiveWatchlist?.Name}: no free market data line, some rows on screen show snapshots"
+		);
+	}
+
 	private void Start(WatchlistRowViewModel row)
 	{
 		Stop(row);
@@ -1040,6 +1197,7 @@ public partial class WatchlistViewModel
 		_ = Task.Run(
 			async () =>
 			{
+				var first = true;
 				try
 				{
 					await foreach (
@@ -1047,23 +1205,102 @@ public partial class WatchlistViewModel
 							.SubscribeQuotesAsync(row.Contract, token, owner: owner)
 							.ConfigureAwait(false)
 					)
+					{
 						row.Pending.Set(quote);
+						if (!first)
+							continue;
+						first = false;
+						Dispatcher.UIThread.Post(() =>
+						{
+							row.IsLineLimited = false;
+							row.LiveRetryAt = null;
+						});
+					}
 				}
 				catch (OperationCanceledException) { }
+				// Every line taken (the app's limit or IB's 101): a snapshot row, no error
+				catch (Exception ex) when (MarketDataErrorHelpers.IsNoFreeLine(ex))
+				{
+					Dispatcher.UIThread.Post(() =>
+					{
+						if (row.Subscription != subscription)
+							return;
+						Stop(row);
+						OnNoFreeLine(row, _time.GetUtcNow());
+					});
+				}
 				catch (Exception ex)
 				{
 					var message = ErrorMessageHelpers.ToUserMessage(ex);
-					Dispatcher.UIThread.Post(() => row.Error = message);
-					_messageLogManager.Add(
-						MessageSeverity.Warning,
-						MessageLogConstants.SourceMarketData,
-						$"{row.Symbol}: {message}"
-					);
+					Dispatcher.UIThread.Post(() => ShowError(row, message));
 				}
 			},
 			token
 		);
-		LoadSharesOutstanding(row, token);
+	}
+
+	// One snapshot of an off-screen row (or of one on screen without a line); a live stream
+	// started meanwhile wins
+	private void Snapshot(WatchlistRowViewModel row)
+	{
+		row.IsSnapshotRunning = true;
+		var session = _session;
+		_ = Task.Run(
+			async () =>
+			{
+				try
+				{
+					var quote = await _marketDataManager
+						.GetQuoteSnapshotAsync(row.Contract, session)
+						.ConfigureAwait(false);
+					Dispatcher.UIThread.Post(() =>
+					{
+						row.IsSnapshotRunning = false;
+						if (session.IsCancellationRequested || row.Subscription != null)
+							return;
+						row.SnapshotRetryAt = null;
+						row.LastQuoteAt = _time.GetUtcNow();
+						// Nothing priced (IB had nothing to send): the last values stay
+						if (TickTypeHelpers.HasPrice(quote))
+							row.Pending.Set(quote);
+					});
+				}
+				catch (Exception ex)
+					when (ex is OperationCanceledException
+						|| MarketDataErrorHelpers.IsSnapshotLimit(ex)
+					)
+				{
+					// Ended with the session, or other widgets' snapshots fill the limit: next tick
+					Dispatcher.UIThread.Post(() => row.IsSnapshotRunning = false);
+				}
+				catch (Exception ex)
+				{
+					var message = ErrorMessageHelpers.ToUserMessage(ex);
+					Dispatcher.UIThread.Post(() =>
+					{
+						row.IsSnapshotRunning = false;
+						row.SnapshotRetryAt =
+							_time.GetUtcNow() + MarketDataConstants.WatchlistSnapshotErrorRetry;
+						ShowError(row, message);
+					});
+				}
+			},
+			CancellationToken.None
+		);
+	}
+
+	// UI thread: the row's error icon; the message log hears each error of a row once
+	private void ShowError(WatchlistRowViewModel row, string message)
+	{
+		row.Error = message;
+		if (row.LoggedError == message)
+			return;
+		row.LoggedError = message;
+		_messageLogManager.Add(
+			MessageSeverity.Warning,
+			MessageLogConstants.SourceMarketData,
+			$"{row.Symbol}: {message}"
+		);
 	}
 
 	// Market cap's share count from the SEC (cached on disk); US stocks only, others stay "—"
@@ -1092,10 +1329,12 @@ public partial class WatchlistViewModel
 		);
 	}
 
+	// Its last values stay; an off-screen row gets snapshots from now on
 	private static void Stop(WatchlistRowViewModel row)
 	{
 		row.Subscription?.Cancel();
 		row.Subscription?.Dispose();
 		row.Subscription = null;
+		row.HiddenSince = null;
 	}
 }

@@ -12,4 +12,10 @@ public enum MarketDataValidationCodes
 
 	[LSCoreValidationMessage("Tick-by-tick subscription limit reached ({0}).")]
 	MDVC_003,
+
+	[LSCoreValidationMessage("Quote snapshot limit reached ({0} at once).")]
+	MDVC_004,
+
+	[LSCoreValidationMessage("Quote snapshot timed out.")]
+	MDVC_005,
 }

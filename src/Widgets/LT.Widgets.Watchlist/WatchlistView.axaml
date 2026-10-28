@@ -142,6 +142,15 @@
 										IsVisible="{Binding IsDelayed}"
 										ToolTip.Tip="Delayed data"
 									/>
+									<!-- On screen without a free market data line: snapshots -->
+									<TextBlock
+										Classes="secondary"
+										FontSize="10"
+										Text="S"
+										VerticalAlignment="Center"
+										IsVisible="{Binding IsLineLimited}"
+										ToolTip.Tip="{x:Static vm:WatchlistRowViewModel.LineLimitedTip}"
+									/>
 									<!-- Quote errors: the message is on hover, so the row keeps its height -->
 									<PathIcon
 										Width="12"

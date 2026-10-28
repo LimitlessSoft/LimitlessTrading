@@ -7,7 +7,7 @@ this app's license. How each message looks on the wire is in that repo's `docs/p
 file covers how the app uses it, IB's limits and the quirks we have hit. Read it before touching
 `LT.Ibkr`.
 
-`IBKR.Net` comes from nuget.org (0.8.0).
+`IBKR.Net` comes from nuget.org (0.9.0).
 
 ### Extending IBKR.Net
 
@@ -119,6 +119,7 @@ Limits / caveats:
 | `GetContractDetailsAsync(Contract)` | `reqContractDetails` | Search by symbol, conId lookup, one expiration's options; `tradingHours` / `liquidHours` (a few days around today, in `timeZoneId`, which may be an old name like `US/Eastern`) mark a chart's pre- / post-market bars |
 | `GetOptionChainParametersAsync` | `reqSecDefOptParams` | Expirations + strikes per exchange / trading class |
 | `SubscribeMarketDataAsync` | `reqMktData` | Price, size, generic and string ticks; optional generic tick list (`106` = underlying option implied volatility, tick 24, used by the option chain) |
+| `GetMarketDataSnapshotAsync` | `reqMktData` snapshot | One quote, ends on `tickSnapshotEnd` ~11 s later; never the paid regulatory snapshot, no generic ticks (0.9.0) — see [Quote snapshots](#quote-snapshots) |
 | `GetHistoricalBarsAsync` | `reqHistoricalData` | IB strings: duration `"5 D"`, bar size `"5 mins"`; `endDateTime` empty (now) or `yyyyMMdd-HH:mm:ss` UTC (a chart's older pages; the bar starting at the end may come back). No bars in the span: error `162` "HMDS query returned no data" |
 | `SubscribeRealtimeBarsAsync` | `reqRealTimeBars` | 5-second bars |
 | `GetPositionsAsync` / `SubscribePositionsAsync` | `reqPositions` | Snapshot / stream |
@@ -235,6 +236,37 @@ account on 2026-10-26 (read-only); the wire format is in IBKR.Net's `docs/protoc
   they are ignored.
 - Requests go through the message throttle like every other.
 
+## Quote snapshots
+
+`IbkrClient.GetMarketDataSnapshotAsync` (0.9.0) sends `reqMktData` with snapshot set and
+regulatory snapshot **clear** (a regulatory snapshot costs $0.01 each; never sent) and returns the
+ticks IB sends before `tickSnapshotEnd` (`57`). LT exposes it as
+`IIbkrApiClient.GetMarketDataSnapshotAsync` (through `RequestThrottle`, ticks mapped by
+`MarketDataTickDtoMapper`) and `IMarketDataManager.GetQuoteSnapshotAsync`, which folds them into a
+`QuoteDto`, returns the latest quote of a line already streaming the contract instead of asking
+IB, allows `MarketDataConstants.MaxConcurrentSnapshots` (20) at once and fails after
+`SnapshotTimeout` (20 s). The watchlist uses it for rows off screen (see
+[ui-patterns.md](ui-patterns.md#watchlists)).
+
+Recorded read-only on IB Gateway 4001 (live, protocol 187), 2026-10-28 07:28–07:33 New York
+(pre-market), client ids 77–80, for AAPL, MSFT, SPY (SMART) and VOW3 (IBIS):
+
+- **Timing.** All ticks (bid, ask, last, volume, close, exchanges, last time, halted) arrive within
+  ~5 ms of the request; `57` comes **10.9–12.0 s** after it, every time: alone, six at once, with
+  the live or the delayed market data type. After `57` the request is gone (a cancel is answered
+  `300 Can't find EId`).
+- **Lines.** Streaming requests were opened until IB refused one with **`101` Max number of
+  tickers has been reached**; then six snapshots at once were all served (ticks and `57`), and a
+  stream opened while they ran was accepted. **A running snapshot does not hold a market data
+  line**, so `GetQuoteSnapshotAsync` doesn't count against `MaxLines` (only its own concurrency
+  cap). At the time the account had only **23 free lines** (IB refused the 24th stream every time,
+  with no LT running): other sessions of the login, or a lower allowance than the documented 100,
+  hold the rest. LT's own limit of 90 can therefore be above what IB grants; IB's `101` is handled
+  like LT's limit (the watchlist falls back to snapshots).
+- **Refusals.** Generic ticks with a snapshot: `321 … Snapshot market data subscription is not
+  applicable to generic ticks` (so the snapshot has no generic tick list). No subscription (VOW3
+  IBIS, live or delayed): `10090` then `354`, no ticks, no `57`; the call fails with 10090.
+
 ## Wall Street Horizon (calendar)
 
 `IIbkrApiClient.GetWshMetaDataAsync` / `GetWshEventDataAsync` pass WSH's JSON through as text;
@@ -323,7 +355,9 @@ deduplicated by IB's execution id, so the same fill from either stays one:
 - **Notices vs errors.** IBKR.Net treats codes 2100–2199 (farm status, 2150 on position P&L) and
   `10167` (delayed data shown) as notices; any other code with a request id fails that request.
   `10089/10090` (subscription needed) therefore end a quote stream on a `Live` market data type
-  without a subscription. We default to `Live` (1); `Delayed` (3), picked in Settings, returns
+  without a subscription. Quote stream and snapshot errors reach LT as `IbkrRequestException`
+  with IB's code (the message keeps the `[code] text` form); `101` (no free line) is what callers
+  react to. We default to `Live` (1); `Delayed` (3), picked in Settings, returns
   live data where you are subscribed and delayed otherwise.
 - **Unset numbers are `double.MaxValue`, not 0.** A contract sent with `Strike = 0` asks for
   strike 0 and fails with `200 No security definition` (seen 2026-10-24 loading an option
@@ -389,8 +423,20 @@ deduplicated by IB's execution id, so the same fill from either stays one:
   recorded read-only on IB Gateway 4001, 2026-10-26, all answered; IB slowed its answers to
   ~6 s each after ~55). Holding them queued chart loads for minutes behind other charts.
 - `MarketDataManager` counts lines and refuses a subscription above 90 (headroom under IB's 100).
+  **Quote subscriptions share lines**: those of the same contract (conId + routing exchange),
+  generic ticks and market data type (`MarketDataShareHelpers.GetShareKey`;
+  `IIbkrApiClient.MarketDataType` is the one last set, so after a change new subscribers open a
+  fresh line) read one IB stream. The first subscriber opens it and takes the line, later ones
+  get the latest cumulative quote at once and then every update, cancelling one leaves the others
+  streaming, and the last one leaving cancels the IB request and frees the line. An IB error (354,
+  10089, 101 …) or the end of IB's stream ends every subscriber with it; the next subscriber opens
+  a new one. So AAPL in a watchlist, a chart and an alert is one line, listed with every owner.
+  Snapshots (`GetQuoteSnapshotAsync`) take no line, see [Quote snapshots](#quote-snapshots).
   Chart price alerts hold one line per contract with an active alert while connected (at most
-  20, `PriceAlertConstants.MaxWatchedContracts`).
+  20, `PriceAlertConstants.MaxWatchedContracts`), shared with any other subscriber of it.
+- The watchlist streams only the rows on screen plus a buffer and refreshes the others with
+  snapshots, a few at a time, leaving `WatchlistReservedLines` (10) free; see
+  [ui-patterns.md](ui-patterns.md#watchlists).
 - `ChartManager` turns the chart's period into the IB duration (`ChartPeriodHelpers.GetRange`).
   The period is a zoom preset, not a filter: the request covers at least the timeframe's own
   span (Auto's: 1m 1 D, 5m 5 D, 15m 10 D, 1h 1 M, 1D 1 Y, 1W 5 Y), and a longer period its span
@@ -425,7 +471,8 @@ deduplicated by IB's execution id, so the same fill from either stays one:
   subscriptions on startup (e.g. a 200-symbol watchlist) must be throttled.
 - **Market data lines:** default 100 simultaneous `reqMktData` subscriptions per account (grows
   with commissions/quote boosters). Watchlists larger than that need virtualization — only
-  subscribe what's visible.
+  subscribe what's visible (done: on-screen rows stream, the rest get snapshots, which hold no
+  line).
 - **Historical data pacing:** for bars of 30 seconds or less, no more than 60 requests per 10
   minutes and identical requests within 15 seconds are rejected. Larger bars are only slowed down
   by IB (soft pacing). Cache bars locally.
