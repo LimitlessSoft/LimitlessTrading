@@ -1,5 +1,6 @@
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Contracts;
+using LT.Contracts.Dtos.Fundamentals;
 using LT.Contracts.Entities;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
@@ -12,7 +13,8 @@ namespace LT.Domain.Managers;
 /// <summary>
 /// Shares outstanding from SEC filings: ticker → CIK (the SEC's ticker file, loaded once per
 /// run), then the company's dei:EntityCommonStockSharesOutstanding, falling back to its full
-/// facts. Results, "nothing usable" included, are cached on disk (<see cref="MarketCapHelpers.IsFresh"/>).
+/// facts (a count as of a date, then the latest weighted average), then to the per-class counts
+/// on its latest 10-K / 10-Q's cover page (Berkshire, Visa). Results, "nothing usable" included, are cached on disk (<see cref="MarketCapHelpers.IsFresh"/>).
 /// One lookup per ticker at a time; after a failure none starts for
 /// <see cref="SecConstants.FailureBackoff"/> and the failure is logged once. Singleton.
 /// </summary>
@@ -65,16 +67,26 @@ public class SharesOutstandingManager(
 		{
 			var ciks = await GetCiksAsync();
 			var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
-			var found = ciks.TryGetValue(ticker, out var cik)
-				? MarketCapHelpers.PickSharesOutstanding(
+			SharesOutstandingDto? found = null;
+			if (ciks.TryGetValue(ticker, out var cik))
+			{
+				found = MarketCapHelpers.PickSharesOutstanding(
 					await secApiClient.GetSharesOutstandingFactsAsync(cik) ?? [],
 					today
-				)
-					?? MarketCapHelpers.PickSharesOutstanding(
-						await secApiClient.GetCompanyShareFactsAsync(cik) ?? [],
-						today
-					)
-				: null;
+				);
+				if (found == null)
+				{
+					var facts = await secApiClient.GetCompanyShareFactsAsync(cik) ?? [];
+					found =
+						MarketCapHelpers.PickSharesOutstanding(facts, today)
+						?? MarketCapHelpers.PickWeightedAverageShares(facts, today);
+				}
+				found ??= MarketCapHelpers.PickFilingShares(
+					await secApiClient.GetLatestFilingShareFactsAsync(cik) ?? [],
+					ticker,
+					today
+				);
+			}
 
 			repository.Save(
 				ticker,
@@ -83,6 +95,7 @@ public class SharesOutstandingManager(
 					Shares = found?.Shares,
 					AsOf = found?.AsOf,
 					FetchedAt = timeProvider.GetUtcNow(),
+					LookupVersion = SecConstants.SharesLookupVersion,
 				}
 			);
 			return found?.Shares;

@@ -21,10 +21,22 @@ public interface ISecApiClient
 
 	/// <summary>
 	/// From the company's full facts: dei:EntityCommonStockSharesOutstanding and
-	/// us-gaap:CommonStockSharesOutstanding (multi-class companies report only the latter
-	/// undivided); null when the SEC has no facts for the CIK.
+	/// us-gaap:CommonStockSharesOutstanding (some multi-class companies report only the latter
+	/// undivided), and the us-gaap weighted averages, basic and diluted (with their
+	/// <see cref="SecFactDto.Start"/>); null when the SEC has no facts for the CIK.
 	/// </summary>
 	Task<IReadOnlyList<SecFactDto>?> GetCompanyShareFactsAsync(
+		int cik,
+		CancellationToken cancellationToken = default
+	);
+
+	/// <summary>
+	/// The dei:EntityCommonStockSharesOutstanding counts on the cover page of the company's latest
+	/// inline-XBRL 10-K / 10-Q, per <see cref="SecFactDto.ShareClass"/> (multi-class filers tag only
+	/// these, which the JSON APIs leave out). Two requests, the second several MB. Null when the
+	/// company has no such filing.
+	/// </summary>
+	Task<IReadOnlyList<SecFactDto>?> GetLatestFilingShareFactsAsync(
 		int cik,
 		CancellationToken cancellationToken = default
 	);
