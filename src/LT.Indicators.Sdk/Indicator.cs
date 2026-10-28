@@ -77,6 +77,13 @@ public abstract class Indicator
 	protected bool IsIntraday => _bars.IsIntraday;
 
 	/// <summary>
+	/// Zone of the trading day (New York): its calendar date starts a new session
+	/// (<see cref="NewSession"/>) and <c>TimeZoneInfo.ConvertTime(Time[i], SessionTimeZone)</c>
+	/// gives a bar's exchange time of day.
+	/// </summary>
+	protected TimeZoneInfo SessionTimeZone => _bars.SessionTimeZone;
+
+	/// <summary>
 	/// 1 on the first bar of each trading day for intraday bars (a new date in the session time
 	/// zone, New York), else 0; on daily and longer bars only the first bar is 1.
 	/// </summary>

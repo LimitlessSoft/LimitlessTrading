@@ -15,5 +15,6 @@ public static class BuiltInIndicators
 		("macd", () => new MacdIndicator()),
 		("atr", () => new AtrIndicator()),
 		("volume-ma", () => new VolumeMaIndicator()),
+		("rvol", () => new RelativeVolumeIndicator()),
 	];
 }
