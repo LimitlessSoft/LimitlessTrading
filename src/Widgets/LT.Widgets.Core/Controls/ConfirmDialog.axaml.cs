@@ -16,7 +16,7 @@ public enum ConfirmChoice
 /// button (Enter confirms, Esc or closing the dialog cancels). <see cref="ShowAsync"/> asks before
 /// something that can't be undone (red confirm, e.g. closing a view with its widgets);
 /// <see cref="ShowChoiceAsync"/> adds a second, red way to go on (e.g. Close this window /
-/// Close application).
+/// Close application); <see cref="ShowMessageAsync"/> only tells something (one OK button).
 /// </summary>
 public partial class ConfirmDialog : AppWindow
 {
@@ -53,6 +53,15 @@ public partial class ConfirmDialog : AppWindow
 		dialog.ConfirmButton.Classes.Add("accent");
 		dialog.AlternativeButton.Content = alternativeText;
 		dialog.AlternativeButton.IsVisible = true;
+		return dialog.ShowDialog<ConfirmChoice>(owner);
+	}
+
+	/// <summary>A message with one OK button (Enter or Esc closes it), e.g. why an import failed.</summary>
+	public static Task ShowMessageAsync(Window owner, string title, string message, string detail)
+	{
+		var dialog = Create(title, message, detail, "OK");
+		dialog.CancelButton.IsVisible = false;
+		dialog.ConfirmButton.IsCancel = true;
 		return dialog.ShowDialog<ConfirmChoice>(owner);
 	}
 

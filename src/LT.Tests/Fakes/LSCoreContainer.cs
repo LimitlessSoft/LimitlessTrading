@@ -100,6 +100,10 @@ public static class LSCoreContainer
 					LSCoreValidatorBase<SaveAppSettingsRequest>,
 					SaveAppSettingsRequestValidator
 				>()
+				.AddSingleton<
+					LSCoreValidatorBase<ImportLayoutRequest>,
+					ImportLayoutRequestValidator
+				>()
 				.AddSingleton<ILSCoreMapper<ContractEntity, ContractDto>, ContractDtoMapper>()
 				.AddSingleton<ILSCoreMapper<WatchlistEntity, WatchlistDto>, WatchlistDtoMapper>()
 				.AddSingleton<

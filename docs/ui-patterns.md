@@ -196,6 +196,23 @@ new instance) and lives in one of four wrappers:
   window centered, `IsMaximized` decides).
   `WorkspaceWindows` (singleton) holds the main workspace and the extra ones
   (`WorkspaceWindowViewModel`, shown by `Shell/WorkspaceWindow`, which the main window opens).
+- **Layout export / import.** Menu → Export layout… writes the whole layout to one JSON file
+  (another computer, a backup, sharing); Import layout… replaces it, live. The file is the
+  settings file's `Layout` section (`LayoutEntity`: every window with bounds, state and screen,
+  views, docked and floating widgets with their per-instance settings) wrapped in
+  `LayoutFileEntity` with `Format` (`LayoutFileConstants.FileFormat`) and `Version`
+  (`CurrentVersion`, raise it when the layout changes meaning; older files must keep importing).
+  camelCase, enums as numbers like the settings file, so a widget kind this version doesn't know
+  is dropped on load instead of failing the file (`LayoutFileHelpers`). Nothing else of the
+  settings goes in it: no connection, Flex token or selected account; watchlists, notes and chart
+  templates are data, not layout, and stay as they are (a widget pointing at one that doesn't exist
+  falls back as with a deleted one). Export saves the live layout first (as on exit,
+  `MainWindow.StoreLayout`) and then `ISettingsManager.ExportLayout`. Import reads the file
+  (at most `MaxFileLength`), asks, then `ISettingsManager.ImportLayout` validates it
+  (`ImportLayoutRequestValidator`: too big, damaged, not ours, newer version — the current layout
+  is untouched and the reason shown) and saves it; `WorkspaceWindows.Replace` discards the extra
+  windows with their widgets, replaces the main workspace (`MainChanged`, as on a take-over) and
+  opens the file's windows; the main window takes the file's bounds and state. No restart.
 
 - **Center views.** A tab strip above the center lists the views; left, right, bottom and
   floating widgets are shared by all of them, a center widget sits in exactly one. Click a tab to
