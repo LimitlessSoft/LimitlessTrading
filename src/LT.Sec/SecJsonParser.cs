@@ -37,12 +37,18 @@ public static class SecJsonParser
 	public static IReadOnlyList<SecFactDto> ParseConcept(string json)
 	{
 		using var document = JsonDocument.Parse(json);
-		return ReadShareFacts(document.RootElement).ToList();
+		var tag =
+			document.RootElement.TryGetProperty("tag", out var name)
+			&& name.ValueKind == JsonValueKind.String
+				? name.GetString() ?? string.Empty
+				: string.Empty;
+		return ReadShareFacts(document.RootElement, tag).ToList();
 	}
 
 	/// <summary>
-	/// A companyfacts answer: the shares values of dei:EntityCommonStockSharesOutstanding and
-	/// us-gaap:CommonStockSharesOutstanding together.
+	/// A companyfacts answer: the shares values of dei:EntityCommonStockSharesOutstanding,
+	/// us-gaap:CommonStockSharesOutstanding and the us-gaap weighted averages (basic, diluted)
+	/// together.
 	/// </summary>
 	public static IReadOnlyList<SecFactDto> ParseCompanyShareFacts(string json)
 	{
@@ -57,8 +63,72 @@ public static class SecJsonParser
 					SecConstants.CommonStockSharesOutstandingConcept
 				)
 			)
+			.Concat(
+				ReadConcept(
+					facts,
+					SecConstants.UsGaapTaxonomy,
+					SecConstants.WeightedAverageBasicConcept
+				)
+			)
+			.Concat(
+				ReadConcept(
+					facts,
+					SecConstants.UsGaapTaxonomy,
+					SecConstants.WeightedAverageDilutedConcept
+				)
+			)
 			.ToList();
 	}
+
+	/// <summary>
+	/// A submissions answer: the newest of its recent filings in <paramref name="forms"/> that is
+	/// inline XBRL (EDGAR extracts an instance document only from those); null when there is none.
+	/// </summary>
+	public static SecFilingRef? ParseLatestInlineFiling(string json, IReadOnlyList<string> forms)
+	{
+		using var document = JsonDocument.Parse(json);
+		if (
+			!document.RootElement.TryGetProperty("filings", out var filings)
+			|| !filings.TryGetProperty("recent", out var recent)
+			|| !TryGetArray(recent, "form", out var formList)
+			|| !TryGetArray(recent, "accessionNumber", out var accessions)
+			|| !TryGetArray(recent, "filingDate", out var dates)
+			|| !TryGetArray(recent, "primaryDocument", out var documents)
+			|| !TryGetArray(recent, "isInlineXBRL", out var inline)
+		)
+			return null;
+
+		SecFilingRef? latest = null;
+		var count = new[] { formList, accessions, dates, documents, inline }.Min(x =>
+			x.GetArrayLength()
+		);
+		for (var i = 0; i < count; i++)
+		{
+			var form = formList[i].GetString() ?? string.Empty;
+			if (
+				!forms.Contains(form)
+				|| !inline[i].TryGetInt32(out var isInline)
+				|| isInline != 1
+				|| !DateOnly.TryParseExact(
+					dates[i].GetString(),
+					"yyyy-MM-dd",
+					CultureInfo.InvariantCulture,
+					DateTimeStyles.None,
+					out var filed
+				)
+				|| documents[i].GetString() is not { Length: > 0 } primary
+				|| !primary.EndsWith(".htm", StringComparison.OrdinalIgnoreCase)
+				|| accessions[i].GetString() is not { Length: > 0 } accession
+			)
+				continue;
+			if (latest == null || filed > latest.Filed)
+				latest = new SecFilingRef(accession, primary, form, filed);
+		}
+		return latest;
+	}
+
+	private static bool TryGetArray(JsonElement element, string name, out JsonElement array) =>
+		element.TryGetProperty(name, out array) && array.ValueKind == JsonValueKind.Array;
 
 	private static IEnumerable<SecFactDto> ReadConcept(
 		JsonElement facts,
@@ -67,11 +137,11 @@ public static class SecJsonParser
 	) =>
 		facts.TryGetProperty(taxonomy, out var group)
 		&& group.TryGetProperty(concept, out var element)
-			? ReadShareFacts(element)
+			? ReadShareFacts(element, concept)
 			: [];
 
-	// { "units": { "shares": [ { "end", "val", "form", "filed", … } ] } }
-	private static IEnumerable<SecFactDto> ReadShareFacts(JsonElement concept)
+	// { "units": { "shares": [ { "start"?, "end", "val", "form", "filed", … } ] } }
+	private static IEnumerable<SecFactDto> ReadShareFacts(JsonElement concept, string name)
 	{
 		if (
 			!concept.TryGetProperty("units", out var units)
@@ -90,6 +160,8 @@ public static class SecJsonParser
 			)
 				yield return new SecFactDto
 				{
+					Concept = name,
+					Start = TryGetDate(value, "start", out var start) ? start : null,
 					End = end,
 					Filed = filed,
 					Value = number,

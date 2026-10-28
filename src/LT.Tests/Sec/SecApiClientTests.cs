@@ -72,6 +72,38 @@ public class SecApiClientTests
 	}
 
 	[Fact]
+	public async Task The_latest_filing_instance_is_found_through_the_submissions()
+	{
+		_http
+			.Respond(
+				"""
+				{"filings":{"recent":{"accessionNumber":["0001193125-26-341032"],"filingDate":["2026-08-10"],
+				 "form":["10-Q"],"primaryDocument":["brka-20260630.htm"],"isInlineXBRL":[1]}}}
+				"""
+			)
+			.Respond(
+				"""
+				<xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:dei="http://xbrl.sec.gov/dei/2025">
+				  <context id="c"><entity><identifier scheme="x">1</identifier></entity><period><instant>2026-07-29</instant></period></context>
+				  <dei:EntityCommonStockSharesOutstanding contextRef="c">5</dei:EntityCommonStockSharesOutstanding>
+				</xbrl>
+				"""
+			);
+
+		var facts = await RunAsync(
+			_client.GetLatestFilingShareFactsAsync(1067983, TestContext.Current.CancellationToken)
+		);
+
+		Assert.Equal(5, Assert.Single(facts!).Value);
+		Assert.Equal("10-Q", facts![0].Form);
+		Assert.EndsWith("/submissions/CIK0001067983.json", _http.Requests[0].Uri.AbsolutePath);
+		Assert.Equal(
+			"/Archives/edgar/data/1067983/000119312526341032/brka-20260630_htm.xml",
+			_http.Requests[1].Uri.AbsolutePath
+		);
+	}
+
+	[Fact]
 	public async Task Server_errors_throw()
 	{
 		_http.Respond("", HttpStatusCode.Forbidden);

@@ -1,3 +1,4 @@
+using LT.Contracts.Constants;
 using LT.Contracts.Helpers;
 using LT.Sec;
 
@@ -63,6 +64,66 @@ public class SecJsonParserTests
 		Assert.Equal(
 			12_230_000_000,
 			MarketCapHelpers.PickSharesOutstanding(facts, new DateOnly(2026, 10, 26))?.Shares
+		);
+	}
+
+	[Fact]
+	public void Company_facts_add_the_weighted_averages_with_their_period()
+	{
+		const string json = """
+			{"cik":1326801,"facts":{"us-gaap":{
+			  "WeightedAverageNumberOfSharesOutstandingBasic":{"units":{"shares":[
+			   {"start":"2026-07-01","end":"2026-09-30","val":2552000000,"form":"10-Q","filed":"2026-10-29"}]}},
+			  "WeightedAverageNumberOfDilutedSharesOutstanding":{"units":{"shares":[
+			   {"start":"2026-07-01","end":"2026-09-30","val":2568000000,"form":"10-Q","filed":"2026-10-29"}]}}}}}
+			""";
+
+		var facts = SecJsonParser.ParseCompanyShareFacts(json);
+
+		Assert.Equal(2, facts.Count);
+		Assert.Equal(SecConstants.WeightedAverageBasicConcept, facts[0].Concept);
+		Assert.Equal(new DateOnly(2026, 7, 1), facts[0].Start);
+		Assert.Null(MarketCapHelpers.PickSharesOutstanding(facts, new DateOnly(2026, 10, 28)));
+		Assert.Equal(
+			2_552_000_000,
+			MarketCapHelpers.PickWeightedAverageShares(facts, new DateOnly(2026, 10, 28))?.Shares
+		);
+	}
+
+	[Fact]
+	public void Submissions_give_the_newest_inline_us_report()
+	{
+		const string json = """
+			{"cik":"1067983","filings":{"recent":{
+			  "accessionNumber":["0001193125-26-400000","0001193125-26-341032","0001193125-26-200000","0000000000-26-000001"],
+			  "filingDate":["2026-09-01","2026-08-10","2026-05-04","2026-08-20"],
+			  "form":["8-K","10-Q","10-Q","10-Q"],
+			  "primaryDocument":["d8k.htm","brka-20260630.htm","brka-20260331.htm","old.txt"],
+			  "isInlineXBRL":[1,1,1,0]}}}
+			""";
+
+		var filing = SecJsonParser.ParseLatestInlineFiling(
+			json,
+			SecConstants.SharesOutstandingForms
+		);
+
+		Assert.Equal(
+			new SecFilingRef(
+				"0001193125-26-341032",
+				"brka-20260630.htm",
+				"10-Q",
+				new DateOnly(2026, 8, 10)
+			),
+			filing
+		);
+		Assert.Null(
+			SecJsonParser.ParseLatestInlineFiling(
+				"""{"filings":{"recent":{"accessionNumber":["a"],"filingDate":["2026-01-01"],"form":["20-F"],"primaryDocument":["x.htm"],"isInlineXBRL":[1]}}}""",
+				SecConstants.SharesOutstandingForms
+			)
+		);
+		Assert.Null(
+			SecJsonParser.ParseLatestInlineFiling("{}", SecConstants.SharesOutstandingForms)
 		);
 	}
 

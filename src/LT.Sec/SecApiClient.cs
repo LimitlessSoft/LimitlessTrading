@@ -7,7 +7,7 @@ using LT.Contracts.Interfaces.IApiClients;
 namespace LT.Sec;
 
 /// <summary>
-/// SEC EDGAR over HTTPS: the ticker → CIK file and XBRL share counts. Every request goes through
+/// SEC EDGAR over HTTPS: the ticker → CIK file, XBRL share counts and filings' cover pages. Every request goes through
 /// one gate and stays <see cref="SecConstants.RequestSpacing"/> after the previous one (the SEC
 /// allows 10 per second per client). Singleton (Program.cs) so the spacing holds app-wide.
 /// </summary>
@@ -68,6 +68,37 @@ public sealed class SecApiClient(HttpClient http, TimeProvider timeProvider) : I
 			is { } json
 			? SecJsonParser.ParseCompanyShareFacts(json)
 			: null;
+
+	public async Task<IReadOnlyList<SecFactDto>?> GetLatestFilingShareFactsAsync(
+		int cik,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var submissions = await GetStringAsync(
+			GetUrl(SecConstants.SubmissionsUrl, cik),
+			cancellationToken
+		);
+		if (
+			submissions == null
+			|| SecJsonParser.ParseLatestInlineFiling(
+				submissions,
+				SecConstants.SharesOutstandingForms
+			)
+				is not { } filing
+		)
+			return null;
+
+		var url = string.Format(
+			CultureInfo.InvariantCulture,
+			SecConstants.FilingInstanceUrl,
+			cik,
+			filing.AccessionNumber.Replace("-", string.Empty),
+			Path.GetFileNameWithoutExtension(filing.PrimaryDocument)
+		);
+		return await GetStringAsync(url, cancellationToken) is { } xml
+			? SecXbrlParser.ParseCoverPageShares(xml, filing.Form, filing.Filed)
+			: null;
+	}
 
 	private static string GetUrl(string format, int cik) =>
 		string.Format(

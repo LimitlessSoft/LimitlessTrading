@@ -221,14 +221,26 @@ entitlement (tick 258, [error 10358](ibkr-tws-api.md#fundamentals-10358)). `Shar
 gets them from SEC EDGAR instead: `company_tickers.json` maps the ticker to a CIK (loaded once per
 run; IB's `BRK B` is the SEC's `BRK-B`), then `companyconcept/…/dei/EntityCommonStockSharesOutstanding`
 gives the cover-page counts; when that has nothing usable, `companyfacts` (several MB) adds
-`us-gaap:CommonStockSharesOutstanding`, which multi-class companies (Alphabet) report undivided.
-`MarketCapHelpers.PickSharesOutstanding` takes the newest count from a 10-K / 10-Q no older than
-400 days: 20-F / 40-F counts are ordinary shares that an ADR's price doesn't match, and old counts
-(Berkshire's cover page stops in 2011) would be wrong.
+`us-gaap:CommonStockSharesOutstanding`, which some multi-class companies (Alphabet) report
+undivided. `MarketCapHelpers.PickSharesOutstanding` takes the newest count from a 10-K / 10-Q no
+older than 400 days: 20-F / 40-F counts are ordinary shares that an ADR's price doesn't match, and
+old counts (Berkshire's undivided cover-page count stops in 2011) would be wrong.
+
+Most multi-class filers (META, MA, CMCSA, UPS, …) tag their counts only per class, on an XBRL
+dimension the JSON APIs leave out. Next comes the newest weighted average from the same
+`companyfacts` (`PickWeightedAverageShares`: basic before diluted, the quarter before the year to
+date), a little behind the cover page but within a few percent. Filers without even that
+(Berkshire, Visa) get the cover page of their latest inline-XBRL 10-K / 10-Q: `submissions/CIK….json`
+names it, and EDGAR's extracted instance (`…_htm.xml`, up to ~8 MB) has the per-class counts
+(`SecXbrlParser`). `PickFilingShares` adds the classes up in the ticker's shares,
+`SecConstants.ShareClassRatios` converting where a class isn't one share each (BRK-B: Class A ×
+1,500 + Class B; BRK-A: Class A + Class B ÷ 1,500). Visa's B and C classes convert at changing
+rates and are added one for one, so its cap reads a few percent low.
 
 Results are kept in `shares-outstanding.json` (`SharesOutstandingRepository`, outside the data
 cache, so the Cache settings don't apply) keyed by SEC ticker: a count is looked up again after
-7 days, "nothing usable" after 3. One lookup per ticker runs at a time; `SecApiClient` sends one
+7 days, "nothing usable" after 3 — or at once when it was cached by an older lookup
+(`SecConstants.SharesLookupVersion`, raised whenever the lookup learns to find more). One lookup per ticker runs at a time; `SecApiClient` sends one
 request at a time, 125 ms apart (the SEC allows 10/s). After a failure no lookup starts for
 5 minutes, the failure is logged once (source "SEC") and a stale count is used if there is one.
 
