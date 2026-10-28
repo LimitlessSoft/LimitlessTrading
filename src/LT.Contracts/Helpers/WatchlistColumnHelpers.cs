@@ -1,3 +1,4 @@
+using LT.Contracts.Constants;
 using LT.Contracts.Enums;
 
 namespace LT.Contracts.Helpers;
@@ -16,8 +17,23 @@ public static class WatchlistColumnHelpers
 		WatchlistSortColumn.ChangePercent,
 		WatchlistSortColumn.Bid,
 		WatchlistSortColumn.Volume,
+		WatchlistSortColumn.AverageVolume,
 		WatchlistSortColumn.MarketCap,
 	];
+
+	/// <summary>
+	/// The generic ticks the watchlist's quote lines ask for: the average volume's
+	/// (<c>MarketDataConstants.AverageVolumeGenericTick</c>) while its column is shown or sorted
+	/// by, none otherwise, so the lines can be shared with the rest of the app.
+	/// </summary>
+	public static string GetGenericTicks(
+		IReadOnlySet<WatchlistSortColumn> hidden,
+		WatchlistSortColumn sortColumn
+	) =>
+		!hidden.Contains(WatchlistSortColumn.AverageVolume)
+		|| sortColumn == WatchlistSortColumn.AverageVolume
+			? MarketDataConstants.AverageVolumeGenericTick
+			: string.Empty;
 
 	/// <summary>
 	/// The built-in columns a saved widget hides: only built-in ones (not <c>None</c> or

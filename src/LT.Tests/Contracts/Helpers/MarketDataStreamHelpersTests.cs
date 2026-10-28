@@ -11,6 +11,7 @@ public class MarketDataStreamHelpersTests
 	[Theory]
 	[InlineData(MarketDataStreamKind.Quote, "", "Quote")]
 	[InlineData(MarketDataStreamKind.Quote, "106", "Quote + option IV")]
+	[InlineData(MarketDataStreamKind.Quote, "165", "Quote + avg volume")]
 	[InlineData(MarketDataStreamKind.Quote, "233", "Quote + ticks 233")]
 	[InlineData(MarketDataStreamKind.News, "", "News")]
 	public void Kind_text_names_the_generic_ticks(

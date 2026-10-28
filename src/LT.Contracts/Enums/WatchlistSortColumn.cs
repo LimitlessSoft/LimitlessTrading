@@ -13,4 +13,7 @@ public enum WatchlistSortColumn
 
 	/// <summary>A custom column; which one is kept beside the sort (its id).</summary>
 	Custom,
+
+	/// <summary>IB's 90-day average daily volume (generic tick 165).</summary>
+	AverageVolume,
 }

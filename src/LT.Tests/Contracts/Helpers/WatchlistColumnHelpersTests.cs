@@ -38,6 +38,39 @@ public class WatchlistColumnHelpersTests
 		Assert.Empty(WatchlistColumnHelpers.ResolveHidden(null, shownCustomColumns: 0));
 	}
 
+	[Fact]
+	public void Average_volume_is_a_built_in_column_after_volume()
+	{
+		var columns = WatchlistColumnHelpers.BuiltInColumns.ToList();
+
+		Assert.Equal(
+			columns.IndexOf(WatchlistSortColumn.Volume) + 1,
+			columns.IndexOf(WatchlistSortColumn.AverageVolume)
+		);
+		// Persisted as an integer: added after every older value
+		Assert.True(WatchlistSortColumn.AverageVolume > WatchlistSortColumn.Custom);
+	}
+
+	[Theory]
+	[InlineData(false, WatchlistSortColumn.None, "165")]
+	[InlineData(true, WatchlistSortColumn.AverageVolume, "165")]
+	[InlineData(true, WatchlistSortColumn.Volume, "")]
+	[InlineData(true, WatchlistSortColumn.None, "")]
+	public void Quote_lines_ask_for_average_volume_while_its_column_is_shown_or_sorted(
+		bool hidden,
+		WatchlistSortColumn sortColumn,
+		string expected
+	) =>
+		Assert.Equal(
+			expected,
+			WatchlistColumnHelpers.GetGenericTicks(
+				hidden
+					? new HashSet<WatchlistSortColumn> { WatchlistSortColumn.AverageVolume }
+					: [],
+				sortColumn
+			)
+		);
+
 	[Theory]
 	[InlineData(true, 1, false)]
 	[InlineData(true, 2, true)]

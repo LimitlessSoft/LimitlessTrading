@@ -48,12 +48,47 @@ public class WatchlistViewModelColumnsTests : IDisposable
 	public void Every_column_is_listed_and_shown_at_first()
 	{
 		Assert.Equal(
-			["Symbol", "Last", "Chg %", "Bid / Ask", "Vol", "Mkt Cap"],
+			["Symbol", "Last", "Chg %", "Bid / Ask", "Vol", "Avg Vol", "Mkt Cap"],
 			_watchlist.Columns.Select(x => x.Name)
 		);
 		Assert.All(_watchlist.Columns, x => Assert.True(x.IsShown));
 		Assert.All(_watchlist.Columns, x => Assert.True(x.CanToggle));
 		Assert.False(_watchlist.HasSort);
+	}
+
+	[Fact]
+	public void Average_volume_is_shown_compact_sorts_the_rows_and_outlives_quotes_without_it()
+	{
+		TestUiThread.Invoke(() =>
+		{
+			foreach (
+				var (symbol, average) in new[]
+				{
+					("SPY", 75_000_000m),
+					("AAPL", 43_502_835m),
+					("MSFT", 21_000_000m),
+				}
+			)
+			{
+				var row = Row(symbol);
+				row.Pending.Set(new QuoteDto { Last = 1, AverageVolume = average });
+				row.Flush();
+			}
+			// A snapshot carries no generic ticks: the average stays
+			Row("AAPL").Pending.Set(new QuoteDto { Last = 2 });
+			Row("AAPL").Flush();
+			_watchlist.SortBy(
+				WatchlistSortColumn.AverageVolume,
+				null,
+				ListSortDirection.Descending
+			);
+		});
+
+		Assert.Equal("43.5M", Row("AAPL").AverageVolume);
+		Assert.Equal(43_502_835m, Row("AAPL").AverageVolumeValue);
+		Assert.Equal("—", Row("NVDA").AverageVolume);
+		// Unknown goes last
+		Assert.Equal(["SPY", "AAPL", "MSFT", "NVDA"], Symbols());
 	}
 
 	[Fact]

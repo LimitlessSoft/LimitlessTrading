@@ -171,6 +171,7 @@ public static partial class WatchlistSortHelpers
 				or WatchlistSortColumn.ChangePercent
 				or WatchlistSortColumn.Bid
 				or WatchlistSortColumn.Volume
+				or WatchlistSortColumn.AverageVolume
 				or WatchlistSortColumn.MarketCap;
 
 	// Symbols case-insensitively; numbers by value

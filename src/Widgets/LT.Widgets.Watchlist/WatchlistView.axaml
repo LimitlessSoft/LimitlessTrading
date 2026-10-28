@@ -248,6 +248,25 @@
 						</DataTemplate>
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
+				<!-- IB's 90-day average daily volume (generic tick 165) -->
+				<DataGridTemplateColumn
+					IsReadOnly="True"
+					Header="Avg Vol"
+					Width="Auto"
+					SortMemberPath="AverageVolumeValue"
+					Tag="{x:Static enums:WatchlistSortColumn.AverageVolume}"
+				>
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:WatchlistRowViewModel">
+							<TextBlock
+								Classes="value secondary"
+								Margin="8,0"
+								VerticalAlignment="Center"
+								Text="{Binding AverageVolume}"
+							/>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
 				<!-- SEC shares outstanding × last; US stocks only -->
 				<DataGridTemplateColumn
 					IsReadOnly="True"

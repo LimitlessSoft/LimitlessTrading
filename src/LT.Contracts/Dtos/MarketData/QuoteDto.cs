@@ -10,6 +10,9 @@ public class QuoteDto
 	public decimal? AskSize { get; set; }
 	public decimal? LastSize { get; set; }
 	public decimal? Volume { get; set; }
+
+	/// <summary>The 90-day average daily volume in shares; only with generic tick 165.</summary>
+	public decimal? AverageVolume { get; set; }
 	public double? High { get; set; }
 	public double? Low { get; set; }
 	public double? Open { get; set; }

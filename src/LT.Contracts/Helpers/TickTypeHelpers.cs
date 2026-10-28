@@ -19,6 +19,7 @@ public static class TickTypeHelpers
 	public const int Low = 7;
 	public const int Volume = 8;
 	public const int Close = 9;
+	public const int AverageVolume = 21;
 	public const int OptionImpliedVolatility = 24;
 	public const int Open = 14;
 	public const int LastTimestamp = 45;
@@ -77,6 +78,9 @@ public static class TickTypeHelpers
 				return true;
 			case Volume or DelayedVolume:
 				quote.Volume = tick.Size;
+				return true;
+			case AverageVolume:
+				quote.AverageVolume = tick.Size is > 0 ? tick.Size : null;
 				return true;
 			case LastTimestamp or DelayedLastTimestamp:
 				if (

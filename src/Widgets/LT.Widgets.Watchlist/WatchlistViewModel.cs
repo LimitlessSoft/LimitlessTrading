@@ -66,6 +66,9 @@ public partial class WatchlistViewModel
 	// "No free line" is logged once per connection, not per row
 	private bool _noFreeLineLogged;
 
+	// Generic ticks of the rows' quote lines: the Avg Vol column's while it is shown or sorted by
+	private string _genericTicks = MarketDataConstants.AverageVolumeGenericTick;
+
 	public WatchlistViewModel(
 		IWatchlistManager watchlistManager,
 		IContractManager contractManager,
@@ -305,6 +308,7 @@ public partial class WatchlistViewModel
 			WatchlistSortColumn.ChangePercent => "Chg %",
 			WatchlistSortColumn.Bid => "Bid / Ask",
 			WatchlistSortColumn.Volume => "Vol",
+			WatchlistSortColumn.AverageVolume => "Avg Vol",
 			WatchlistSortColumn.MarketCap => "Mkt Cap",
 			_ => column.ToString(),
 		};
@@ -409,6 +413,7 @@ public partial class WatchlistViewModel
 	// Every row of the list follows the shown columns and the sort; so does the hidden sort line
 	private void UpdateColumnOptions()
 	{
+		UpdateGenericTicks();
 		var shownCount = ShownColumnCount;
 		foreach (var option in Columns)
 		{
@@ -1158,6 +1163,26 @@ public partial class WatchlistViewModel
 		}
 	}
 
+	// The Avg Vol column was shown, hidden or sorted by: the streaming rows reopen their lines
+	// with or without its generic tick (without it they can share a line with a chart)
+	private void UpdateGenericTicks()
+	{
+		var ticks = WatchlistColumnHelpers.GetGenericTicks(_hiddenColumns, SortColumn);
+		if (ticks == _genericTicks)
+			return;
+		_genericTicks = ticks;
+		if (!IsConnected)
+			return;
+		var restart = false;
+		foreach (var row in Rows.Where(x => x.Subscription != null))
+		{
+			Stop(row);
+			restart = true;
+		}
+		if (restart)
+			UpdateLiveRows();
+	}
+
 	// Leaves MarketDataConstants.WatchlistReservedLines free for charts, the option chain and
 	// alerts; without a line the row shows snapshots
 	private void TryStartLive(WatchlistRowViewModel row, DateTimeOffset now)
@@ -1191,6 +1216,7 @@ public partial class WatchlistViewModel
 		var subscription = CancellationTokenSource.CreateLinkedTokenSource(_session);
 		row.Subscription = subscription;
 		var token = subscription.Token;
+		var genericTicks = _genericTicks;
 		var owner = ActiveWatchlist is { } watchlist
 			? $"{MarketDataStreamOwners.Watchlist} · {watchlist.Name}"
 			: MarketDataStreamOwners.Watchlist;
@@ -1202,7 +1228,7 @@ public partial class WatchlistViewModel
 				{
 					await foreach (
 						var quote in _marketDataManager
-							.SubscribeQuotesAsync(row.Contract, token, owner: owner)
+							.SubscribeQuotesAsync(row.Contract, token, genericTicks, owner)
 							.ConfigureAwait(false)
 					)
 					{
