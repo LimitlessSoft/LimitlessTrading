@@ -1,6 +1,9 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using LT.Contracts.Constants;
+using LT.Contracts.Dtos.ChartDrawings;
 using LT.Contracts.Dtos.Charts;
+using LT.Contracts.Entities;
 using LT.Contracts.Enums;
 
 namespace LT.Contracts.Helpers;
@@ -16,7 +19,7 @@ namespace LT.Contracts.Helpers;
 /// right margin, and keeps its place when older bars are put in front or new ones arrive.
 /// </para>
 /// </summary>
-public static class ChartDrawingHelpers
+public static partial class ChartDrawingHelpers
 {
 	/// <summary>Points the kind takes; 0 for a freehand stroke (two or more).</summary>
 	public static int GetPointCount(ChartDrawingKind kind) =>
@@ -328,14 +331,16 @@ public static class ChartDrawingHelpers
 	/// <summary>
 	/// The drawing of this kind with its anchors at <paramref name="points"/> (screen) is under
 	/// <paramref name="point"/>: on one of its lines, or inside a filled shape. A text drawing is
-	/// hit by its label's box, which only the chart knows: always false here.
+	/// hit by its label's box, which only the chart knows: always false here. A Fibonacci
+	/// drawing's lines are its <paramref name="fibLevels"/> (null: the kind's defaults).
 	/// </summary>
 	public static bool HitTest(
 		ChartDrawingKind kind,
 		IReadOnlyList<(double X, double Y)> points,
 		(double X, double Y) point,
 		(double Left, double Top, double Right, double Bottom) bounds,
-		double tolerance
+		double tolerance,
+		IReadOnlyList<double>? fibLevels = null
 	)
 	{
 		if (points.Count == 0)
@@ -391,7 +396,7 @@ public static class ChartDrawingHelpers
 				// Anywhere between level 0 and 1, or on another level's line
 				if (point.Y >= Math.Min(a.Y, b.Y) && point.Y <= Math.Max(a.Y, b.Y))
 					return true;
-				return ChartDrawingConstants.FibRetracementLevels.Any(level =>
+				return (fibLevels ?? ChartDrawingConstants.FibRetracementLevels).Any(level =>
 					Math.Abs(point.Y - GetFibRetracementPrice(a.Y, b.Y, level)) <= tolerance
 				);
 			}
@@ -420,7 +425,7 @@ public static class ChartDrawingHelpers
 				var (left, right) = GetFibExtensionSpan(a, b, c);
 				return point.X >= left - tolerance
 					&& point.X <= right + tolerance
-					&& ChartDrawingConstants.FibExtensionLevels.Any(level =>
+					&& (fibLevels ?? ChartDrawingConstants.FibExtensionLevels).Any(level =>
 						Math.Abs(point.Y - GetFibExtensionPrice(a.Y, b.Y, c.Y, level)) <= tolerance
 					);
 			}
@@ -485,4 +490,208 @@ public static class ChartDrawingHelpers
 		}
 		return kept;
 	}
+
+	// ---- style -----------------------------------------------------------------------------
+
+	/// <summary>
+	/// The style of a drawing never restyled (and of every drawing saved before styles): the
+	/// palette's blue, solid, 1.5 wide (Fibonacci levels 1); a note's text is light.
+	/// </summary>
+	public static ChartDrawingStyleDto GetBuiltInStyle(ChartDrawingKind kind) =>
+		new()
+		{
+			Color =
+				kind == ChartDrawingKind.Text
+					? ChartDrawingConstants.DefaultTextColor
+					: ChartDrawingConstants.DefaultColor,
+			LineStyle = ChartDrawingLineStyle.Solid,
+			LineWidth = IsFib(kind)
+				? ChartDrawingConstants.MinLineWidth
+				: ChartDrawingConstants.DefaultLineWidth,
+		};
+
+	/// <summary>The kind has lines to style (all but a note).</summary>
+	public static bool HasLineStyle(ChartDrawingKind kind) => kind != ChartDrawingKind.Text;
+
+	/// <summary>The kind takes a colour (the price range is green up and red down).</summary>
+	public static bool HasColor(ChartDrawingKind kind) => kind != ChartDrawingKind.PriceRange;
+
+	public static bool IsFib(ChartDrawingKind kind) =>
+		kind is ChartDrawingKind.FibRetracement or ChartDrawingKind.FibExtension;
+
+	/// <summary>"#RRGGBB" or "#AARRGGBB".</summary>
+	public static bool IsValidColor(string? color) =>
+		color != null && HexColorRegex().IsMatch(color.Trim());
+
+	/// <summary>Trimmed, upper case, with its "#".</summary>
+	public static string NormalizeColor(string color)
+	{
+		color = color.Trim().ToUpperInvariant();
+		return color.StartsWith('#') ? color : "#" + color;
+	}
+
+	public static bool IsValidLineWidth(double width) =>
+		double.IsFinite(width)
+		&& width >= ChartDrawingConstants.MinLineWidth
+		&& width <= ChartDrawingConstants.MaxLineWidth;
+
+	/// <summary>
+	/// The default levels of a Fibonacci kind (<see cref="ChartDrawingConstants.FibRetracementLevels"/>
+	/// / <see cref="ChartDrawingConstants.FibExtensionLevels"/>), each in its colour; empty for the
+	/// other kinds.
+	/// </summary>
+	public static List<ChartDrawingFibLevelDto> GetDefaultFibLevels(ChartDrawingKind kind)
+	{
+		var values = kind switch
+		{
+			ChartDrawingKind.FibRetracement => ChartDrawingConstants.FibRetracementLevels,
+			ChartDrawingKind.FibExtension => ChartDrawingConstants.FibExtensionLevels,
+			_ => [],
+		};
+		return
+		[
+			.. values.Select(
+				(value, i) =>
+					new ChartDrawingFibLevelDto
+					{
+						Value = value,
+						IsVisible = true,
+						Color = ChartDrawingConstants.FibColors[
+							i % ChartDrawingConstants.FibColors.Count
+						],
+					}
+			),
+		];
+	}
+
+	/// <summary>Within <see cref="ChartDrawingConstants.MinFibLevel"/> … <see cref="ChartDrawingConstants.MaxFibLevel"/>.</summary>
+	public static bool IsValidFibLevel(double value) =>
+		double.IsFinite(value)
+		&& value >= ChartDrawingConstants.MinFibLevel
+		&& value <= ChartDrawingConstants.MaxFibLevel;
+
+	/// <summary>No level twice (compared to 6 decimals, as typed values are).</summary>
+	public static bool HasUniqueFibLevels(IEnumerable<ChartDrawingFibLevelDto> levels)
+	{
+		var seen = new HashSet<double>();
+		return levels.All(x => seen.Add(Math.Round(x.Value, 6)));
+	}
+
+	/// <summary>A typed level: "0.618", "0,618" or "61.8%" (a percentage is divided by 100).</summary>
+	public static bool TryParseFibLevel(string? text, out double value)
+	{
+		value = 0;
+		if (string.IsNullOrWhiteSpace(text))
+			return false;
+		text = text.Trim();
+		var percent = text.EndsWith('%');
+		if (percent)
+			text = text[..^1].Trim();
+		if (
+			!double.TryParse(
+				text.Replace(',', '.'),
+				NumberStyles.Float,
+				CultureInfo.InvariantCulture,
+				out value
+			)
+		)
+			return false;
+		if (percent)
+			value /= 100;
+		return double.IsFinite(value);
+	}
+
+	public static ChartDrawingStyleEntity ToEntity(ChartDrawingStyleDto style) =>
+		new()
+		{
+			Color = NormalizeColor(style.Color),
+			LineStyle = style.LineStyle,
+			LineWidth = style.LineWidth,
+		};
+
+	public static ChartDrawingStyleDto ToDto(ChartDrawingStyleEntity style) =>
+		new()
+		{
+			Color = style.Color,
+			LineStyle = style.LineStyle,
+			LineWidth = style.LineWidth,
+		};
+
+	public static List<ChartDrawingFibLevelEntity> ToEntities(
+		IEnumerable<ChartDrawingFibLevelDto> levels
+	) =>
+		[
+			.. levels.Select(x => new ChartDrawingFibLevelEntity
+			{
+				Value = x.Value,
+				IsVisible = x.IsVisible,
+				Color = x.Color is { } color ? NormalizeColor(color) : null,
+			}),
+		];
+
+	public static List<ChartDrawingFibLevelDto> ToDtos(
+		IEnumerable<ChartDrawingFibLevelEntity> levels
+	) =>
+		[
+			.. levels.Select(x => new ChartDrawingFibLevelDto
+			{
+				Value = x.Value,
+				IsVisible = x.IsVisible,
+				Color = x.Color,
+			}),
+		];
+
+	// ---- magnet and paste ------------------------------------------------------------------
+
+	/// <summary>
+	/// The magnet: the open, high, low or close of the bar at <paramref name="barPosition"/>
+	/// (rounded to a bar) nearest to <paramref name="price"/>; the price itself off the bars.
+	/// </summary>
+	public static double GetMagnetPrice(
+		IReadOnlyList<BarDto> bars,
+		double barPosition,
+		double price
+	)
+	{
+		if (!double.IsFinite(barPosition))
+			return price;
+		var index = (int)Math.Floor(barPosition + 0.5);
+		if (index < 0 || index >= bars.Count)
+			return price;
+		var bar = bars[index];
+		var nearest = bar.Open;
+		foreach (var value in (ReadOnlySpan<double>)[bar.High, bar.Low, bar.Close])
+			if (Math.Abs(value - price) < Math.Abs(nearest - price))
+				nearest = value;
+		return nearest;
+	}
+
+	/// <summary>
+	/// Points moved by <paramref name="barShift"/> bars (through gaps as the bars run, beyond them
+	/// at the bar length) and by <paramref name="priceShift"/>: where a pasted copy goes.
+	/// </summary>
+	public static List<ChartDrawingPointDto> OffsetPoints(
+		IReadOnlyList<ChartDrawingPointDto> points,
+		IReadOnlyList<BarDto> bars,
+		TimeSpan barLength,
+		double barShift,
+		double priceShift
+	) =>
+		[
+			.. points.Select(x => new ChartDrawingPointDto
+			{
+				Time =
+					bars.Count > 0
+						? GetTimeAt(
+							bars,
+							GetBarPosition(bars, x.Time, barLength) + barShift,
+							barLength
+						)
+						: x.Time + barLength * barShift,
+				Price = x.Price + priceShift,
+			}),
+		];
+
+	[GeneratedRegex("^#?([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$")]
+	private static partial Regex HexColorRegex();
 }

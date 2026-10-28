@@ -44,6 +44,7 @@ public class ChartViewModelDrawingTests : IDisposable
 	private readonly PriceAlertManager _alerts;
 	private readonly InMemoryChartDrawingRepository _repository = new();
 	private readonly ChartDrawingManager _drawings;
+	private readonly ChartDrawingClipboardStore _clipboard = new();
 	private readonly List<ChartViewModel> _charts = [];
 
 	public ChartViewModelDrawingTests()
@@ -202,7 +203,8 @@ public class ChartViewModelDrawingTests : IDisposable
 
 		Assert.Null(created);
 		Assert.Empty(chart.Drawings);
-		Assert.False(string.IsNullOrEmpty(chart.ErrorMessage));
+		// The validation message itself, not LSCore's JSON list of failures
+		Assert.Equal("Type the text of the note.", chart.ErrorMessage);
 	}
 
 	[Fact]
@@ -473,6 +475,7 @@ public class ChartViewModelDrawingTests : IDisposable
 			new ChartTemplateManager(_cache.Settings),
 			_alerts,
 			_drawings,
+			_clipboard,
 			new AccountStore(_connection, settings),
 			new LinkGroupStore(),
 			new DisplayTimeStore(settings, _cache.Time),

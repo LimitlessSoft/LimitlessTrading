@@ -200,6 +200,7 @@ public class ChartViewModelAlertTests : IDisposable
 			new ChartTemplateManager(_cache.Settings),
 			_alerts,
 			new ChartDrawingManager(new InMemoryChartDrawingRepository()),
+			new ChartDrawingClipboardStore(),
 			new AccountStore(_connection, settings),
 			new LinkGroupStore(),
 			new DisplayTimeStore(settings, _cache.Time),

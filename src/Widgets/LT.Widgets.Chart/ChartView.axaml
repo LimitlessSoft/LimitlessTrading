@@ -69,7 +69,8 @@
 	     its ✕) arms a tool for the next click: Alert previews a line at the pointer's price and
 	     places an alert where the price chart is clicked; Esc or the button again cancels. Its
 	     Draw button turns drawing mode on: the palette of drawing tools down the plot's left
-	     edge (ChartViewModel.Drawings.cs); "Remove all" asks over the plot first.
+	     edge (ChartViewModel.Drawings.cs); "Remove all" asks over the plot first. The selected
+	     drawing's style bar floats at the bottom of the plot (ChartViewModel.DrawingStyle.cs).
 	     A ticker dragged from a watchlist, positions, orders or executions row can be dropped
 	     anywhere on the chart (TickerDragDrop); the highlight shows while it hovers. -->
 	<Panel x:Name="DropRoot" Background="Transparent" helpers:TickerDragDrop.IsTarget="True">
@@ -452,6 +453,8 @@
 				SelectedDrawingId="{Binding SelectedDrawingId, Mode=TwoWay}"
 				DrawingsLocked="{Binding DrawingsLocked}"
 				DrawingsHidden="{Binding DrawingsHidden}"
+				DrawingMagnet="{Binding DrawingMagnet}"
+				NewDrawingStyle="{Binding ActiveDrawingStyle}"
 			>
 				<vm:CandlestickChart.ContextMenu>
 					<ContextMenu x:Name="ChartMenu">
@@ -466,6 +469,41 @@
 							Header="Remove triggered alerts"
 							Command="{Binding RemoveTriggeredAlertsCommand}"
 							IsVisible="{Binding HasTriggeredAlerts}"
+						/>
+						<!-- Drawing mode: the drawing under the pointer (selected when the menu
+						     opens), paste, and the drawings hidden one by one; shown when the menu opens -->
+						<Separator x:Name="DrawingMenuSeparator" />
+						<MenuItem
+							x:Name="CopyDrawingMenuItem"
+							Header="Copy drawing"
+							InputGesture="Ctrl+C"
+							Command="{Binding CopySelectedDrawingCommand}"
+						/>
+						<MenuItem
+							x:Name="DuplicateDrawingMenuItem"
+							Header="Duplicate drawing"
+							InputGesture="Ctrl+D"
+						/>
+						<MenuItem
+							x:Name="LockDrawingMenuItem"
+							Header="Lock drawing"
+							Command="{Binding ToggleSelectedDrawingLockedCommand}"
+						/>
+						<MenuItem
+							x:Name="HideDrawingMenuItem"
+							Header="Hide drawing"
+							Command="{Binding HideSelectedDrawingCommand}"
+						/>
+						<MenuItem
+							x:Name="DeleteDrawingMenuItem"
+							Header="Delete drawing"
+							InputGesture="Delete"
+							Command="{Binding DeleteSelectedDrawingCommand}"
+						/>
+						<MenuItem x:Name="PasteDrawingMenuItem" Header="Paste drawing" InputGesture="Ctrl+V" />
+						<MenuItem
+							x:Name="ShowHiddenDrawingsMenuItem"
+							Command="{Binding ShowHiddenDrawingsCommand}"
 						/>
 						<Separator />
 						<MenuItem x:Name="ManageIndicatorsMenuItem" Header="Manage indicators…">
@@ -616,6 +654,324 @@
 					Content="Remove"
 					Command="{Binding ConfirmRemoveAllDrawingsCommand}"
 				/>
+			</StackPanel>
+		</Border>
+		<!-- Drawing mode: the selected drawing's style bar, floating at the bottom of the plot -->
+		<Border
+			HorizontalAlignment="Center"
+			VerticalAlignment="Bottom"
+			Margin="8,8,8,36"
+			Padding="3,1"
+			CornerRadius="6"
+			Background="{DynamicResource PanelBackground}"
+			BorderBrush="{DynamicResource PanelStroke}"
+			BorderThickness="1"
+			IsVisible="{Binding IsStyleBarVisible}"
+		>
+			<StackPanel Orientation="Horizontal" Spacing="1">
+				<Button
+					Classes="chartTool drawingTool"
+					ToolTip.Tip="Colour"
+					IsVisible="{Binding SelectedDrawingHasColor}"
+				>
+					<Border
+						Width="16"
+						Height="16"
+						CornerRadius="3"
+						BorderThickness="1"
+						BorderBrush="{DynamicResource PanelStroke}"
+						Background="{Binding SelectedDrawingBrush}"
+					/>
+					<Button.Flyout>
+						<Flyout Placement="Top">
+							<StackPanel Width="200" Spacing="6">
+								<ItemsControl ItemsSource="{Binding DrawingColors}">
+									<ItemsControl.ItemsPanel>
+										<ItemsPanelTemplate>
+											<WrapPanel />
+										</ItemsPanelTemplate>
+									</ItemsControl.ItemsPanel>
+									<ItemsControl.ItemTemplate>
+										<DataTemplate x:DataType="vm:ChartDrawingColorItem">
+											<Button
+												Classes="chartTool drawingTool"
+												Command="{Binding Command}"
+												CommandParameter="{Binding Hex}"
+												ToolTip.Tip="{Binding Hex}"
+											>
+												<Border
+													Width="18"
+													Height="18"
+													CornerRadius="3"
+													BorderThickness="1"
+													BorderBrush="{DynamicResource PanelStroke}"
+													Background="{Binding Brush}"
+												/>
+											</Button>
+										</DataTemplate>
+									</ItemsControl.ItemTemplate>
+								</ItemsControl>
+								<Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+									<TextBox Text="{Binding SelectedDrawingColorText}" PlaceholderText="#2962FF">
+										<TextBox.KeyBindings>
+											<KeyBinding
+												Gesture="Enter"
+												Command="{Binding ApplySelectedDrawingColorTextCommand}"
+											/>
+										</TextBox.KeyBindings>
+									</TextBox>
+									<Button
+										Grid.Column="1"
+										Content="Set"
+										Command="{Binding ApplySelectedDrawingColorTextCommand}"
+									/>
+								</Grid>
+							</StackPanel>
+						</Flyout>
+					</Button.Flyout>
+				</Button>
+				<Button
+					Classes="chartTool drawingTool"
+					ToolTip.Tip="Line width and style"
+					IsVisible="{Binding SelectedDrawingHasLineStyle}"
+				>
+					<Viewbox Width="18" Height="18">
+						<Canvas Width="24" Height="24">
+							<Path
+								Classes="drawingIcon"
+								Data="M3,5 H21 M3,11 H21 M3,18 H6 M9,18 H12 M15,18 H18"
+								Stroke="{Binding $parent[Button].Foreground}"
+							/>
+						</Canvas>
+					</Viewbox>
+					<Button.Flyout>
+						<Flyout Placement="Top">
+							<StackPanel Spacing="4">
+								<TextBlock Classes="secondary" FontSize="12" Text="Width" />
+								<ItemsControl ItemsSource="{Binding DrawingLineWidths}">
+									<ItemsControl.ItemTemplate>
+										<DataTemplate x:DataType="vm:ChartDrawingLineOption">
+											<Button
+												Classes="chartTool"
+												Classes.active="{Binding IsActive}"
+												Height="22"
+												HorizontalAlignment="Stretch"
+												Command="{Binding Command}"
+												CommandParameter="{Binding}"
+												ToolTip.Tip="{Binding ToolTip}"
+											>
+												<Canvas Width="72" Height="10">
+													<Line
+														StartPoint="0,5"
+														EndPoint="72,5"
+														StrokeThickness="{Binding Width}"
+														Stroke="{Binding $parent[Button].Foreground}"
+													/>
+												</Canvas>
+											</Button>
+										</DataTemplate>
+									</ItemsControl.ItemTemplate>
+								</ItemsControl>
+								<TextBlock Classes="secondary" FontSize="12" Text="Style" />
+								<ItemsControl ItemsSource="{Binding DrawingLineStyles}">
+									<ItemsControl.ItemTemplate>
+										<DataTemplate x:DataType="vm:ChartDrawingLineOption">
+											<Button
+												Classes="chartTool"
+												Classes.active="{Binding IsActive}"
+												Height="22"
+												HorizontalAlignment="Stretch"
+												Command="{Binding Command}"
+												CommandParameter="{Binding}"
+												ToolTip.Tip="{Binding ToolTip}"
+											>
+												<Canvas Width="72" Height="10">
+													<Line
+														StartPoint="0,5"
+														EndPoint="72,5"
+														StrokeThickness="{Binding Width}"
+														StrokeDashArray="{Binding Dashes}"
+														Stroke="{Binding $parent[Button].Foreground}"
+													/>
+												</Canvas>
+											</Button>
+										</DataTemplate>
+									</ItemsControl.ItemTemplate>
+								</ItemsControl>
+							</StackPanel>
+						</Flyout>
+					</Button.Flyout>
+				</Button>
+				<Button
+					Classes="chartTool drawingTool"
+					ToolTip.Tip="Fibonacci levels: add, remove, show or hide them, set their colours"
+					IsVisible="{Binding SelectedDrawingIsFib}"
+					Command="{Binding BeginEditFibLevelsCommand}"
+				>
+					<Viewbox Width="18" Height="18">
+						<Canvas Width="24" Height="24">
+							<Path
+								Classes="drawingIcon"
+								Data="M3,4 H21 M3,9 H21 M3,14 H14 M3,20 H14 M19,13 V21 M15,17 H23"
+								Stroke="{Binding $parent[Button].Foreground}"
+							/>
+						</Canvas>
+					</Viewbox>
+					<Button.Flyout>
+						<Flyout Placement="Top">
+							<StackPanel Width="300" Spacing="6">
+								<TextBlock Classes="secondary" FontSize="12" Text="Fibonacci levels" />
+								<ScrollViewer MaxHeight="300">
+									<ItemsControl ItemsSource="{Binding FibLevelItems}">
+										<ItemsControl.ItemTemplate>
+											<DataTemplate x:DataType="vm:ChartFibLevelItem">
+												<Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="6" Margin="0,1">
+													<CheckBox
+														VerticalAlignment="Center"
+														IsChecked="{Binding IsVisible}"
+														ToolTip.Tip="Show this level"
+													/>
+													<TextBox Grid.Column="1" Text="{Binding ValueText}" />
+													<ComboBox
+														Grid.Column="2"
+														Width="72"
+														VerticalAlignment="Center"
+														ItemsSource="{Binding Colors}"
+														SelectedItem="{Binding SelectedColor}"
+														ToolTip.Tip="Its colour (Auto: the drawing's)"
+													>
+														<ComboBox.ItemTemplate>
+															<DataTemplate x:DataType="vm:ChartDrawingColorItem">
+																<Panel>
+																	<Border
+																		Width="18"
+																		Height="14"
+																		CornerRadius="2"
+																		HorizontalAlignment="Left"
+																		Background="{Binding Brush}"
+																		IsVisible="{Binding !IsAuto}"
+																	/>
+																	<TextBlock
+																		FontSize="12"
+																		Text="Auto"
+																		IsVisible="{Binding IsAuto}"
+																	/>
+																</Panel>
+															</DataTemplate>
+														</ComboBox.ItemTemplate>
+													</ComboBox>
+													<Button
+														Grid.Column="3"
+														Classes="frameAction close"
+														VerticalAlignment="Center"
+														ToolTip.Tip="Remove this level"
+														Command="{Binding Owner.RemoveFibLevelCommand}"
+														CommandParameter="{Binding}"
+													>
+														<PathIcon Data="{StaticResource FrameCloseIcon}" />
+													</Button>
+												</Grid>
+											</DataTemplate>
+										</ItemsControl.ItemTemplate>
+									</ItemsControl>
+								</ScrollViewer>
+								<Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+									<TextBox
+										Text="{Binding NewFibLevelText}"
+										PlaceholderText="New level, e.g. 0.65 or 65%"
+									>
+										<TextBox.KeyBindings>
+											<KeyBinding Gesture="Enter" Command="{Binding AddFibLevelCommand}" />
+										</TextBox.KeyBindings>
+									</TextBox>
+									<Button Grid.Column="1" Content="Add" Command="{Binding AddFibLevelCommand}" />
+								</Grid>
+								<TextBlock
+									Classes="negative"
+									FontSize="12"
+									TextWrapping="Wrap"
+									Text="{Binding FibLevelsError}"
+									IsVisible="{Binding FibLevelsError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+								/>
+								<Grid ColumnDefinitions="Auto,*,Auto">
+									<Button
+										Content="Defaults"
+										ToolTip.Tip="Back to the default levels (Apply keeps them)"
+										Command="{Binding ResetFibLevelsCommand}"
+									/>
+									<Button
+										Grid.Column="2"
+										Content="Apply"
+										Command="{Binding ApplyFibLevelsEditCommand}"
+									/>
+								</Grid>
+							</StackPanel>
+						</Flyout>
+					</Button.Flyout>
+				</Button>
+				<Border Width="1" Margin="2,4" Background="{DynamicResource PanelStroke}" />
+				<Button
+					Classes="chartTool drawingTool"
+					Classes.active="{Binding SelectedDrawingLocked}"
+					ToolTip.Tip="{Binding SelectedDrawingLockToolTip}"
+					Command="{Binding ToggleSelectedDrawingLockedCommand}"
+				>
+					<Viewbox Width="18" Height="18">
+						<Canvas Width="24" Height="24">
+							<Path
+								Classes="drawingIcon"
+								Data="M6,11 H18 V21 H6 Z M8,11 V8 A4,4 0 0,1 16,8 V11"
+								Stroke="{Binding $parent[Button].Foreground}"
+							/>
+						</Canvas>
+					</Viewbox>
+				</Button>
+				<Button
+					Classes="chartTool drawingTool"
+					ToolTip.Tip="Hide this drawing (right-click the chart → Show hidden drawings brings it back)"
+					Command="{Binding HideSelectedDrawingCommand}"
+				>
+					<Viewbox Width="18" Height="18">
+						<Canvas Width="24" Height="24">
+							<Path
+								Classes="drawingIcon"
+								Data="M2,12 C5,6 19,6 22,12 C19,18 5,18 2,12 Z M9,12 A3,3 0 1,0 15,12 A3,3 0 1,0 9,12 M4,4 L20,20"
+								Stroke="{Binding $parent[Button].Foreground}"
+							/>
+						</Canvas>
+					</Viewbox>
+				</Button>
+				<Button
+					x:Name="DuplicateDrawingButton"
+					Classes="chartTool drawingTool"
+					ToolTip.Tip="Duplicate (Ctrl+D); Ctrl+C / Ctrl+V copy it to any chart"
+				>
+					<Viewbox Width="18" Height="18">
+						<Canvas Width="24" Height="24">
+							<Path
+								Classes="drawingIcon"
+								Data="M8,8 H20 V20 H8 Z M16,8 V4 H4 V16 H8 M14,11 V17 M11,14 H17"
+								Stroke="{Binding $parent[Button].Foreground}"
+							/>
+						</Canvas>
+					</Viewbox>
+				</Button>
+				<Button
+					Classes="chartTool drawingTool"
+					ToolTip.Tip="Delete (Delete)"
+					IsEnabled="{Binding !SelectedDrawingLocked}"
+					Command="{Binding DeleteSelectedDrawingCommand}"
+				>
+					<Viewbox Width="18" Height="18">
+						<Canvas Width="24" Height="24">
+							<Path
+								Classes="drawingIcon"
+								Data="M5,7 H19 M10,7 V4 H14 V7 M7,7 L8,20 H16 L17,7 M10,11 V16 M14,11 V16"
+								Stroke="{Binding $parent[Button].Foreground}"
+							/>
+						</Canvas>
+					</Viewbox>
+				</Button>
 			</StackPanel>
 		</Border>
 		<StackPanel

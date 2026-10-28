@@ -157,6 +157,7 @@ public class ChartViewModelLiveUpdateTests : IDisposable
 				_cache.Time
 			),
 			new ChartDrawingManager(new InMemoryChartDrawingRepository()),
+			new ChartDrawingClipboardStore(),
 			new AccountStore(_connection, _settings),
 			new LinkGroupStore(),
 			new DisplayTimeStore(_settings, _cache.Time),

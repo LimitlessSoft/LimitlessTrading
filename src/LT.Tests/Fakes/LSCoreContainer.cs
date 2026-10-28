@@ -212,6 +212,10 @@ public static class LSCoreContainer
 					LSCoreValidatorBase<UpdateChartDrawingRequest>,
 					UpdateChartDrawingRequestValidator
 				>()
+				.AddSingleton<
+					LSCoreValidatorBase<UpdateChartDrawingPropertiesRequest>,
+					UpdateChartDrawingPropertiesRequestValidator
+				>()
 				.BuildServiceProvider();
 		}
 	}

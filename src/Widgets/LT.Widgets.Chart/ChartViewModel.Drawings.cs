@@ -2,8 +2,11 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LSCore.Exceptions;
+using LT.App.Helpers;
+using LT.App.Stores;
 using LT.Contracts.Dtos.ChartDrawings;
 using LT.Contracts.Enums;
+using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IManagers;
 using LT.Contracts.Requests.ChartDrawings;
 
@@ -17,30 +20,63 @@ namespace LT.App.Widgets.Chart;
 /// drawing selected. With the cursor, a click selects a drawing and dragging moves it or one of
 /// its anchors; Delete removes the selected one. The palette's actions delete the selected one,
 /// remove them all (asked first), lock them (no selecting, moving or deleting one by one) and
-/// hide them; lock and hide are saved per chart. With drawing mode off the drawings are still
-/// shown, but the chart pans, zooms and places alerts as it does without them.
+/// hide them; lock and hide are saved per chart. The magnet (snap points to bar OHLC) and "keep
+/// drawing" (the tool stays armed after a drawing) are palette toggles saved per chart; undo and
+/// redo step through the symbol's history (shared by its charts). The selected drawing's style,
+/// lock, hide, copy and fib levels are in ChartViewModel.DrawingStyle.cs. With drawing mode off
+/// the drawings are still shown, but the chart pans, zooms and places alerts as it does without
+/// them.
 /// </summary>
 public partial class ChartViewModel
 {
 	private const string DrawingModeIcon = "M4,20 L4,16 L16,4 L20,8 L8,20 Z M13,7 L17,11";
 
 	private readonly IChartDrawingManager _chartDrawingManager;
+	private readonly ChartDrawingClipboardStore _drawingClipboard;
 	private int _drawingsQueued;
 
 	// The palette's actions, set when it is built; their state follows the selection and drawings
-	private (
+	private sealed record DrawingActions(
+		ChartDrawingToolItem Magnet,
+		ChartDrawingToolItem Keep,
+		ChartDrawingToolItem Undo,
+		ChartDrawingToolItem Redo,
 		ChartDrawingToolItem Delete,
 		ChartDrawingToolItem RemoveAll,
 		ChartDrawingToolItem Lock,
 		ChartDrawingToolItem Hide
-	)? _drawingActions;
+	);
+
+	private DrawingActions? _drawingActions;
 
 	/// <summary>The charted contract's drawings, oldest first.</summary>
 	[ObservableProperty]
-	[NotifyPropertyChangedFor(nameof(HasDrawings), nameof(RemoveAllDrawingsPrompt))]
+	[NotifyPropertyChangedFor(
+		nameof(HasDrawings),
+		nameof(RemoveAllDrawingsPrompt),
+		nameof(HiddenDrawingCount),
+		nameof(HasHiddenDrawings)
+	)]
 	public partial IReadOnlyList<ChartDrawingDto> Drawings { get; set; } = [];
 
 	public bool HasDrawings => Drawings.Count > 0;
+
+	/// <summary>Drawings hidden one by one (the chart's menu shows them again).</summary>
+	public int HiddenDrawingCount => Drawings.Count(x => x.IsHidden);
+
+	public bool HasHiddenDrawings => HiddenDrawingCount > 0;
+
+	/// <summary>The magnet: placed and dragged points snap to the nearest OHLC of the bar under them. Saved per chart.</summary>
+	[ObservableProperty]
+	public partial bool DrawingMagnet { get; set; }
+
+	/// <summary>A tool stays armed after a drawing, for the next one (Esc puts it down). Saved per chart.</summary>
+	[ObservableProperty]
+	public partial bool KeepDrawingTool { get; set; }
+
+	/// <summary>The style a drawing of the armed tool starts with (its preview is drawn in it).</summary>
+	[ObservableProperty]
+	public partial ChartDrawingStyleDto? ActiveDrawingStyle { get; set; }
 
 	/// <summary>Drawing mode: the palette at the plot's left, drawings selectable. Saved per chart.</summary>
 	[ObservableProperty]
@@ -97,15 +133,20 @@ public partial class ChartViewModel
 		ActiveDrawingKind = item.Kind == ActiveDrawingKind || !CanDraw ? null : item.Kind;
 	}
 
-	/// <summary>Back to the cursor (a drawing was finished or a note cancelled).</summary>
-	public void EndDrawingTool() => ActiveDrawingKind = null;
+	/// <summary>Back to the cursor (a drawing was finished or a note cancelled), unless the tool is kept.</summary>
+	public void EndDrawingTool()
+	{
+		if (!KeepDrawingTool)
+			ActiveDrawingKind = null;
+	}
 
 	/// <summary>Drawings can be added: a contract with bars (to anchor them on).</summary>
 	public bool CanDraw => _contract != null && Bars.Count > 0;
 
 	/// <summary>
-	/// A drawing was finished on the chart: adds it, selects it and arms the cursor again. Null
-	/// when refused (the reason shows on the chart).
+	/// A drawing was finished on the chart: adds it (in its kind's last used style), selects it
+	/// and arms the cursor again — or, with <see cref="KeepDrawingTool"/>, keeps the tool armed
+	/// for the next one. Null when refused (the reason shows on the chart).
 	/// </summary>
 	public ChartDrawingDto? AddDrawing(
 		ChartDrawingKind kind,
@@ -113,7 +154,7 @@ public partial class ChartViewModel
 		string? text = null
 	)
 	{
-		ActiveDrawingKind = null;
+		EndDrawingTool();
 		if (_contract is not { } contract || !CanDraw)
 			return null;
 		try
@@ -128,12 +169,13 @@ public partial class ChartViewModel
 				}
 			);
 			LoadDrawings();
-			SelectedDrawingId = created.Id;
+			if (ActiveDrawingKind == null)
+				SelectedDrawingId = created.Id;
 			return created;
 		}
 		catch (LSCoreBadRequestException ex)
 		{
-			ErrorMessage = ex.Message;
+			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
 			return null;
 		}
 	}
@@ -158,7 +200,7 @@ public partial class ChartViewModel
 		}
 		catch (LSCoreBadRequestException ex)
 		{
-			ErrorMessage = ex.Message;
+			ErrorMessage = ErrorMessageHelpers.ToUserMessage(ex);
 		}
 		finally
 		{
@@ -170,11 +212,11 @@ public partial class ChartViewModel
 	/// <summary>A drawing by id, among the charted contract's.</summary>
 	public ChartDrawingDto? GetDrawing(string id) => Drawings.FirstOrDefault(x => x.Id == id);
 
-	/// <summary>Palette and Delete: removes the selected drawing (not while locked).</summary>
+	/// <summary>Palette and Delete: removes the selected drawing (not while it or all are locked).</summary>
 	[RelayCommand]
 	public void DeleteSelectedDrawing()
 	{
-		if (SelectedDrawingId is not { } id || DrawingsLocked)
+		if (SelectedDrawingId is not { } id || DrawingsLocked || SelectedDrawing?.IsLocked == true)
 			return;
 		SelectedDrawingId = null;
 		_chartDrawingManager.Delete(id);
@@ -208,6 +250,32 @@ public partial class ChartViewModel
 	[RelayCommand]
 	public void ToggleDrawingsHidden() => DrawingsHidden = !DrawingsHidden;
 
+	[RelayCommand]
+	public void ToggleDrawingMagnet() => DrawingMagnet = !DrawingMagnet;
+
+	[RelayCommand]
+	public void ToggleKeepDrawingTool() => KeepDrawingTool = !KeepDrawingTool;
+
+	/// <summary>Palette and Ctrl+Z: steps back the symbol's last drawing change (any chart of it).</summary>
+	[RelayCommand]
+	public void UndoDrawing() => StepDrawingHistory(undo: true);
+
+	/// <summary>Palette and Ctrl+Y / Ctrl+Shift+Z: redoes the last undone one.</summary>
+	[RelayCommand]
+	public void RedoDrawing() => StepDrawingHistory(undo: false);
+
+	private void StepDrawingHistory(bool undo)
+	{
+		if (_contract is not { } contract)
+			return;
+		IsConfirmingRemoveAllDrawings = false;
+		var stepped = undo
+			? _chartDrawingManager.Undo(contract.ConId)
+			: _chartDrawingManager.Redo(contract.ConId);
+		if (stepped)
+			LoadDrawings();
+	}
+
 	/// <summary>
 	/// Esc after the chart's own (an unfinished drawing): back to the cursor, else the selection
 	/// is dropped. False when there was nothing to undo.
@@ -235,6 +303,7 @@ public partial class ChartViewModel
 	partial void OnIsDrawingModeChanged(bool value)
 	{
 		DrawingModeItem.IsActive = value;
+		RefreshSelectedDrawing();
 		if (value)
 			return;
 		ActiveDrawingKind = null;
@@ -246,6 +315,8 @@ public partial class ChartViewModel
 	{
 		foreach (var item in DrawingToolItems.Where(x => x.IsTool))
 			item.IsActive = item.Kind == value;
+		ActiveDrawingStyle = value is { } kind ? _chartDrawingManager.GetDefaultStyle(kind) : null;
+		RefreshSelectedDrawing();
 		if (value == null)
 			return;
 		// One armed tool at a time; a new drawing shows with the others
@@ -254,12 +325,17 @@ public partial class ChartViewModel
 		DrawingsHidden = false;
 	}
 
-	partial void OnSelectedDrawingIdChanged(string? value) => RefreshDrawingActions();
+	partial void OnSelectedDrawingIdChanged(string? value)
+	{
+		RefreshSelectedDrawing();
+		RefreshDrawingActions();
+	}
 
 	partial void OnDrawingsLockedChanged(bool value)
 	{
 		if (value)
 			SelectedDrawingId = null;
+		RefreshSelectedDrawing();
 		RefreshDrawingActions();
 	}
 
@@ -267,15 +343,22 @@ public partial class ChartViewModel
 	{
 		if (value)
 			SelectedDrawingId = null;
+		RefreshSelectedDrawing();
 		RefreshDrawingActions();
 	}
 
+	partial void OnDrawingMagnetChanged(bool value) => RefreshDrawingActions();
+
+	partial void OnKeepDrawingToolChanged(bool value) => RefreshDrawingActions();
+
 	partial void OnDrawingsChanged(IReadOnlyList<ChartDrawingDto> value)
 	{
-		if (SelectedDrawingId is { } id && value.All(x => x.Id != id))
+		// Gone, or hidden one by one (here or on another chart of the symbol)
+		if (SelectedDrawingId is { } id && value.All(x => x.Id != id || x.IsHidden))
 			SelectedDrawingId = null;
 		if (value.Count == 0)
 			IsConfirmingRemoveAllDrawings = false;
+		RefreshSelectedDrawing();
 		RefreshDrawingActions();
 	}
 
@@ -311,7 +394,19 @@ public partial class ChartViewModel
 	{
 		if (_drawingActions is not { } actions)
 			return;
-		actions.Delete.IsEnabled = SelectedDrawingId != null && !DrawingsLocked;
+		var conId = _contract?.ConId;
+		actions.Undo.IsEnabled = conId is { } u && _chartDrawingManager.CanUndo(u);
+		actions.Redo.IsEnabled = conId is { } r && _chartDrawingManager.CanRedo(r);
+		actions.Magnet.IsActive = DrawingMagnet;
+		actions.Magnet.ToolTip = DrawingMagnet
+			? "Magnet on: points snap to the bar's open, high, low or close (click to turn off)"
+			: "Magnet: snap points to the bar's open, high, low or close";
+		actions.Keep.IsActive = KeepDrawingTool;
+		actions.Keep.ToolTip = KeepDrawingTool
+			? "Keep drawing on: a tool stays armed after each drawing (Esc puts it down)"
+			: "Keep drawing: keep a tool armed for several drawings";
+		actions.Delete.IsEnabled =
+			SelectedDrawingId != null && !DrawingsLocked && SelectedDrawing?.IsLocked != true;
 		actions.RemoveAll.IsEnabled = HasDrawings;
 		actions.Lock.IsActive = DrawingsLocked;
 		actions.Lock.ToolTip = DrawingsLocked
@@ -359,7 +454,46 @@ public partial class ChartViewModel
 			"M2,12 C5,6 19,6 22,12 C19,18 5,18 2,12 Z M9,12 A3,3 0 1,0 15,12 A3,3 0 1,0 9,12 M4,4 L20,20",
 			ToggleDrawingsHiddenCommand
 		);
-		_drawingActions = (delete, removeAll, lockItem, hide);
+		var magnet = new ChartDrawingToolItem(
+			"Magnet",
+			"",
+			"M6,4 V12 A6,6 0 0,0 18,12 V4 M6,4 H10 V12 A2,2 0 0,0 14,12 V4 H18 M6,8 H10 M14,8 H18",
+			ToggleDrawingMagnetCommand
+		);
+		var keep = new ChartDrawingToolItem(
+			"Keep drawing",
+			"",
+			"M4,20 L4,16 L14,6 L18,10 L8,20 Z M17,3 A4,4 0 0,1 21,7 M19,2 L21,3 L20,5",
+			ToggleKeepDrawingToolCommand
+		);
+		var undo = new ChartDrawingToolItem(
+			"Undo",
+			"Undo (Ctrl+Z)",
+			"M9,14 L4,9 L9,4 M4,9 H15 A5,5 0 0,1 15,19 H11",
+			UndoDrawingCommand
+		)
+		{
+			IsEnabled = false,
+		};
+		var redo = new ChartDrawingToolItem(
+			"Redo",
+			"Redo (Ctrl+Y)",
+			"M15,14 L20,9 L15,4 M20,9 H9 A5,5 0 0,0 9,19 H13",
+			RedoDrawingCommand
+		)
+		{
+			IsEnabled = false,
+		};
+		_drawingActions = new DrawingActions(
+			magnet,
+			keep,
+			undo,
+			redo,
+			delete,
+			removeAll,
+			lockItem,
+			hide
+		);
 		List<ChartDrawingToolGroup> groups =
 		[
 			new([
@@ -484,6 +618,8 @@ public partial class ChartViewModel
 					ChartDrawingKind.Brush
 				),
 			]),
+			new([magnet, keep]),
+			new([undo, redo]),
 			new([delete, removeAll, lockItem, hide]),
 		];
 		RefreshDrawingActions();

@@ -4,4 +4,7 @@ namespace LT.Contracts.Entities;
 public class ChartDrawingFileEntity
 {
 	public List<ChartDrawingEntity> Drawings { get; set; } = [];
+
+	/// <summary>The last used style per kind (missing in files written before styles).</summary>
+	public List<ChartDrawingToolStyleEntity> ToolStyles { get; set; } = [];
 }
