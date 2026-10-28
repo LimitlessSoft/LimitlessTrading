@@ -86,19 +86,31 @@ public static class ChartViewportHelpers
 	}
 
 	/// <summary>
-	/// Bar spacing for a render: a fitted view (<paramref name="fitted"/>) fits its bars and the
-	/// right margin into the plot as it is now (<see cref="GetFitBarSpacing"/>), so it stays fitted
-	/// when the plot is resized or bars arrive; otherwise the current zoom,
-	/// <paramref name="barSpacing"/>.
+	/// Bar spacing for a render: a fitted view (<paramref name="fitted"/>) fits its latest
+	/// <paramref name="fitCount"/> bars (the period's, from its start to now) and the right
+	/// margin into the plot as it is now (<see cref="GetFitBarSpacing"/>), so it stays fitted when
+	/// the plot is resized or bars arrive; otherwise, or with no bars to fit (a period without bars
+	/// yet), the current zoom, <paramref name="barSpacing"/>.
 	/// </summary>
 	public static double GetBarSpacing(
 		double barSpacing,
 		bool fitted,
-		int barCount,
+		int fitCount,
 		double rightMargin,
 		double plotWidth,
 		double maxSpacing
-	) => fitted ? GetFitBarSpacing(barCount, rightMargin, plotWidth, maxSpacing) : barSpacing;
+	) =>
+		fitted && fitCount > 0
+			? GetFitBarSpacing(fitCount, rightMargin, plotWidth, maxSpacing)
+			: barSpacing;
+
+	/// <summary>
+	/// Whether to load the page of bars before the oldest: the view's first visible bar
+	/// <paramref name="start"/> is within <see cref="ChartConstants.OlderBarsPrefetchScreens"/>
+	/// of a screen (<paramref name="end"/> − <paramref name="start"/> bars) of the oldest, bar 0.
+	/// </summary>
+	public static bool NeedsOlderBars(int start, int end) =>
+		end > start && start <= (end - start) * ChartConstants.OlderBarsPrefetchScreens;
 
 	/// <summary>
 	/// Margin while dragging its handle <paramref name="deltaX"/> DIPs from where the drag

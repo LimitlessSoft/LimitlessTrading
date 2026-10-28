@@ -273,21 +273,35 @@ new instance) and lives in one of four wrappers:
   timeframe:** click the timeframe beside the chart's header title (e.g. "5m"); a menu lists 1m,
   5m, 15m, 1h, 1D and 1W with the current one checked, and picking one reloads the bars
   (historical + real-time) at that size. **Changing the period:** the button after the
-  timeframe (e.g. "Auto") picks the span of bars, ending now, in two groups: rolling (1 day,
+  timeframe (e.g. "Auto") zooms the chart to a span ending now, in two groups: rolling (1 day,
   7 days, 1/3/6 months, 1/5 years back from now) and calendar (Today, This week, This month,
   This year — from midnight of the current day, Monday, the 1st, 1 January in the display time
-  zone, the zone of the chart's time axis; a zone change reloads them). Auto is the timeframe's
-  own span (the behaviour before periods; older layouts load as Auto). Logic in
-  `ChartPeriodHelpers`; `ChartManager` asks IB for a covering duration and drops older bars.
-  Small bars have a longest period (1m 7 days, 5m 1 month, 15m 3 months, 1h 1 year): a longer
-  one is cut to it and the status line says "… bars go back … at most"; a period with no bars
-  yet (e.g. Today before the session) says "no bars since …". A chosen period is shown whole:
-  the chart (`CandlestickChart.FitBars`, bound to `ChartViewModel.FitsPeriod`) zooms out until
-  every bar of the new series fits (also on double-click; the wheel can zoom in from there) and
-  stays fitted as the plot is resized or bars arrive until the wheel zooms or the margin handle
-  is dragged (a restored chart is laid out narrower first; `ChartViewportHelpers.GetBarSpacing`),
-  while Auto keeps the latest bars at the default zoom. Period is saved per chart, new charts start at
-  the last chart's period, and it is part of chart templates. A load superseded by another
+  zone, the zone of the chart's time axis). **A period is a zoom preset, not a filter**
+  (TradingView-style): the chart always loads at least the timeframe's own span (what Auto loads;
+  more when the period needs it) and keeps every bar; the period only fits the view, from its
+  start (`ChartViewModel.PeriodStart` → `CandlestickChart.FitStart`) to the latest bar, the older
+  bars left of it. Picking a period the loaded bars already reach back to just refits; otherwise
+  the chart reloads with enough history. Auto is the latest bars at the default zoom (the
+  behaviour before periods; older layouts load as Auto). Logic in `ChartPeriodHelpers`
+  (`GetRange`, `GetFirstIndex`). Small bars have a longest period (1m 7 days, 5m 1 month, 15m 3
+  months, 1h 1 year): a longer one is cut to it and the status line says "… periods go back … at
+  most"; a period with no bars yet (e.g. Today before the session) keeps the default zoom and says
+  "no bars since …". The fitted view stays fitted as the plot is resized or bars arrive
+  (`ChartViewportHelpers.GetBarSpacing`; a restored chart is laid out narrower first). **Custom:**
+  zooming (wheel), panning (drag) or dragging the margin handle leaves the period's view: the chart
+  reports it (`CandlestickChart.IsFitted` → `ChartViewModel.IsPeriodFitted`), the header says
+  "Custom" and the period menu checks nothing. Picking a period again (the same one too) or
+  double-clicking the chart fits the view to it again and the header shows it. Auto is never
+  Custom (it is no span). What is saved — per chart, in templates, and for new charts (they start
+  at the last chart's period) — is the chosen period, never Custom. **Older history:** scrolling or
+  zooming to within half a screen of the oldest loaded bar (`CandlestickChart.OlderBarsNeeded`,
+  `ChartViewportHelpers.NeedsOlderBars`) loads the page before it
+  (`ChartViewModel.LoadOlderBars`, see [ibkr-tws-api.md](ibkr-tws-api.md#how-ltibkr-applies-the-rules)):
+  one page at a time, only while connected, put in front (`BarHelpers.Prepend`, through
+  `ChartLiveBars` while live bars stream) with the view staying where it is (its position counts
+  from the latest bar), until IB has no more or the chart holds 50,000 bars. Indicators compute
+  again over the longer series. A page still on its way when the contract, timeframe or trading
+  hours change, the chart reloads or the connection drops is dropped. A load superseded by another
   timeframe, period or contract never shows its bars or its error. There is no Reload button;
   F5 reloads.
 - **Pre- and post-market bars:** per chart. On an intraday chart the header's **ETH / RTH**

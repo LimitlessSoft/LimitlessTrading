@@ -12,6 +12,7 @@ namespace LT.App.Widgets.Chart;
 /// (<see cref="AddRealtimeBar"/>, UI thread) and live prices (<see cref="AddPrice"/>, any thread)
 /// are folded into a working copy on the UI thread; <paramref name="publish"/> hands it to the
 /// chart, at most once per redraw interval (<see cref="RedrawThrottle"/>, zero = every update).
+/// Older history scrolled to (<see cref="Prepend"/>) goes in front of it the same way.
 /// <para>
 /// Prices are queued and folded one burst per UI post, so every trade moves the bar without a
 /// post per tick. They count only while 5-second bars are flowing
@@ -25,6 +26,7 @@ public sealed class ChartLiveBars : IDisposable
 	private readonly TimeProvider _timeProvider;
 	private readonly Action<Action> _post;
 	private readonly RedrawThrottle _throttle;
+	private readonly Action<IReadOnlyList<BarDto>> _publish;
 	private readonly ConcurrentQueue<ChartPriceDto> _prices = new();
 	private int _pricesQueued;
 	private DateTimeOffset? _lastRealtimeBarAt;
@@ -41,6 +43,7 @@ public sealed class ChartLiveBars : IDisposable
 	)
 	{
 		Bars = bars;
+		_publish = publish;
 		_timeframe = timeframe;
 		_timeProvider = timeProvider;
 		_post = post ?? (x => Dispatcher.UIThread.Post(x));
@@ -72,6 +75,21 @@ public sealed class ChartLiveBars : IDisposable
 			ChartLiveUpdateHelpers.KeepsClose(_lastPriceAt, bar.Time)
 		);
 		_throttle.Request();
+	}
+
+	/// <summary>
+	/// A page of older history (scrolled to) put in front of the working bars and handed to the
+	/// chart at once, not throttled; on the UI thread.
+	/// </summary>
+	public void Prepend(IReadOnlyList<BarDto> older)
+	{
+		if (_disposed)
+			return;
+		var bars = BarHelpers.Prepend(older, Bars);
+		if (ReferenceEquals(bars, Bars))
+			return;
+		Bars = bars;
+		_publish(Bars);
 	}
 
 	/// <summary>A live price (last trade, forex midpoint); from any thread.</summary>

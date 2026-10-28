@@ -348,7 +348,8 @@
 				RightMargin="{Binding RightMargin}"
 				TimeZone="{Binding DisplayTime.Zone}"
 				RegularHours="{Binding RegularHours}"
-				FitBars="{Binding FitsPeriod}"
+				FitStart="{Binding PeriodStart}"
+				IsFitted="{Binding IsPeriodFitted, Mode=OneWayToSource}"
 				Alerts="{Binding Alerts}"
 				IsPlacingAlert="{Binding IsPlacingAlert}"
 			>

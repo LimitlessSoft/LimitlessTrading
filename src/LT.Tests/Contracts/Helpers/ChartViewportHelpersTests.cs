@@ -177,6 +177,40 @@ public class ChartViewportHelpersTests
 	}
 
 	[Fact]
+	public void A_fitted_view_fits_only_the_periods_bars()
+	{
+		// 1,000 bars loaded, the period holds the latest 80: they fill the plot, older ones are left of it
+		var spacing = ChartViewportHelpers.GetBarSpacing(8, true, 80, 0, PlotWidth, 40);
+
+		Assert.Equal(ChartViewportHelpers.GetFitBarSpacing(80, 0, PlotWidth, 40), spacing);
+		var edge = ChartViewportHelpers.GetRightEdge(1000, 0, 0);
+		var (start, end) = ChartViewportHelpers.GetVisibleRange(1000, edge, PlotWidth, spacing);
+		Assert.Equal(1000, end);
+		Assert.InRange(start, 919, 921);
+	}
+
+	[Fact]
+	public void A_period_without_bars_keeps_the_zoom()
+	{
+		Assert.Equal(8, ChartViewportHelpers.GetBarSpacing(8, true, 0, 0, PlotWidth, 40));
+	}
+
+	[Theory]
+	[InlineData(0, 100, true)] // the oldest bar is on screen
+	[InlineData(50, 150, true)] // half a screen away
+	[InlineData(51, 151, false)]
+	[InlineData(900, 1000, false)]
+	[InlineData(0, 0, false)] // nothing shown
+	public void Older_bars_are_needed_within_half_a_screen_of_the_oldest(
+		int start,
+		int end,
+		bool needed
+	)
+	{
+		Assert.Equal(needed, ChartViewportHelpers.NeedsOlderBars(start, end));
+	}
+
+	[Fact]
 	public void A_zoomed_view_keeps_its_zoom_when_the_plot_is_resized()
 	{
 		Assert.Equal(12.5, ChartViewportHelpers.GetBarSpacing(12.5, false, 38, 5, 534, 40));

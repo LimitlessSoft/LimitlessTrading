@@ -11,7 +11,10 @@ public class ChartBarsDto
 	public bool IsStale { get; set; }
 	public string? Error { get; set; }
 
-	/// <summary>Where the period starts (bars before it are dropped); null for Auto.</summary>
+	/// <summary>
+	/// Where the period starts (the chart's view fits from here; older bars are loaded too); null
+	/// for Auto.
+	/// </summary>
 	public DateTimeOffset? From { get; set; }
 
 	/// <summary>The timeframe's longest period when the asked period was cut to it.</summary>

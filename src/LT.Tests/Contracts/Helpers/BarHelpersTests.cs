@@ -199,4 +199,68 @@ public class BarHelpersTests
 		Assert.Equal((11.4d, 10.6d, 325m), (merged[0].High, merged[0].Close, merged[0].Volume));
 		Assert.Same(bars[1], merged[1]);
 	}
+
+	[Fact]
+	public void An_older_page_goes_in_front_without_the_bars_already_held()
+	{
+		var bars = new[] { Bar(T0, 1, 1, 1, 1, 1), Bar(T0.AddMinutes(5), 2, 2, 2, 2, 1) };
+		// IB's page ends at the first bar held (inclusive) and may repeat a time
+		var older = new[]
+		{
+			Bar(T0.AddMinutes(-5), 8, 8, 8, 8, 1),
+			Bar(T0.AddMinutes(-10), 7, 7, 7, 7, 1),
+			Bar(T0.AddMinutes(-5), 9, 9, 9, 9, 1),
+			Bar(T0, 5, 5, 5, 5, 1),
+		};
+
+		var merged = BarHelpers.Prepend(older, bars);
+
+		Assert.Equal(
+			[T0.AddMinutes(-10), T0.AddMinutes(-5), T0, T0.AddMinutes(5)],
+			merged.Select(x => x.Time)
+		);
+		Assert.Equal([7d, 9d, 1d, 2d], merged.Select(x => x.Close));
+	}
+
+	[Fact]
+	public void A_page_with_nothing_older_leaves_the_bars_as_they_are()
+	{
+		var bars = new[] { Bar(T0, 1, 1, 1, 1, 1) };
+
+		Assert.Same(bars, BarHelpers.Prepend([Bar(T0, 5, 5, 5, 5, 1)], bars));
+		Assert.Same(bars, BarHelpers.Prepend([], bars));
+	}
+
+	[Fact]
+	public void Prepended_count_tells_older_history_from_another_series()
+	{
+		var previous = new[] { Bar(T0, 1, 1, 1, 1, 1), Bar(T0.AddMinutes(5), 1, 1, 1, 1, 1) };
+		var grown = new[] { previous[0], previous[1], Bar(T0.AddMinutes(10), 1, 1, 1, 1, 1) };
+		var prepended = BarHelpers.Prepend(
+			[Bar(T0.AddMinutes(-10), 1, 1, 1, 1, 1), Bar(T0.AddMinutes(-5), 1, 1, 1, 1, 1)],
+			grown
+		);
+		var other = new[] { Bar(T0.AddMinutes(1), 1, 1, 1, 1, 1) };
+
+		Assert.Equal(0, BarHelpers.GetPrependedCount(previous, grown));
+		Assert.Equal(2, BarHelpers.GetPrependedCount(previous, prepended));
+		Assert.Equal(-1, BarHelpers.GetPrependedCount(previous, other));
+		Assert.Equal(-1, BarHelpers.GetPrependedCount([], grown));
+		Assert.Equal(-1, BarHelpers.GetPrependedCount(previous, []));
+	}
+
+	[Fact]
+	public void Older_pages_are_cached_by_where_they_end()
+	{
+		var first = BarHelpers.GetOlderCacheKey(1, ChartTimeframe.FiveMinutes, false, T0);
+		var second = BarHelpers.GetOlderCacheKey(
+			1,
+			ChartTimeframe.FiveMinutes,
+			false,
+			T0.AddMinutes(-5)
+		);
+
+		Assert.NotEqual(first, second);
+		Assert.NotEqual(BarHelpers.GetCacheKey(1, ChartTimeframe.FiveMinutes, false), first);
+	}
 }

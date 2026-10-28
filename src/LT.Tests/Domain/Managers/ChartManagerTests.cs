@@ -158,7 +158,7 @@ public class ChartManagerTests
 	}
 
 	[Fact]
-	public async Task Period_asks_for_its_span_and_drops_older_bars()
+	public async Task A_period_keeps_the_bars_before_its_start()
 	{
 		var now = _time.GetUtcNow();
 		_ibkr.HistoricalBars =
@@ -170,10 +170,20 @@ public class ChartManagerTests
 
 		var result = await _manager.GetBarsAsync(WithPeriod(ChartPeriod.Today), Ct);
 
-		Assert.Equal(["2 D"], _ibkr.HistoricalDurations);
-		Assert.Equal([now.AddHours(-2), now], result.Bars.Select(x => x.Time));
+		// Today is shorter than 5m's own 5 days: those are loaded, the view starts at midnight
+		Assert.Equal(["5 D"], _ibkr.HistoricalDurations);
+		Assert.Equal([now.AddDays(-3), now.AddHours(-2), now], result.Bars.Select(x => x.Time));
 		Assert.Equal(new DateTimeOffset(2026, 10, 23, 0, 0, 0, TimeSpan.Zero), result.From);
 		Assert.Null(result.LimitedTo);
+	}
+
+	[Fact]
+	public async Task A_period_longer_than_the_timeframes_span_asks_for_its_own()
+	{
+		var result = await _manager.GetBarsAsync(WithPeriod(ChartPeriod.SevenDays), Ct);
+
+		Assert.Equal(["8 D"], _ibkr.HistoricalDurations);
+		Assert.Equal(_time.GetUtcNow().AddDays(-7), result.From);
 	}
 
 	[Fact]
@@ -191,12 +201,95 @@ public class ChartManagerTests
 	{
 		await _manager.GetBarsAsync(Request, Ct);
 		await _manager.GetBarsAsync(WithPeriod(ChartPeriod.Today), Ct);
-		await _manager.GetBarsAsync(WithPeriod(ChartPeriod.OneDay), Ct);
+		await _manager.GetBarsAsync(WithPeriod(ChartPeriod.SevenDays), Ct);
 
-		// Today and 1 day are both "2 D": the second one comes from the cache
+		// Today loads Auto's "5 D" (from the cache); 7 days is "8 D"
 		Assert.Equal(2, _ibkr.HistoricalCalls);
 		Assert.Equal(2, _cache.Entries.Count);
 	}
+
+	[Fact]
+	public async Task An_older_page_ends_at_the_oldest_bar_and_holds_only_older_bars()
+	{
+		var before = _time.GetUtcNow().AddDays(-5);
+		_ibkr.HistoricalBefore = end =>
+			Task.FromResult<IReadOnlyList<BarDto>>([
+				new BarDto { Time = end.AddMinutes(-10), Close = 1 },
+				new BarDto { Time = end.AddMinutes(-5), Close = 2 },
+				new BarDto { Time = end, Close = 3 }, // IB's end is inclusive
+			]);
+
+		var bars = await _manager.GetOlderBarsAsync(Older(before), Ct);
+
+		Assert.Equal([before.AddMinutes(-10), before.AddMinutes(-5)], bars.Select(x => x.Time));
+		Assert.Equal([before], _ibkr.HistoricalEnds.Cast<DateTimeOffset>());
+		Assert.Equal(["1 M"], _ibkr.HistoricalDurations);
+		Assert.Equal(["5 mins"], _ibkr.HistoricalBarSizes);
+	}
+
+	[Fact]
+	public async Task Older_pages_are_cached_by_where_they_end()
+	{
+		var before = _time.GetUtcNow().AddDays(-5);
+		_ibkr.HistoricalBefore = end =>
+			Task.FromResult<IReadOnlyList<BarDto>>([new BarDto { Time = end.AddMinutes(-5) }]);
+
+		await _manager.GetOlderBarsAsync(Older(before), Ct);
+		await _manager.GetOlderBarsAsync(Older(before), Ct);
+		await _manager.GetOlderBarsAsync(Older(before.AddMinutes(-5)), Ct);
+
+		Assert.Equal(2, _ibkr.HistoricalCalls);
+	}
+
+	[Fact]
+	public async Task Ibs_no_data_before_the_first_bar_is_an_empty_page_not_cached()
+	{
+		_ibkr.HistoricalBefore = _ =>
+			Task.FromException<IReadOnlyList<BarDto>>(
+				new IbkrRequestException(
+					ChartConstants.HistoricalDataErrorCode,
+					"[162] Historical Market Data Service error message:HMDS query returned no data: AAPL@SMART Trades (reqId 7)"
+				)
+			);
+		var before = _time.GetUtcNow().AddYears(-30);
+
+		Assert.Empty(await _manager.GetOlderBarsAsync(Older(before), Ct));
+		Assert.Empty(await _manager.GetOlderBarsAsync(Older(before), Ct));
+		Assert.Equal(2, _ibkr.HistoricalCalls);
+	}
+
+	[Fact]
+	public async Task Other_ib_errors_of_an_older_page_propagate()
+	{
+		_ibkr.HistoricalBefore = _ =>
+			Task.FromException<IReadOnlyList<BarDto>>(
+				new IbkrRequestException(
+					ChartConstants.HistoricalDataErrorCode,
+					"[162] Historical Market Data Service error message:API historical data query cancelled"
+				)
+			);
+
+		await Assert.ThrowsAsync<IbkrRequestException>(() =>
+			_manager.GetOlderBarsAsync(Older(_time.GetUtcNow().AddDays(-5)), Ct)
+		);
+	}
+
+	[Fact]
+	public async Task Older_bars_of_an_unresolved_contract_are_rejected()
+	{
+		await Assert.ThrowsAsync<LSCoreBadRequestException>(() =>
+			_manager.GetOlderBarsAsync(new GetOlderBarsRequest { Before = _time.GetUtcNow() }, Ct)
+		);
+		Assert.Equal(0, _ibkr.HistoricalCalls);
+	}
+
+	private static GetOlderBarsRequest Older(DateTimeOffset before) =>
+		new()
+		{
+			Contract = Request.Contract,
+			Timeframe = Request.Timeframe,
+			Before = before,
+		};
 
 	private static GetBarsRequest WithPeriod(ChartPeriod period) =>
 		new()

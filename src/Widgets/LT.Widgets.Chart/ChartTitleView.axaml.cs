@@ -10,6 +10,8 @@ namespace LT.App.Widgets.Chart;
 /// of the chart's timeframes (picking one reloads the bars at that size), and the period button,
 /// whose menu has Auto, the rolling periods (1 day … 5 years back from now) and the calendar
 /// periods (today, this week, this month, this year), each group set apart by a separator.
+/// Picking one zooms the chart to it (again for the one already chosen); the button says
+/// "Custom" and nothing is checked once the view was zoomed or scrolled away from it.
 /// On intraday charts an RTH / ETH button after it switches the chart between regular hours only
 /// and pre- and post-market bars.
 /// Indicators and templates are in the chart's right-click menu (<see cref="ChartView"/>).
@@ -90,9 +92,12 @@ public partial class ChartTitleView : UserControl
 			item.IsChecked = item.Tag == ViewModel?.SelectedTimeframe;
 	}
 
+	// Nothing is checked while the view is Custom (zoomed or scrolled away from the period)
 	private void CheckCurrentPeriod()
 	{
 		foreach (var item in PeriodMenu.Items.OfType<MenuItem>())
-			item.IsChecked = Equals(item.Tag, ViewModel?.SelectedPeriod);
+			item.IsChecked =
+				ViewModel is { IsPeriodCustom: false } viewModel
+				&& Equals(item.Tag, viewModel.SelectedPeriod);
 	}
 }
