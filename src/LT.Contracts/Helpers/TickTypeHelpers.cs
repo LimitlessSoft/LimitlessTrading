@@ -24,6 +24,7 @@ public static class TickTypeHelpers
 	public const int Open = 14;
 	public const int LastTimestamp = 45;
 	public const int Halted = 49;
+	public const int VolumeRate = 56;
 	public const int DelayedBid = 66;
 	public const int DelayedAsk = 67;
 	public const int DelayedLast = 68;
@@ -93,6 +94,9 @@ public static class TickTypeHelpers
 				)
 					quote.LastTime = DateTimeOffset.FromUnixTimeSeconds(seconds);
 				return true;
+			case VolumeRate:
+				quote.VolumeRate = tick.Value is >= 0 ? tick.Value : null;
+				return true;
 			case Halted:
 				quote.IsHalted = tick.Value is > 0;
 				return true;
@@ -113,6 +117,16 @@ public static class TickTypeHelpers
 
 	public static double? GetChange(QuoteDto quote) =>
 		quote.Last is { } last && quote.Close is { } close ? last - close : null;
+
+	/// <summary>
+	/// The 90-day average daily volume spread evenly over a regular session
+	/// (<see cref="Constants.MarketDataConstants.RegularSessionMinutes"/>), in shares per minute:
+	/// what the volume rate runs at on an average day. Null without the average.
+	/// </summary>
+	public static decimal? GetAverageVolumePerMinute(QuoteDto quote) =>
+		quote.AverageVolume is { } average
+			? average / Constants.MarketDataConstants.RegularSessionMinutes
+			: null;
 
 	public static double? GetChangePercent(QuoteDto quote) =>
 		quote.Last is { } last && quote.Close is { } close and not 0

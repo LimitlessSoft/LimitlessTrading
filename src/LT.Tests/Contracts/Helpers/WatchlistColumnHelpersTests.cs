@@ -65,11 +65,75 @@ public class WatchlistColumnHelpersTests
 			expected,
 			WatchlistColumnHelpers.GetGenericTicks(
 				hidden
-					? new HashSet<WatchlistSortColumn> { WatchlistSortColumn.AverageVolume }
-					: [],
+					? new HashSet<WatchlistSortColumn>
+					{
+						WatchlistSortColumn.AverageVolume,
+						WatchlistSortColumn.AverageVolumeRate,
+						WatchlistSortColumn.VolumeRate,
+					}
+					: [WatchlistSortColumn.VolumeRate],
 				sortColumn
 			)
 		);
+
+	[Theory]
+	// Every column shown: both, average first
+	[InlineData(new WatchlistSortColumn[0], WatchlistSortColumn.None, "165,295")]
+	// Avg Vol/Min needs the average as well
+	[InlineData(new[] { WatchlistSortColumn.AverageVolume }, WatchlistSortColumn.None, "165,295")]
+	[InlineData(
+		new[] { WatchlistSortColumn.AverageVolume, WatchlistSortColumn.AverageVolumeRate },
+		WatchlistSortColumn.None,
+		"295"
+	)]
+	[InlineData(new[] { WatchlistSortColumn.VolumeRate }, WatchlistSortColumn.None, "165")]
+	// Sorted by a hidden Vol/Min: still asked for
+	[InlineData(
+		new[]
+		{
+			WatchlistSortColumn.AverageVolume,
+			WatchlistSortColumn.AverageVolumeRate,
+			WatchlistSortColumn.VolumeRate,
+		},
+		WatchlistSortColumn.VolumeRate,
+		"295"
+	)]
+	[InlineData(
+		new[]
+		{
+			WatchlistSortColumn.AverageVolume,
+			WatchlistSortColumn.AverageVolumeRate,
+			WatchlistSortColumn.VolumeRate,
+		},
+		WatchlistSortColumn.AverageVolumeRate,
+		"165"
+	)]
+	public void Quote_lines_ask_for_the_volume_rate_and_average_their_columns_need(
+		WatchlistSortColumn[] hidden,
+		WatchlistSortColumn sortColumn,
+		string expected
+	) =>
+		Assert.Equal(
+			expected,
+			WatchlistColumnHelpers.GetGenericTicks(hidden.ToHashSet(), sortColumn)
+		);
+
+	[Fact]
+	public void Volume_rate_columns_follow_average_volume_and_are_persisted_after_it()
+	{
+		var columns = WatchlistColumnHelpers.BuiltInColumns.ToList();
+
+		Assert.Equal(
+			columns.IndexOf(WatchlistSortColumn.AverageVolume) + 1,
+			columns.IndexOf(WatchlistSortColumn.VolumeRate)
+		);
+		Assert.Equal(
+			columns.IndexOf(WatchlistSortColumn.VolumeRate) + 1,
+			columns.IndexOf(WatchlistSortColumn.AverageVolumeRate)
+		);
+		Assert.Equal(9, (int)WatchlistSortColumn.VolumeRate);
+		Assert.Equal(10, (int)WatchlistSortColumn.AverageVolumeRate);
+	}
 
 	[Theory]
 	[InlineData(true, 1, false)]

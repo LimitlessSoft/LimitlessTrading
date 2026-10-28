@@ -101,6 +101,18 @@ public static class MarketDataConstants
 	public const string AverageVolumeGenericTick = "165";
 
 	/// <summary>
+	/// Generic tick list for IB's trade rate and volume rate (ticks 55 and 56, per minute, as
+	/// generic ticks); the watchlist's Vol/Min column uses the volume rate.
+	/// </summary>
+	public const string VolumeRateGenericTick = "295";
+
+	/// <summary>
+	/// Minutes of a regular session the average daily volume is spread over for the watchlist's
+	/// Avg Vol/Min column: the US one (09:30–16:00 New York), for every listing.
+	/// </summary>
+	public const int RegularSessionMinutes = 390;
+
+	/// <summary>
 	/// Options are taken to expire at the US close (16:00 New York) of their expiry date when
 	/// working out the time left for the standard deviation bands.
 	/// </summary>

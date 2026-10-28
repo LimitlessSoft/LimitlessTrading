@@ -66,8 +66,12 @@ public partial class WatchlistViewModel
 	// "No free line" is logged once per connection, not per row
 	private bool _noFreeLineLogged;
 
-	// Generic ticks of the rows' quote lines: the Avg Vol column's while it is shown or sorted by
-	private string _genericTicks = MarketDataConstants.AverageVolumeGenericTick;
+	// Generic ticks of the rows' quote lines: the Avg Vol, Avg Vol/Min and Vol/Min columns' while
+	// they are shown or sorted by (WatchlistColumnHelpers.GetGenericTicks)
+	private string _genericTicks = WatchlistColumnHelpers.GetGenericTicks(
+		new HashSet<WatchlistSortColumn>(),
+		WatchlistSortColumn.None
+	);
 
 	public WatchlistViewModel(
 		IWatchlistManager watchlistManager,
@@ -309,6 +313,8 @@ public partial class WatchlistViewModel
 			WatchlistSortColumn.Bid => "Bid / Ask",
 			WatchlistSortColumn.Volume => "Vol",
 			WatchlistSortColumn.AverageVolume => "Avg Vol",
+			WatchlistSortColumn.VolumeRate => "Vol/Min",
+			WatchlistSortColumn.AverageVolumeRate => "Avg Vol/Min",
 			WatchlistSortColumn.MarketCap => "Mkt Cap",
 			_ => column.ToString(),
 		};
@@ -1163,8 +1169,8 @@ public partial class WatchlistViewModel
 		}
 	}
 
-	// The Avg Vol column was shown, hidden or sorted by: the streaming rows reopen their lines
-	// with or without its generic tick (without it they can share a line with a chart)
+	// A column needing a generic tick was shown, hidden or sorted by: the streaming rows reopen
+	// their lines with the new ticks (without any they can share a line with a chart)
 	private void UpdateGenericTicks()
 	{
 		var ticks = WatchlistColumnHelpers.GetGenericTicks(_hiddenColumns, SortColumn);

@@ -29,6 +29,48 @@ public class TickTypeHelpersTests
 	}
 
 	[Fact]
+	public void Volume_rate_is_kept_in_shares_per_minute_and_zero_is_a_rate()
+	{
+		var quote = new QuoteDto();
+
+		// As recorded from IB: a generic tick (45), its value in shares per minute
+		Assert.True(
+			TickTypeHelpers.Apply(
+				quote,
+				new MarketDataTickDto { Field = TickTypeHelpers.VolumeRate, Value = 39944 }
+			)
+		);
+		Assert.Equal(39944, quote.VolumeRate);
+
+		TickTypeHelpers.Apply(
+			quote,
+			new MarketDataTickDto { Field = TickTypeHelpers.VolumeRate, Value = 0 }
+		);
+		Assert.Equal(0, quote.VolumeRate);
+
+		TickTypeHelpers.Apply(
+			quote,
+			new MarketDataTickDto { Field = TickTypeHelpers.VolumeRate, Value = -1 }
+		);
+		Assert.Null(quote.VolumeRate);
+	}
+
+	[Fact]
+	public void Average_volume_per_minute_spreads_the_daily_average_over_a_regular_session()
+	{
+		Assert.Equal(
+			111_545.73m,
+			Math.Round(
+				TickTypeHelpers
+					.GetAverageVolumePerMinute(new QuoteDto { AverageVolume = 43_502_835 })!
+					.Value,
+				2
+			)
+		);
+		Assert.Null(TickTypeHelpers.GetAverageVolumePerMinute(new QuoteDto()));
+	}
+
+	[Fact]
 	public void Average_volume_is_kept_in_shares_and_non_positive_means_unknown()
 	{
 		var quote = new QuoteDto();

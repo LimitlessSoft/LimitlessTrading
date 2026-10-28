@@ -256,29 +256,36 @@ public class WatchlistViewModelStreamingTests : IDisposable
 	}
 
 	[Fact]
-	public void Rows_stream_average_volume_and_reopen_without_it_when_its_column_is_hidden()
+	public void Rows_stream_the_volume_ticks_their_columns_need_and_reopen_when_they_change()
 	{
 		var widget = Create();
 		var live = MarketDataConstants.WatchlistInitialLiveRows;
 		WaitFor(() => _ibkr.MarketDataRequested.Count == live);
 		lock (_ibkr.MarketDataRequested)
+			Assert.All(_ibkr.GenericTicksRequested, x => Assert.Equal("165,295", x));
+
+		// Without Vol/Min only the average is asked for
+		Ui(() => widget.SetColumnShown(WatchlistSortColumn.VolumeRate, null, false));
+		WaitFor(() => _ibkr.MarketDataRequested.Count == 2 * live);
+		lock (_ibkr.MarketDataRequested)
 			Assert.All(
-				_ibkr.GenericTicksRequested,
+				_ibkr.GenericTicksRequested.Skip(live),
 				x => Assert.Equal(MarketDataConstants.AverageVolumeGenericTick, x)
 			);
 
+		// Avg Vol/Min still needs the average: hiding Avg Vol alone changes nothing; hiding both,
+		// each live row asks again without generic ticks and the old lines are released
 		Ui(() => widget.SetColumnShown(WatchlistSortColumn.AverageVolume, null, false));
-
-		// Each live row asks again, without the generic tick, and the old lines are released
+		Ui(() => widget.SetColumnShown(WatchlistSortColumn.AverageVolumeRate, null, false));
 		WaitFor(() =>
-			_ibkr.MarketDataRequested.Count == 2 * live
+			_ibkr.MarketDataRequested.Count == 3 * live
 			&& _marketData.ActiveLines == live
 			&& _ibkr.OpenMarketDataStreams == live
 		);
 		lock (_ibkr.MarketDataRequested)
-			Assert.All(_ibkr.GenericTicksRequested.Skip(live), x => Assert.Equal("", x));
+			Assert.All(_ibkr.GenericTicksRequested.Skip(2 * live), x => Assert.Equal("", x));
 
-		// Sorted by it while hidden: asked for again
+		// Sorted by a hidden one: asked for again
 		Ui(() =>
 			widget.SortBy(
 				WatchlistSortColumn.AverageVolume,
@@ -286,10 +293,10 @@ public class WatchlistViewModelStreamingTests : IDisposable
 				System.ComponentModel.ListSortDirection.Descending
 			)
 		);
-		WaitFor(() => _ibkr.MarketDataRequested.Count == 3 * live);
+		WaitFor(() => _ibkr.MarketDataRequested.Count == 4 * live);
 		lock (_ibkr.MarketDataRequested)
 			Assert.All(
-				_ibkr.GenericTicksRequested.Skip(2 * live),
+				_ibkr.GenericTicksRequested.Skip(3 * live),
 				x => Assert.Equal(MarketDataConstants.AverageVolumeGenericTick, x)
 			);
 	}

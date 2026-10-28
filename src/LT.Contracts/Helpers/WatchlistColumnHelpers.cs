@@ -18,22 +18,34 @@ public static class WatchlistColumnHelpers
 		WatchlistSortColumn.Bid,
 		WatchlistSortColumn.Volume,
 		WatchlistSortColumn.AverageVolume,
+		WatchlistSortColumn.VolumeRate,
+		WatchlistSortColumn.AverageVolumeRate,
 		WatchlistSortColumn.MarketCap,
 	];
 
 	/// <summary>
 	/// The generic ticks the watchlist's quote lines ask for: the average volume's
-	/// (<c>MarketDataConstants.AverageVolumeGenericTick</c>) while its column is shown or sorted
-	/// by, none otherwise, so the lines can be shared with the rest of the app.
+	/// (<c>MarketDataConstants.AverageVolumeGenericTick</c>) while Avg Vol or Avg Vol/Min is shown
+	/// or sorted by, the volume rate's (<c>MarketDataConstants.VolumeRateGenericTick</c>) while
+	/// Vol/Min is; none otherwise, so the lines can be shared with the rest of the app.
 	/// </summary>
 	public static string GetGenericTicks(
 		IReadOnlySet<WatchlistSortColumn> hidden,
 		WatchlistSortColumn sortColumn
-	) =>
-		!hidden.Contains(WatchlistSortColumn.AverageVolume)
-		|| sortColumn == WatchlistSortColumn.AverageVolume
-			? MarketDataConstants.AverageVolumeGenericTick
-			: string.Empty;
+	)
+	{
+		bool Needed(WatchlistSortColumn column) => !hidden.Contains(column) || sortColumn == column;
+
+		var ticks = new List<string>();
+		if (
+			Needed(WatchlistSortColumn.AverageVolume)
+			|| Needed(WatchlistSortColumn.AverageVolumeRate)
+		)
+			ticks.Add(MarketDataConstants.AverageVolumeGenericTick);
+		if (Needed(WatchlistSortColumn.VolumeRate))
+			ticks.Add(MarketDataConstants.VolumeRateGenericTick);
+		return string.Join(',', ticks);
+	}
 
 	/// <summary>
 	/// The built-in columns a saved widget hides: only built-in ones (not <c>None</c> or
