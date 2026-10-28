@@ -18,11 +18,15 @@ using LT.Contracts.Requests.Calendar;
 namespace LT.App.Widgets.Calendar;
 
 /// <summary>
-/// Market-wide earnings, other corporate events and economic releases of this week, next week or
-/// this month, grouped by day, from the sources switched on in Settings → Calendar (Nasdaq without
-/// any setup or IB connection; IB's Wall Street Horizon with its subscription). Clicking an event
-/// sends its stock to the link group (needs IB). Never an unexplained empty list: no source on,
-/// a failed source, an unreadable answer and "no events" each say so.
+/// Market-wide earnings, other corporate events and economic releases of today, this week, next
+/// week or this month, grouped by day, from the sources switched on in Settings → Calendar
+/// (Nasdaq without any setup or IB connection; IB's Wall Street Horizon with its subscription).
+/// Clicking an event sends its stock to the link group (needs IB). Never an unexplained empty
+/// list: no source on, a failed source, an unreadable answer and "no events" each say so. Events
+/// already past are dimmed and a "now" line sits between them and the ones to come, both kept
+/// current by a <see cref="TimeProvider"/> timer due when the next event passes (or at New York
+/// midnight, which loads the range again); opening the widget or switching the range scrolls to
+/// it.
 /// </summary>
 public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWidgetState
 {
@@ -30,7 +34,13 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 	private readonly IContractManager _contractManager;
 	private readonly DisplayTimeStore _displayTime;
 	private readonly SettingsNavigator _settingsNavigator;
+	private readonly TimeProvider _timeProvider;
+	private readonly TimeZoneInfo _zone = TradeJournalHelpers.GetTradeDayTimeZone();
 	private readonly CancellationTokenSource _lifetime = new();
+	private ITimer? _clock;
+	private DateOnly _shownToday;
+	private CalendarNowMarkerViewModel? _nowMarker;
+	private bool _scrollToNow = true;
 	private CancellationToken _session;
 	private CancellationTokenSource? _load;
 	private CancellationTokenSource? _resolve;
@@ -41,10 +51,12 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 		IConnectionManager connectionManager,
 		LinkGroupStore linkGroupStore,
 		DisplayTimeStore displayTime,
-		SettingsNavigator settingsNavigator
+		SettingsNavigator settingsNavigator,
+		TimeProvider timeProvider
 	)
 		: base(connectionManager)
 	{
+		_timeProvider = timeProvider;
 		_calendarManager = calendarManager;
 		_contractManager = contractManager;
 		_displayTime = displayTime;
@@ -63,12 +75,29 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 	/// <summary>Clicking an event sends its stock to the link group; nothing comes back.</summary>
 	public ContractLink Link { get; }
 
-	/// <summary>Day headers, each followed by its events.</summary>
+	/// <summary>
+	/// Raised on the UI thread with the line the view scrolls to the top: the "now" line, else
+	/// today's or the next day's header.
+	/// </summary>
+	public event Action<CalendarItemViewModel>? ScrollRequested;
+
+	/// <summary>Day headers, each followed by its events; the "now" line when the range holds today.</summary>
 	public ObservableCollection<CalendarItemViewModel> Items { get; } = [];
 
 	[ObservableProperty]
-	[NotifyPropertyChangedFor(nameof(IsThisWeek), nameof(IsNextWeek), nameof(IsThisMonth))]
+	[NotifyPropertyChangedFor(
+		nameof(IsToday),
+		nameof(IsThisWeek),
+		nameof(IsNextWeek),
+		nameof(IsThisMonth)
+	)]
 	public partial CalendarRange Range { get; set; } = CalendarRange.ThisWeek;
+
+	public bool IsToday
+	{
+		get => Range == CalendarRange.Today;
+		set => SetRange(value, CalendarRange.Today);
+	}
 
 	[ObservableProperty]
 	[NotifyPropertyChangedFor(
@@ -182,6 +211,7 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 		_calendarManager.SourcesChanged -= OnSourcesChanged;
 		_lifetime.Cancel();
 		CancelLoad();
+		StopClock();
 		_resolve?.Cancel();
 		_resolve?.Dispose();
 		Link.Dispose();
@@ -200,7 +230,11 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 
 	private void OnSourcesChanged() => Dispatcher.UIThread.Post(() => Load(refresh: false));
 
-	partial void OnRangeChanged(CalendarRange value) => Load(refresh: false);
+	partial void OnRangeChanged(CalendarRange value)
+	{
+		_scrollToNow = true;
+		Load(refresh: false);
+	}
 
 	partial void OnFilterChanged(CalendarEventFilter value) => Load(refresh: false);
 
@@ -241,7 +275,8 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 		{
 			if (!load.IsCancellationRequested)
 			{
-				Items.Clear();
+				StopClock();
+				ClearItems();
 				NoticeText = null;
 				StatusText = null;
 				SourceWarningText = null;
@@ -258,7 +293,8 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 
 	private void Show(CalendarResultDto result)
 	{
-		Items.Clear();
+		StopClock();
+		ClearItems();
 		if (result.Status != CalendarStatus.Loaded)
 		{
 			NoticeTitle = result.Status switch
@@ -285,25 +321,46 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 						$"{CalendarHelpers.GetSourceName(x.Source)}: {x.Message}"
 					)
 				);
-		var today = CalendarHelpers.GetToday(_displayTime.Now);
+		var now = _timeProvider.GetUtcNow();
+		var today = CalendarHelpers.GetToday(now);
+		_shownToday = today;
 		foreach (var day in result.Days)
 		{
 			Items.Add(
 				new CalendarDayHeaderViewModel(
+					day.Date,
 					FormatDay(day.Date, today),
 					day.Events.Count == 1 ? "1 event" : $"{day.Events.Count} events",
 					day.IsTruncated
 						? $"WSH returns at most {CalendarConstants.MaxEventsPerRequest} events per day; there may be more."
-						: null
+						: null,
+					day.Date == today,
+					day.Date < today
 				)
 			);
 			foreach (var item in day.Events)
+			{
+				var passedAt = CalendarHelpers.GetPassedAt(item, _zone);
 				Items.Add(
 					new CalendarEventRowViewModel(
 						item,
-						CalendarHelpers.FormatTime(item.Time, item.TimeText)
+						CalendarHelpers.FormatTime(item.Time, item.TimeText),
+						passedAt,
+						now >= passedAt
 					)
 				);
+			}
+		}
+		if (Items.Count > 0 && result.Start <= today && today <= result.End)
+		{
+			_nowMarker = new CalendarNowMarkerViewModel();
+			PlaceNowMarker();
+		}
+		StartClock(now);
+		if (_scrollToNow)
+		{
+			_scrollToNow = false;
+			RequestScrollToNow();
 		}
 		var count = result.Days.Sum(x => x.Events.Count);
 		var range = $"{FormatShort(result.Start)} – {FormatShort(result.End)}";
@@ -345,6 +402,93 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 		}
 	}
 
+	// Events turn past, the "now" line moves down; a new day loads the range again (its dates,
+	// today's header and which days are past all change)
+	private void OnClock()
+	{
+		if (_lifetime.IsCancellationRequested)
+			return;
+		var now = _timeProvider.GetUtcNow();
+		if (CalendarHelpers.GetToday(now) != _shownToday)
+		{
+			StopClock();
+			Load(refresh: false);
+			return;
+		}
+		foreach (var row in Items.OfType<CalendarEventRowViewModel>())
+			row.IsPast = now >= row.PassedAt;
+		PlaceNowMarker();
+		StartClock(now);
+	}
+
+	private void StartClock(DateTimeOffset now)
+	{
+		StopClock();
+		var next = CalendarHelpers.GetNextChange(
+			Items.OfType<CalendarEventRowViewModel>().Select(x => x.PassedAt),
+			now,
+			_zone
+		);
+		var due = next - now;
+		_clock = _timeProvider.CreateTimer(
+			_ => Dispatcher.UIThread.Post(OnClock),
+			null,
+			due < TimeSpan.Zero ? TimeSpan.Zero : due,
+			Timeout.InfiniteTimeSpan
+		);
+	}
+
+	private void StopClock()
+	{
+		_clock?.Dispose();
+		_clock = null;
+	}
+
+	private void ClearItems()
+	{
+		Items.Clear();
+		_nowMarker = null;
+	}
+
+	// Before the first event still to come; when that event opens a later day, before its header,
+	// and when it opens today, after today's header. Only between events: not above the first
+	// line (nothing has passed yet) nor below the last (everything has)
+	private void PlaceNowMarker()
+	{
+		if (_nowMarker == null)
+			return;
+		var current = Items.IndexOf(_nowMarker);
+		if (current >= 0)
+			Items.RemoveAt(current);
+		var index = -1;
+		for (var i = 0; i < Items.Count; i++)
+		{
+			if (Items[i] is not CalendarEventRowViewModel { IsPast: false })
+				continue;
+			index =
+				i > 0
+				&& Items[i - 1] is CalendarDayHeaderViewModel header
+				&& header.Date > _shownToday
+					? i - 1
+					: i;
+			break;
+		}
+		if (index > 0)
+			Items.Insert(index, _nowMarker);
+	}
+
+	private void RequestScrollToNow()
+	{
+		var target =
+			(_nowMarker != null && Items.Contains(_nowMarker) ? _nowMarker : null)
+			?? (CalendarItemViewModel?)
+				Items
+					.OfType<CalendarDayHeaderViewModel>()
+					.FirstOrDefault(x => x.Date >= _shownToday);
+		if (target != null)
+			ScrollRequested?.Invoke(target);
+	}
+
 	private void CancelLoad()
 	{
 		_load?.Cancel();
@@ -358,7 +502,10 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 			Range = range;
 		else
 		{
-			// A range button can't be switched off by clicking it again; it stays checked
+			// A range button can't be switched off by clicking it again; it stays checked, and
+			// scrolls back to now
+			RequestScrollToNow();
+			OnPropertyChanged(nameof(IsToday));
 			OnPropertyChanged(nameof(IsThisWeek));
 			OnPropertyChanged(nameof(IsNextWeek));
 			OnPropertyChanged(nameof(IsThisMonth));

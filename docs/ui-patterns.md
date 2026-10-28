@@ -456,18 +456,31 @@ new instance) and lives in one of four wrappers:
   calendar](architecture.md#external-data-nasdaq-calendar)) and **IB Wall Street Horizon** (off
   by default: it needs IB's paid subscription, which the live account lacks —
   [ibkr-tws-api.md → Wall Street Horizon](ibkr-tws-api.md#wall-street-horizon-calendar)). Range
-  buttons This week / Next week / This month (weeks Monday to Sunday, New York dates) and event
+  buttons Today / This week / Next week / This month (weeks Monday to Sunday, New York dates;
+  `CalendarRange.Today` = 3 was appended) and event
   buttons All / Earnings / Economic / Other events (corporate events but earnings: ex-dividend
   dates, splits, conferences, meetings), both saved per widget (`WidgetPlacementDto.CalendarRange`
   / `CalendarFilter`, null = this week, all; `CalendarEventFilter.Economic` = 3 was appended).
+  Opening the widget or switching the range scrolls to now; clicking the checked range again
+  scrolls back there.
   **Sources…** opens Settings on that page (`SettingsPageNames.Calendar`). One list: a header per
   day ("Thu 29 Oct · Tomorrow", its event count, a warning when WSH returned its 100-per-request
   maximum), then its events — the day's economic releases first by time ("All day" first), then
-  corporate events before open / during market / after close / without a time. Each row: time
+  corporate events before open / during market / after close / without a time. Today's header
+  is in the accent colour. Events already past are dimmed (and days before today), with a
+  "Now" line between the last past event and the next one when the range holds today and
+  events lie on both sides; an event counts as past at its clock time (a release), the open
+  (before open), the close (during market), 20:00 (after close) or the end of its day
+  (anything else), New York time (`CalendarHelpers.GetPassedAt`, times in `CalendarConstants`).
+  A `TimeProvider` timer due when the next event passes keeps both current; New York midnight
+  loads the range again. Each row: a release's country flag on the left (`CountryFlag` in
+  `LT.Widgets.Core/Controls`, drawn shapes rather than emoji, which Windows can't draw; the
+  country or currency → code in `CountryFlagHelpers`, the euro area → EU; the country in its
+  tooltip), time
   badge (Before open / After close, a release's clock time as Nasdaq gives it, or WSH's own
   text), symbol (none for a release), company or release, detail (EPS estimate, dividend amount
-  and payment date, split ratio, a release's actual / consensus / previous) and the type or a
-  release's country; the tooltip repeats it all and names the source ("from Nasdaq"). An event
+  and payment date, split ratio, a release's actual / consensus / previous) and the type (or a
+  release's country when no flag is drawn for it); the tooltip repeats it all and names the source ("from Nasdaq"). An event
   both sources report (same day, kind and symbol) shows once, the first source's (WSH) with
   blanks filled from the other (`CalendarHelpers.Merge`). Clicking an event looks the symbol up
   (`IContractManager.SearchSymbolAsync`, the listing with WSH's conId if it gave one; needs IB) and

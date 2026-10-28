@@ -451,4 +451,103 @@ public class CalendarHelpersTests
 			day.Events.Select(x => x.Company)
 		);
 	}
+
+	[Fact]
+	public void Today_is_one_day()
+	{
+		Assert.Equal(
+			(Wednesday, Wednesday),
+			CalendarHelpers.GetDates(CalendarRange.Today, Wednesday)
+		);
+	}
+
+	// 28 October 2026 is still summer time in New York (UTC-4)
+	[Theory]
+	[InlineData(
+		CalendarEventKind.Economic,
+		CalendarEventTime.Unknown,
+		"08:30",
+		"2026-10-28T12:30:00Z"
+	)]
+	[InlineData(
+		CalendarEventKind.Economic,
+		CalendarEventTime.Unknown,
+		"1:00",
+		"2026-10-28T05:00:00Z"
+	)]
+	[InlineData(
+		CalendarEventKind.Earnings,
+		CalendarEventTime.BeforeOpen,
+		"",
+		"2026-10-28T13:30:00Z"
+	)]
+	[InlineData(
+		CalendarEventKind.Earnings,
+		CalendarEventTime.DuringMarket,
+		"",
+		"2026-10-28T20:00:00Z"
+	)]
+	[InlineData(
+		CalendarEventKind.Earnings,
+		CalendarEventTime.AfterClose,
+		"",
+		"2026-10-29T00:00:00Z"
+	)]
+	// No time, all day or a text: once the day is over in New York
+	[InlineData(CalendarEventKind.Earnings, CalendarEventTime.Unknown, "", "2026-10-29T04:00:00Z")]
+	[InlineData(
+		CalendarEventKind.Economic,
+		CalendarEventTime.Unknown,
+		"All day",
+		"2026-10-29T04:00:00Z"
+	)]
+	[InlineData(
+		CalendarEventKind.Other,
+		CalendarEventTime.Unknown,
+		"Tentative",
+		"2026-10-29T04:00:00Z"
+	)]
+	public void An_event_turns_past_at_its_time_in_New_York(
+		CalendarEventKind kind,
+		CalendarEventTime time,
+		string timeText,
+		string passedAt
+	)
+	{
+		var item = new CalendarEventDto
+		{
+			Date = Wednesday,
+			Kind = kind,
+			Time = time,
+			TimeText = timeText,
+		};
+		var zone = TradeJournalHelpers.GetTradeDayTimeZone();
+		var expected = DateTimeOffset.Parse(passedAt);
+
+		Assert.Equal(expected, CalendarHelpers.GetPassedAt(item, zone));
+		Assert.False(CalendarHelpers.IsPast(item, expected.AddTicks(-1), zone));
+		Assert.True(CalendarHelpers.IsPast(item, expected, zone));
+	}
+
+	[Fact]
+	public void The_next_change_is_the_next_event_to_pass_or_New_York_midnight()
+	{
+		var zone = TradeJournalHelpers.GetTradeDayTimeZone();
+		var now = DateTimeOffset.Parse("2026-10-28T15:00:00Z");
+		var midnight = DateTimeOffset.Parse("2026-10-29T04:00:00Z");
+		DateTimeOffset[] passedAt =
+		[
+			DateTimeOffset.Parse("2026-10-28T12:30:00Z"), // already past
+			DateTimeOffset.Parse("2026-10-28T20:00:00Z"),
+			DateTimeOffset.Parse("2026-10-28T17:00:00Z"),
+			DateTimeOffset.Parse("2026-10-29T13:30:00Z"), // tomorrow
+		];
+
+		Assert.Equal(
+			DateTimeOffset.Parse("2026-10-28T17:00:00Z"),
+			CalendarHelpers.GetNextChange(passedAt, now, zone)
+		);
+		Assert.Equal(midnight, CalendarHelpers.GetNextChange([passedAt[0]], now, zone));
+		Assert.Equal(midnight, CalendarHelpers.GetNextChange([], now, zone));
+	}
 }
