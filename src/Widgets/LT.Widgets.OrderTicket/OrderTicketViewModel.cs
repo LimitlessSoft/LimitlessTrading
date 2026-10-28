@@ -273,7 +273,6 @@ public partial class OrderTicketViewModel : ConnectedViewModelBase, ILinkable
 		_session = session;
 		if (SelectedAccount == null || !Accounts.Contains(SelectedAccount))
 			SelectedAccount = _accountStore.SelectedAccount;
-		StartQuotes();
 	}
 
 	protected override void OnDisconnected()
@@ -281,6 +280,11 @@ public partial class OrderTicketViewModel : ConnectedViewModelBase, ILinkable
 		StopQuotes();
 		StopReview();
 	}
+
+	// Connected and shown: the contract's quote line; a collapsed or hidden ticket gives it back
+	protected override void OnStreamsStarted(CancellationToken streams) => StartQuotes();
+
+	protected override void OnStreamsStopped() => StopQuotes();
 
 	public override void Dispose()
 	{
@@ -314,8 +318,7 @@ public partial class OrderTicketViewModel : ConnectedViewModelBase, ILinkable
 				: $"Order ticket · {ContractHelpers.GetDisplayName(contract)}";
 		OnPropertyChanged(nameof(HasContract));
 		UpdateTimeInForces();
-		if (IsConnected)
-			StartQuotes();
+		StartQuotes();
 	}
 
 	private void UpdateTimeInForces()
@@ -406,9 +409,9 @@ public partial class OrderTicketViewModel : ConnectedViewModelBase, ILinkable
 	private void StartQuotes()
 	{
 		StopQuotes();
-		if (_contract is not { } contract || !IsConnected)
+		if (_contract is not { } contract || !IsStreaming)
 			return;
-		_quotes = CancellationTokenSource.CreateLinkedTokenSource(_session);
+		_quotes = CancellationTokenSource.CreateLinkedTokenSource(StreamsToken);
 		var token = _quotes.Token;
 		_ = Task.Run(
 			async () =>

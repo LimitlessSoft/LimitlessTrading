@@ -120,6 +120,7 @@ public partial class WorkspaceView : UserControl
 		RebuildCenter();
 		ApplyFullscreen();
 		SyncFloating();
+		ApplyWindowState();
 	}
 
 	/// <summary>
@@ -179,7 +180,9 @@ public partial class WorkspaceView : UserControl
 				handledEventsToo: true
 			);
 			window.AddHandler(GotFocusEvent, OnWindowInput, RoutingStrategies.Tunnel);
+			window.PropertyChanged += OnWindowPropertyChanged;
 		}
+		ApplyWindowState();
 	}
 
 	protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -189,8 +192,22 @@ public partial class WorkspaceView : UserControl
 		{
 			window.RemoveHandler(PointerPressedEvent, OnWindowInput);
 			window.RemoveHandler(GotFocusEvent, OnWindowInput);
+			window.PropertyChanged -= OnWindowPropertyChanged;
 		}
 		base.OnDetachedFromVisualTree(e);
+	}
+
+	private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+	{
+		if (e.Property == Window.WindowStateProperty)
+			ApplyWindowState();
+	}
+
+	// A minimized window shows none of its docked and center widgets: they stop their streams
+	private void ApplyWindowState()
+	{
+		if (_viewModel != null && TopLevel.GetTopLevel(this) is Window window)
+			_viewModel.IsWindowMinimized = window.WindowState == WindowState.Minimized;
 	}
 
 	private void OnWindowInput(object? sender, RoutedEventArgs e) =>
@@ -788,6 +805,13 @@ public partial class WorkspaceView : UserControl
 		{
 			if (window.Content == frame)
 				window.Content = null;
+			widget.IsFloatMinimized = false;
+		};
+		// A minimized floating window hides its widget, which stops its streams
+		window.PropertyChanged += (_, e) =>
+		{
+			if (e.Property == Window.WindowStateProperty)
+				widget.IsFloatMinimized = window.WindowState == WindowState.Minimized;
 		};
 
 		window.Classes.Set("flush", IsFlush);

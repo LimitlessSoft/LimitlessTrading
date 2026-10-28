@@ -110,6 +110,20 @@ public partial class WidgetItem : ObservableObject
 	[ObservableProperty]
 	public partial bool IsActive { get; set; }
 
+	/// <summary>
+	/// On screen (set by the workspace, <see cref="WorkspaceViewModel"/>): passed on to a view
+	/// model that implements <see cref="IWidgetVisibility"/>, which stops its market data streams
+	/// while hidden.
+	/// </summary>
+	[ObservableProperty]
+	public partial bool IsShown { get; internal set; } = true;
+
+	partial void OnIsShownChanged(bool value) => (Content as IWidgetVisibility)?.SetShown(value);
+
+	/// <summary>Floating only: its window is minimized (set by the workspace view).</summary>
+	[ObservableProperty]
+	public partial bool IsFloatMinimized { get; set; }
+
 	public bool IsOpen => Dock != null;
 	public bool IsCenter => Dock == WidgetDock.Center;
 	public bool IsLeft => Dock == WidgetDock.Left;

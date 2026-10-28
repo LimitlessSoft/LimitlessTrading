@@ -23,7 +23,9 @@ namespace LT.App.Widgets.OptionChain;
 /// Calls and puts per strike for one expiration. Quotes are streamed only for the strikes around
 /// the underlying price, to stay inside the market data line limit. Bid / ask cells trade the
 /// widget's one-click quantity at market with a single click (no confirmation; the user asked for
-/// it). The underlying comes from the link group, or is typed into the header title.
+/// it). The underlying comes from the link group, or is typed into the header title. Quotes stream
+/// only while the widget is shown: hidden, it gives every line back and keeps its rows and last
+/// values; shown again, the same rows subscribe again.
 /// </summary>
 public partial class OptionChainViewModel
 	: ConnectedViewModelBase,
@@ -195,6 +197,12 @@ public partial class OptionChainViewModel
 			row.RefreshTrading();
 	}
 
+	// Shown again (or connected): the chain on screen streams again; on connect it is still loading
+	protected override void OnStreamsStarted(CancellationToken streams) => StartQuotes();
+
+	// Hidden: every line goes back, the rows keep their last quotes
+	protected override void OnStreamsStopped() => StopQuotes();
+
 	public override void Dispose()
 	{
 		Link.Dispose();
@@ -344,12 +352,18 @@ public partial class OptionChainViewModel
 		for (var i = from; i <= to; i++)
 			Rows.Add(CreateRow(_chain.Strikes[i]));
 		ApplyUnderlyingPrice(_chain.UnderlyingPrice);
+		StartQuotes();
+	}
 
-		if (!IsConnected)
+	// The underlying and every row on screen, while connected and shown (hidden: nothing)
+	private void StartQuotes()
+	{
+		StopQuotes();
+		if (_chain == null || !IsStreaming)
 			return;
 
 		// The underlying keeps streaming so the moneyness shading follows its price
-		_quotes = CancellationTokenSource.CreateLinkedTokenSource(_session);
+		_quotes = CancellationTokenSource.CreateLinkedTokenSource(StreamsToken);
 		_underlyingPending = new LatestValue<QuoteDto>();
 		// … and carries its option implied volatility (tick 106) for the σ bands, on the same line
 		StartQuote(
@@ -539,10 +553,11 @@ public partial class OptionChainViewModel
 			foreach (var quotes in leaving)
 				quotes.Cancellation.Dispose();
 
-			// A new chain, tab or disconnect while waiting owns the rows now
+			// A new chain, tab, disconnect or hiding while waiting owns the rows now; showing it
+			// again meanwhile has subscribed them already
 			if (_chain != chain || _quotes is not { IsCancellationRequested: false } live)
 				return;
-			foreach (var row in added.Where(Rows.Contains))
+			foreach (var row in added.Where(x => Rows.Contains(x) && !_rowQuotes.ContainsKey(x)))
 				StartRowQuotes(row, live.Token);
 		}
 		finally
