@@ -8,7 +8,6 @@ using LT.App.ViewModels;
 using LT.App.Widgets.ConnectionBar;
 using LT.App.Workspace;
 using LT.Contracts.Constants;
-using LT.Contracts.Dtos.Connection;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
@@ -22,7 +21,6 @@ public partial class MainWindowViewModel : ViewModelBase
 	private readonly IMarketDataManager _marketDataManager;
 	private readonly ISettingsManager _settingsManager;
 	private readonly AccountStore _accountStore;
-	private readonly IConnectionManager _connectionManager;
 	private readonly DisplayTimeStore _displayTime;
 
 	// 1 while a stream list refresh is posted: a burst of lines (a watchlist opening) posts one
@@ -46,7 +44,6 @@ public partial class MainWindowViewModel : ViewModelBase
 		_marketDataManager = marketDataManager;
 		_settingsManager = settingsManager;
 		_accountStore = accountStore;
-		_connectionManager = connectionManager;
 		_displayTime = displayTime;
 		ConnectionBar = connectionBar;
 		Appearance = appearance;
@@ -54,10 +51,11 @@ public partial class MainWindowViewModel : ViewModelBase
 		Update = update;
 		CurrentPage = tradingPage;
 
-		Apply(connectionManager.Status);
-		connectionManager.StatusChanged += status => Dispatcher.UIThread.Post(() => Apply(status));
+		UpdateAccountText();
+		UpdateClock();
+		connectionManager.StatusChanged += _ => Dispatcher.UIThread.Post(UpdateAccountText);
 		accountStore.PropertyChanged += (_, _) => UpdateAccountText();
-		displayTime.ZoneChanged += () => Apply(_connectionManager.Status);
+		displayTime.ZoneChanged += UpdateClock;
 		settingsManager.AppSettingsChanged += _ => Dispatcher.UIThread.Post(UpdateStatusBar);
 		marketDataManager.StreamsChanged += OnStreamsChanged;
 		new DispatcherTimer(
@@ -65,6 +63,7 @@ public partial class MainWindowViewModel : ViewModelBase
 			DispatcherPriority.Background,
 			(_, _) =>
 			{
+				UpdateClock();
 				UpdateStatusBar();
 				UpdateStreamAges();
 			}
@@ -93,7 +92,7 @@ public partial class MainWindowViewModel : ViewModelBase
 	public partial string AccountsText { get; set; } = string.Empty;
 
 	[ObservableProperty]
-	public partial string ServerTimeText { get; set; } = string.Empty;
+	public partial string CurrentTimeText { get; set; } = string.Empty;
 
 	[ObservableProperty]
 	public partial string MarketDataText { get; set; } = string.Empty;
@@ -163,14 +162,7 @@ public partial class MainWindowViewModel : ViewModelBase
 	/// <summary>Ctrl+Shift+F: the current widget over the whole window, or back.</summary>
 	public void ToggleFullscreen() => CurrentPage.ToggleFullscreen();
 
-	private void Apply(ConnectionStatusDto status)
-	{
-		ServerTimeText =
-			status.State == ConnectionState.Connected && status.ServerTime is { } serverTime
-				? $"Server time at connect {_displayTime.Format(serverTime)}"
-				: string.Empty;
-		UpdateAccountText();
-	}
+	private void UpdateClock() => CurrentTimeText = _displayTime.Format(_displayTime.Now);
 
 	private void UpdateAccountText() =>
 		AccountsText = _accountStore.SelectedAccount is { } account
