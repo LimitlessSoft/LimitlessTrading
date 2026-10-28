@@ -45,6 +45,21 @@ public static class CalendarConstants
 	/// <summary>A day's events are answered from memory for this long, per source (Refresh asks again).</summary>
 	public static readonly TimeSpan EventsTtl = TimeSpan.FromMinutes(30);
 
+	/// <summary>
+	/// When an event before the open counts as past (New York time): the regular session's open,
+	/// by which a before-open report is out.
+	/// </summary>
+	public static readonly TimeOnly BeforeOpenPassedAt = new(9, 30);
+
+	/// <summary>When an event during market hours counts as past: the regular session's close.</summary>
+	public static readonly TimeOnly DuringMarketPassedAt = new(16, 0);
+
+	/// <summary>
+	/// When an event after the close counts as past: the end of the after-hours session, by which
+	/// the after-close reports are out (they come at any time from 16:00 on).
+	/// </summary>
+	public static readonly TimeOnly AfterClosePassedAt = new(20, 0);
+
 	/// <summary>How much of an unreadable answer the error message quotes.</summary>
 	public const int UnreadableSnippetLength = 200;
 }

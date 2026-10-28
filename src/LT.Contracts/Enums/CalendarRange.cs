@@ -11,4 +11,7 @@ public enum CalendarRange
 
 	/// <summary>The 1st to the last day of the current month.</summary>
 	ThisMonth = 2,
+
+	/// <summary>Today only.</summary>
+	Today = 3,
 }

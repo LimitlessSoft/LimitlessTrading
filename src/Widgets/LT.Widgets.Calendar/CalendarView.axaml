@@ -2,11 +2,13 @@
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:LT.App.Widgets.Calendar"
+	xmlns:controls="using:LT.App.Controls"
 	x:Class="LT.App.Widgets.Calendar.CalendarView"
 	x:DataType="vm:CalendarViewModel"
 >
 	<!-- Toolbar (range, event type, refresh, sources), state lines, then one list: day headers,
-	     each followed by its events. A notice replaces the list when no source answered -->
+	     each followed by its events, and a "now" line between the past events (dimmed) and the
+	     ones to come. A notice replaces the list when no source answered -->
 	<DockPanel>
 		<DockPanel.Styles>
 			<Style Selector="ToggleButton.mode">
@@ -31,6 +33,19 @@
 				<!-- Day headers group the events; only events can be clicked -->
 				<Setter Property="IsHitTestVisible" Value="{Binding IsSelectable}" />
 			</Style>
+			<!-- Past events and days: dimmed, still readable -->
+			<Style Selector="Grid.event.past">
+				<Setter Property="Opacity" Value="0.45" />
+			</Style>
+			<Style Selector="StackPanel.day.past">
+				<Setter Property="Opacity" Value="0.6" />
+			</Style>
+			<Style Selector="StackPanel.day.today TextBlock.dayTitle">
+				<Setter Property="Foreground" Value="{DynamicResource SystemAccentColor}" />
+			</Style>
+			<Style Selector="StackPanel.day.today Border.dayRule">
+				<Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
+			</Style>
 			<Style Selector="Border#Notice">
 				<Setter Property="Background" Value="{DynamicResource PanelBackground}" />
 				<Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}" />
@@ -42,6 +57,12 @@
 
 		<WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
 			<StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,12,4">
+				<ToggleButton
+					Classes="mode"
+					Content="Today"
+					ToolTip.Tip="Today's events (New York date); clicking a checked range scrolls back to now"
+					IsChecked="{Binding IsToday}"
+				/>
 				<ToggleButton Classes="mode" Content="This week" IsChecked="{Binding IsThisWeek}" />
 				<ToggleButton Classes="mode" Content="Next week" IsChecked="{Binding IsNextWeek}" />
 				<ToggleButton Classes="mode" Content="This month" IsChecked="{Binding IsThisMonth}" />
@@ -128,10 +149,15 @@
 			IsVisible="{Binding HasEmptyText}"
 		/>
 
-		<ListBox ItemsSource="{Binding Items}" SelectedItem="{Binding SelectedItem}">
+		<ListBox x:Name="EventList" ItemsSource="{Binding Items}" SelectedItem="{Binding SelectedItem}">
 			<ListBox.DataTemplates>
 				<DataTemplate DataType="vm:CalendarDayHeaderViewModel">
-					<StackPanel Margin="0,6,0,0">
+					<StackPanel
+						Classes="day"
+						Classes.today="{Binding IsToday}"
+						Classes.past="{Binding IsPast}"
+						Margin="0,6,0,0"
+					>
 						<DockPanel>
 							<TextBlock
 								DockPanel.Dock="Right"
@@ -140,7 +166,7 @@
 								VerticalAlignment="Bottom"
 								Text="{Binding CountText}"
 							/>
-							<TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
+							<TextBlock Classes="dayTitle" FontWeight="SemiBold" Text="{Binding Title}" />
 						</DockPanel>
 						<TextBlock
 							Classes="warning"
@@ -149,32 +175,67 @@
 							Text="{Binding Warning}"
 							IsVisible="{Binding HasWarning}"
 						/>
-						<Border Height="1" Margin="0,3,0,0" Background="{DynamicResource PanelStroke}" />
+						<Border
+							Classes="dayRule"
+							Height="1"
+							Margin="0,3,0,0"
+							Background="{DynamicResource PanelStroke}"
+						/>
 					</StackPanel>
 				</DataTemplate>
+				<DataTemplate DataType="vm:CalendarNowMarkerViewModel">
+					<DockPanel Margin="0,1">
+						<TextBlock
+							DockPanel.Dock="Left"
+							Margin="0,0,6,0"
+							FontSize="10"
+							FontWeight="SemiBold"
+							VerticalAlignment="Center"
+							Foreground="{DynamicResource SystemAccentColor}"
+							Text="Now"
+						/>
+						<Border
+							Height="1"
+							VerticalAlignment="Center"
+							Background="{DynamicResource SystemAccentColor}"
+						/>
+					</DockPanel>
+				</DataTemplate>
 				<DataTemplate DataType="vm:CalendarEventRowViewModel">
+					<!-- A release's flag on the left (its country in the tooltip); the country as text
+					     on the right only when no flag is drawn for it -->
 					<Grid
-						ColumnDefinitions="92,64,*,Auto,Auto"
+						Classes="event"
+						Classes.past="{Binding IsPast}"
+						ColumnDefinitions="24,92,64,*,Auto,Auto"
 						Background="Transparent"
 						ToolTip.Tip="{Binding ToolTipText}"
 					>
-						<Border Grid.Column="0" Classes="badge" IsVisible="{Binding HasTime}">
+						<controls:CountryFlag
+							Grid.Column="0"
+							HorizontalAlignment="Left"
+							VerticalAlignment="Center"
+							Code="{Binding FlagCode}"
+							IsVisible="{Binding HasFlag}"
+							ToolTip.Tip="{Binding Event.TypeName}"
+						/>
+						<Border Grid.Column="1" Classes="badge" IsVisible="{Binding HasTime}">
 							<TextBlock Text="{Binding TimeText}" />
 						</Border>
 						<TextBlock
-							Grid.Column="1"
+							Grid.Column="2"
 							FontWeight="SemiBold"
 							VerticalAlignment="Center"
 							Text="{Binding Event.Symbol}"
 						/>
 						<TextBlock
-							Grid.Column="2"
+							Grid.Column="3"
 							VerticalAlignment="Center"
 							TextTrimming="CharacterEllipsis"
 							Text="{Binding Event.Company}"
 						/>
 						<TextBlock
-							Grid.Column="3"
+							Grid.Column="4"
 							Margin="8,0,0,0"
 							FontSize="11"
 							VerticalAlignment="Center"
@@ -182,12 +243,13 @@
 							IsVisible="{Binding HasDetail}"
 						/>
 						<TextBlock
-							Grid.Column="4"
+							Grid.Column="5"
 							Margin="8,0,0,0"
 							Classes="secondary"
 							FontSize="11"
 							VerticalAlignment="Center"
 							Text="{Binding Event.TypeName}"
+							IsVisible="{Binding ShowsTypeName}"
 						/>
 					</Grid>
 				</DataTemplate>

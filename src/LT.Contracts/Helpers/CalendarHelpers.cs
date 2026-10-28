@@ -110,6 +110,7 @@ public static class CalendarHelpers
 				new DateOnly(today.Year, today.Month, 1),
 				new DateOnly(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month))
 			),
+			CalendarRange.Today => (today, today),
 			_ => throw new ArgumentOutOfRangeException(nameof(range), range, null),
 		};
 	}
@@ -323,6 +324,62 @@ public static class CalendarHelpers
 		return CalendarEventTime.Unknown;
 	}
 
+	/// <summary>
+	/// The moment <paramref name="item"/> counts as past, in New York time
+	/// (<paramref name="zone"/>), the zone the calendar's days and Nasdaq's clock times are in: an
+	/// economic release at its clock time ("08:30"); a corporate event before the open at the
+	/// open, during market at the close, after the close at the end of after-hours
+	/// (<see cref="CalendarConstants"/>); anything else (no time, "All day", a text) once its day
+	/// is over.
+	/// </summary>
+	public static DateTimeOffset GetPassedAt(CalendarEventDto item, TimeZoneInfo zone)
+	{
+		TimeOnly? time = item.Time switch
+		{
+			CalendarEventTime.BeforeOpen => CalendarConstants.BeforeOpenPassedAt,
+			CalendarEventTime.DuringMarket => CalendarConstants.DuringMarketPassedAt,
+			CalendarEventTime.AfterClose => CalendarConstants.AfterClosePassedAt,
+			_ => TimeOnly.TryParseExact(
+				item.TimeText.Trim(),
+				["HH:mm", "H:mm"],
+				CultureInfo.InvariantCulture,
+				DateTimeStyles.None,
+				out var clock
+			)
+				? clock
+				: null,
+		};
+		return time is { } at
+			? AtZoneTime(item.Date, at, zone)
+			: GetDayStart(item.Date.AddDays(1), zone);
+	}
+
+	/// <summary>Whether <paramref name="item"/> is past at <paramref name="now"/> (see <see cref="GetPassedAt"/>).</summary>
+	public static bool IsPast(CalendarEventDto item, DateTimeOffset now, TimeZoneInfo zone) =>
+		now >= GetPassedAt(item, zone);
+
+	/// <summary>Midnight starting <paramref name="day"/> in <paramref name="zone"/>.</summary>
+	public static DateTimeOffset GetDayStart(DateOnly day, TimeZoneInfo zone) =>
+		AtZoneTime(day, TimeOnly.MinValue, zone);
+
+	/// <summary>
+	/// When the calendar has to look again after <paramref name="now"/>: the first of
+	/// <paramref name="passedAt"/> still ahead (an event turns past), or the next New York
+	/// midnight (today moves on), whichever comes first.
+	/// </summary>
+	public static DateTimeOffset GetNextChange(
+		IEnumerable<DateTimeOffset> passedAt,
+		DateTimeOffset now,
+		TimeZoneInfo zone
+	)
+	{
+		var next = GetDayStart(TradeJournalHelpers.GetTradeDay(now, zone).AddDays(1), zone);
+		foreach (var at in passedAt)
+			if (at > now && at < next)
+				next = at;
+		return next;
+	}
+
 	/// <summary>"Before open", "After close" …, or WSH's own text, or empty.</summary>
 	public static string FormatTime(CalendarEventTime time, string timeText) =>
 		time switch
@@ -507,6 +564,12 @@ public static class CalendarHelpers
 			Detail = item.Detail,
 			Source = item.Source,
 		};
+
+	private static DateTimeOffset AtZoneTime(DateOnly day, TimeOnly time, TimeZoneInfo zone)
+	{
+		var local = day.ToDateTime(time);
+		return new DateTimeOffset(local, zone.GetUtcOffset(local));
+	}
 
 	// "All day" before the clock times ("08:30" sorts as text); other texts after them
 	private static string GetTimeTextOrder(string text) =>

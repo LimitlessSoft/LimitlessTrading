@@ -46,10 +46,10 @@ public class CalendarViewModelTests : IDisposable
 		_cache.Settings.Settings.General.CalendarNasdaq = nasdaq;
 	}
 
-	private static CalendarEventDto Earnings(string symbol) =>
+	private static CalendarEventDto Earnings(string symbol, DateOnly? day = null) =>
 		new()
 		{
-			Date = Thursday,
+			Date = day ?? Thursday,
 			Kind = CalendarEventKind.Earnings,
 			TypeName = "Earnings",
 			Symbol = symbol,
@@ -220,6 +220,148 @@ public class CalendarViewModelTests : IDisposable
 		Assert.Equal(aapl.ConId, _links.Get(LinkGroup.Red)!.ConId);
 	}
 
+	private static readonly DateOnly Wednesday = new(2026, 10, 28);
+
+	private static CalendarEventDto Release(DateOnly day, string name, string time) =>
+		new()
+		{
+			Date = day,
+			Kind = CalendarEventKind.Economic,
+			Company = name,
+			TypeName = "United States",
+			TimeText = time,
+			Source = CalendarSource.Nasdaq,
+		};
+
+	// Wednesday 16:00 New York: the 08:30 release is out, AAPL reports after the close, MSFT
+	// tomorrow
+	private void AnswerWednesdayAndThursday() =>
+		_nasdaq.Answer = (calendar, day) =>
+			(calendar, day) switch
+			{
+				(NasdaqCalendar.Economic, var d) when d == Wednesday =>
+				[
+					Release(Wednesday, "GDP", "08:30"),
+				],
+				(NasdaqCalendar.Earnings, var d) when d == Wednesday =>
+				[
+					Earnings("AAPL", Wednesday),
+				],
+				(NasdaqCalendar.Earnings, var d) when d == Thursday => [Earnings("MSFT")],
+				_ => [],
+			};
+
+	private string[] Lines() => TestUiThread.Invoke(LinesOnUiThread);
+
+	// The list as text, read on the UI thread (inside WaitFor's condition, which runs there)
+	private string[] LinesOnUiThread() =>
+		[
+			.. Calendar.Items.Select(x =>
+				x switch
+				{
+					CalendarDayHeaderViewModel h => (h.IsToday ? "today " : "") + h.Date.Day,
+					CalendarNowMarkerViewModel => "now",
+					CalendarEventRowViewModel r => (r.IsPast ? "past " : "")
+						+ (r.Event.Symbol.Length > 0 ? r.Event.Symbol : r.Event.Company),
+					_ => "?",
+				}
+			),
+		];
+
+	[Fact]
+	public async Task Past_events_are_marked_and_the_now_line_sits_before_the_next_one()
+	{
+		AnswerWednesdayAndThursday();
+		CalendarItemViewModel? scrolledTo = null;
+		_calendar = TestUiThread.Invoke(() =>
+		{
+			var calendar = CreateCalendar();
+			calendar.ScrollRequested += x => scrolledTo = x;
+			return calendar;
+		});
+
+		await Loaded();
+
+		Assert.Equal(["today 28", "past GDP", "now", "AAPL", "29", "MSFT"], Lines());
+		Assert.IsType<CalendarNowMarkerViewModel>(scrolledTo);
+	}
+
+	[Fact]
+	public async Task As_time_passes_events_turn_past_and_a_new_day_moves_today()
+	{
+		AnswerWednesdayAndThursday();
+		await Loaded();
+
+		// 20:00 New York: AAPL's after-close report is in; tomorrow's events are still ahead
+		_cache.Time.Advance(TimeSpan.FromHours(4));
+		await WaitFor(() =>
+			LinesOnUiThread()
+				.SequenceEqual(["today 28", "past GDP", "past AAPL", "now", "29", "MSFT"])
+		);
+
+		// Midnight in New York: the range loads again and Thursday is today
+		_cache.Time.Advance(TimeSpan.FromHours(4));
+		await WaitFor(() =>
+			LinesOnUiThread()
+				.SequenceEqual(["28", "past GDP", "past AAPL", "today 29", "now", "MSFT"])
+		);
+	}
+
+	[Fact]
+	public async Task A_release_shows_its_country_as_a_flag()
+	{
+		AnswerWednesdayAndThursday();
+		await Loaded();
+
+		var release = TestUiThread.Invoke(() =>
+			Calendar.Items.OfType<CalendarEventRowViewModel>().First(x => x.Event.Company == "GDP")
+		);
+		var earnings = TestUiThread.Invoke(() =>
+			Calendar.Items.OfType<CalendarEventRowViewModel>().First(x => x.Event.Symbol == "AAPL")
+		);
+		Assert.Equal("US", release.FlagCode);
+		Assert.False(release.ShowsTypeName);
+		Assert.Null(earnings.FlagCode);
+		Assert.True(earnings.ShowsTypeName);
+	}
+
+	[Fact]
+	public async Task Today_shows_only_today()
+	{
+		AnswerWednesdayAndThursday();
+		_calendar = TestUiThread.Invoke(() =>
+		{
+			var calendar = CreateCalendar();
+			calendar.Range = CalendarRange.Today;
+			return calendar;
+		});
+
+		await Loaded();
+
+		Assert.True(Calendar.IsToday);
+		Assert.All(_nasdaq.Requests, x => Assert.Equal(Wednesday, x.Day));
+		Assert.Equal(["today 28", "past GDP", "now", "AAPL"], Lines());
+	}
+
+	[Fact]
+	public async Task Next_week_has_no_now_line()
+	{
+		_nasdaq.Answer = (calendar, day) =>
+			calendar == NasdaqCalendar.Earnings && day == new DateOnly(2026, 11, 3)
+				? [Earnings("AAPL", day)]
+				: [];
+		_calendar = TestUiThread.Invoke(() =>
+		{
+			var calendar = CreateCalendar();
+			calendar.Range = CalendarRange.NextWeek;
+			return calendar;
+		});
+
+		await Loaded();
+
+		Assert.Equal(["3", "AAPL"], Lines());
+	}
+
 	public void Dispose()
 	{
 		if (_calendar != null)
@@ -277,7 +419,8 @@ public class CalendarViewModelTests : IDisposable
 			_connection,
 			_links,
 			new DisplayTimeStore(_settings, _cache.Time),
-			_navigator
+			_navigator,
+			_cache.Time
 		);
 	}
 }
