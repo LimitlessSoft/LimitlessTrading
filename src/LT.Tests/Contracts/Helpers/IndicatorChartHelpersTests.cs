@@ -83,4 +83,24 @@ public class IndicatorChartHelpersTests
 
 		Assert.Equal([1u, 9u], plots.Select(x => x.Color));
 	}
+
+	[Fact]
+	public void The_legend_names_the_values_only_when_an_indicator_shows_more_than_one()
+	{
+		var rvol = IndicatorChartHelpers.GetLegendPlots([
+			new() { Name = "Today", Kind = IndicatorPlotKind.Line },
+			new() { Name = "Average", Kind = IndicatorPlotKind.Line },
+			new() { Name = "Signal", Kind = IndicatorPlotKind.Markers },
+			new() { Name = "Level", Kind = IndicatorPlotKind.Level },
+		]);
+		var single = IndicatorChartHelpers.GetLegendPlots([
+			new() { Name = "RSI", Kind = IndicatorPlotKind.Line },
+			new() { Name = "70", Kind = IndicatorPlotKind.Level },
+		]);
+
+		Assert.Equal(["Today", "Average"], rvol.Select(x => x.Name));
+		Assert.Equal(["Today", "Average"], rvol.Select(x => x.Plot.Name));
+		Assert.Equal("RSI", Assert.Single(single).Plot.Name);
+		Assert.Null(single[0].Name);
+	}
 }

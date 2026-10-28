@@ -337,7 +337,8 @@ public partial class CandlestickChart
 
 	/// <summary>
 	/// One row per indicator from <paramref name="origin"/> down: name and inputs, the value of
-	/// each plot at the hovered bar in its colour, or the error. The hovered row gets a
+	/// each plot at the hovered bar in its colour (after the plot's name when there are several),
+	/// or the error. The hovered row gets a
 	/// background and its buttons.
 	/// </summary>
 	private void DrawLegend(
@@ -363,11 +364,17 @@ public partial class CandlestickChart
 				parts.Add((error, 8));
 			}
 			else if (result.IsVisible)
-				foreach (var plot in result.Plots.Where(IndicatorChartHelpers.HasLegendValue))
+				foreach (var (plot, name) in IndicatorChartHelpers.GetLegendPlots(result.Plots))
 				{
 					var brush = Brush(plot.Color | 0xFF000000);
+					// With more than one value, each says which plot it is
+					if (name != null)
+						parts.Add((Text(name, 11, brush), 8));
 					parts.Add(
-						(Text(FormatValue(plot.Values, hovered, decimals(result)), 11, brush), 6)
+						(
+							Text(FormatValue(plot.Values, hovered, decimals(result)), 11, brush),
+							name != null ? 4 : 6
+						)
 					);
 					// A band shows its lower line too
 					if (plot.Values2 is { } lower)

@@ -16,7 +16,9 @@ moment they are saved. Both are written against the same SDK, `LT.Indicators.Sdk
 - **Legend:** every pane has one at its top left — overlays under the OHLC readout, volume
   indicators on the volume bars, each separate indicator in its own pane. A row shows the short
   name and inputs ("BB 20 2"), the value of each line / histogram / band at the hovered bar in
-  its colour, or ⚠ and the error. Hovering a row shows its buttons: eye (hide / show; a hidden
+  its colour, or ⚠ and the error. With two or more such values each comes after its plot's
+  name in the same colour ("RVOL 10  Today 1.2M  Average 900K"); a band keeps one name before
+  both its values. Hovering a row shows its buttons: eye (hide / show; a hidden
   indicator keeps its row and pane), gear (settings) and ✕ (remove). Clicking the name also
   opens the settings.
 - **Settings:** a dialog generated from the inputs the indicator declares — a spin box per
