@@ -126,7 +126,7 @@
 				BorderThickness="0,1,0,0"
 			>
 				<DockPanel>
-					<TextBlock DockPanel.Dock="Right" Classes="secondary" Text="{Binding ServerTimeText}" />
+					<TextBlock DockPanel.Dock="Right" Classes="secondary" Text="{Binding CurrentTimeText}" />
 					<StackPanel Orientation="Horizontal" Spacing="16">
 						<connectionBar:ConnectionBarView
 							VerticalAlignment="Center"
