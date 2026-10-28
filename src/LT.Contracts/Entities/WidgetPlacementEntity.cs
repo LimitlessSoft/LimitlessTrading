@@ -63,6 +63,15 @@ public class WidgetPlacementEntity
 	/// <summary>Chart instances: the toolbox bar above the plot is shown (null: older layouts, shown).</summary>
 	public bool? ChartShowToolbox { get; set; }
 
+	/// <summary>Chart instances: drawing mode is on (the tool palette at the plot's left; null: off).</summary>
+	public bool? ChartDrawingMode { get; set; }
+
+	/// <summary>Chart instances: its drawings can't be selected, moved or deleted one by one (null: no).</summary>
+	public bool? ChartDrawingsLocked { get; set; }
+
+	/// <summary>Chart instances: its drawings are hidden (null: shown).</summary>
+	public bool? ChartDrawingsHidden { get; set; }
+
 	// News instances: what they show and which providers (keys "ibkr:BRFG"; null: all of them)
 	public NewsMode? NewsMode { get; set; }
 	public List<string>? NewsProviders { get; set; }

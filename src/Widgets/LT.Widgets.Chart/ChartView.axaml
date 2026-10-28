@@ -44,6 +44,20 @@
 		<Style Selector="Button.chartTool.active /template/ ContentPresenter">
 			<Setter Property="Background" Value="{DynamicResource PanelStroke}" />
 		</Style>
+		<!-- Drawing palette: square icon buttons down the plot's left edge -->
+		<Style Selector="Button.chartTool.drawingTool">
+			<Setter Property="Padding" Value="0" />
+			<Setter Property="Width" Value="30" />
+			<Setter Property="Height" Value="28" />
+			<Setter Property="HorizontalContentAlignment" Value="Center" />
+			<Setter Property="VerticalContentAlignment" Value="Center" />
+		</Style>
+		<!-- Drawing icons are stroked paths on a 24 × 24 grid, in the button's colour -->
+		<Style Selector="Path.drawingIcon">
+			<Setter Property="StrokeThickness" Value="1.75" />
+			<Setter Property="StrokeLineCap" Value="Round" />
+			<Setter Property="StrokeJoin" Value="Round" />
+		</Style>
 	</UserControl.Styles>
 	<!-- The ticker and timeframe are picked in the frame header (ChartTitleView). Right-clicking
 	     the chart opens its menu: add a price alert at the pointer's price (also Alt+A), remove
@@ -53,7 +67,9 @@
 	     (ChartTitleView); there is no Reload button, F5 reloads.
 	     The toolbox bar above the plot (shown or hidden per chart: right-click → Show toolbox, or
 	     its ✕) arms a tool for the next click: Alert previews a line at the pointer's price and
-	     places an alert where the price chart is clicked; Esc or the button again cancels.
+	     places an alert where the price chart is clicked; Esc or the button again cancels. Its
+	     Draw button turns drawing mode on: the palette of drawing tools down the plot's left
+	     edge (ChartViewModel.Drawings.cs); "Remove all" asks over the plot first.
 	     A ticker dragged from a watchlist, positions, orders or executions row can be dropped
 	     anywhere on the chart (TickerDragDrop); the highlight shows while it hovers. -->
 	<Panel x:Name="DropRoot" Background="Transparent" helpers:TickerDragDrop.IsTarget="True">
@@ -310,6 +326,37 @@
 					>
 						<PathIcon Data="{StaticResource FrameCloseIcon}" />
 					</Button>
+					<Button
+						DockPanel.Dock="Left"
+						Classes="chartTool"
+						Classes.active="{Binding IsDrawingMode}"
+						Command="{Binding DrawingModeItem.Command}"
+						ToolTip.Tip="{Binding DrawingModeItem.ToolTip}"
+					>
+						<StackPanel Orientation="Horizontal" Spacing="4">
+							<Viewbox Width="12" Height="12">
+								<Canvas Width="24" Height="24">
+									<Path
+										Classes="drawingIcon"
+										StrokeThickness="2.25"
+										Data="{Binding DrawingModeItem.Icon}"
+										Stroke="{Binding $parent[Button].Foreground}"
+									/>
+								</Canvas>
+							</Viewbox>
+							<TextBlock
+								FontSize="12"
+								VerticalAlignment="Center"
+								Text="{Binding DrawingModeItem.Label}"
+							/>
+						</StackPanel>
+					</Button>
+					<Border
+						DockPanel.Dock="Left"
+						Width="1"
+						Margin="4,3"
+						Background="{DynamicResource PanelStroke}"
+					/>
 					<ItemsControl ItemsSource="{Binding Tools}">
 						<ItemsControl.ItemsPanel>
 							<ItemsPanelTemplate>
@@ -336,6 +383,53 @@
 					</ItemsControl>
 				</DockPanel>
 			</Border>
+			<!-- Drawing mode: the tools, in groups split by a line; scrolls when the chart is short -->
+			<Border
+				DockPanel.Dock="Left"
+				BorderBrush="{DynamicResource PanelStroke}"
+				BorderThickness="0,0,1,0"
+				IsVisible="{Binding IsDrawingMode}"
+			>
+				<ScrollViewer VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
+					<ItemsControl ItemsSource="{Binding DrawingToolGroups}" Margin="2,2">
+						<ItemsControl.ItemTemplate>
+							<DataTemplate x:DataType="vm:ChartDrawingToolGroup">
+								<Border
+									BorderBrush="{DynamicResource PanelStroke}"
+									BorderThickness="0,0,0,1"
+									Padding="0,2"
+								>
+									<ItemsControl ItemsSource="{Binding Items}">
+										<ItemsControl.ItemTemplate>
+											<DataTemplate x:DataType="vm:ChartDrawingToolItem">
+												<Button
+													Classes="chartTool drawingTool"
+													Classes.active="{Binding IsActive}"
+													IsEnabled="{Binding IsEnabled}"
+													Command="{Binding Command}"
+													CommandParameter="{Binding}"
+													ToolTip.Tip="{Binding ToolTip}"
+													ToolTip.Placement="Right"
+												>
+													<Viewbox Width="18" Height="18">
+														<Canvas Width="24" Height="24">
+															<Path
+																Classes="drawingIcon"
+																Data="{Binding Icon}"
+																Stroke="{Binding $parent[Button].Foreground}"
+															/>
+														</Canvas>
+													</Viewbox>
+												</Button>
+											</DataTemplate>
+										</ItemsControl.ItemTemplate>
+									</ItemsControl>
+								</Border>
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
+				</ScrollViewer>
+			</Border>
 			<vm:CandlestickChart
 				x:Name="Chart"
 				Bars="{Binding Bars}"
@@ -352,6 +446,12 @@
 				IsFitted="{Binding IsPeriodFitted, Mode=OneWayToSource}"
 				Alerts="{Binding Alerts}"
 				IsPlacingAlert="{Binding IsPlacingAlert}"
+				Drawings="{Binding Drawings}"
+				IsDrawingMode="{Binding IsDrawingMode}"
+				DrawingTool="{Binding ActiveDrawingKind}"
+				SelectedDrawingId="{Binding SelectedDrawingId, Mode=TwoWay}"
+				DrawingsLocked="{Binding DrawingsLocked}"
+				DrawingsHidden="{Binding DrawingsHidden}"
 			>
 				<vm:CandlestickChart.ContextMenu>
 					<ContextMenu x:Name="ChartMenu">
@@ -496,6 +596,28 @@
 			</vm:CandlestickChart>
 		</DockPanel>
 		<controls:LoadingSpinner Text="Loading…" IsVisible="{Binding IsLoading}" />
+		<!-- Drawing palette → Remove all: asked over the plot -->
+		<Border
+			HorizontalAlignment="Center"
+			VerticalAlignment="Top"
+			Margin="8,40,8,8"
+			Padding="10,6"
+			CornerRadius="6"
+			Background="{DynamicResource PanelBackground}"
+			BorderBrush="{DynamicResource PanelStroke}"
+			BorderThickness="1"
+			IsVisible="{Binding IsConfirmingRemoveAllDrawings}"
+		>
+			<StackPanel Orientation="Horizontal" Spacing="8">
+				<TextBlock VerticalAlignment="Center" Text="{Binding RemoveAllDrawingsPrompt}" />
+				<Button Content="Cancel" Command="{Binding CancelRemoveAllDrawingsCommand}" />
+				<Button
+					Classes="danger"
+					Content="Remove"
+					Command="{Binding ConfirmRemoveAllDrawingsCommand}"
+				/>
+			</StackPanel>
+		</Border>
 		<StackPanel
 			HorizontalAlignment="Center"
 			VerticalAlignment="Top"

@@ -328,6 +328,7 @@ public class ChartViewModelHistoryTests : IDisposable
 				new MessageLogManager(),
 				_cache.Time
 			),
+			new ChartDrawingManager(new InMemoryChartDrawingRepository()),
 			new AccountStore(_connection, _settings),
 			new LinkGroupStore(),
 			new DisplayTimeStore(_settings, _cache.Time),

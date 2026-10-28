@@ -234,6 +234,7 @@ public class ChartViewModelToolboxTests : IDisposable
 			),
 			new ChartTemplateManager(_cache.Settings),
 			_alerts,
+			new ChartDrawingManager(new InMemoryChartDrawingRepository()),
 			new AccountStore(_connection, settings),
 			new LinkGroupStore(),
 			new DisplayTimeStore(settings, _cache.Time),

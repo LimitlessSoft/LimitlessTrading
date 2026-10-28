@@ -104,6 +104,7 @@ public class ChartViewModelDropTests : IDisposable
 				new MessageLogManager(),
 				_cache.Time
 			),
+			new ChartDrawingManager(new InMemoryChartDrawingRepository()),
 			new AccountStore(_connection, settings),
 			_links,
 			new DisplayTimeStore(settings, _cache.Time),
