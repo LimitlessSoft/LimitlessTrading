@@ -120,4 +120,19 @@ public static class IndicatorChartHelpers
 			is IndicatorPlotKind.Line
 				or IndicatorPlotKind.Histogram
 				or IndicatorPlotKind.Band;
+
+	/// <summary>
+	/// The plots whose value shows in the legend, each with the name to put before its value:
+	/// the plot's name when there are two or more (so their values can be told apart), else null.
+	/// </summary>
+	public static IReadOnlyList<(IndicatorPlotDto Plot, string? Name)> GetLegendPlots(
+		IEnumerable<IndicatorPlotDto> plots
+	)
+	{
+		var shown = plots.Where(HasLegendValue).ToList();
+		var named = shown.Count > 1;
+		return shown
+			.Select(x => (x, named && !string.IsNullOrWhiteSpace(x.Name) ? x.Name : null))
+			.ToList();
+	}
 }
