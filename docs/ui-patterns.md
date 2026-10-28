@@ -644,6 +644,17 @@ or the order ticket's line of the same contract. Showing, hiding or sorting by i
 streaming rows' lines. Snapshots can't carry generic ticks, so a row keeps the last average it
 streamed; rows that never streamed (off screen since connecting) show "—" and sort last.
 
+**Vol/Min** is IB's volume rate: tick 56 (a generic tick, shares per minute, smoothed by IB over
+the last minutes) from generic tick 295 (`MarketDataConstants.VolumeRateGenericTick`, which also
+brings the unused trade rate, tick 55). **Avg Vol/Min** is the Avg Vol spread evenly over a US
+regular session (`MarketDataConstants.RegularSessionMinutes` = 390, used for every listing;
+`TickTypeHelpers.GetAverageVolumePerMinute`), so the two compare directly: Vol/Min above
+Avg Vol/Min is a stock trading faster than on an average day. Intraday volume is U-shaped, so
+the open and close normally run above it and midday below. Both use the compact volume format,
+sort by `VolumeRateValue` / `AverageVolumeRateValue` and, like Avg Vol, keep their last value
+when a snapshot comes. The lines ask for 165 while Avg Vol or Avg Vol/Min is shown or sorted by
+and for 295 while Vol/Min is (`"165,295"` with all of them).
+
 **Only the rows on screen stream.** A watchlist holds up to 200 symbols and IB serves ~100 lines
 per account, so the view reports the rows it has on screen (`WatchlistView.ReportShownRows`: the
 grid's realized `DataGridRow`s inside its rows presenter, after every layout pass, coalesced;

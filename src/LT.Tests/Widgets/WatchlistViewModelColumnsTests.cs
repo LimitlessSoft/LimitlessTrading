@@ -48,7 +48,17 @@ public class WatchlistViewModelColumnsTests : IDisposable
 	public void Every_column_is_listed_and_shown_at_first()
 	{
 		Assert.Equal(
-			["Symbol", "Last", "Chg %", "Bid / Ask", "Vol", "Avg Vol", "Mkt Cap"],
+			[
+				"Symbol",
+				"Last",
+				"Chg %",
+				"Bid / Ask",
+				"Vol",
+				"Avg Vol",
+				"Vol/Min",
+				"Avg Vol/Min",
+				"Mkt Cap",
+			],
 			_watchlist.Columns.Select(x => x.Name)
 		);
 		Assert.All(_watchlist.Columns, x => Assert.True(x.IsShown));
@@ -89,6 +99,58 @@ public class WatchlistViewModelColumnsTests : IDisposable
 		Assert.Equal("—", Row("NVDA").AverageVolume);
 		// Unknown goes last
 		Assert.Equal(["SPY", "AAPL", "MSFT", "NVDA"], Symbols());
+	}
+
+	[Fact]
+	public void Volume_rate_and_its_average_are_shown_compact_sort_and_outlive_quotes_without_them()
+	{
+		TestUiThread.Invoke(() =>
+		{
+			foreach (
+				var (symbol, rate, average) in new[]
+				{
+					("SPY", 43_886d, 41_822_205m),
+					("AAPL", 39_944d, 43_502_835m),
+					("MSFT", 0d, 5_000_000m),
+				}
+			)
+			{
+				var row = Row(symbol);
+				row.Pending.Set(
+					new QuoteDto
+					{
+						Last = 1,
+						VolumeRate = rate,
+						AverageVolume = average,
+					}
+				);
+				row.Flush();
+			}
+			// A snapshot carries no generic ticks: both stay
+			Row("AAPL").Pending.Set(new QuoteDto { Last = 2 });
+			Row("AAPL").Flush();
+			_watchlist.SortBy(WatchlistSortColumn.VolumeRate, null, ListSortDirection.Descending);
+		});
+
+		Assert.Equal("39.9K", Row("AAPL").VolumeRate);
+		Assert.Equal(39_944m, Row("AAPL").VolumeRateValue);
+		// 43,502,835 shares a day over 390 minutes
+		Assert.Equal("111.5K", Row("AAPL").AverageVolumeRate);
+		Assert.Equal("0", Row("MSFT").VolumeRate);
+		Assert.Equal("12.8K", Row("MSFT").AverageVolumeRate);
+		Assert.Equal("—", Row("NVDA").VolumeRate);
+		Assert.Equal("—", Row("NVDA").AverageVolumeRate);
+		// Unknown goes last
+		Assert.Equal(["SPY", "AAPL", "MSFT", "NVDA"], Symbols());
+
+		TestUiThread.Invoke(() =>
+			_watchlist.SortBy(
+				WatchlistSortColumn.AverageVolumeRate,
+				null,
+				ListSortDirection.Ascending
+			)
+		);
+		Assert.Equal(["MSFT", "SPY", "AAPL", "NVDA"], Symbols());
 	}
 
 	[Fact]

@@ -78,6 +78,12 @@ public partial class WatchlistRowViewModel(ContractDto contract) : ViewModelBase
 	public partial string AverageVolume { get; set; } = FormatHelpers.Empty;
 
 	[ObservableProperty]
+	public partial string VolumeRate { get; set; } = FormatHelpers.Empty;
+
+	[ObservableProperty]
+	public partial string AverageVolumeRate { get; set; } = FormatHelpers.Empty;
+
+	[ObservableProperty]
 	public partial string MarketCap { get; set; } = FormatHelpers.Empty;
 
 	/// <summary>The column's sort key; null while unknown.</summary>
@@ -95,6 +101,15 @@ public partial class WatchlistRowViewModel(ContractDto contract) : ViewModelBase
 	/// lines opened without the column don't carry it.
 	/// </summary>
 	public decimal? AverageVolumeValue { get; private set; }
+
+	/// <summary>
+	/// IB's volume rate in shares per minute; kept once known like the average volume, as only
+	/// lines with its generic tick carry it.
+	/// </summary>
+	public decimal? VolumeRateValue { get; private set; }
+
+	/// <summary>The average volume per regular-session minute (Avg Vol/Min); null until known.</summary>
+	public decimal? AverageVolumeRateValue { get; private set; }
 
 	/// <summary>Its place among the pinned rows (0 = pinned first); null when not pinned.</summary>
 	[ObservableProperty]
@@ -144,6 +159,13 @@ public partial class WatchlistRowViewModel(ContractDto contract) : ViewModelBase
 		{
 			AverageVolumeValue = averageVolume;
 			AverageVolume = FormatHelpers.Volume(averageVolume);
+			AverageVolumeRateValue = TickTypeHelpers.GetAverageVolumePerMinute(quote);
+			AverageVolumeRate = FormatHelpers.Volume(AverageVolumeRateValue);
+		}
+		if (quote.VolumeRate is { } volumeRate)
+		{
+			VolumeRateValue = (decimal)volumeRate;
+			VolumeRate = FormatHelpers.Volume(VolumeRateValue);
 		}
 		IsUp = change > 0;
 		IsDown = change < 0;
@@ -164,6 +186,8 @@ public partial class WatchlistRowViewModel(ContractDto contract) : ViewModelBase
 			WatchlistSortColumn.Bid => BidValue,
 			WatchlistSortColumn.Volume => VolumeValue,
 			WatchlistSortColumn.AverageVolume => AverageVolumeValue,
+			WatchlistSortColumn.VolumeRate => VolumeRateValue,
+			WatchlistSortColumn.AverageVolumeRate => AverageVolumeRateValue,
 			WatchlistSortColumn.MarketCap => MarketCapValue,
 			_ => null,
 		};

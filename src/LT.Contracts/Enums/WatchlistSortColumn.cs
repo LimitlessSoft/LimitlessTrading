@@ -16,4 +16,13 @@ public enum WatchlistSortColumn
 
 	/// <summary>IB's 90-day average daily volume (generic tick 165).</summary>
 	AverageVolume,
+
+	/// <summary>IB's volume rate: shares traded per minute right now (generic tick 295).</summary>
+	VolumeRate,
+
+	/// <summary>
+	/// The average daily volume spread over a regular session, in shares per minute, to compare
+	/// with <see cref="VolumeRate"/>.
+	/// </summary>
+	AverageVolumeRate,
 }

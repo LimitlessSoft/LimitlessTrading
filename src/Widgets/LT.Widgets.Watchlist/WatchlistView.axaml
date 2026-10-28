@@ -267,6 +267,44 @@
 						</DataTemplate>
 					</DataGridTemplateColumn.CellTemplate>
 				</DataGridTemplateColumn>
+				<!-- IB's volume rate, shares per minute (generic tick 295) -->
+				<DataGridTemplateColumn
+					IsReadOnly="True"
+					Header="Vol/Min"
+					Width="Auto"
+					SortMemberPath="VolumeRateValue"
+					Tag="{x:Static enums:WatchlistSortColumn.VolumeRate}"
+				>
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:WatchlistRowViewModel">
+							<TextBlock
+								Classes="value secondary"
+								Margin="8,0"
+								VerticalAlignment="Center"
+								Text="{Binding VolumeRate}"
+							/>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
+				<!-- Avg Vol spread over a 390-minute regular session, to compare with Vol/Min -->
+				<DataGridTemplateColumn
+					IsReadOnly="True"
+					Header="Avg Vol/Min"
+					Width="Auto"
+					SortMemberPath="AverageVolumeRateValue"
+					Tag="{x:Static enums:WatchlistSortColumn.AverageVolumeRate}"
+				>
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate x:DataType="vm:WatchlistRowViewModel">
+							<TextBlock
+								Classes="value secondary"
+								Margin="8,0"
+								VerticalAlignment="Center"
+								Text="{Binding AverageVolumeRate}"
+							/>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
 				<!-- SEC shares outstanding × last; US stocks only -->
 				<DataGridTemplateColumn
 					IsReadOnly="True"

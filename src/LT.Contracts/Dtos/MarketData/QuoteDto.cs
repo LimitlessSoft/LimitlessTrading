@@ -13,6 +13,12 @@ public class QuoteDto
 
 	/// <summary>The 90-day average daily volume in shares; only with generic tick 165.</summary>
 	public decimal? AverageVolume { get; set; }
+
+	/// <summary>
+	/// IB's volume rate (tick 56): shares traded per minute, smoothed over the last minutes; only
+	/// with generic tick 295.
+	/// </summary>
+	public double? VolumeRate { get; set; }
 	public double? High { get; set; }
 	public double? Low { get; set; }
 	public double? Open { get; set; }

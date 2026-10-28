@@ -9,7 +9,8 @@ public static class MarketDataStreamHelpers
 {
 	/// <summary>
 	/// "Quote", "Quote + option IV" (generic tick 106), "Quote + avg volume" (165),
-	/// "Quote + ticks 233,…" or "News".
+	/// "Quote + volume rate" (295), several joined ("Quote + avg volume + volume rate"),
+	/// "Quote + ticks 233,…" when any of them is another, or "News".
 	/// </summary>
 	public static string GetKindText(MarketDataStreamDto stream)
 	{
@@ -17,13 +18,24 @@ public static class MarketDataStreamHelpers
 			return "News";
 		if (string.IsNullOrWhiteSpace(stream.GenericTicks))
 			return "Quote";
-		return stream.GenericTicks.Trim() switch
-		{
-			MarketDataConstants.OptionImpliedVolatilityGenericTick => "Quote + option IV",
-			MarketDataConstants.AverageVolumeGenericTick => "Quote + avg volume",
-			var ticks => $"Quote + ticks {ticks}",
-		};
+		var ticks = stream.GenericTicks.Trim();
+		var names = ticks
+			.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+			.Select(GetGenericTickName)
+			.ToList();
+		return names.Count > 0 && names.All(x => x != null)
+			? $"Quote + {string.Join(" + ", names)}"
+			: $"Quote + ticks {ticks}";
 	}
+
+	private static string? GetGenericTickName(string tick) =>
+		tick switch
+		{
+			MarketDataConstants.OptionImpliedVolatilityGenericTick => "option IV",
+			MarketDataConstants.AverageVolumeGenericTick => "avg volume",
+			MarketDataConstants.VolumeRateGenericTick => "volume rate",
+			_ => null,
+		};
 
 	/// <summary>The contract as the rest of the app shows it, with its security type.</summary>
 	public static string GetContractText(MarketDataStreamDto stream)
