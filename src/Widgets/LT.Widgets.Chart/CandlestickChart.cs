@@ -241,7 +241,11 @@ public partial class CandlestickChart : Control
 			DrawingsLockedProperty,
 			DrawingsHiddenProperty,
 			DrawingMagnetProperty,
-			NewDrawingStyleProperty
+			NewDrawingStyleProperty,
+			BarStyleProperty,
+			FootprintProperty,
+			FootprintVersionProperty,
+			FootprintImbalanceRatioProperty
 		);
 		ClipToBoundsProperty.OverrideDefaultValue<CandlestickChart>(true);
 		FocusableProperty.OverrideDefaultValue<CandlestickChart>(true);
@@ -360,6 +364,7 @@ public partial class CandlestickChart : Control
 		if (change.Property == IsPlacingAlertProperty)
 			UpdateHandleHover(_pointer);
 		OnDrawingPropertyChanged(change);
+		OnFootprintPropertyChanged(change);
 		// A view the user hasn't moved follows the period's start (also when it is bound after
 		// the bars); a moved one stays where it is
 		if (change.Property == FitStartProperty && !_moved)
@@ -385,7 +390,7 @@ public partial class CandlestickChart : Control
 	public void ResetView()
 	{
 		_offset = 0;
-		_barSpacing = DefaultBarSpacing;
+		_barSpacing = GetDefaultBarSpacing();
 		_moved = false;
 		SetFitted(FitStart != null);
 		InvalidateVisual();
@@ -560,7 +565,10 @@ public partial class CandlestickChart : Control
 			previous = time;
 		}
 
-		// volume + candles
+		// volume + candles (or footprints), the visible bars' volume profile behind them
+		var footprint = GetFootprintFrame(bars, start, end, price, priceRect);
+		if (footprint != null)
+			DrawVolumeProfile(context, footprint, price, priceRect);
 		var bodyWidth = Math.Max(1, _barSpacing * 0.7);
 		for (var i = start; i < end; i++)
 		{
@@ -577,6 +585,10 @@ public partial class CandlestickChart : Control
 					new Rect(x - bodyWidth / 2, top, bodyWidth, volumeRect.Bottom - top)
 				);
 			}
+
+			// Footprint bars draw their cells and a thin candle of their own
+			if (footprint != null && DrawFootprintBar(context, footprint, bar, x, price, priceRect))
+				continue;
 
 			var wickX = Math.Round(x) + 0.5;
 			var pen = up ? UpPen : DownPen;
@@ -702,7 +714,7 @@ public partial class CandlestickChart : Control
 
 		var b = bars[hovered];
 		var readout = Text(
-			$"{FormatTime(ToShown(b.Time), null)}   O {b.Open.ToString("N" + decimals)}   H {b.High.ToString("N" + decimals)}   L {b.Low.ToString("N" + decimals)}   C {b.Close.ToString("N" + decimals)}   V {b.Volume:#,0}",
+			$"{FormatTime(ToShown(b.Time), null)}   O {b.Open.ToString("N" + decimals)}   H {b.High.ToString("N" + decimals)}   L {b.Low.ToString("N" + decimals)}   C {b.Close.ToString("N" + decimals)}   V {b.Volume:#,0}{GetFootprintReadout(b)}",
 			12,
 			b.Close >= b.Open ? UpBrush : DownBrush
 		);
@@ -803,7 +815,7 @@ public partial class CandlestickChart : Control
 			_fitted ? GetFitCount(bars) : 0,
 			RightMargin,
 			plot.Width,
-			MaxBarSpacing
+			GetMaxBarSpacing()
 		);
 		_offset = Math.Clamp(_offset, 0, bars.Count - 1);
 		var rightMargin = ChartViewportHelpers.ClampRightMargin(
@@ -1222,7 +1234,7 @@ public partial class CandlestickChart : Control
 		_barSpacing = Math.Clamp(
 			e.Delta.Y > 0 ? _barSpacing * 1.15 : _barSpacing / 1.15,
 			Math.Min(MinBarSpacing, _barSpacing),
-			MaxBarSpacing
+			GetMaxBarSpacing()
 		);
 		e.Handled = true;
 		InvalidateVisual();

@@ -455,6 +455,10 @@
 				DrawingsHidden="{Binding DrawingsHidden}"
 				DrawingMagnet="{Binding DrawingMagnet}"
 				NewDrawingStyle="{Binding ActiveDrawingStyle}"
+				BarStyle="{Binding BarStyle}"
+				Footprint="{Binding Footprint}"
+				FootprintVersion="{Binding FootprintVersion}"
+				FootprintImbalanceRatio="{Binding FootprintImbalanceRatio}"
 			>
 				<vm:CandlestickChart.ContextMenu>
 					<ContextMenu x:Name="ChartMenu">

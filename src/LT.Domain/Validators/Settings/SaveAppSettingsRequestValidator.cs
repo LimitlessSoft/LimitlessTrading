@@ -57,6 +57,18 @@ public class SaveAppSettingsRequestValidator : LSCoreValidatorBase<SaveAppSettin
 				)
 			);
 
+		RuleFor(x => x.ChartFootprintImbalancePercent)
+			.InclusiveBetween(
+				FootprintConstants.ImbalancePercentMin,
+				FootprintConstants.ImbalancePercentMax
+			)
+			.WithMessage(
+				SettingsValidationCodes.SVC_012.GetValidationMessage(
+					FootprintConstants.ImbalancePercentMin,
+					FootprintConstants.ImbalancePercentMax
+				)
+			);
+
 		RuleFor(x => x.DisplayTimeZoneId)
 			.Must(DisplayTimeHelpers.IsValidZoneId)
 			.WithMessage(SettingsValidationCodes.SVC_005.GetValidationMessage());

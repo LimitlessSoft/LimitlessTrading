@@ -285,6 +285,36 @@ public class IbkrApiClient : IIbkrApiClient
 		}
 	}
 
+	public async Task<IReadOnlyList<TickByTickDto>> GetHistoricalTicksAsync(
+		ContractDto contract,
+		LT.Contracts.Enums.HistoricalTickType tickType,
+		int count,
+		DateTimeOffset before,
+		bool useRegularTradingHours,
+		CancellationToken cancellationToken = default
+	)
+	{
+		await _historical.WaitTicksAsync(cancellationToken);
+		await _messages.WaitAsync(cancellationToken);
+		try
+		{
+			var ticks = await RequireClient()
+				.GetHistoricalTicksAsync(
+					contract.ToMapped<ContractDto, Contract>(),
+					(IBKR.Net.HistoricalTickType)(int)tickType,
+					count,
+					end: before,
+					useRegularTradingHours: useRegularTradingHours,
+					cancellationToken: cancellationToken
+				);
+			return ticks.ToMappedList<TickByTick, TickByTickDto>();
+		}
+		catch (IbkrException ex)
+		{
+			throw new IbkrRequestException(ex.Code, ex.ErrorText, ex);
+		}
+	}
+
 	public IAsyncEnumerable<BarDto> SubscribeRealtimeBarsAsync(
 		ContractDto contract,
 		string whatToShow,

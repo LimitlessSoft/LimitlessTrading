@@ -491,6 +491,11 @@ public class ChartViewModelTemplateTests : IDisposable
 				new MarketDataManager(_ibkr, TimeProvider.System),
 				_cache.Time
 			),
+			new FootprintManager(
+				_ibkr,
+				_cache.Manager,
+				new MarketDataManager(_ibkr, TimeProvider.System)
+			),
 			new ContractManager(_ibkr, _cache.Settings, _cache.Manager),
 			_connection,
 			new MessageLogManager(),

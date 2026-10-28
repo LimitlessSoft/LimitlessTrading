@@ -37,6 +37,7 @@ public class WidgetPlacementDtoMapper : ILSCoreMapper<WidgetPlacementEntity, Wid
 			ChartTemplateId = source.ChartTemplateId,
 			ChartFollowTemplate = source.ChartFollowTemplate,
 			ChartShowToolbox = source.ChartShowToolbox,
+			ChartBarStyle = source.ChartBarStyle,
 			ChartDrawingMode = source.ChartDrawingMode,
 			ChartDrawingsLocked = source.ChartDrawingsLocked,
 			ChartDrawingsHidden = source.ChartDrawingsHidden,

@@ -136,8 +136,8 @@ public static class BarHelpers
 			Volume = bar.Volume + update.Volume,
 		};
 
-	// Start of the bar containing time on the grid running from lastTime
-	private static DateTimeOffset GetGridTime(
+	/// <summary>Start of the bar containing <paramref name="time"/> on the grid running from <paramref name="lastTime"/>.</summary>
+	public static DateTimeOffset GetGridTime(
 		DateTimeOffset lastTime,
 		DateTimeOffset time,
 		TimeSpan length

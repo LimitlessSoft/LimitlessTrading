@@ -112,7 +112,8 @@ public interface IIbkrApiClient
 	);
 
 	/// <summary>
-	/// IB tick-by-tick data (<c>reqTickByTickData</c>), no historical ticks; ending the
+	/// IB tick-by-tick data (<c>reqTickByTickData</c>), live only (past ticks:
+	/// <see cref="GetHistoricalTicksAsync"/>); ending the
 	/// enumeration cancels it. IB allows 5 at a time per account — count them through
 	/// <c>IMarketDataManager.SubscribeTickByTickAsync</c>. IB refusals end the stream with an
 	/// <c>IbkrRequestException</c> (10190 limit reached, 10189 no permission or Last on forex,
@@ -121,6 +122,26 @@ public interface IIbkrApiClient
 	IAsyncEnumerable<TickByTickDto> SubscribeTickByTickAsync(
 		ContractDto contract,
 		TickByTickType tickType,
+		CancellationToken cancellationToken = default
+	);
+
+	/// <summary>
+	/// Past ticks of a contract strictly before <paramref name="before"/> (reqHistoricalTicks),
+	/// oldest first: at least <paramref name="count"/> (at most
+	/// <c>FootprintConstants.MaxTicksPerRequest</c>) when there are that many, often more (IB ends
+	/// on a whole second). Paging back with the oldest tick's time as the next
+	/// <paramref name="before"/> neither repeats nor skips ticks. Trades come as
+	/// <see cref="TickByTickType.AllLast"/> ticks, odd lots flagged unreported. Paced with the
+	/// historical requests of small bars. IB's refusals throw
+	/// <see cref="Exceptions.IbkrRequestException"/> with its code (10187 no market data
+	/// permissions, 200 unknown contract).
+	/// </summary>
+	Task<IReadOnlyList<TickByTickDto>> GetHistoricalTicksAsync(
+		ContractDto contract,
+		HistoricalTickType tickType,
+		int count,
+		DateTimeOffset before,
+		bool useRegularTradingHours,
 		CancellationToken cancellationToken = default
 	);
 

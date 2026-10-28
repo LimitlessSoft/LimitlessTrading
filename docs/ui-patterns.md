@@ -1064,8 +1064,8 @@ shapes, Fibonacci, measures, notes) are drawn on the price chart; in drawing mod
 pointer instead (see *Drawing mode*). The account performance widget's `EquityCurveChart` and
 `DailyPnlBarChart` are drawn the same way (same palette, `ChartDrawing`).
 
-**Toolbox.** A thin bar between the widget header (ticker, timeframe, period, RTH / ETH) and
-the plot holds the chart's tools (`ChartViewModel.Tools`, one `ChartToolItem` per `ChartTool`;
+**Toolbox.** A thin bar between the widget header (ticker, timeframe, period, RTH / ETH, bar
+style) and the plot holds the chart's tools (`ChartViewModel.Tools`, one `ChartToolItem` per `ChartTool`;
 a new tool is a value appended to the enum plus an entry in `CreateTools`). Each chart shows or
 hides it — right-click → *Show toolbox* (a check item) or the bar's ✕ — saved per chart in the
 layout (`ChartShowToolbox`; null in older layouts is shown, the default). It is not part of a
@@ -1276,6 +1276,42 @@ price stream runs on the thread pool and queues prices, which are folded one bur
 ("Live · 10:31:05 · tick-by-tick", "· quotes", "· 5-second bars only"); every fallback is logged
 to the message log.
 Saving a different mode (or interval, for the throttled modes) reloads every open chart.
+
+**Footprint bars.** The last button of a chart's header (*Candles* / *Footprint*,
+`ChartViewModel.BarStyle`, `ChartBarStyle`, saved per chart as `ChartBarStyle`; null in older
+layouts is candles; not part of a template) switches that chart to footprint bars
+(`CandlestickChart.Footprint.cs`): for each price of a bar, the volume traded at the bid (sellers,
+left) × at the ask (buyers, right), cells shaded grey by volume, diagonal imbalances — the ask
+against the bid one price lower in blue, the bid against the ask one price higher in red, at
+Settings → General → Charts → *Footprint imbalance* (110–1000 %, default 300) — the bar's point of
+control (most volume) boxed amber, and a thin candle down the middle (white up, red down). A
+volume profile of the visible footprints lies along the plot's right edge, its point of control
+orange. The hovered bar's readout adds its delta and bid / ask volume. Switching opens the bars to
+96 px (footprint bars zoom to 320 px, candles to 40); zooming out merges ticks into rows of 1, 2,
+5, 10 … (`FootprintHelpers.GetTicksPerRow`) so rows stay 13 px for numbers (3 px for shading),
+a bar shows its numbers only when every one of them fits its cells (never clipped or overlapping),
+only shading below that, and plain candles under 14 px. Logic in `FootprintHelpers` (quote and
+tick rules, `AddTrade`, `GetRows`, `FormatVolume`).
+
+- **Trades.** After the bars load, `ChartFootprint` (one per load, UI thread) takes live trades
+  from the current whole second on (`IFootprintManager.SubscribeTradesAsync`: tick-by-tick
+  `AllLast` + `BidAsk`, two of IB's five — see
+  [ibkr-tws-api.md](ibkr-tws-api.md#tick-by-tick)) and pages past trades back from there
+  (`IFootprintManager.GetTradesAsync`, IB historical ticks, 1000 a page, through the historical
+  pacing — see [ibkr-tws-api.md](ibkr-tws-api.md#historical-ticks)), newest bars first, down to
+  the first bar of the latest bar's day in the display zone or
+  `FootprintConstants.MaxBackfillRequests` (40) pages. A bar counts once a page reaches a trade
+  before its start, so the tick rule has the trade before its first (past trades have no bid /
+  ask; live ones go by the quote rule, the tick rule when IB gives no quotes). Row prices are the
+  contract's minimum tick (`GetTickSizeAsync`, contract details cached with the trading hours).
+- **Bars without a footprint** stay candles: in a dashed box while their trades load, with a small
+  ring above them past the backfill (older than its target or its cap, at the start of IB's data,
+  a failed page) or once the live stream failed (limit reached, refusal: "not live" in the status
+  line and the message log). The status line says "footprint loading 12/40", then "footprint from
+  10:12" when it stopped short of the session. Daily and weekly charts and forex (no trades) stay
+  candles and say why.
+- Not built yet: loading older footprints when scrolled back past the backfill, a session
+  (instead of visible-range) profile, cell text sizes / colours as settings, stacked imbalances.
 
 ## Styling
 

@@ -339,6 +339,38 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	/// <summary>Tick-by-tick subscriptions asked for, in order.</summary>
 	public List<(ContractDto Contract, TickByTickType Type)> TickByTickRequests { get; } = [];
 
+	/// <summary>Ticks of one tick type's subscriptions instead of <see cref="TickByTicks"/>.</summary>
+	public Dictionary<TickByTickType, List<TickByTickDto>> TickByTicksByType { get; } = [];
+
+	/// <summary>Thrown by one tick type's subscriptions after their ticks.</summary>
+	public Dictionary<TickByTickType, Exception> TickByTickExceptionByType { get; } = [];
+
+	/// <summary>Past ticks for a page ending at the given time (strictly before it).</summary>
+	public Func<DateTimeOffset, IReadOnlyList<TickByTickDto>> HistoricalTicksBefore { get; set; } =
+		_ => [];
+
+	/// <summary>Historical ticks requests asked for, in order.</summary>
+	public List<(
+		ContractDto Contract,
+		HistoricalTickType Type,
+		int Count,
+		DateTimeOffset Before,
+		bool UseRegularTradingHours
+	)> HistoricalTickRequests { get; } = [];
+
+	public Task<IReadOnlyList<TickByTickDto>> GetHistoricalTicksAsync(
+		ContractDto contract,
+		HistoricalTickType tickType,
+		int count,
+		DateTimeOffset before,
+		bool useRegularTradingHours,
+		CancellationToken cancellationToken = default
+	)
+	{
+		HistoricalTickRequests.Add((contract, tickType, count, before, useRegularTradingHours));
+		return Task.FromResult(HistoricalTicksBefore(before));
+	}
+
 	public async IAsyncEnumerable<TickByTickDto> SubscribeTickByTickAsync(
 		ContractDto contract,
 		TickByTickType tickType,
@@ -346,13 +378,16 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	)
 	{
 		TickByTickRequests.Add((contract, tickType));
-		foreach (var tick in TickByTicks)
+		foreach (var tick in TickByTicksByType.GetValueOrDefault(tickType) ?? TickByTicks)
 		{
 			await Task.Yield();
 			yield return tick;
 		}
-		if (TickByTickException != null)
-			throw TickByTickException;
+		if (
+			(TickByTickExceptionByType.GetValueOrDefault(tickType) ?? TickByTickException) is
+			{ } error
+		)
+			throw error;
 		if (KeepTickByTickOpen)
 			await Task.Delay(Timeout.Infinite, cancellationToken);
 	}

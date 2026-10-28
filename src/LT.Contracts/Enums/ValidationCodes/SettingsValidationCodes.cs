@@ -38,4 +38,7 @@ public enum SettingsValidationCodes
 
 	[LSCoreValidationMessage("The layout file is damaged or incomplete.")]
 	SVC_011,
+
+	[LSCoreValidationMessage("Footprint imbalance must be between {0} and {1} %.")]
+	SVC_012,
 }

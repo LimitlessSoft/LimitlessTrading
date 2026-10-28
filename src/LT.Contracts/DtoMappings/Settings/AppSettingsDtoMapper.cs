@@ -24,6 +24,7 @@ public class AppSettingsDtoMapper : ILSCoreMapper<GeneralSettingsEntity, AppSett
 			CacheMaxSizeMb = source.CacheMaxSizeMb,
 			ChartLiveUpdateMode = source.ChartLiveUpdateMode,
 			ChartRedrawIntervalMs = source.ChartRedrawIntervalMs,
+			ChartFootprintImbalancePercent = source.ChartFootprintImbalancePercent,
 			DisplayTimeZoneId = source.DisplayTimeZoneId,
 			PlayFillSound = source.PlayFillSound,
 			CalendarNasdaq = source.CalendarNasdaq,
