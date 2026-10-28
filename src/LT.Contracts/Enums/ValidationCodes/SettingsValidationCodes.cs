@@ -24,4 +24,18 @@ public enum SettingsValidationCodes
 
 	[LSCoreValidationMessage("Chart redraw interval must be between {0} and {1} ms.")]
 	SVC_007,
+
+	[LSCoreValidationMessage("This file is not a LimitlessTrading layout file.")]
+	SVC_008,
+
+	[LSCoreValidationMessage("The file is larger than {0} MB.")]
+	SVC_009,
+
+	[LSCoreValidationMessage(
+		"This layout was exported by a newer version of LimitlessTrading (layout version {0}; this version reads up to {1}). Update the app to import it."
+	)]
+	SVC_010,
+
+	[LSCoreValidationMessage("The layout file is damaged or incomplete.")]
+	SVC_011,
 }

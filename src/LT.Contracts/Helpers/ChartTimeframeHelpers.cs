@@ -17,6 +17,34 @@ public static class ChartTimeframeHelpers
 			_ => "5 Y",
 		};
 
+	/// <summary>Calendar days <see cref="GetDuration"/> spans, to compare it with a period's.</summary>
+	public static int GetDurationDays(ChartTimeframe timeframe) =>
+		timeframe switch
+		{
+			ChartTimeframe.OneMinute => 1,
+			ChartTimeframe.FiveMinutes => 5,
+			ChartTimeframe.FifteenMinutes => 10,
+			ChartTimeframe.OneHour => 31,
+			ChartTimeframe.OneDay => 365,
+			_ => 5 * 365,
+		};
+
+	/// <summary>
+	/// IB durationStr of one page of older bars (scrolling left past the oldest loaded bar): a
+	/// few thousand bars at most (1m a week ≈ 4,800 with pre- and post-market), and never shorter
+	/// than a week so a weekend or holiday never reads as the start of history.
+	/// </summary>
+	public static string GetPageDuration(ChartTimeframe timeframe) =>
+		timeframe switch
+		{
+			ChartTimeframe.OneMinute => "1 W",
+			ChartTimeframe.FiveMinutes => "1 M",
+			ChartTimeframe.FifteenMinutes => "2 M",
+			ChartTimeframe.OneHour => "6 M",
+			ChartTimeframe.OneDay => "2 Y",
+			_ => "10 Y",
+		};
+
 	/// <summary>IB barSizeSetting for reqHistoricalData.</summary>
 	public static string GetBarSize(ChartTimeframe timeframe) =>
 		timeframe switch

@@ -3,8 +3,10 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using LT.App.Controls;
+using LT.App.Helpers;
 using LT.App.Stores;
 using LT.App.Widgets.Gateway;
 using LT.App.Widgets.OrderTicket;
@@ -23,6 +25,13 @@ namespace LT.App.Shell;
 
 public partial class MainWindow : AppWindow, IFullscreenHost
 {
+	private static readonly FilePickerFileType LayoutFileType = new("LimitlessTrading layout")
+	{
+		Patterns = ["*" + LayoutFileConstants.FileExtension],
+		MimeTypes = ["application/json"],
+		AppleUniformTypeIdentifiers = ["public.json"],
+	};
+
 	private readonly SettingsNavigator? _settingsNavigator;
 	private readonly OrderTicketNavigator? _orderTicketNavigator;
 	private readonly IPriceAlertAlarmManager? _priceAlertAlarmManager;
@@ -186,11 +195,128 @@ public partial class MainWindow : AppWindow, IFullscreenHost
 		// The extra windows close with the app and are kept for the next start
 		if (ViewModel?.Windows is { } windows)
 			windows.IsExiting = true;
+		StoreLayout();
+		ViewModel?.SaveLayout(_placement.Capture());
+	}
+
+	// Copies the live layout of every window (panel sizes, floating bounds, window bounds) into
+	// the view models, before the layout is saved
+	private void StoreLayout()
+	{
 		foreach (var window in _workspaceWindows.Values)
 			window.StoreLayout();
 		Page.StoreLayout();
-		ViewModel?.SaveLayout(_placement.Capture());
 	}
+
+	// Menu → Export layout…: every window as it is now, to a file
+	private async Task ExportLayoutAsync()
+	{
+		if (ViewModel is not { } viewModel)
+			return;
+		var file = await StorageProvider.SaveFilePickerAsync(
+			new FilePickerSaveOptions
+			{
+				Title = "Export layout",
+				SuggestedFileName =
+					LayoutFileConstants.DefaultFileName + LayoutFileConstants.FileExtension,
+				DefaultExtension = LayoutFileConstants.FileExtension.TrimStart('.'),
+				FileTypeChoices = [LayoutFileType],
+				ShowOverwritePrompt = true,
+			}
+		);
+		if (file == null)
+			return;
+		try
+		{
+			StoreLayout();
+			var json = viewModel.ExportLayout(_placement.Capture());
+			await using var stream = await file.OpenWriteAsync();
+			if (stream.CanSeek)
+				stream.SetLength(0);
+			await using var writer = new StreamWriter(stream);
+			await writer.WriteAsync(json);
+		}
+		catch (Exception ex)
+		{
+			await ConfirmDialog.ShowMessageAsync(
+				this,
+				"Export layout",
+				"The layout could not be exported.",
+				ErrorMessageHelpers.ToUserMessage(ex)
+			);
+		}
+		finally
+		{
+			file.Dispose();
+		}
+	}
+
+	// Menu → Import layout…: the file's windows, views and widgets replace the current ones, live
+	private async Task ImportLayoutAsync()
+	{
+		if (ViewModel is not { } viewModel)
+			return;
+		var files = await StorageProvider.OpenFilePickerAsync(
+			new FilePickerOpenOptions
+			{
+				Title = "Import layout",
+				AllowMultiple = false,
+				FileTypeFilter = [LayoutFileType, FilePickerFileTypes.All],
+			}
+		);
+		if (files is not [var file])
+			return;
+		var fileName = file.Name;
+		string json;
+		try
+		{
+			// Read at most one character past the limit: the manager refuses bigger files
+			var buffer = new char[LayoutFileConstants.MaxFileLength + 1];
+			int read;
+			await using (var stream = await file.OpenReadAsync())
+			{
+				using var reader = new StreamReader(stream);
+				read = await reader.ReadBlockAsync(buffer);
+			}
+			json = new string(buffer, 0, read);
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+		{
+			await ShowImportErrorAsync(ex);
+			return;
+		}
+		finally
+		{
+			file.Dispose();
+		}
+		if (
+			!await ConfirmDialog.ShowAsync(
+				this,
+				"Import layout",
+				"Replace the current layout?",
+				$"Every window, view and widget is replaced by the ones in {fileName}. Watchlists, notes, chart templates and settings stay as they are.",
+				"Replace layout"
+			)
+		)
+			return;
+		try
+		{
+			var layout = viewModel.ImportLayout(json);
+			_placement.Restore(WindowPlacementHelpers.GetMain(layout));
+		}
+		catch (Exception ex)
+		{
+			await ShowImportErrorAsync(ex);
+		}
+	}
+
+	private Task ShowImportErrorAsync(Exception error) =>
+		ConfirmDialog.ShowMessageAsync(
+			this,
+			"Import layout",
+			"The layout could not be imported. The current layout is unchanged.",
+			ErrorMessageHelpers.ToUserMessage(error)
+		);
 
 	private async Task AskAndCloseAsync()
 	{
@@ -337,6 +463,10 @@ public partial class MainWindow : AppWindow, IFullscreenHost
 	}
 
 	private void OnPatchNotesClick(object? sender, RoutedEventArgs e) => OpenPatchNotes();
+
+	private void OnExportLayoutClick(object? sender, RoutedEventArgs e) => _ = ExportLayoutAsync();
+
+	private void OnImportLayoutClick(object? sender, RoutedEventArgs e) => _ = ImportLayoutAsync();
 
 	private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
 }

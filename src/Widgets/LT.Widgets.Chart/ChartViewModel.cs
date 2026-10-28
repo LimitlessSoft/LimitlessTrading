@@ -33,6 +33,13 @@ namespace LT.App.Widgets.Chart;
 /// fills of the contract are drawn on it (trade journal: socket executions and IB Flex), closed
 /// quantity joined entry → exit, and the break-even of an open position (live positions only).
 /// <para>
+/// The period is a zoom preset, not a filter: the chart loads at least the timeframe's own span
+/// and fits its view to the period (<see cref="PeriodStart"/>); zooming or scrolling away shows
+/// "Custom" in the header until a period is picked again or the chart is double-clicked.
+/// Scrolling or zooming to the oldest bar loads the page of history before it
+/// (<see cref="LoadOlderBars"/>), one page at a time, until IB has no more.
+/// </para>
+/// <para>
 /// Its indicators (saved with the chart) are computed on the thread pool by
 /// <see cref="IIndicatorManager"/> whenever the bars, the indicator list or a script they use
 /// change — at most every <see cref="IndicatorConstants.ComputeDebounce"/>, one compute at a
@@ -77,6 +84,18 @@ public partial class ChartViewModel
 	private int _tradesQueued;
 	private CancellationTokenSource? _load;
 	private ContractDto? _contract;
+
+	// The current load's result (for the status line) and its live bars while they stream
+	private ChartBarsDto? _loaded;
+	private ChartLiveBars? _live;
+
+	// Older history of the current load: a page on its way, none left, no retry before
+	private bool _olderLoading;
+	private bool _olderExhausted;
+	private DateTimeOffset? _olderRetryAt;
+
+	// A period was picked while its bars were loading: fit the view to it once they are in
+	private bool _resetViewOnLoad;
 	private ChartLiveUpdateMode _liveMode;
 	private TimeSpan _redrawInterval;
 
@@ -286,14 +305,56 @@ public partial class ChartViewModel
 	public IReadOnlyList<PeriodOption> Periods { get; }
 
 	[ObservableProperty]
-	[NotifyPropertyChangedFor(nameof(FitsPeriod))]
+	[NotifyPropertyChangedFor(
+		nameof(FitsPeriod),
+		nameof(IsPeriodCustom),
+		nameof(PeriodLabel),
+		nameof(PeriodToolTip)
+	)]
 	public partial PeriodOption SelectedPeriod { get; set; }
 
 	/// <summary>
-	/// A chosen period is shown whole (the chart zooms out to fit its bars); Auto shows the latest
-	/// bars at the default zoom, as before periods.
+	/// A chosen period is shown whole (the chart zooms to fit its bars from
+	/// <see cref="PeriodStart"/>); Auto shows the latest bars at the default zoom, as before
+	/// periods.
 	/// </summary>
 	public bool FitsPeriod => SelectedPeriod.Value != ChartPeriod.Auto;
+
+	/// <summary>
+	/// Where the chosen period starts (capped at the timeframe's longest); the chart fits its view
+	/// from here to the latest bar. Null for Auto.
+	/// </summary>
+	[ObservableProperty]
+	public partial DateTimeOffset? PeriodStart { get; set; }
+
+	/// <summary>
+	/// The chart's view is fitted to the period; the chart clears it when the view is zoomed,
+	/// panned or its margin dragged, and sets it on a reset (double-click, period picked).
+	/// </summary>
+	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(IsPeriodCustom), nameof(PeriodLabel), nameof(PeriodToolTip))]
+	public partial bool IsPeriodFitted { get; set; } = true;
+
+	/// <summary>
+	/// The view left the chosen period (zoomed or scrolled away): the header says "Custom" and
+	/// the period menu checks nothing. Never for Auto, which is no span.
+	/// </summary>
+	public bool IsPeriodCustom => FitsPeriod && !IsPeriodFitted;
+
+	/// <summary>Header period button: the period, or "Custom" once the view left it.</summary>
+	public string PeriodLabel =>
+		IsPeriodCustom ? ChartPeriodHelpers.CustomDisplayName : SelectedPeriod.ToString();
+
+	public string PeriodToolTip =>
+		IsPeriodCustom
+			? $"Zoomed or scrolled away from {SelectedPeriod}. Click to pick a period (picking {SelectedPeriod} again shows it whole)"
+			: "Click to change the period";
+
+	/// <summary>
+	/// Asks the chart to fit its view to the period again (ChartView calls
+	/// CandlestickChart.ResetView): a period was picked, also the one already chosen.
+	/// </summary>
+	public event Action? ViewResetRequested;
 
 	/// <summary>
 	/// Regular hours only (IB useRTH). Each chart has its own, saved with it; off by default, so
@@ -373,24 +434,80 @@ public partial class ChartViewModel
 		OnTemplateSettingsEdited();
 	}
 
-	/// <summary>Header period menu: switches the span of bars and reloads.</summary>
+	/// <summary>
+	/// Header period menu: zooms the view to the period (from its start to now). The bars already
+	/// loaded are kept when they reach back to its start; otherwise the chart reloads with enough
+	/// history. Picking the period already chosen fits the view to it again (not while a template
+	/// is applied: following a template must not move a zoomed view).
+	/// </summary>
 	public void SetPeriod(ChartPeriod period)
 	{
 		if (period != SelectedPeriod.Value)
 			SelectedPeriod = Periods.FirstOrDefault(x => x.Value == period) ?? SelectedPeriod;
+		else if (!_applyingTemplate)
+			ResetView();
 	}
 
 	partial void OnSelectedPeriodChanged(PeriodOption value)
 	{
-		ReloadUnlessApplyingTemplate();
+		if (!ApplyPeriodToLoadedBars())
+		{
+			_resetViewOnLoad = true;
+			ReloadUnlessApplyingTemplate();
+		}
+		else
+			ResetView();
 		OnTemplateSettingsEdited();
 	}
 
 	// Today, this week… start at midnight in the display zone: another zone moves them
 	private void OnZoneChanged()
 	{
-		if (ChartPeriodHelpers.IsCalendar(SelectedPeriod.Value))
+		if (ChartPeriodHelpers.IsCalendar(SelectedPeriod.Value) && !ApplyPeriodToLoadedBars())
 			Reload();
+	}
+
+	// The period's start on the bars already loaded, when they cover it (a bar before it, or no
+	// older history); false when the chart has to load more (or is loading, or has nothing)
+	private bool ApplyPeriodToLoadedBars()
+	{
+		if (IsLoading || _loaded == null || Bars.Count == 0)
+			return false;
+		var range = ChartPeriodHelpers.GetRange(
+			SelectedPeriod.Value,
+			SelectedTimeframe.Value,
+			_timeProvider.GetUtcNow(),
+			DisplayTime.Zone
+		);
+		if (
+			range.From is { } from
+			&& !_olderExhausted
+			&& ChartPeriodHelpers.GetFirstIndex(
+				Bars,
+				from,
+				SelectedTimeframe.Value,
+				DisplayTime.Zone
+			) == 0
+		)
+			return false;
+		PeriodStart = range.From;
+		_loaded = new ChartBarsDto
+		{
+			FetchedAt = _loaded.FetchedAt,
+			IsStale = _loaded.IsStale,
+			Error = _loaded.Error,
+			From = range.From,
+			LimitedTo = range.LimitedTo,
+		};
+		SetLoadedStatus();
+		return true;
+	}
+
+	// The view back to the period: fitted from its start (Auto: the latest bars, default zoom)
+	private void ResetView()
+	{
+		IsPeriodFitted = true;
+		ViewResetRequested?.Invoke();
 	}
 
 	partial void OnRightMarginChanged(double value) => OnTemplateSettingsEdited();
@@ -420,7 +537,88 @@ public partial class ChartViewModel
 		_load?.Cancel();
 		_load?.Dispose();
 		_load = new CancellationTokenSource();
+		_loaded = null;
+		_olderLoading = false;
+		_olderExhausted = false;
+		_olderRetryAt = null;
 		_ = LoadAsync(_load.Token);
+	}
+
+	/// <summary>
+	/// The chart's view nears the oldest bar (CandlestickChart.OlderBarsNeeded): loads the page of
+	/// history before it and puts it in front, the view staying where it is. One page at a time;
+	/// none while loading, disconnected, after IB had no more (start of history) or once the
+	/// chart holds <see cref="ChartConstants.MaxLoadedBars"/>; a failed page is retried no sooner
+	/// than <see cref="ChartConstants.OlderBarsRetryDelay"/>. Cancelled with the load (another
+	/// contract, timeframe, trading hours, a reload, a disconnect).
+	/// </summary>
+	public void LoadOlderBars()
+	{
+		if (
+			_olderLoading
+			|| _olderExhausted
+			|| IsLoading
+			|| !IsConnected
+			|| _loaded == null
+			|| _contract is not { } contract
+			|| _load is not { } load
+			|| Bars.Count == 0
+		)
+			return;
+		if (Bars.Count >= ChartConstants.MaxLoadedBars)
+		{
+			_olderExhausted = true;
+			return;
+		}
+		if (_olderRetryAt is { } retryAt && _timeProvider.GetUtcNow() < retryAt)
+			return;
+		_ = LoadOlderAsync(contract, load.Token);
+	}
+
+	// On the UI thread (the continuation comes back on it)
+	private async Task LoadOlderAsync(ContractDto contract, CancellationToken cancellationToken)
+	{
+		_olderLoading = true;
+		var before = Bars[0].Time;
+		try
+		{
+			var older = await _chartManager.GetOlderBarsAsync(
+				new GetOlderBarsRequest
+				{
+					Contract = contract,
+					Timeframe = SelectedTimeframe.Value,
+					UseRegularTradingHours = UseRegularTradingHours,
+					Before = before,
+				},
+				cancellationToken
+			);
+			cancellationToken.ThrowIfCancellationRequested();
+			_olderRetryAt = null;
+			if (_live != null)
+				_live.Prepend(older);
+			else
+				Bars = BarHelpers.Prepend(older, Bars);
+			// Nothing older came back: the start of the contract's history
+			if (Bars.Count == 0 || Bars[0].Time >= before)
+				_olderExhausted = true;
+		}
+		catch (OperationCanceledException) { }
+		catch (Exception) when (cancellationToken.IsCancellationRequested) { }
+		catch (Exception ex)
+		{
+			_olderRetryAt = _timeProvider.GetUtcNow() + ChartConstants.OlderBarsRetryDelay;
+			_messageLogManager.Add(
+				MessageSeverity.Info,
+				MessageLogConstants.SourceChart,
+				$"{ContractHelpers.GetDisplayName(contract)}: older bars unavailable ({ErrorMessageHelpers.ToUserMessage(ex)})"
+			);
+		}
+		finally
+		{
+			// A reload resets it for its own load
+			if (!cancellationToken.IsCancellationRequested)
+				_olderLoading = false;
+		}
 	}
 
 	private void OnAccountChanged(object? sender, PropertyChangedEventArgs e)
@@ -562,25 +760,16 @@ public partial class ChartViewModel
 			// Superseded (another timeframe, period or contract) while IB answered: the newer
 			// load's bars stay
 			cancellationToken.ThrowIfCancellationRequested();
+			// The fit's start before the bars: the chart fits a new series to it at once
+			PeriodStart = result.From;
 			Bars = result.Bars;
-			var period = SelectedPeriod.ToString();
-			_status.Set(() =>
-				(
-					result.IsStale
-						? $"Cached {DisplayTime.Format(result.FetchedAt, "HH:mm")} — {result.Error}"
-						: $"Loaded {DisplayTime.Format(result.FetchedAt)}"
-				)
-				+ (
-					result.LimitedTo is { } limit
-						? $" · {SelectedTimeframe} bars go back {ChartPeriodHelpers.GetDisplayName(limit)} at most"
-						: ""
-				)
-				+ (
-					result.Bars.Count == 0 && result.From is { } from
-						? $" · no bars since {DisplayTime.FormatDayTime(from)} ({period})"
-						: ""
-				)
-			);
+			_loaded = result;
+			SetLoadedStatus();
+			if (_resetViewOnLoad)
+			{
+				_resetViewOnLoad = false;
+				ResetView();
+			}
 		}
 		catch (OperationCanceledException)
 		{
@@ -606,6 +795,40 @@ public partial class ChartViewModel
 		await StreamLiveAsync(request, contract, cancellationToken);
 	}
 
+	// "Loaded 14:05" (or the cached copy's error), and what limits the period's view
+	private void SetLoadedStatus()
+	{
+		if (_loaded is not { } result)
+			return;
+		var period = SelectedPeriod.ToString();
+		var timeframe = SelectedTimeframe.ToString();
+		var noBars =
+			result.From is { } start
+			&& ChartPeriodHelpers.GetFirstIndex(
+				Bars,
+				start,
+				SelectedTimeframe.Value,
+				DisplayTime.Zone
+			) == Bars.Count;
+		_status.Set(() =>
+			(
+				result.IsStale
+					? $"Cached {DisplayTime.Format(result.FetchedAt, "HH:mm")} — {result.Error}"
+					: $"Loaded {DisplayTime.Format(result.FetchedAt)}"
+			)
+			+ (
+				result.LimitedTo is { } limit
+					? $" · {timeframe} periods go back {ChartPeriodHelpers.GetDisplayName(limit)} at most"
+					: ""
+			)
+			+ (
+				noBars && result.From is { } from
+					? $" · no bars since {DisplayTime.FormatDayTime(from)} ({period})"
+					: ""
+			)
+		);
+	}
+
 	// 5-second bars on the UI thread, plus live prices on the thread pool when the mode asks for
 	// them; the prices end with the 5-second bars (a quote line is useless without them)
 	private async Task StreamLiveAsync(
@@ -626,6 +849,8 @@ public partial class ChartViewModel
 					Bars = bars;
 			}
 		);
+		// Older pages scrolled to go through it, so its next update keeps them
+		_live = live;
 		using var prices = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		var pricesToken = prices.Token;
 		var note = new LiveNote();
@@ -663,6 +888,8 @@ public partial class ChartViewModel
 		finally
 		{
 			prices.Cancel();
+			if (_live == live)
+				_live = null;
 		}
 	}
 

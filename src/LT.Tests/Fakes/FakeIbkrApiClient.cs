@@ -58,6 +58,15 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	/// <see cref="HistoricalBars"/>; the answer ignores cancellation, like one already on its way.
 	/// </summary>
 	public Func<string, string, Task<IReadOnlyList<BarDto>>>? HistoricalBy { get; set; }
+
+	/// <summary>Each historical request's end (null: now).</summary>
+	public List<DateTimeOffset?> HistoricalEnds { get; } = [];
+
+	/// <summary>
+	/// Answers requests with an end (older pages) instead of <see cref="HistoricalBy"/> /
+	/// <see cref="HistoricalBars"/>: given the end, the bars before it.
+	/// </summary>
+	public Func<DateTimeOffset, Task<IReadOnlyList<BarDto>>>? HistoricalBefore { get; set; }
 	public List<AccountValueDto> AccountValues { get; set; } = [];
 
 	/// <summary>Each account's P&amp;L stream; none by default.</summary>
@@ -277,6 +286,7 @@ public class FakeIbkrApiClient : IIbkrApiClient
 		string barSize,
 		string whatToShow,
 		bool useRegularTradingHours,
+		DateTimeOffset? end = null,
 		CancellationToken cancellationToken = default
 	)
 	{
@@ -284,6 +294,9 @@ public class FakeIbkrApiClient : IIbkrApiClient
 		HistoricalDurations.Add(duration);
 		HistoricalUseRth.Add(useRegularTradingHours);
 		HistoricalBarSizes.Add(barSize);
+		HistoricalEnds.Add(end);
+		if (end is { } before && HistoricalBefore != null)
+			return HistoricalBefore(before);
 		if (HistoricalBy != null)
 			return HistoricalBy(duration, barSize);
 		return HistoricalException != null

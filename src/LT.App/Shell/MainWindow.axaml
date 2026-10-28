@@ -36,6 +36,9 @@
 						ToolClicked="OnToolClicked"
 						FullscreenClicked="OnFullscreenClicked"
 					/>
+					<!-- Every window, view and widget, to a file and back (another computer, a backup) -->
+					<MenuItem Header="Export layout…" Click="OnExportLayoutClick" />
+					<MenuItem Header="Import layout…" Click="OnImportLayoutClick" />
 					<Separator />
 					<MenuItem Header="Check for updates" Command="{Binding Update.CheckCommand}" />
 					<MenuItem Header="Patch notes" Click="OnPatchNotesClick" />

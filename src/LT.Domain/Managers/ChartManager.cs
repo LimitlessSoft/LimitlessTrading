@@ -9,6 +9,7 @@ using LT.Contracts.Dtos.MarketData;
 using LT.Contracts.Entities;
 using LT.Contracts.Enums;
 using LT.Contracts.Enums.ValidationCodes;
+using LT.Contracts.Exceptions;
 using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IApiClients;
 using LT.Contracts.Interfaces.IManagers;
@@ -56,23 +57,75 @@ public class ChartManager(
 						ChartTimeframeHelpers.GetBarSize(request.Timeframe),
 						ChartTimeframeHelpers.GetWhatToShow(request.Contract.SecurityType),
 						request.UseRegularTradingHours,
-						ct
+						cancellationToken: ct
 					)
 				).ToMappedList<BarDto, BarEntity>(),
 			cancellationToken
 		);
-		var bars = result.Value.ToMappedList<BarEntity, BarDto>();
 		return new ChartBarsDto
 		{
-			Bars = range.From is { } from
-				? ChartPeriodHelpers.Trim(bars, from, request.Timeframe, request.TimeZone)
-				: bars,
+			Bars = result.Value.ToMappedList<BarEntity, BarDto>(),
 			FetchedAt = result.FetchedAt,
 			IsStale = result.IsStale,
 			Error = result.Error,
 			From = range.From,
 			LimitedTo = range.LimitedTo,
 		};
+	}
+
+	public async Task<IReadOnlyList<BarDto>> GetOlderBarsAsync(
+		GetOlderBarsRequest request,
+		CancellationToken cancellationToken = default
+	)
+	{
+		if (request.Contract.ConId <= 0)
+			throw new LSCoreBadRequestException(
+				ContractValidationCodes.CTVC_004.GetValidationMessage()
+			);
+
+		var before = request.Before;
+		var result = await cacheManager.GetOrFetchAsync(
+			CacheType.ChartBars,
+			BarHelpers.GetOlderCacheKey(
+				request.Contract.ConId,
+				request.Timeframe,
+				request.UseRegularTradingHours,
+				before
+			),
+			ChartTimeframeHelpers.GetCacheTtl(request.Timeframe),
+			async ct =>
+			{
+				IReadOnlyList<BarDto> bars;
+				try
+				{
+					bars = await ibkrApiClient.GetHistoricalBarsAsync(
+						request.Contract,
+						ChartTimeframeHelpers.GetPageDuration(request.Timeframe),
+						ChartTimeframeHelpers.GetBarSize(request.Timeframe),
+						ChartTimeframeHelpers.GetWhatToShow(request.Contract.SecurityType),
+						request.UseRegularTradingHours,
+						before,
+						ct
+					);
+				}
+				catch (IbkrRequestException ex)
+					when (ex.Code == ChartConstants.HistoricalDataErrorCode
+						&& ex.Message.Contains(
+							ChartConstants.HistoricalNoDataText,
+							StringComparison.OrdinalIgnoreCase
+						)
+					)
+				{
+					// Before the contract's first bar: the start of its history
+					bars = [];
+				}
+				// IB's end is inclusive: the bar starting at it is the oldest one already held
+				return bars.Where(x => x.Time < before).ToMappedList<BarDto, BarEntity>();
+			},
+			cancellationToken,
+			x => x.Count > 0
+		);
+		return result.Value.ToMappedList<BarEntity, BarDto>();
 	}
 
 	public async Task<TradingScheduleDto?> GetRegularHoursAsync(

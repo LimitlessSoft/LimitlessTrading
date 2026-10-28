@@ -280,7 +280,7 @@ One cache for everything fetched from IB that is worth keeping, with a section i
 
   | Type | What | TTL | When IB fails |
   |---|---|---|---|
-  | `ChartBars` | historical bars | 1 min intraday, 30 min daily+ | stale copy, "Cached HH:mm" |
+  | `ChartBars` | historical bars (the latest per duration, older pages per where they end) | 1 min intraday, 30 min daily+ | stale copy, "Cached HH:mm" |
   | `Contracts` | `SearchAsync`, `SearchSymbolAsync` (so `ResolveTickerAsync`); non-empty answers only | 3 days | expired copy |
   | `OptionChains` | expirations, strike lists (contracts only, never prices or greeks) | 1 day | expired copy |
   | `Executions` | fills per account | 10 s | stale copy, marked in the widget |

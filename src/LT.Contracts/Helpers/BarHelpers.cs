@@ -147,6 +147,64 @@ public static class BarHelpers
 	/// The cache key of a bar request. The timeframe's own duration (Auto period) keeps the key
 	/// it had before periods; another duration is part of the key.
 	/// </summary>
+	/// <summary>
+	/// <paramref name="older"/> (a page of history before the chart's bars) put in front of
+	/// <paramref name="bars"/>: only its bars older than the first one, sorted, without
+	/// duplicate times. Returns <paramref name="bars"/> itself when nothing is older; the inputs
+	/// are not modified.
+	/// </summary>
+	public static IReadOnlyList<BarDto> Prepend(
+		IReadOnlyList<BarDto> older,
+		IReadOnlyList<BarDto> bars
+	)
+	{
+		var before = (bars.Count > 0 ? older.Where(x => x.Time < bars[0].Time) : older)
+			.GroupBy(x => x.Time)
+			.Select(x => x.Last())
+			.OrderBy(x => x.Time)
+			.ToList();
+		if (before.Count == 0)
+			return bars;
+		before.AddRange(bars);
+		return before;
+	}
+
+	/// <summary>
+	/// How <paramref name="next"/> relates to <paramref name="previous"/>: the number of bars
+	/// put in front of it (older history loaded; 0 when it only grew or changed at the end), or
+	/// -1 when it is another series (its bars don't contain <paramref name="previous"/>'s first).
+	/// Both are oldest first.
+	/// </summary>
+	public static int GetPrependedCount(IReadOnlyList<BarDto> previous, IReadOnlyList<BarDto> next)
+	{
+		if (previous.Count == 0 || next.Count == 0)
+			return -1;
+		var first = previous[0].Time;
+		var low = 0;
+		var high = next.Count - 1;
+		while (low <= high)
+		{
+			var middle = low + (high - low) / 2;
+			var time = next[middle].Time;
+			if (time == first)
+				return middle;
+			if (time < first)
+				low = middle + 1;
+			else
+				high = middle - 1;
+		}
+		return -1;
+	}
+
+	/// <summary>Cache key of a page of older bars: the series' key and where the page ends.</summary>
+	public static string GetOlderCacheKey(
+		int conId,
+		ChartTimeframe timeframe,
+		bool useRth,
+		DateTimeOffset before
+	) =>
+		$"{GetCacheKey(conId, timeframe, useRth, ChartTimeframeHelpers.GetPageDuration(timeframe))}_to{before.ToUnixTimeSeconds()}";
+
 	public static string GetCacheKey(
 		int conId,
 		ChartTimeframe timeframe,

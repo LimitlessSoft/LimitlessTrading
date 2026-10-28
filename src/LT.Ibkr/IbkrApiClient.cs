@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using IBKR.Net;
 using LSCore.Mapper.Domain;
@@ -255,21 +256,33 @@ public class IbkrApiClient : IIbkrApiClient
 		string barSize,
 		string whatToShow,
 		bool useRegularTradingHours,
+		DateTimeOffset? end = null,
 		CancellationToken cancellationToken = default
 	)
 	{
 		await _historical.WaitAsync(barSize, cancellationToken);
 		await _messages.WaitAsync(cancellationToken);
-		var bars = await RequireClient()
-			.GetHistoricalBarsAsync(
-				contract.ToMapped<ContractDto, Contract>(),
-				duration,
-				barSize,
-				whatToShow,
-				useRegularTradingHours,
-				cancellationToken: cancellationToken
-			);
-		return bars.ToMappedList<Bar, BarDto>();
+		try
+		{
+			var bars = await RequireClient()
+				.GetHistoricalBarsAsync(
+					contract.ToMapped<ContractDto, Contract>(),
+					duration,
+					barSize,
+					whatToShow,
+					useRegularTradingHours,
+					// IB's UTC form of endDateTime; empty is now
+					end?.UtcDateTime.ToString("yyyyMMdd-HH:mm:ss", CultureInfo.InvariantCulture)
+						?? string.Empty,
+					cancellationToken
+				);
+			return bars.ToMappedList<Bar, BarDto>();
+		}
+		catch (IbkrException ex)
+		{
+			// The message keeps IB's code and request id, as the chart showed it before
+			throw new IbkrRequestException(ex.Code, ex.Message, ex);
+		}
 	}
 
 	public IAsyncEnumerable<BarDto> SubscribeRealtimeBarsAsync(
