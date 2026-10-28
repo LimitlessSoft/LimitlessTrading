@@ -56,6 +56,7 @@ public static class Script
 	public static Series Ohlc4 => (Open + High + Low + Close) / 4;
 	public static IReadOnlyList<DateTimeOffset> Time => Indicator.Current.Bars.Time;
 	public static bool IsIntraday => Indicator.Current.Bars.IsIntraday;
+	public static TimeZoneInfo SessionTimeZone => Indicator.Current.Bars.SessionTimeZone;
 	public static Series NewSession => Indicator.Current.GetNewSession();
 
 	public static int Input(

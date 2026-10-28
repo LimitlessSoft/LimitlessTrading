@@ -1,7 +1,7 @@
 # Chart indicators
 
 Charts draw indicators: built-in ones (SMA, EMA, VWAP, Bollinger Bands, RSI, MACD, ATR, volume
-moving average) and the user's own, written as C# script files in any editor and recompiled the
+moving average, relative volume) and the user's own, written as C# script files in any editor and recompiled the
 moment they are saved. Both are written against the same SDK, `LT.Indicators.Sdk`.
 
 ## Using them on a chart
@@ -31,6 +31,26 @@ moment they are saved. Both are written against the same SDK, `LT.Indicators.Sdk
 - **Templates:** a chart's indicators can be saved with its timeframe as a chart template and
   applied to other charts, exported and imported — see
   [ui-patterns.md → Chart templates](ui-patterns.md#chart-templates).
+
+### Relative volume (RVOL)
+
+Its own pane; inputs Days (10, 1 … 100) and Cumulative (on). Intraday it compares each bar with
+the previous Days sessions **at the same New York time of day** (the bar's time in the session
+zone, so DST changes and a missing first bar don't shift the match). A session without a bar
+at that time (half day, a bar without trades) is left out, and the average uses whichever of
+the previous Days sessions have one: it is NaN only until one does, so a chart holding fewer
+than Days sessions still shows an average over what it has.
+
+- **Cumulative:** two lines — today's volume since the session start, and the average of the
+  same running total in those sessions; both restart each session.
+- **Exact** (Cumulative off): the bar's volume as a histogram, green above its average, grey at
+  or below it or without one, and the average as a line.
+- **Daily and longer bars** have no time of day: always exact, against the previous Days bars
+  (Cumulative is ignored — one bar per session has nothing to accumulate).
+
+The default history of 1-minute charts is one day, so RVOL has no average there until older
+bars are loaded (scrolling left); 5- and 15-minute charts load 5 D / 10 D, fewer sessions than
+the default 10 Days on 5-minute bars.
 
 ## How it is built
 
@@ -117,7 +137,7 @@ Markers("Up", Ta.CrossOver(fast, slow), MarkerShape.TriangleUp, Colors.Green, Ma
 
 | | |
 |---|---|
-| Bars | `Open High Low Close Volume Hl2 Hlc3 Ohlc4` (series), `Time` (bar start, UTC; daily bars at midnight UTC), `BarCount`, `IsIntraday`, `NewSession` (1 on the first bar of each New York trading day intraday, else only the first bar) |
+| Bars | `Open High Low Close Volume Hl2 Hlc3 Ohlc4` (series), `Time` (bar start, UTC; daily bars at midnight UTC), `BarCount`, `IsIntraday`, `NewSession` (1 on the first bar of each New York trading day intraday, else only the first bar), `SessionTimeZone` (New York; for a bar's exchange time of day) |
 | `Series` | one double per bar, oldest first, NaN = no value. `+ - * / %` with series or numbers (÷0 → NaN), `> < >= <=` → conditions (1 / 0 / NaN), `& \| !`, `EqualTo`, `Shift(n)` (n bars back), `s[i]` (NaN outside), `Last`, `Length`, `Select`, `Zip`, `ToArray`, `Series.Constant/Create/Empty`, implicit from `double[]` |
 | `Ta` | `Sma Ema Rma Wma Stdev Sum Highest Lowest Change Roc CrossOver CrossUnder TrueRange Atr Rsi Vwap Macd BollingerBands Stoch Max Min Abs Nz Iff` |
 | Inputs | `Input(name, int default, min, max)`, `Input(name, double default, min, max, step)`, `Input(name, bool default)`; a value out of range is clamped |
