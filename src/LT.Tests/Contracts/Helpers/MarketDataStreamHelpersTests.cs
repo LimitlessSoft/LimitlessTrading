@@ -67,6 +67,29 @@ public class MarketDataStreamHelpersTests
 		Assert.Equal(string.Empty, MarketDataStreamHelpers.GetOwnerSummary([]));
 	}
 
+	[Fact]
+	public void A_shared_line_counts_for_each_owner_and_lists_them_all()
+	{
+		var shared = MarketDataShareHelpers.WithSubscribers(
+			new MarketDataStreamDto { Id = 7, Owner = "Watchlist · US" },
+			["Watchlist · US", "Chart", "Watchlist · US", ""]
+		);
+
+		Assert.Equal(7, shared.Id);
+		Assert.Equal(["Watchlist · US", "Chart"], shared.Owners);
+		Assert.Equal("Watchlist · US, Chart", shared.Owner);
+		Assert.Equal(4, shared.Subscribers);
+		Assert.Equal("Watchlist · US, Chart (4)", MarketDataStreamHelpers.GetOwnerText(shared));
+		Assert.Equal(
+			"Watchlist · US 2, Chart 1",
+			MarketDataStreamHelpers.GetOwnerSummary([
+				shared,
+				new MarketDataStreamDto { Owner = "Watchlist · US", Owners = ["Watchlist · US"] },
+			])
+		);
+		Assert.Equal("—", MarketDataStreamHelpers.GetOwnerText(new MarketDataStreamDto()));
+	}
+
 	[Theory]
 	[InlineData(-5, "0s")]
 	[InlineData(42, "42s")]

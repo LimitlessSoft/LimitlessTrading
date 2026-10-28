@@ -19,11 +19,15 @@ public interface IMarketDataManager
 	event Action? StreamsChanged;
 
 	/// <summary>
-	/// Streams a cumulative quote after every tick. Counts against the market data line limit
-	/// until the enumeration ends. <paramref name="genericTicks"/> asks for extra IB generic
-	/// ticks on the same line (e.g. <c>MarketDataConstants.OptionImpliedVolatilityGenericTick</c>).
-	/// <paramref name="owner"/> labels the line in the stream list
-	/// (<c>MarketDataStreamOwners</c>).
+	/// Streams a cumulative quote after every tick. Subscriptions of the same contract and
+	/// <paramref name="genericTicks"/> share one IB line: the first opens it (and counts against
+	/// the market data line limit, throwing at it), later ones get the latest quote at once and
+	/// then every update, and the last one to leave cancels it. Cancelling one subscription
+	/// leaves the others streaming; an IB error ends all of them with it.
+	/// <paramref name="genericTicks"/> asks for extra IB generic ticks on the same line (e.g.
+	/// <c>MarketDataConstants.OptionImpliedVolatilityGenericTick</c>). <paramref name="owner"/>
+	/// labels the line in the stream list (<c>MarketDataStreamOwners</c>); a shared line lists
+	/// every owner.
 	/// </summary>
 	IAsyncEnumerable<QuoteDto> SubscribeQuotesAsync(
 		ContractDto contract,
@@ -31,6 +35,21 @@ public interface IMarketDataManager
 		string genericTicks = "",
 		string owner = ""
 	);
+
+	/// <summary>
+	/// One quote of a contract, from an IB snapshot (no market data line: IB doesn't count
+	/// snapshots against the limit), or the latest quote of a line already streaming it. IB ends
+	/// a snapshot about 11 s after the request; it fails after
+	/// <c>MarketDataConstants.SnapshotTimeout</c>, and at most
+	/// <c>MarketDataConstants.MaxConcurrentSnapshots</c> run at once (more throw).
+	/// </summary>
+	Task<QuoteDto> GetQuoteSnapshotAsync(
+		ContractDto contract,
+		CancellationToken cancellationToken = default
+	);
+
+	/// <summary>Quote snapshots running now.</summary>
+	int ActiveSnapshots { get; }
 
 	/// <summary>
 	/// Takes one line for a stream that isn't a quote (news ticks) and lists it; throws at the

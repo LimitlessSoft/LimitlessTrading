@@ -42,8 +42,10 @@ public class MarketDataManagerTests
 			new MarketDataTickDto { Field = TickTypeHelpers.Last, Price = 200 },
 			new MarketDataTickDto { Field = TickTypeHelpers.OptionImpliedVolatility, Value = 0.25 },
 		];
+		_ibkr.KeepMarketDataOpen = true;
 		var manager = new MarketDataManager(_ibkr, TimeProvider.System);
 		var maxLines = 0;
+		var quotes = 0;
 
 		await foreach (
 			var _ in manager.SubscribeQuotesAsync(
@@ -52,7 +54,11 @@ public class MarketDataManagerTests
 				MarketDataConstants.OptionImpliedVolatilityGenericTick
 			)
 		)
+		{
 			maxLines = Math.Max(maxLines, manager.ActiveLines);
+			if (++quotes == 2)
+				break;
+		}
 
 		Assert.Equal(["106"], _ibkr.GenericTicksRequested);
 		Assert.Equal(1, maxLines);
@@ -75,11 +81,16 @@ public class MarketDataManagerTests
 	{
 		var manager = new MarketDataManager(_ibkr, TimeProvider.System);
 		_ibkr.Ticks = [new MarketDataTickDto { Field = TickTypeHelpers.Bid, Price = 1 }];
+		_ibkr.KeepMarketDataOpen = true;
 		var open = new List<IAsyncEnumerator<QuoteDto>>();
+		// Different contracts: the same one would share a line
 		for (var i = 0; i < MarketDataConstants.MaxLines; i++)
 		{
 			var enumerator = manager
-				.SubscribeQuotesAsync(Aapl, TestContext.Current.CancellationToken)
+				.SubscribeQuotesAsync(
+					new ContractDto { ConId = i + 1, Symbol = $"S{i}" },
+					TestContext.Current.CancellationToken
+				)
 				.GetAsyncEnumerator(TestContext.Current.CancellationToken);
 			await enumerator.MoveNextAsync();
 			open.Add(enumerator);
@@ -91,6 +102,17 @@ public class MarketDataManagerTests
 				.GetAsyncEnumerator(TestContext.Current.CancellationToken)
 				.MoveNextAsync()
 		);
+		Assert.Equal(MarketDataConstants.MaxLines, manager.ActiveLines);
+		// An open contract still joins its line at the limit
+		await using (
+			var shared = manager
+				.SubscribeQuotesAsync(
+					new ContractDto { ConId = 1, Symbol = "S0" },
+					TestContext.Current.CancellationToken
+				)
+				.GetAsyncEnumerator(TestContext.Current.CancellationToken)
+		)
+			Assert.True(await shared.MoveNextAsync());
 		Assert.Equal(MarketDataConstants.MaxLines, manager.ActiveLines);
 		Assert.Equal(MarketDataConstants.MaxLines, manager.GetActiveStreams().Count);
 		Assert.Throws<LSCoreBadRequestException>(() =>
@@ -110,6 +132,7 @@ public class MarketDataManagerTests
 		var time = new FakeTimeProvider(new DateTimeOffset(2026, 10, 27, 14, 30, 0, TimeSpan.Zero));
 		var manager = new MarketDataManager(_ibkr, time);
 		_ibkr.Ticks = [new MarketDataTickDto { Field = TickTypeHelpers.Bid, Price = 1 }];
+		_ibkr.KeepMarketDataOpen = true;
 		var changes = 0;
 		manager.StreamsChanged += () => changes++;
 

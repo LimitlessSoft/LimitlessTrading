@@ -17,8 +17,20 @@ public class MarketDataStreamDto
 	/// <summary>IB generic tick list asked for on the same line (e.g. "106"); empty when none.</summary>
 	public string GenericTicks { get; init; } = string.Empty;
 
-	/// <summary>Which widget or feature opened it (<c>MarketDataStreamOwners</c>); empty when unknown.</summary>
+	/// <summary>
+	/// Who uses it (<c>MarketDataStreamOwners</c>), joined with ", " when a quote line is shared;
+	/// empty when unknown.
+	/// </summary>
 	public string Owner { get; init; } = string.Empty;
+
+	/// <summary>
+	/// Every owner of the line, each once, in the order they joined; a quote line is shared by
+	/// every subscriber of the same contract and generic ticks.
+	/// </summary>
+	public IReadOnlyList<string> Owners { get; init; } = [];
+
+	/// <summary>How many subscriptions read the line (1 unless shared).</summary>
+	public int Subscribers { get; init; } = 1;
 
 	public DateTimeOffset OpenedAt { get; init; }
 }

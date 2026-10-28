@@ -100,6 +100,10 @@ public static class TickTypeHelpers
 		}
 	}
 
+	/// <summary>The quote has any price at all (bid, ask, last or close).</summary>
+	public static bool HasPrice(QuoteDto quote) =>
+		quote.Last != null || quote.Close != null || quote.Bid != null || quote.Ask != null;
+
 	/// <summary>Last trade, or the previous close before the first trade of the day.</summary>
 	public static double? GetDisplayPrice(QuoteDto quote) => quote.Last ?? quote.Close;
 

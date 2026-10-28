@@ -25,6 +25,48 @@ public static class MarketDataConstants
 	public static readonly TimeSpan WatchlistResortInterval = TimeSpan.FromSeconds(1);
 
 	public const int WatchlistMaxItems = 200;
+
+	/// <summary>
+	/// Quote snapshots running at once, app-wide. IB doesn't count them against the lines
+	/// (recorded, docs/ibkr-tws-api.md#quote-snapshots), but each stays open about 11 s.
+	/// </summary>
+	public const int MaxConcurrentSnapshots = 20;
+
+	/// <summary>A snapshot IB hasn't ended by then fails (IB ends them after about 11 s).</summary>
+	public static readonly TimeSpan SnapshotTimeout = TimeSpan.FromSeconds(20);
+
+	/// <summary>
+	/// Rows above and below the ones on screen that stream live too, so a short scroll shows
+	/// live quotes at once.
+	/// </summary>
+	public const int WatchlistLiveRowBuffer = 5;
+
+	/// <summary>Rows streamed live before the grid has reported which rows it shows.</summary>
+	public const int WatchlistInitialLiveRows = 30;
+
+	/// <summary>
+	/// A row scrolled away keeps its line this long, so scrolling back and forth doesn't
+	/// resubscribe.
+	/// </summary>
+	public static readonly TimeSpan WatchlistLiveReleaseDelay = TimeSpan.FromSeconds(3);
+
+	/// <summary>
+	/// Lines the watchlist leaves free for charts, the option chain and alerts: it opens no live
+	/// row when fewer than this are left (those rows get snapshots instead).
+	/// </summary>
+	public const int WatchlistReservedLines = 10;
+
+	/// <summary>How often a watchlist looks for off-screen rows due a snapshot.</summary>
+	public static readonly TimeSpan WatchlistSnapshotCheckInterval = TimeSpan.FromSeconds(2);
+
+	/// <summary>Snapshots a watchlist widget keeps running at once (each takes about 11 s).</summary>
+	public const int WatchlistSnapshotsInFlight = 10;
+
+	/// <summary>An off-screen row's snapshot is refreshed once it is this old (oldest first).</summary>
+	public static readonly TimeSpan WatchlistSnapshotRefreshInterval = TimeSpan.FromSeconds(30);
+
+	/// <summary>A row whose snapshot failed (e.g. no subscription) is asked again after this.</summary>
+	public static readonly TimeSpan WatchlistSnapshotErrorRetry = TimeSpan.FromMinutes(5);
 	public const int WatchlistNameMaxLength = 40;
 
 	/// <summary>Name of the first watchlist (and of one migrated from older settings).</summary>

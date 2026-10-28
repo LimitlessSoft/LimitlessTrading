@@ -34,6 +34,12 @@ public interface IIbkrApiClient
 	Task<DateTimeOffset> GetServerTimeAsync(CancellationToken cancellationToken = default);
 	void SetMarketDataType(MarketDataType marketDataType);
 
+	/// <summary>
+	/// The market data type last asked for with <see cref="SetMarketDataType"/>; null before the
+	/// first. Quote lines opened under another type are not shared with new subscribers.
+	/// </summary>
+	MarketDataType? MarketDataType { get; }
+
 	Task<IReadOnlyList<ContractDetailsDto>> SearchContractsAsync(
 		ContractDto query,
 		CancellationToken cancellationToken = default
@@ -54,6 +60,18 @@ public interface IIbkrApiClient
 		ContractDto contract,
 		CancellationToken cancellationToken = default,
 		string genericTicks = ""
+	);
+
+	/// <summary>
+	/// One snapshot of a contract's quote (reqMktData snapshot; never the paid regulatory one):
+	/// the ticks IB sends before its end message, which comes about 11 s after the request.
+	/// IB's refusals (354 / 10089 / 10090 not subscribed, 200 unknown contract) throw
+	/// <see cref="Exceptions.IbkrRequestException"/> with its code. Go through
+	/// <c>IMarketDataManager.GetQuoteSnapshotAsync</c>.
+	/// </summary>
+	Task<IReadOnlyList<MarketDataTickDto>> GetMarketDataSnapshotAsync(
+		ContractDto contract,
+		CancellationToken cancellationToken = default
 	);
 
 	/// <summary>

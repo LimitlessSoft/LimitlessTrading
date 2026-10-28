@@ -33,18 +33,31 @@ public static class MarketDataStreamHelpers
 	}
 
 	/// <summary>
-	/// Lines per owner, most first then by name: "Watchlist · US 40, Chart 2". Streams without
-	/// an owner count as "Other".
+	/// Lines per owner, most first then by name: "Watchlist · US 40, Chart 2". A shared line
+	/// counts for each of its owners; streams without an owner count as "Other".
 	/// </summary>
 	public static string GetOwnerSummary(IEnumerable<MarketDataStreamDto> streams) =>
 		string.Join(
 			", ",
 			streams
-				.GroupBy(x => string.IsNullOrEmpty(x.Owner) ? "Other" : x.Owner)
+				.SelectMany(GetOwners)
+				.GroupBy(x => x)
 				.OrderByDescending(x => x.Count())
 				.ThenBy(x => x.Key, StringComparer.Ordinal)
 				.Select(x => $"{x.Key} {x.Count()}")
 		);
+
+	// A line made by hand (news) has only Owner
+	private static IEnumerable<string> GetOwners(MarketDataStreamDto stream) =>
+		stream.Owners.Count > 0 ? stream.Owners
+		: string.IsNullOrEmpty(stream.Owner) ? ["Other"]
+		: [stream.Owner];
+
+	/// <summary>The owner column: every owner of the line, "—" for none.</summary>
+	public static string GetOwnerText(MarketDataStreamDto stream) =>
+		string.IsNullOrEmpty(stream.Owner) ? "—"
+		: stream.Subscribers > 1 ? $"{stream.Owner} ({stream.Subscribers})"
+		: stream.Owner;
 
 	/// <summary>How long a stream has been open: "42s", "5m 03s", "2h 07m".</summary>
 	public static string FormatAge(TimeSpan age)

@@ -217,6 +217,8 @@ public class ChartManagerTests
 			new MarketDataTickDto { Field = TickTypeHelpers.Last, Price = 100.2 },
 			new MarketDataTickDto { Field = TickTypeHelpers.LastSize, Size = 3 },
 		];
+		// Open after its ticks: a line IB has ended is freed at once
+		_ibkr.KeepMarketDataOpen = true;
 		var linesInUse = new List<int>();
 
 		var prices = new List<ChartPriceDto>();
@@ -230,6 +232,8 @@ public class ChartManagerTests
 		{
 			prices.Add(price);
 			linesInUse.Add(_marketData.ActiveLines);
+			if (prices.Count == 3)
+				break;
 		}
 
 		Assert.Equal([100d, 100.2, 100.2], prices.Select(x => x.Price));
