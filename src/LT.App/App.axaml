@@ -18,7 +18,12 @@
 		<SolidColorBrush x:Key="SigmaTwoBrush" Color="#283850" />
 		<SolidColorBrush x:Key="SigmaThreeBrush" Color="#222B3A" />
 		<SolidColorBrush x:Key="SigmaBeyondBrush" Color="#1E2229" />
-		<SolidColorBrush x:Key="ItmBrush" Color="#212A36" />
+		<!-- Option chain sides: a faint green (calls) / red (puts) under every cell, stronger in
+		     the money; translucent, so the text and the row selection read through -->
+		<SolidColorBrush x:Key="CallSideBrush" Color="#1026A69A" />
+		<SolidColorBrush x:Key="CallItmBrush" Color="#3026A69A" />
+		<SolidColorBrush x:Key="PutSideBrush" Color="#10EF5350" />
+		<SolidColorBrush x:Key="PutItmBrush" Color="#30EF5350" />
 		<!-- Option chain one-click cells: translucent, so they tint the ITM shade underneath -->
 		<SolidColorBrush x:Key="BuyHoverBrush" Color="#4026A69A" />
 		<SolidColorBrush x:Key="BuyPressedBrush" Color="#7026A69A" />

@@ -818,8 +818,10 @@ It lists one tab per expiration (`IOptionChainManager.GetExpirationsAsync`, from
 `reqSecDefOptParams`); the selected tab loads that day's strikes around the money. Columns mirror
 around the strike with the bid next to it on both sides: call vol · last · ask · bid | strike |
 put bid · ask · last · vol. The
-underlying keeps streaming while a chain is shown: in-the-money cells are shaded per side (calls
-below the price, puts above it — `OptionChainHelpers.IsInTheMoney`, `ItmBrush`) and the strike
+underlying keeps streaming while a chain is shown. Every call-side cell has a faint green tint and
+every put-side cell a faint red one (`CallSideBrush` / `PutSideBrush`, translucent); in-the-money
+cells get a stronger tint of their side (calls below the price, puts above it —
+`OptionChainHelpers.IsInTheMoney`, `CallItmBrush` / `PutItmBrush`) and the strike
 nearest the price is marked ATM (`AtmBrush`); with no known price nothing is shaded. The
 window of strikes (8 each side) follows the price too: once the ATM strike is more than 3 strikes
 off its centre (`OptionStrikesRecenterThreshold`, so a price wobbling around a strike doesn't
@@ -851,8 +853,8 @@ the box has no maximum on purpose, so a typo above the cap is refused, never cla
 chain instance saves its quantity in its placement (`WidgetPlacementEntity.OptionQuickOrderQuantity`,
 null = default; an invalid saved value loads as the default). The order is sent
 immediately through `IOrderManager.PlaceOrderAsync` (same validation as the ticket); there is no
-review step. Only bid / ask cells are clickable: they show a hand cursor and a translucent green
-(buy) / red (sell) tint on hover over the ITM shade; last, volume and strike cells don't react.
+review step. Only bid / ask cells trade with one click: they show a hand cursor and a translucent
+green (buy) / red (sell) tint on hover over the side tint; last and volume cells don't react.
 Hovering an ask cell shows the estimated cost of the click, quantity × ask × the contract's
 multiplier (`OptionChainHelpers.GetQuickOrderCost`, multiplier from `ContractHelpers.GetMultiplier`),
 e.g. "≈ 2 × 1.35 × 100 = 270.00 USD at the ask" — an estimate, the order goes at market. It
@@ -866,6 +868,24 @@ fill; a failed send or a rejection shows in its error line, and everything is lo
 (Orders). Mapping and
 guard logic: `OptionChainHelpers.GetQuickOrderAction` / `BuildQuickOrder` / `CanQuickTrade` /
 `IsRepeatClick` / `IsValidQuickOrderQuantity`.
+
+**Strike click → order ticket popup (reviewed).** The strike cell is split in two halves: the half
+toward the calls opens an order ticket for that strike's call, the half toward the puts for its put.
+Hovering the cell shows a small green "C" and red "P" badge at its edges, the one under the pointer
+brightened, so the choice is visible before the click. The click goes through
+`OrderTicketNavigator` (like Positions' "Close") and opens the Order ticket's own view in a
+popup (`OrderTicketWindow`), pinned to the option, with `OptionChainHelpers.GetOrderDraft`: buy,
+the chain's one-click quantity (1 when that box is invalid), the selected account, market, and the
+limit price box pre-set to the option's bid / ask mid (else last; `GetMidPrice`) for switching to a
+limit order. Nothing is sent from the chain: the ticket validates (`IOrderManager.ValidateOrder`),
+spells the order out (contract, side, quantity, type, price, TIF, account) and sends only on "Send
+order". A half is disabled while disconnected or when the strike has no option on that side.
+
+**Columns.** The "Columns" button at the right of the status line, or a right-click on any column
+header, lists the quote columns (Vol, Last, Ask, Bid) as check boxes; each hides or shows that
+column on both the call and the put side at once. The strike is always shown. Each chain instance
+saves its hidden columns in its placement (`WidgetPlacementEntity.OptionHiddenColumns`, null =
+none; unknown values in an edited file are dropped — `OptionChainHelpers.ResolveHiddenColumns`).
 
 A linkable view model implements `ILinkable` (`LT.App/Workspace`) by holding a `ContractLink`
 (`src/Widgets/LT.Widgets.Core/Stores`): `Publish(contract)` to send, `ContractReceived` to follow; it never gets its

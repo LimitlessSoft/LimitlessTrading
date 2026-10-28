@@ -218,7 +218,9 @@ public partial class OrderTicketViewModel : ConnectedViewModelBase, ILinkable
 		SelectedOrderType = OrderTypeChoices[0];
 		IsAmount = false;
 		SizeText = OrderHelpers.FormatInput(draft.Quantity);
-		LimitPriceText = string.Empty;
+		LimitPriceText = draft.LimitPrice is { } limit
+			? OrderHelpers.FormatInput(limit)
+			: string.Empty;
 		DraftText = draft.Note;
 	}
 

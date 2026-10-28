@@ -14,12 +14,15 @@ namespace LT.App.Widgets.OptionChain;
 /// <summary>
 /// One strike of the chain. Its bid / ask cells trade with one click through
 /// <paramref name="quickTrade"/> (the chain's, which holds the managers and the double-send
-/// guard); <paramref name="canTrade"/> says whether the chain may trade at all (connected).
+/// guard); <paramref name="canTrade"/> says whether the chain may trade at all (connected). Its
+/// strike cell opens an order ticket for the call or the put through <paramref name="openTicket"/>
+/// (right "C" / "P"); nothing is sent from there without the ticket's review.
 /// </summary>
 public partial class OptionRowViewModel(
 	OptionStrikeDto strike,
 	Func<OptionRowViewModel, string, OptionQuoteColumn, Task> quickTrade,
-	Func<bool> canTrade
+	Func<bool> canTrade,
+	Action<OptionRowViewModel, string>? openTicket = null
 ) : ViewModelBase
 {
 	private QuoteDto? _callQuote;
@@ -43,7 +46,15 @@ public partial class OptionRowViewModel(
 
 	/// <summary>Strike cell tooltip, e.g. "+1.4σ from the underlying"; null when unknown.</summary>
 	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(CallTicketTip))]
+	[NotifyPropertyChangedFor(nameof(PutTicketTip))]
 	public partial string? SigmaText { get; set; }
+
+	/// <summary>Tooltip of the strike cell's call half: what a click opens, then the σ distance.</summary>
+	public string CallTicketTip => BuildTicketTip(Strike.Call, "call");
+
+	/// <summary>Tooltip of the strike cell's put half, like <see cref="CallTicketTip"/>.</summary>
+	public string PutTicketTip => BuildTicketTip(Strike.Put, "put");
 
 	public bool IsWithinOneSigma => SigmaBand == SigmaBand.WithinOne;
 	public bool IsWithinTwoSigma => SigmaBand == SigmaBand.WithinTwo;
@@ -162,6 +173,32 @@ public partial class OptionRowViewModel(
 		SellCallCommand.NotifyCanExecuteChanged();
 		BuyPutCommand.NotifyCanExecuteChanged();
 		SellPutCommand.NotifyCanExecuteChanged();
+		OpenCallTicketCommand.NotifyCanExecuteChanged();
+		OpenPutTicketCommand.NotifyCanExecuteChanged();
+	}
+
+	/// <summary>The last quote of the call ("C") or the put ("P"); null before one arrived.</summary>
+	public QuoteDto? GetQuote(string right) =>
+		right == MarketDataConstants.CallRight ? _callQuote : _putQuote;
+
+	// Strike cell halves: the call half (calls' side) and the put half open a pre-filled ticket
+	[RelayCommand(CanExecute = nameof(CanOpenCallTicket))]
+	private void OpenCallTicket() => openTicket?.Invoke(this, MarketDataConstants.CallRight);
+
+	[RelayCommand(CanExecute = nameof(CanOpenPutTicket))]
+	private void OpenPutTicket() => openTicket?.Invoke(this, MarketDataConstants.PutRight);
+
+	private bool CanOpenCallTicket() => openTicket != null && canTrade() && Strike.Call != null;
+
+	private bool CanOpenPutTicket() => openTicket != null && canTrade() && Strike.Put != null;
+
+	private string BuildTicketTip(ContractDto? option, string kind)
+	{
+		var head =
+			option == null
+				? $"No {kind} at this strike"
+				: $"Order the {StrikeText} {kind}: market or limit, reviewed before it is sent";
+		return SigmaText is { } sigma ? $"{head}\n{sigma}" : head;
 	}
 
 	// Ask cells buy, bid cells sell; disabled with no connection, contract or price to hit

@@ -25,7 +25,9 @@ namespace LT.App.Widgets.OptionChain;
 /// widget's one-click quantity at market with a single click (no confirmation; the user asked for
 /// it). The underlying comes from the link group, or is typed into the header title. Quotes stream
 /// only while the widget is shown: hidden, it gives every line back and keeps its rows and last
-/// values; shown again, the same rows subscribe again.
+/// values; shown again, the same rows subscribe again. A click on a strike opens an order ticket
+/// popup for its call or put (reviewed before sending). Quote columns can be hidden, on both sides
+/// at once; the choice is saved with the widget.
 /// </summary>
 public partial class OptionChainViewModel
 	: ConnectedViewModelBase,
@@ -42,6 +44,10 @@ public partial class OptionChainViewModel
 	private readonly TimeProvider _timeProvider;
 	private readonly DisplayTimeStore _displayTime;
 	private readonly DispatcherTimer _tradeStatusTimer;
+	private readonly OrderTicketNavigator _orderTicketNavigator;
+
+	// Quote columns taken off the grid on both sides (saved per widget); the strike always shows
+	private HashSet<OptionQuoteColumn> _hiddenColumns = [];
 
 	// Double-send guard for one-click orders, per cell (contract + side)
 	private readonly Dictionary<string, DateTimeOffset> _lastQuickOrderClicks = [];
@@ -74,10 +80,12 @@ public partial class OptionChainViewModel
 		LinkGroupStore linkGroupStore,
 		AccountStore accountStore,
 		TimeProvider timeProvider,
-		DisplayTimeStore displayTime
+		DisplayTimeStore displayTime,
+		OrderTicketNavigator orderTicketNavigator
 	)
 		: base(connectionManager)
 	{
+		_orderTicketNavigator = orderTicketNavigator;
 		_displayTime = displayTime;
 		_optionChainManager = optionChainManager;
 		_contractManager = contractManager;
@@ -158,18 +166,67 @@ public partial class OptionChainViewModel
 	public partial decimal? QuickOrderQuantity { get; set; } =
 		OrderConstants.QuickOrderQuantityDefault;
 
-	public void LoadState(WidgetPlacementDto placement) =>
+	public void LoadState(WidgetPlacementDto placement)
+	{
 		QuickOrderQuantity = OptionChainHelpers.GetQuickOrderQuantityOrDefault(
 			placement.OptionQuickOrderQuantity
 		);
+		_hiddenColumns = OptionChainHelpers.ResolveHiddenColumns(placement.OptionHiddenColumns);
+		ColumnVisibilityChanged?.Invoke();
+	}
 
 	// An empty or invalid box saves nothing, so the next start has the default
-	public void SaveState(WidgetPlacementDto placement) =>
+	public void SaveState(WidgetPlacementDto placement)
+	{
 		placement.OptionQuickOrderQuantity = OptionChainHelpers.IsValidQuickOrderQuantity(
 			QuickOrderQuantity
 		)
 			? (int)QuickOrderQuantity!.Value
 			: null;
+		placement.OptionHiddenColumns = OptionChainHelpers.ToSavedHiddenColumns(_hiddenColumns);
+	}
+
+	/// <summary>A quote column was shown or hidden: the view shows or hides it on both sides.</summary>
+	public event Action? ColumnVisibilityChanged;
+
+	/// <summary>Whether a quote column is on the grid (on both the call and the put side).</summary>
+	public bool IsColumnShown(OptionQuoteColumn column) => !_hiddenColumns.Contains(column);
+
+	/// <summary>Shows or hides a quote column on both sides (column menu); saved with the widget.</summary>
+	public void SetColumnShown(OptionQuoteColumn column, bool shown)
+	{
+		if (!OptionChainHelpers.QuoteColumns.Contains(column) || IsColumnShown(column) == shown)
+			return;
+		if (shown)
+			_hiddenColumns.Remove(column);
+		else
+			_hiddenColumns.Add(column);
+		ColumnVisibilityChanged?.Invoke();
+	}
+
+	/// <summary>
+	/// Strike cell click: opens an order ticket popup pre-filled for the strike's call or put
+	/// (<paramref name="right"/> "C" / "P") on the selected account, with the one-click quantity
+	/// and the option's mid as the limit price. Nothing is sent here: the ticket reviews the order
+	/// and sends it only on the user's "Send order".
+	/// </summary>
+	public void OpenOrderTicket(OptionRowViewModel row, string right)
+	{
+		if (!IsConnected)
+			return;
+		if (
+			OptionChainHelpers.GetOrderDraft(
+				row.Strike,
+				right,
+				_accountStore.SelectedAccount,
+				QuickOrderQuantity,
+				row.GetQuote(right)
+			)
+			is not { } draft
+		)
+			return;
+		_orderTicketNavigator.Open(draft);
+	}
 
 	partial void OnQuickOrderQuantityChanged(decimal? value)
 	{
@@ -378,7 +435,12 @@ public partial class OptionChainViewModel
 
 	private OptionRowViewModel CreateRow(OptionStrikeDto strike)
 	{
-		var row = new OptionRowViewModel(strike, QuickTradeAsync, () => IsConnected);
+		var row = new OptionRowViewModel(
+			strike,
+			QuickTradeAsync,
+			() => IsConnected,
+			OpenOrderTicket
+		);
 		row.SetQuickOrderQuantity(QuickOrderQuantity);
 		return row;
 	}

@@ -113,7 +113,8 @@ public class OptionChainViewModelTickerTests : IDisposable
 			_links,
 			new AccountStore(_connection, settings),
 			_cache.Time,
-			new DisplayTimeStore(settings, _cache.Time)
+			new DisplayTimeStore(settings, _cache.Time),
+			new OrderTicketNavigator()
 		);
 	}
 

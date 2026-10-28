@@ -45,6 +45,9 @@ public class WidgetPlacementEntityMapper : ILSCoreMapper<WidgetPlacementDto, Wid
 			NewsMode = source.NewsMode,
 			NewsProviders = source.NewsProviders is { } providers ? [.. providers] : null,
 			OptionQuickOrderQuantity = source.OptionQuickOrderQuantity,
+			OptionHiddenColumns = source.OptionHiddenColumns is { } optionHidden
+				? [.. optionHidden]
+				: null,
 			PerformanceShowCashMovements = source.PerformanceShowCashMovements,
 			WatchlistId = source.WatchlistId,
 			WatchlistHiddenColumns = source.WatchlistHiddenColumns is { } hiddenColumns
