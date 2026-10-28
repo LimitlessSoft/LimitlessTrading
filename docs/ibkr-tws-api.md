@@ -7,7 +7,7 @@ this app's license. How each message looks on the wire is in that repo's `docs/p
 file covers how the app uses it, IB's limits and the quirks we have hit. Read it before touching
 `LT.Ibkr`.
 
-`IBKR.Net` comes from nuget.org (0.9.0).
+`IBKR.Net` comes from nuget.org (0.10.0).
 
 ### Extending IBKR.Net
 
@@ -134,6 +134,7 @@ Limits / caveats:
 | `GetBroadTapeContractsAsync` | `reqContractDetails` (`NEWS`) | A provider's broad tape contracts; IB fails 321 / 200 when it has none |
 | `SubscribeMarketDepthAsync` | `reqMktDepth` | Order book changes (insert / update / delete per row and side), one exchange or SMART depth with each row's exchange (0.6.0) — see [Market depth](#market-depth) |
 | `SubscribeTickByTickAsync` | `reqTickByTickData` | Last / AllLast / BidAsk / MidPoint ticks, IB time in whole seconds (0.7.0); used by the chart's tick-by-tick live updates — see [Tick-by-tick](#tick-by-tick) |
+| `GetHistoricalTicksAsync` | `reqHistoricalTicks` | Past trades, bid / ask or midpoints, at most 1000 a request, oldest first, strictly before an end (0.10.0); the chart's footprint backfill — see [Historical ticks](#historical-ticks) |
 | `GetMarketDepthExchangesAsync` | `reqMktDepthExchanges` | The exchanges IB serves depth for (306 on the live account); not used by the app yet |
 | `GetWshMetaDataAsync` / `GetWshEventDataAsync` | `reqWshMetaData` / `reqWshEventData` | Wall Street Horizon corporate events as raw JSON (0.8.0); needs the WSH subscription, else 10276 — see [Wall Street Horizon](#wall-street-horizon-calendar) |
 
@@ -403,7 +404,22 @@ deduplicated by IB's execution id, so the same fill from either stays one:
   no permission, 354 not subscribed, 200 unknown contract; all end the stream with an
   `IbkrRequestException` carrying the code. Tick times are IB's, in whole seconds (many ticks
   share one). Any failure falls the chart back to quotes, then to 5-second bars, logged as
-  "tick-by-tick unavailable, using quotes".
+  "tick-by-tick unavailable, using quotes". A chart showing footprint bars takes two more
+  (`AllLast` for every trade, odd lots included like the historical trades, and `BidAsk` to tell
+  each trade's side; `IFootprintManager.SubscribeTradesAsync`, the quotes only once trades flow so
+  a last free one goes to the trades). Without the trades the chart says "not live" and newer bars
+  show as candles; without the quotes the sides go by the tick rule.
+- <a id="historical-ticks"></a>**Historical ticks (`reqHistoricalTicks`) answer at most 1000 a
+  request** (1001 → `10187` "Max length exceeded"; no permission → `10187` too, unknown contract
+  `200`). IB returns whole seconds, so a page of 1000 holds 1000–1100 ticks; the end is
+  exclusive, so paging back with the oldest tick's time as the next end neither repeats nor skips
+  one. Trades include odd lots (flagged unreported, like `AllLast`) but carry no bid / ask, so the
+  footprint backfill tells the aggressor by the tick rule. AAPL trades about 1000 times in 30 s
+  at 10:50 New York; eight pages back to back were answered in 0.2–0.3 s each with no pacing error
+  (recorded read-only on IB Gateway 4001, 2026-10-28, versions 178 and 187). IB doesn't say
+  clearly whether they count toward historical pacing, so `IbkrApiClient` holds them to the
+  small-bar window (`HistoricalPacing.WaitTicksAsync`, 60 per 10 minutes, shared with bars of 30 s
+  or less) and the chart sends at most `FootprintConstants.MaxBackfillRequests` (40) per load.
 - <a id="fundamentals-10358"></a>**Generic tick 258 (fundamental ratios) without the
   fundamentals entitlement rejects the whole `reqMktData`**: `10358 Fundamentals data is not
   allowed` comes back for the request id within milliseconds and no tick follows, not even
@@ -417,7 +433,8 @@ deduplicated by IB's execution id, so the same fill from either stays one:
 ## How LT.Ibkr applies the rules
 
 - `RequestThrottle` (sliding window) paces every request: 40 msg/s overall, and
-  `HistoricalPacing` holds historical requests for bars of 30 s or less to 60 per 10 minutes.
+  `HistoricalPacing` holds historical requests for bars of 30 s or less, and historical ticks, to
+  60 per 10 minutes.
   Requests wait instead of tripping IB's disconnect. Chart bars (1 min and up) are not held to
   the 60 / 10 min window: IB doesn't enforce it for them (75 distinct 15-min requests in 70 s,
   recorded read-only on IB Gateway 4001, 2026-10-26, all answered; IB slowed its answers to

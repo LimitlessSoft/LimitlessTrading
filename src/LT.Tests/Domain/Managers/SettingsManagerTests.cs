@@ -157,6 +157,42 @@ public class SettingsManagerTests
 		);
 
 	[Fact]
+	public void Footprint_imbalance_is_300_percent_by_default_and_round_trips()
+	{
+		var manager = new SettingsManager(_settings, _ibkr);
+		Assert.Equal(
+			FootprintConstants.DefaultImbalancePercent,
+			manager.GetAppSettings().ChartFootprintImbalancePercent
+		);
+
+		manager.SaveAppSettings(
+			new SaveAppSettingsRequest
+			{
+				MarketDataType = MarketDataType.Delayed,
+				HeartbeatSeconds = 10,
+				ChartFootprintImbalancePercent = 400,
+			}
+		);
+
+		Assert.Equal(400, manager.GetAppSettings().ChartFootprintImbalancePercent);
+	}
+
+	[Theory]
+	[InlineData(FootprintConstants.ImbalancePercentMin - 1)]
+	[InlineData(FootprintConstants.ImbalancePercentMax + 1)]
+	public void Footprint_imbalance_outside_the_limits_is_rejected(int percent) =>
+		Assert.Throws<LSCoreBadRequestException>(() =>
+			new SettingsManager(_settings, _ibkr).SaveAppSettings(
+				new SaveAppSettingsRequest
+				{
+					MarketDataType = MarketDataType.Delayed,
+					HeartbeatSeconds = 10,
+					ChartFootprintImbalancePercent = percent,
+				}
+			)
+		);
+
+	[Fact]
 	public void Unknown_chart_live_update_mode_is_rejected() =>
 		Assert.Throws<LSCoreBadRequestException>(() =>
 			new SettingsManager(_settings, _ibkr).SaveAppSettings(

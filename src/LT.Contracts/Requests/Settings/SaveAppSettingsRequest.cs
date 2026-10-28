@@ -23,6 +23,13 @@ public class SaveAppSettingsRequest
 	/// <summary>Used only with the throttled <see cref="ChartLiveUpdateMode"/>s.</summary>
 	public int ChartRedrawIntervalMs { get; set; } = ChartConstants.DefaultRedrawIntervalMs;
 
+	/// <summary>
+	/// Footprint bars: a cell is an imbalance once its volume is this percent of the diagonal
+	/// opposite cell (<see cref="Constants.FootprintConstants"/>).
+	/// </summary>
+	public int ChartFootprintImbalancePercent { get; set; } =
+		FootprintConstants.DefaultImbalancePercent;
+
 	/// <summary>Zone times are shown in; null = the system's local zone.</summary>
 	public string? DisplayTimeZoneId { get; set; }
 

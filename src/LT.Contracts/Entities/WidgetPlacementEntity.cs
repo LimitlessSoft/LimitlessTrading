@@ -63,6 +63,9 @@ public class WidgetPlacementEntity
 	/// <summary>Chart instances: the toolbox bar above the plot is shown (null: older layouts, shown).</summary>
 	public bool? ChartShowToolbox { get; set; }
 
+	/// <summary>Chart instances: how its bars are drawn (null: older layouts, candles).</summary>
+	public ChartBarStyle? ChartBarStyle { get; set; }
+
 	/// <summary>Chart instances: drawing mode is on (the tool palette at the plot's left; null: off).</summary>
 	public bool? ChartDrawingMode { get; set; }
 

@@ -41,6 +41,7 @@ public class SettingsManager(ISettingsRepository settingsRepository, IIbkrApiCli
 		settings.General.CacheMaxSizeMb = request.CacheMaxSizeMb;
 		settings.General.ChartLiveUpdateMode = request.ChartLiveUpdateMode;
 		settings.General.ChartRedrawIntervalMs = request.ChartRedrawIntervalMs;
+		settings.General.ChartFootprintImbalancePercent = request.ChartFootprintImbalancePercent;
 		settings.General.DisplayTimeZoneId = string.IsNullOrWhiteSpace(request.DisplayTimeZoneId)
 			? null
 			: request.DisplayTimeZoneId;

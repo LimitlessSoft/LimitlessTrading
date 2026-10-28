@@ -106,6 +106,7 @@ public partial class ChartViewModel
 
 	public ChartViewModel(
 		IChartManager chartManager,
+		IFootprintManager footprintManager,
 		IContractManager contractManager,
 		IConnectionManager connectionManager,
 		IMessageLogManager messageLogManager,
@@ -128,6 +129,7 @@ public partial class ChartViewModel
 		_status = new ZonedText(x => StatusText = x);
 		displayTime.ZoneChanged += _status.Rebuild;
 		_chartManager = chartManager;
+		_footprintManager = footprintManager;
 		_contractManager = contractManager;
 		_messageLogManager = messageLogManager;
 		_tradeJournalManager = tradeJournalManager;
@@ -154,6 +156,7 @@ public partial class ChartViewModel
 		chartDrawingManager.DrawingsChanged += OnDrawingsChangedElsewhere;
 		accountStore.PropertyChanged += OnAccountChanged;
 		settingsManager.AppSettingsChanged += OnAppSettingsChanged;
+		ApplyFootprintSettings(settingsManager.GetAppSettings().ChartFootprintImbalancePercent);
 		Link = new ContractLink(linkGroupStore, () => _contract);
 		Link.ContractReceived += OnContractReceived;
 		TickerEditor = new TickerTitleEditor(
@@ -263,6 +266,7 @@ public partial class ChartViewModel
 		DrawingsHidden = placement.ChartDrawingsHidden ?? false;
 		DrawingMagnet = placement.ChartDrawingMagnet ?? false;
 		KeepDrawingTool = placement.ChartKeepDrawingTool ?? false;
+		BarStyle = placement.ChartBarStyle ?? ChartBarStyle.Candles;
 		_indicators = [.. placement.ChartIndicators ?? []];
 		RefreshChartIndicators();
 		ScheduleIndicators();
@@ -288,6 +292,7 @@ public partial class ChartViewModel
 		placement.ChartDrawingsHidden = DrawingsHidden ? true : null;
 		placement.ChartDrawingMagnet = DrawingMagnet ? true : null;
 		placement.ChartKeepDrawingTool = KeepDrawingTool ? true : null;
+		placement.ChartBarStyle = BarStyle != ChartBarStyle.Candles ? BarStyle : null;
 	}
 
 	public override void Dispose()
@@ -307,6 +312,7 @@ public partial class ChartViewModel
 		DisplayTime.ZoneChanged -= _status.Rebuild;
 		DisplayTime.ZoneChanged -= OnZoneChanged;
 		Link.Dispose();
+		StopFootprint();
 		_load?.Cancel();
 		_load?.Dispose();
 		_load = null;
@@ -555,6 +561,7 @@ public partial class ChartViewModel
 		LoadDrawings();
 		RefreshTools();
 		UpdateBreakEven();
+		StopFootprint();
 		_load?.Cancel();
 		_load?.Dispose();
 		_load = new CancellationTokenSource();
@@ -656,6 +663,7 @@ public partial class ChartViewModel
 		{
 			if (_disposed)
 				return;
+			ApplyFootprintSettings(settings.ChartFootprintImbalancePercent);
 			if (
 				(
 					settings.ChartLiveUpdateMode == _liveMode
@@ -811,6 +819,7 @@ public partial class ChartViewModel
 			IsLoading = false;
 		}
 
+		_ = LoadFootprintAsync(request, cancellationToken);
 		if (!IsConnected)
 			return;
 		await StreamLiveAsync(request, contract, cancellationToken);
@@ -847,6 +856,7 @@ public partial class ChartViewModel
 					? $" · no bars since {DisplayTime.FormatDayTime(from)} ({period})"
 					: ""
 			)
+			+ GetFootprintStatus()
 		);
 	}
 
@@ -892,7 +902,9 @@ public partial class ChartViewModel
 			{
 				live.AddRealtimeBar(update);
 				var time = update.Time;
-				_status.Set(() => $"Live · {DisplayTime.Format(time)}{note.Text}");
+				_status.Set(() =>
+					$"Live · {DisplayTime.Format(time)}{note.Text}{GetFootprintStatus()}"
+				);
 			}
 		}
 		catch (OperationCanceledException) { }

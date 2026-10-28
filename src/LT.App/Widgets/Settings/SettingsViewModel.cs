@@ -173,6 +173,14 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		"chart redraw throttle interval milliseconds refresh"
 	);
 
+	private readonly NumberSettingViewModel _chartFootprintImbalance = new(
+		"Footprint imbalance (%)",
+		FootprintConstants.ImbalancePercentMin,
+		FootprintConstants.ImbalancePercentMax,
+		"Footprint bars: a cell is highlighted once its volume is at least this share of the cell diagonally opposite — the ask against the bid one price lower (blue, buyers), the bid against the ask one price higher (red, sellers). 300 % is the usual default. Open footprint charts redraw when this changes.",
+		"chart footprint imbalance ratio percent diagonal bid ask order flow"
+	);
+
 	public SettingsViewModel(
 		ISettingsManager settingsManager,
 		ICacheManager cacheManager,
@@ -233,6 +241,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		_cacheMaxSizeMb.Value = settings.CacheMaxSizeMb;
 		_chartLiveUpdates.Value = ChartLiveUpdateOption.Find(settings.ChartLiveUpdateMode);
 		_chartRedrawInterval.Value = settings.ChartRedrawIntervalMs;
+		_chartFootprintImbalance.Value = settings.ChartFootprintImbalancePercent;
 		UpdateChartRedrawInterval();
 		_chartLiveUpdates.PropertyChanged += (_, e) =>
 		{
@@ -252,7 +261,10 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 					new SettingsPageViewModel("Sounds", [new("Fills", _playFillSound)]),
 					new SettingsPageViewModel(
 						"Charts",
-						[new("Live updates", _chartLiveUpdates, _chartRedrawInterval)]
+						[
+							new("Live updates", _chartLiveUpdates, _chartRedrawInterval),
+							new("Footprint", _chartFootprintImbalance),
+						]
 					),
 				]
 			),
@@ -359,6 +371,9 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 					CacheMaxSizeMb = (int)(_cacheMaxSizeMb.Value ?? 0),
 					ChartLiveUpdateMode = SelectedChartLiveUpdateMode,
 					ChartRedrawIntervalMs = (int)(_chartRedrawInterval.Value ?? 0),
+					ChartFootprintImbalancePercent = (int)(
+						_chartFootprintImbalance.Value ?? FootprintConstants.DefaultImbalancePercent
+					),
 					DisplayTimeZoneId = (_displayTimeZone.Value as TimeZoneOption)?.Id,
 					PlayFillSound = _playFillSound.Value,
 					CalendarNasdaq = _calendarNasdaq.Value,

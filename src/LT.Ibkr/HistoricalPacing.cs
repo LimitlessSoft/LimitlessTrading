@@ -20,6 +20,14 @@ public sealed class HistoricalPacing(TimeProvider? timeProvider = null)
 	public Task WaitAsync(string barSize, CancellationToken cancellationToken = default) =>
 		IsSmallBarSize(barSize) ? _smallBars.WaitAsync(cancellationToken) : Task.CompletedTask;
 
+	/// <summary>
+	/// Waits while a historical ticks request would break the pacing: held to the same window as
+	/// small bars (IB's limits for ticks aren't documented clearly; 8 back to back were answered
+	/// without a pacing error, see docs/ibkr-tws-api.md).
+	/// </summary>
+	public Task WaitTicksAsync(CancellationToken cancellationToken = default) =>
+		_smallBars.WaitAsync(cancellationToken);
+
 	/// <summary>An IB barSizeSetting in seconds ("1 secs" … "30 secs"): the paced ones.</summary>
 	public static bool IsSmallBarSize(string barSize) =>
 		barSize.TrimEnd().EndsWith("secs", StringComparison.OrdinalIgnoreCase)
