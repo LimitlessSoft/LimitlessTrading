@@ -635,6 +635,15 @@ lookup starts on connect (and when the row is added; cached on disk, so normally
 result is posted to the row on the UI thread. The built-in columns can't be renamed or moved,
 only hidden.
 
+The **Avg Vol** column is IB's 90-day average daily volume: tick 21 from generic tick 165
+(`MarketDataConstants.AverageVolumeGenericTick`), in shares like the Vol column, shown with the
+same compact format (`FormatHelpers.Volume`) and sorted by `AverageVolumeValue`. Live rows ask
+for 165 only while the column is shown or sorted by (`WatchlistColumnHelpers.GetGenericTicks`):
+other generic ticks mean another line, so a watchlist line with 165 is not shared with a chart's
+or the order ticket's line of the same contract. Showing, hiding or sorting by it reopens the
+streaming rows' lines. Snapshots can't carry generic ticks, so a row keeps the last average it
+streamed; rows that never streamed (off screen since connecting) show "—" and sort last.
+
 **Only the rows on screen stream.** A watchlist holds up to 200 symbols and IB serves ~100 lines
 per account, so the view reports the rows it has on screen (`WatchlistView.ReportShownRows`: the
 grid's realized `DataGridRow`s inside its rows presenter, after every layout pass, coalesced;

@@ -75,6 +75,9 @@ public partial class WatchlistRowViewModel(ContractDto contract) : ViewModelBase
 	public partial string Volume { get; set; } = FormatHelpers.Empty;
 
 	[ObservableProperty]
+	public partial string AverageVolume { get; set; } = FormatHelpers.Empty;
+
+	[ObservableProperty]
 	public partial string MarketCap { get; set; } = FormatHelpers.Empty;
 
 	/// <summary>The column's sort key; null while unknown.</summary>
@@ -86,6 +89,12 @@ public partial class WatchlistRowViewModel(ContractDto contract) : ViewModelBase
 	public double? ChangePercentValue { get; private set; }
 	public double? BidValue { get; private set; }
 	public decimal? VolumeValue { get; private set; }
+
+	/// <summary>
+	/// The 90-day average daily volume; kept once known, as snapshots (no generic ticks) and
+	/// lines opened without the column don't carry it.
+	/// </summary>
+	public decimal? AverageVolumeValue { get; private set; }
 
 	/// <summary>Its place among the pinned rows (0 = pinned first); null when not pinned.</summary>
 	[ObservableProperty]
@@ -131,6 +140,11 @@ public partial class WatchlistRowViewModel(ContractDto contract) : ViewModelBase
 		Bid = FormatHelpers.Price(quote.Bid);
 		Ask = FormatHelpers.Price(quote.Ask);
 		Volume = FormatHelpers.Volume(quote.Volume);
+		if (quote.AverageVolume is { } averageVolume)
+		{
+			AverageVolumeValue = averageVolume;
+			AverageVolume = FormatHelpers.Volume(averageVolume);
+		}
 		IsUp = change > 0;
 		IsDown = change < 0;
 		IsDelayed = quote.IsDelayed;
@@ -149,6 +163,7 @@ public partial class WatchlistRowViewModel(ContractDto contract) : ViewModelBase
 			WatchlistSortColumn.ChangePercent => ChangePercentValue,
 			WatchlistSortColumn.Bid => BidValue,
 			WatchlistSortColumn.Volume => VolumeValue,
+			WatchlistSortColumn.AverageVolume => AverageVolumeValue,
 			WatchlistSortColumn.MarketCap => MarketCapValue,
 			_ => null,
 		};

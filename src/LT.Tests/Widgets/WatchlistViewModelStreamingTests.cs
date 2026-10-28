@@ -255,6 +255,45 @@ public class WatchlistViewModelStreamingTests : IDisposable
 		GC.SuppressFinalize(this);
 	}
 
+	[Fact]
+	public void Rows_stream_average_volume_and_reopen_without_it_when_its_column_is_hidden()
+	{
+		var widget = Create();
+		var live = MarketDataConstants.WatchlistInitialLiveRows;
+		WaitFor(() => _ibkr.MarketDataRequested.Count == live);
+		lock (_ibkr.MarketDataRequested)
+			Assert.All(
+				_ibkr.GenericTicksRequested,
+				x => Assert.Equal(MarketDataConstants.AverageVolumeGenericTick, x)
+			);
+
+		Ui(() => widget.SetColumnShown(WatchlistSortColumn.AverageVolume, null, false));
+
+		// Each live row asks again, without the generic tick, and the old lines are released
+		WaitFor(() =>
+			_ibkr.MarketDataRequested.Count == 2 * live
+			&& _marketData.ActiveLines == live
+			&& _ibkr.OpenMarketDataStreams == live
+		);
+		lock (_ibkr.MarketDataRequested)
+			Assert.All(_ibkr.GenericTicksRequested.Skip(live), x => Assert.Equal("", x));
+
+		// Sorted by it while hidden: asked for again
+		Ui(() =>
+			widget.SortBy(
+				WatchlistSortColumn.AverageVolume,
+				null,
+				System.ComponentModel.ListSortDirection.Descending
+			)
+		);
+		WaitFor(() => _ibkr.MarketDataRequested.Count == 3 * live);
+		lock (_ibkr.MarketDataRequested)
+			Assert.All(
+				_ibkr.GenericTicksRequested.Skip(2 * live),
+				x => Assert.Equal(MarketDataConstants.AverageVolumeGenericTick, x)
+			);
+	}
+
 	private static ContractDto Stock(int conId) =>
 		new()
 		{

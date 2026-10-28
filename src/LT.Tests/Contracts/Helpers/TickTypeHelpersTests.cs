@@ -29,6 +29,27 @@ public class TickTypeHelpersTests
 	}
 
 	[Fact]
+	public void Average_volume_is_kept_in_shares_and_non_positive_means_unknown()
+	{
+		var quote = new QuoteDto();
+
+		Assert.True(
+			TickTypeHelpers.Apply(
+				quote,
+				new MarketDataTickDto { Field = TickTypeHelpers.AverageVolume, Size = 43502835 }
+			)
+		);
+		Assert.Equal(43502835m, quote.AverageVolume);
+		Assert.False(quote.IsDelayed);
+
+		TickTypeHelpers.Apply(
+			quote,
+			new MarketDataTickDto { Field = TickTypeHelpers.AverageVolume, Size = 0 }
+		);
+		Assert.Null(quote.AverageVolume);
+	}
+
+	[Fact]
 	public void Minus_one_price_means_no_data()
 	{
 		var quote = new QuoteDto { Bid = 5 };

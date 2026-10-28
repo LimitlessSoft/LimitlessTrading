@@ -8,7 +8,8 @@ namespace LT.Contracts.Helpers;
 public static class MarketDataStreamHelpers
 {
 	/// <summary>
-	/// "Quote", "Quote + option IV" (generic tick 106), "Quote + ticks 233,…" or "News".
+	/// "Quote", "Quote + option IV" (generic tick 106), "Quote + avg volume" (165),
+	/// "Quote + ticks 233,…" or "News".
 	/// </summary>
 	public static string GetKindText(MarketDataStreamDto stream)
 	{
@@ -16,9 +17,12 @@ public static class MarketDataStreamHelpers
 			return "News";
 		if (string.IsNullOrWhiteSpace(stream.GenericTicks))
 			return "Quote";
-		return stream.GenericTicks.Trim() == MarketDataConstants.OptionImpliedVolatilityGenericTick
-			? "Quote + option IV"
-			: $"Quote + ticks {stream.GenericTicks.Trim()}";
+		return stream.GenericTicks.Trim() switch
+		{
+			MarketDataConstants.OptionImpliedVolatilityGenericTick => "Quote + option IV",
+			MarketDataConstants.AverageVolumeGenericTick => "Quote + avg volume",
+			var ticks => $"Quote + ticks {ticks}",
+		};
 	}
 
 	/// <summary>The contract as the rest of the app shows it, with its security type.</summary>

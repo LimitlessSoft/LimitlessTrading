@@ -95,6 +95,12 @@ public static class MarketDataConstants
 	public const string OptionImpliedVolatilityGenericTick = "106";
 
 	/// <summary>
+	/// Generic tick list for the 90-day average daily volume (tick 21, in shares like tick 8's
+	/// volume) on a quote line; the watchlist's Avg Vol column uses it.
+	/// </summary>
+	public const string AverageVolumeGenericTick = "165";
+
+	/// <summary>
 	/// Options are taken to expire at the US close (16:00 New York) of their expiry date when
 	/// working out the time left for the standard deviation bands.
 	/// </summary>
