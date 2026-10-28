@@ -72,6 +72,12 @@ public class WidgetPlacementDto
 	/// <summary>Chart instances: its drawings are hidden (null: shown).</summary>
 	public bool? ChartDrawingsHidden { get; set; }
 
+	/// <summary>Chart instances: the drawing magnet snaps points to bar OHLC (null: off).</summary>
+	public bool? ChartDrawingMagnet { get; set; }
+
+	/// <summary>Chart instances: a drawing tool stays armed after a drawing (null: back to the cursor).</summary>
+	public bool? ChartKeepDrawingTool { get; set; }
+
 	// News instances: what they show and which providers (keys "ibkr:BRFG"; null: all of them)
 	public NewsMode? NewsMode { get; set; }
 	public List<string>? NewsProviders { get; set; }

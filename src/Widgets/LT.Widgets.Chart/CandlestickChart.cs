@@ -239,7 +239,9 @@ public partial class CandlestickChart : Control
 			DrawingToolProperty,
 			SelectedDrawingIdProperty,
 			DrawingsLockedProperty,
-			DrawingsHiddenProperty
+			DrawingsHiddenProperty,
+			DrawingMagnetProperty,
+			NewDrawingStyleProperty
 		);
 		ClipToBoundsProperty.OverrideDefaultValue<CandlestickChart>(true);
 		FocusableProperty.OverrideDefaultValue<CandlestickChart>(true);

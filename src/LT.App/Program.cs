@@ -162,6 +162,8 @@ public static class Program
 		// App-wide UI state shared between widgets (the zStore of this app)
 		builder.Services.AddSingleton<AccountStore>();
 		builder.Services.AddSingleton<LinkGroupStore>();
+		// The drawing copied on one chart, pasted on any
+		builder.Services.AddSingleton<ChartDrawingClipboardStore>();
 		builder.Services.AddSingleton<AppearanceStore>();
 		builder.Services.AddSingleton<DisplayTimeStore>();
 		builder.Services.AddSingleton<PrivacyStore>();

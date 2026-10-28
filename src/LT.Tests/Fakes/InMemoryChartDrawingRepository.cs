@@ -6,13 +6,15 @@ namespace LT.Tests.Fakes;
 public class InMemoryChartDrawingRepository : IChartDrawingRepository
 {
 	public List<ChartDrawingEntity> Drawings { get; set; } = [];
+	public List<ChartDrawingToolStyleEntity> ToolStyles { get; set; } = [];
 	public int SaveCount { get; private set; }
 
-	public List<ChartDrawingEntity> Get() => Drawings;
+	public ChartDrawingFileEntity Get() => new() { Drawings = Drawings, ToolStyles = ToolStyles };
 
-	public void Save(IReadOnlyList<ChartDrawingEntity> drawings)
+	public void Save(ChartDrawingFileEntity file)
 	{
-		Drawings = [.. drawings];
+		Drawings = [.. file.Drawings];
+		ToolStyles = [.. file.ToolStyles];
 		SaveCount++;
 	}
 }

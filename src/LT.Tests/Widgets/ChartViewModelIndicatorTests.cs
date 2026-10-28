@@ -217,6 +217,7 @@ public class ChartViewModelIndicatorTests : IDisposable
 				_cache.Time
 			),
 			new ChartDrawingManager(new InMemoryChartDrawingRepository()),
+			new ChartDrawingClipboardStore(),
 			new AccountStore(_connection, settings),
 			new LinkGroupStore(),
 			new DisplayTimeStore(settings, _cache.Time),

@@ -39,7 +39,12 @@ namespace LT.App.Widgets.Chart;
 /// Drawings: the chart raises a finished drawing, a moved one and a double-clicked note; they
 /// reach the view model here. A note's text is typed in a box opened at the pointer (Enter or
 /// clicking away keeps it, Esc drops it). Esc first drops a drawing being placed or moved, then
-/// goes back to the cursor (or drops the selection); Delete removes the selected drawing.
+/// goes back to the cursor (or drops the selection); Delete removes the selected drawing. In
+/// drawing mode Ctrl+Z undoes, Ctrl+Y / Ctrl+Shift+Z redoes, Ctrl+C copies the selected drawing,
+/// Ctrl+V pastes the copied one and Ctrl+D duplicates the selected one (Cmd on macOS); a paste is
+/// moved down by the chart's <see cref="CandlestickChart.GetPasteOffsetPrice"/>. Right-clicking a
+/// drawing selects it and the menu offers copy, duplicate, lock, hide and delete; "Show hidden
+/// drawings" brings back the ones hidden one by one.
 /// </para>
 /// </summary>
 public partial class ChartView : UserControl
@@ -59,6 +64,10 @@ public partial class ChartView : UserControl
 		KeyDown += OnKeyDown;
 		ChartMenu.Opening += (_, _) => FillApplyTemplateMenu();
 		ChartMenu.Opening += (_, _) => FillAlertMenu();
+		ChartMenu.Opening += (_, _) => FillDrawingMenu();
+		DuplicateDrawingMenuItem.Click += (_, _) => DuplicateDrawing();
+		PasteDrawingMenuItem.Click += (_, _) => PasteDrawing();
+		DuplicateDrawingButton.Click += (_, _) => DuplicateDrawing();
 		AddAlertMenuItem.Click += (_, _) => ViewModel?.AddAlert(_menuAlertPrice);
 		RemoveAlertMenuItem.Click += (_, _) =>
 		{
@@ -182,10 +191,95 @@ public partial class ChartView : UserControl
 			e.Handled = true;
 			return;
 		}
+		if (OnDrawingShortcut(e))
+		{
+			e.Handled = true;
+			return;
+		}
 		if (e.Key != Key.A || e.KeyModifiers != KeyModifiers.Alt || ViewModel is not { } viewModel)
 			return;
 		e.Handled = true;
 		viewModel.AddAlert(Chart.PointerPrice ?? viewModel.LastPrice);
+	}
+
+	// Drawing mode, not while typing: undo / redo, copy / paste / duplicate. True when handled
+	private bool OnDrawingShortcut(KeyEventArgs e)
+	{
+		var ctrl =
+			e.KeyModifiers.HasFlag(KeyModifiers.Control)
+			|| e.KeyModifiers.HasFlag(KeyModifiers.Meta);
+		if (
+			!ctrl
+			|| e.KeyModifiers.HasFlag(KeyModifiers.Alt)
+			|| e.Source is TextBox
+			|| ViewModel is not { IsDrawingMode: true } viewModel
+		)
+			return false;
+		var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+		switch (e.Key)
+		{
+			case Key.Z when shift:
+			case Key.Y when !shift:
+				Chart.CancelDrawing();
+				viewModel.RedoDrawing();
+				return true;
+			case Key.Z:
+				Chart.CancelDrawing();
+				viewModel.UndoDrawing();
+				return true;
+			case Key.C when !shift && viewModel.SelectedDrawing != null:
+				viewModel.CopySelectedDrawing();
+				return true;
+			case Key.V when !shift && viewModel.CanPasteDrawing:
+				PasteDrawing();
+				return true;
+			case Key.D when !shift && viewModel.SelectedDrawing != null:
+				DuplicateDrawing();
+				return true;
+			default:
+				return false;
+		}
+	}
+
+	private void PasteDrawing()
+	{
+		Chart.CancelDrawing();
+		ViewModel?.PasteDrawing(Chart.GetPasteOffsetPrice());
+	}
+
+	private void DuplicateDrawing() =>
+		ViewModel?.DuplicateSelectedDrawing(Chart.GetPasteOffsetPrice());
+
+	// Right-click in drawing mode: the drawing under the pointer is selected and acted on; paste
+	// and the hidden drawings show when there are any
+	private void FillDrawingMenu()
+	{
+		var viewModel = ViewModel;
+		var drawing =
+			viewModel is { IsDrawingMode: true } && Chart.MenuPoint is { } point
+				? Chart.GetDrawingAt(point)
+				: null;
+		if (drawing != null)
+			viewModel!.SelectedDrawingId = drawing.Id;
+		var onDrawing = drawing != null;
+		CopyDrawingMenuItem.IsVisible = onDrawing;
+		DuplicateDrawingMenuItem.IsVisible = onDrawing;
+		LockDrawingMenuItem.IsVisible = onDrawing;
+		HideDrawingMenuItem.IsVisible = onDrawing;
+		DeleteDrawingMenuItem.IsVisible = onDrawing;
+		if (drawing != null)
+		{
+			LockDrawingMenuItem.Header = drawing.IsLocked ? "Unlock drawing" : "Lock drawing";
+			DeleteDrawingMenuItem.IsEnabled = !drawing.IsLocked;
+		}
+		PasteDrawingMenuItem.IsVisible =
+			viewModel is { IsDrawingMode: true, CanPasteDrawing: true };
+		ShowHiddenDrawingsMenuItem.IsVisible = viewModel?.HasHiddenDrawings == true;
+		if (viewModel?.HiddenDrawingCount is > 0 and var hidden)
+			ShowHiddenDrawingsMenuItem.Header =
+				$"Show {hidden} hidden drawing{(hidden == 1 ? "" : "s")}";
+		DrawingMenuSeparator.IsVisible =
+			onDrawing || PasteDrawingMenuItem.IsVisible || ShowHiddenDrawingsMenuItem.IsVisible;
 	}
 
 	// A note asks for its text first; every other drawing is added as drawn

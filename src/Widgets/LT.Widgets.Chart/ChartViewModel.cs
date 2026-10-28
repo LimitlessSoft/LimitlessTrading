@@ -116,6 +116,7 @@ public partial class ChartViewModel
 		IChartTemplateManager chartTemplateManager,
 		IPriceAlertManager priceAlertManager,
 		IChartDrawingManager chartDrawingManager,
+		ChartDrawingClipboardStore drawingClipboard,
 		AccountStore accountStore,
 		LinkGroupStore linkGroupStore,
 		DisplayTimeStore displayTime,
@@ -135,6 +136,7 @@ public partial class ChartViewModel
 		_chartTemplateManager = chartTemplateManager;
 		_priceAlertManager = priceAlertManager;
 		_chartDrawingManager = chartDrawingManager;
+		_drawingClipboard = drawingClipboard;
 		_settingsManager = settingsManager;
 		_timeProvider = timeProvider;
 		_accountStore = accountStore;
@@ -259,6 +261,8 @@ public partial class ChartViewModel
 		IsDrawingMode = placement.ChartDrawingMode ?? false;
 		DrawingsLocked = placement.ChartDrawingsLocked ?? false;
 		DrawingsHidden = placement.ChartDrawingsHidden ?? false;
+		DrawingMagnet = placement.ChartDrawingMagnet ?? false;
+		KeepDrawingTool = placement.ChartKeepDrawingTool ?? false;
 		_indicators = [.. placement.ChartIndicators ?? []];
 		RefreshChartIndicators();
 		ScheduleIndicators();
@@ -282,6 +286,8 @@ public partial class ChartViewModel
 		placement.ChartDrawingMode = IsDrawingMode ? true : null;
 		placement.ChartDrawingsLocked = DrawingsLocked ? true : null;
 		placement.ChartDrawingsHidden = DrawingsHidden ? true : null;
+		placement.ChartDrawingMagnet = DrawingMagnet ? true : null;
+		placement.ChartKeepDrawingTool = KeepDrawingTool ? true : null;
 	}
 
 	public override void Dispose()

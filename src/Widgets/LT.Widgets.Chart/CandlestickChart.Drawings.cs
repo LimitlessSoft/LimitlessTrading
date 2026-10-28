@@ -23,7 +23,13 @@ namespace LT.App.Widgets.Chart;
 /// dragging moves it or one of its anchors (<see cref="DrawingEdited"/> on release), and a
 /// double-click on a note asks to edit it (<see cref="DrawingTextEditRequested"/>); a click
 /// elsewhere drops the selection and pans as usual. Locked drawings can't be selected or moved;
-/// hidden ones are neither drawn nor hit. Every point but a stroke's sits on a bar's centre.
+/// hidden ones are neither drawn nor hit. Every point but a stroke's sits on a bar's centre, and
+/// with the magnet (<see cref="DrawingMagnet"/>) on the nearest OHLC of that bar too.
+/// </para>
+/// <para>
+/// Each drawing is drawn in its own style (colour, line style, width) and a Fibonacci one with its
+/// own levels. One locked by itself can be selected (to restyle or unlock it) but not moved; one
+/// hidden by itself is neither drawn nor hit.
 /// </para>
 /// </summary>
 public partial class CandlestickChart
@@ -57,44 +63,36 @@ public partial class CandlestickChart
 		bool
 	>(nameof(DrawingsHidden));
 
+	public static readonly StyledProperty<bool> DrawingMagnetProperty = AvaloniaProperty.Register<
+		CandlestickChart,
+		bool
+	>(nameof(DrawingMagnet));
+
+	public static readonly StyledProperty<ChartDrawingStyleDto?> NewDrawingStyleProperty =
+		AvaloniaProperty.Register<CandlestickChart, ChartDrawingStyleDto?>(nameof(NewDrawingStyle));
+
 	private const double AnchorRadius = 4;
 	private const double ArrowHeadSize = 10;
 	private const double TextMaxWidth = 320;
 
-	private static readonly ImmutableSolidColorBrush DrawingBrush = new(Color.Parse("#2962FF"));
-	private static readonly ImmutableSolidColorBrush DrawingFillBrush = new(
-		Color.Parse("#262962FF")
-	);
-	private static readonly ImmutableSolidColorBrush DrawingTextBrush = new(Color.Parse("#E6E8EB"));
 	private static readonly ImmutableSolidColorBrush MeasureUpFill = new(Color.Parse("#3326A69A"));
 	private static readonly ImmutableSolidColorBrush MeasureDownFill = new(
 		Color.Parse("#33EF5350")
 	);
-	private static readonly IPen DrawingPen = new ImmutablePen(DrawingBrush, 1.5);
-	private static readonly IPen DrawingGuidePen = new ImmutablePen(
-		DrawingBrush,
-		1,
-		new ImmutableDashStyle([4, 3], 0)
-	);
-	private static readonly IPen AnchorPen = new ImmutablePen(DrawingBrush, 1.5);
-	private static readonly IPen TextOutlinePen = new ImmutablePen(
-		DrawingBrush,
-		1,
-		new ImmutableDashStyle([2, 2], 0)
-	);
 
-	// Fib levels' colours, by level index (TradingView-like)
-	private static readonly ImmutableSolidColorBrush[] FibBrushes =
-	[
-		new(Color.Parse("#787B86")),
-		new(Color.Parse("#F23645")),
-		new(Color.Parse("#FF9800")),
-		new(Color.Parse("#4CAF50")),
-		new(Color.Parse("#089981")),
-		new(Color.Parse("#00BCD4")),
-		new(Color.Parse("#787B86")),
-		new(Color.Parse("#2962FF")),
-	];
+	// A drawing's brushes and pens, by style (few distinct ones, so kept)
+	private readonly Dictionary<(string, ChartDrawingLineStyle, double), DrawingPaint> _paints = [];
+
+	private sealed record DrawingPaint(
+		ImmutableSolidColorBrush Brush,
+		ImmutableSolidColorBrush Fill,
+		IPen Pen,
+		IPen Guide,
+		IPen Anchor,
+		IPen TextOutline,
+		double Width,
+		ImmutableDashStyle? Dash
+	);
 
 	private static readonly Cursor MoveCursor = new(StandardCursorType.SizeAll);
 
@@ -117,7 +115,8 @@ public partial class CandlestickChart
 	private sealed record DrawnDrawing(
 		ChartDrawingDto Drawing,
 		(double X, double Y)[] Points,
-		Rect? TextBox
+		Rect? TextBox,
+		DrawingPaint Paint
 	);
 
 	private sealed class DrawingEdit
@@ -171,6 +170,39 @@ public partial class CandlestickChart
 		get => GetValue(DrawingsHiddenProperty);
 		set => SetValue(DrawingsHiddenProperty, value);
 	}
+
+	/// <summary>Placed and dragged points snap to the nearest open, high, low or close of their bar.</summary>
+	public bool DrawingMagnet
+	{
+		get => GetValue(DrawingMagnetProperty);
+		set => SetValue(DrawingMagnetProperty, value);
+	}
+
+	/// <summary>The style the armed tool's drawing gets (its preview is drawn in it).</summary>
+	public ChartDrawingStyleDto? NewDrawingStyle
+	{
+		get => GetValue(NewDrawingStyleProperty);
+		set => SetValue(NewDrawingStyleProperty, value);
+	}
+
+	/// <summary>
+	/// The drawing under a point (the chart's menu acts on it): in drawing mode, drawings shown
+	/// and not locked all together; null elsewhere.
+	/// </summary>
+	public ChartDrawingDto? GetDrawingAt(Point position) =>
+		IsDrawingMode && !DrawingsHidden && !DrawingsLocked && CanMapDrawings
+			? HitDrawing(position)?.Drawn.Drawing
+			: null;
+
+	/// <summary>
+	/// The price a pasted drawing is moved by: <see cref="ChartDrawingConstants.PasteOffsetDips"/>
+	/// down the price chart at its current scale (negative); 0 before it is drawn.
+	/// </summary>
+	public double GetPasteOffsetPrice() =>
+		_pricePane is { } pane
+			? pane.Value(pane.Rect.Top + ChartDrawingConstants.PasteOffsetDips)
+				- pane.Value(pane.Rect.Top)
+			: 0;
 
 	/// <summary>A drawing was finished: its kind and points.</summary>
 	public event Action<ChartDrawingKind, IReadOnlyList<ChartDrawingPointDto>>? DrawingCreated;
@@ -252,19 +284,65 @@ public partial class CandlestickChart
 		ChartViewportHelpers.GetPositionAt(x, _rightEdge, _plot.Right, _barSpacing);
 
 	// The chart point under a screen point, its y kept on the price chart; on a bar's centre
-	// when the kind snaps
+	// when the kind snaps, and on that bar's nearest OHLC too with the magnet on
 	private ChartDrawingPointDto ToChartPoint(Point position, bool snap)
 	{
 		var pane = _pricePane!.Value;
 		var barPosition = GetPositionAt(position.X);
 		if (snap)
 			barPosition = Math.Floor(barPosition + 0.5);
+		var price = pane.Value(Math.Clamp(position.Y, pane.Rect.Top, pane.Rect.Bottom));
+		if (snap && DrawingMagnet)
+			price = ChartDrawingHelpers.GetMagnetPrice(Bars!, barPosition, price);
 		return new ChartDrawingPointDto
 		{
 			Time = ChartDrawingHelpers.GetTimeAt(Bars!, barPosition, BarLength),
-			Price = pane.Value(Math.Clamp(position.Y, pane.Rect.Top, pane.Rect.Bottom)),
+			Price = price,
 		};
 	}
+
+	// The brushes and pens of a style (the built-in blue when it has none or can't be read)
+	private DrawingPaint GetPaint(ChartDrawingStyleDto? style)
+	{
+		style ??= ChartDrawingHelpers.GetBuiltInStyle(ChartDrawingKind.TrendLine);
+		var key = (style.Color, style.LineStyle, style.LineWidth);
+		if (_paints.TryGetValue(key, out var paint))
+			return paint;
+		var color = Color.TryParse(style.Color, out var parsed)
+			? parsed
+			: Color.Parse(ChartDrawingConstants.DefaultColor);
+		var width = Math.Clamp(
+			double.IsFinite(style.LineWidth)
+				? style.LineWidth
+				: ChartDrawingConstants.DefaultLineWidth,
+			ChartDrawingConstants.MinLineWidth,
+			ChartDrawingConstants.MaxLineWidth
+		);
+		var dash = ChartDrawingLineOption.GetDashes(style.LineStyle) is { } dashes
+			? new ImmutableDashStyle(dashes, 0)
+			: null;
+		var brush = new ImmutableSolidColorBrush(color);
+		paint = new DrawingPaint(
+			brush,
+			new ImmutableSolidColorBrush(color, 0.15),
+			new ImmutablePen(brush, width, dash),
+			new ImmutablePen(brush, 1, new ImmutableDashStyle([4, 3], 0)),
+			new ImmutablePen(brush, 1.5),
+			new ImmutablePen(brush, 1, new ImmutableDashStyle([2, 2], 0)),
+			width,
+			dash
+		);
+		// Styles come from the drawings; a long session restyling many stays bounded
+		if (_paints.Count > 64)
+			_paints.Clear();
+		_paints[key] = paint;
+		return paint;
+	}
+
+	// The levels a Fibonacci drawing draws and is hit on, in order
+	private static List<ChartDrawingFibLevelDto> VisibleLevels(
+		IReadOnlyList<ChartDrawingFibLevelDto> levels
+	) => [.. levels.Where(x => x.IsVisible).OrderBy(x => x.Value)];
 
 	private bool IsOnPriceChart(Point position) =>
 		_pricePane is { } pane
@@ -282,10 +360,13 @@ public partial class CandlestickChart
 		if (!DrawingsHidden)
 			foreach (var drawing in Drawings ?? [])
 			{
+				if (drawing.IsHidden)
+					continue;
 				var points = _edit?.Drawing.Id == drawing.Id ? _edit.Current : drawing.Points;
 				if (!ChartDrawingHelpers.HasValidPointCount(drawing.Kind, points.Count))
 					continue;
 				var screen = points.Select(ToScreen).ToArray();
+				var paint = GetPaint(drawing.Style);
 				var box = DrawDrawing(
 					context,
 					plot,
@@ -293,9 +374,11 @@ public partial class CandlestickChart
 					points,
 					screen,
 					drawing.Text,
-					decimals
+					decimals,
+					paint,
+					drawing.FibLevels
 				);
-				_drawn.Add(new DrawnDrawing(drawing, screen, box));
+				_drawn.Add(new DrawnDrawing(drawing, screen, box, paint));
 			}
 
 		DrawNewDrawing(context, plot, decimals);
@@ -307,8 +390,9 @@ public partial class CandlestickChart
 			&& _drawn.FirstOrDefault(x => x.Drawing.Id == id) is { } selected
 		)
 		{
+			var paint = selected.Paint;
 			if (selected.TextBox is { } textBox)
-				context.DrawRectangle(null, TextOutlinePen, textBox.Inflate(2));
+				context.DrawRectangle(null, paint.TextOutline, textBox.Inflate(2));
 			foreach (
 				var index in ChartDrawingHelpers.GetEditableAnchors(
 					selected.Drawing.Kind,
@@ -317,9 +401,10 @@ public partial class CandlestickChart
 			)
 			{
 				var (x, y) = selected.Points[index];
+				// A locked one's anchors are filled: they don't drag
 				context.DrawEllipse(
-					Background,
-					AnchorPen,
+					selected.Drawing.IsLocked ? paint.Brush : Background,
+					paint.Anchor,
 					new Point(x, y),
 					AnchorRadius,
 					AnchorRadius
@@ -335,7 +420,7 @@ public partial class CandlestickChart
 			return;
 		if (_stroke is { Count: > 1 } stroke)
 		{
-			DrawStroke(context, stroke);
+			DrawStroke(context, stroke, GetPaint(NewDrawingStyle));
 			return;
 		}
 		if (_newPoints.Count == 0 || _pointer is not { } pointer)
@@ -345,9 +430,26 @@ public partial class CandlestickChart
 			ToChartPoint(pointer, ChartDrawingHelpers.SnapsToBars(kind)),
 		};
 		var screen = points.Select(ToScreen).ToArray();
-		DrawDrawing(context, plot, kind, points, screen, null, decimals);
+		var paint = GetPaint(NewDrawingStyle ?? ChartDrawingHelpers.GetBuiltInStyle(kind));
+		DrawDrawing(
+			context,
+			plot,
+			kind,
+			points,
+			screen,
+			null,
+			decimals,
+			paint,
+			ChartDrawingHelpers.GetDefaultFibLevels(kind)
+		);
 		foreach (var (x, y) in screen)
-			context.DrawEllipse(Background, AnchorPen, new Point(x, y), AnchorRadius, AnchorRadius);
+			context.DrawEllipse(
+				Background,
+				paint.Anchor,
+				new Point(x, y),
+				AnchorRadius,
+				AnchorRadius
+			);
 	}
 
 	// One drawing (also a preview with fewer points than it takes); a note's box when it is one
@@ -358,7 +460,9 @@ public partial class CandlestickChart
 		IReadOnlyList<ChartDrawingPointDto> points,
 		(double X, double Y)[] screen,
 		string? text,
-		int decimals
+		int decimals,
+		DrawingPaint paint,
+		IReadOnlyList<ChartDrawingFibLevelDto> fibLevels
 	)
 	{
 		var priceRect = _pricePane!.Value.Rect;
@@ -371,7 +475,7 @@ public partial class CandlestickChart
 			var x = Math.Round(a.X) + 0.5;
 			if (x < plot.Left || x > plot.Right)
 				return null;
-			context.DrawLine(DrawingPen, new Point(x, plot.Top), new Point(x, plot.Bottom));
+			context.DrawLine(paint.Pen, new Point(x, plot.Top), new Point(x, plot.Bottom));
 			var label = Text(FormatTime(ToShown(points[0].Time), null), 11, Background);
 			var tag = new Rect(
 				x - label.Width / 2 - 4,
@@ -379,14 +483,14 @@ public partial class CandlestickChart
 				label.Width + 8,
 				label.Height + 2
 			);
-			context.DrawRectangle(DrawingBrush, null, tag);
+			context.DrawRectangle(paint.Brush, null, tag);
 			context.DrawText(label, new Point(tag.X + 4, tag.Y + 1));
 			return null;
 		}
 
 		// A horizontal line's price on the axis, outside the plot's clip
 		if (kind is ChartDrawingKind.HorizontalLine or ChartDrawingKind.HorizontalRay)
-			DrawDrawingPrice(context, priceRect, a.Y, points[0].Price, decimals);
+			DrawDrawingPrice(context, priceRect, a.Y, points[0].Price, decimals, paint.Brush);
 
 		using (context.PushClip(priceRect))
 		{
@@ -397,19 +501,19 @@ public partial class CandlestickChart
 				{
 					var y = Math.Round(a.Y) + 0.5;
 					var from = kind == ChartDrawingKind.HorizontalLine ? priceRect.Left : a.X;
-					context.DrawLine(DrawingPen, new Point(from, y), new Point(priceRect.Right, y));
+					context.DrawLine(paint.Pen, new Point(from, y), new Point(priceRect.Right, y));
 					break;
 				}
 				case ChartDrawingKind.Text:
 				{
-					var label = Text(text ?? "", 13, DrawingTextBrush);
+					var label = Text(text ?? "", 13, paint.Brush);
 					label.MaxTextWidth = TextMaxWidth;
 					var origin = new Point(a.X, a.Y - label.Height / 2);
 					context.DrawText(label, origin);
 					return new Rect(origin, new Size(Math.Max(8, label.Width), label.Height));
 				}
 				case ChartDrawingKind.Brush:
-					DrawStroke(context, screen);
+					DrawStroke(context, screen, paint);
 					break;
 			}
 			if (screen.Length < 2)
@@ -423,21 +527,26 @@ public partial class CandlestickChart
 				case ChartDrawingKind.Arrow:
 				{
 					if (ChartDrawingHelpers.GetLine(kind, a, b, bounds) is { } line)
-						context.DrawLine(DrawingPen, P(line.Start), P(line.End));
+						context.DrawLine(paint.Pen, P(line.Start), P(line.End));
 					if (kind == ChartDrawingKind.Arrow)
 					{
-						var (left, right) = ChartDrawingHelpers.GetArrowHead(a, b, ArrowHeadSize);
-						DrawPolygon(context, DrawingBrush, DrawingPen, [b, left, right]);
+						// The head solid whatever the line's dashes
+						var (left, right) = ChartDrawingHelpers.GetArrowHead(
+							a,
+							b,
+							ArrowHeadSize + paint.Width
+						);
+						DrawPolygon(context, paint.Brush, paint.Anchor, [b, left, right]);
 					}
 					break;
 				}
 				case ChartDrawingKind.Rectangle:
-					context.DrawRectangle(DrawingFillBrush, DrawingPen, Box(a, b));
+					context.DrawRectangle(paint.Fill, paint.Pen, Box(a, b));
 					break;
 				case ChartDrawingKind.Ellipse:
 					context.DrawEllipse(
-						DrawingFillBrush,
-						DrawingPen,
+						paint.Fill,
+						paint.Pen,
 						new Point((a.X + b.X) / 2, (a.Y + b.Y) / 2),
 						Math.Abs(b.X - a.X) / 2,
 						Math.Abs(b.Y - a.Y) / 2
@@ -446,31 +555,31 @@ public partial class CandlestickChart
 				case ChartDrawingKind.ParallelChannel:
 					if (screen.Length < 3)
 					{
-						context.DrawLine(DrawingPen, P(a), P(b));
+						context.DrawLine(paint.Pen, P(a), P(b));
 						break;
 					}
-					DrawChannel(context, a, b, screen[2]);
+					DrawChannel(context, a, b, screen[2], paint);
 					break;
 				case ChartDrawingKind.Triangle:
 					if (screen.Length < 3)
-						context.DrawLine(DrawingPen, P(a), P(b));
+						context.DrawLine(paint.Pen, P(a), P(b));
 					else
-						DrawPolygon(context, DrawingFillBrush, DrawingPen, [a, b, screen[2]]);
+						DrawPolygon(context, paint.Fill, paint.Pen, [a, b, screen[2]]);
 					break;
 				case ChartDrawingKind.FibRetracement:
-					DrawFibRetracement(context, points, a, b);
+					DrawFibRetracement(context, points, a, b, paint, fibLevels);
 					break;
 				case ChartDrawingKind.FibExtension:
 					if (screen.Length < 3)
-						context.DrawLine(DrawingGuidePen, P(a), P(b));
+						context.DrawLine(paint.Guide, P(a), P(b));
 					else
-						DrawFibExtension(context, points, a, b, screen[2]);
+						DrawFibExtension(context, points, a, b, screen[2], paint, fibLevels);
 					break;
 				case ChartDrawingKind.PriceRange:
-					DrawPriceRange(context, points, a, b, decimals);
+					DrawPriceRange(context, points, a, b, decimals, paint);
 					break;
 				case ChartDrawingKind.DateRange:
-					DrawDateRange(context, points, a, b);
+					DrawDateRange(context, points, a, b, paint);
 					break;
 			}
 		}
@@ -483,7 +592,8 @@ public partial class CandlestickChart
 		Rect priceRect,
 		double y,
 		double price,
-		int decimals
+		int decimals,
+		IBrush brush
 	)
 	{
 		y = Math.Round(y) + 0.5;
@@ -495,7 +605,7 @@ public partial class CandlestickChart
 			LabelBrush
 		);
 		context.DrawRectangle(
-			DrawingBrush,
+			brush,
 			null,
 			new Rect(priceRect.Right, y - value.Height / 2 - 2, _priceAxisWidth, value.Height + 4)
 		);
@@ -526,7 +636,8 @@ public partial class CandlestickChart
 
 	private static void DrawStroke(
 		DrawingContext context,
-		IReadOnlyList<(double X, double Y)> points
+		IReadOnlyList<(double X, double Y)> points,
+		DrawingPaint paint
 	)
 	{
 		if (points.Count < 2)
@@ -539,25 +650,26 @@ public partial class CandlestickChart
 				g.LineTo(new Point(points[i].X, points[i].Y));
 			g.EndFigure(false);
 		}
-		context.DrawGeometry(null, DrawingPen, geometry);
+		context.DrawGeometry(null, paint.Pen, geometry);
 	}
 
 	private static void DrawChannel(
 		DrawingContext context,
 		(double X, double Y) a,
 		(double X, double Y) b,
-		(double X, double Y) c
+		(double X, double Y) c,
+		DrawingPaint paint
 	)
 	{
 		var offset = ChartDrawingHelpers.GetChannelOffset(a, b, c);
 		(double X, double Y) a2 = (a.X, a.Y + offset);
 		(double X, double Y) b2 = (b.X, b.Y + offset);
 		// Filled between its two lines; no edges at the ends
-		DrawPolygon(context, DrawingFillBrush, null, [a, b, b2, a2]);
-		context.DrawLine(DrawingPen, new Point(a.X, a.Y), new Point(b.X, b.Y));
-		context.DrawLine(DrawingPen, new Point(a2.X, a2.Y), new Point(b2.X, b2.Y));
+		DrawPolygon(context, paint.Fill, null, [a, b, b2, a2]);
+		context.DrawLine(paint.Pen, new Point(a.X, a.Y), new Point(b.X, b.Y));
+		context.DrawLine(paint.Pen, new Point(a2.X, a2.Y), new Point(b2.X, b2.Y));
 		context.DrawLine(
-			DrawingGuidePen,
+			paint.Guide,
 			new Point(a.X, a.Y + offset / 2),
 			new Point(b.X, b.Y + offset / 2)
 		);
@@ -567,15 +679,17 @@ public partial class CandlestickChart
 		DrawingContext context,
 		IReadOnlyList<ChartDrawingPointDto> points,
 		(double X, double Y) a,
-		(double X, double Y) b
+		(double X, double Y) b,
+		DrawingPaint paint,
+		IReadOnlyList<ChartDrawingFibLevelDto> levels
 	)
 	{
 		var left = Math.Min(a.X, b.X);
 		var right = Math.Max(a.X, b.X);
-		context.DrawLine(DrawingGuidePen, new Point(a.X, a.Y), new Point(b.X, b.Y));
-		var levels = ChartDrawingConstants.FibRetracementLevels;
+		context.DrawLine(paint.Guide, new Point(a.X, a.Y), new Point(b.X, b.Y));
 		DrawFibLevels(
 			context,
+			paint,
 			levels,
 			level => ChartDrawingHelpers.GetFibRetracementPrice(a.Y, b.Y, level),
 			level =>
@@ -590,15 +704,18 @@ public partial class CandlestickChart
 		IReadOnlyList<ChartDrawingPointDto> points,
 		(double X, double Y) a,
 		(double X, double Y) b,
-		(double X, double Y) c
+		(double X, double Y) c,
+		DrawingPaint paint,
+		IReadOnlyList<ChartDrawingFibLevelDto> levels
 	)
 	{
-		context.DrawLine(DrawingGuidePen, new Point(a.X, a.Y), new Point(b.X, b.Y));
-		context.DrawLine(DrawingGuidePen, new Point(b.X, b.Y), new Point(c.X, c.Y));
+		context.DrawLine(paint.Guide, new Point(a.X, a.Y), new Point(b.X, b.Y));
+		context.DrawLine(paint.Guide, new Point(b.X, b.Y), new Point(c.X, c.Y));
 		var (left, right) = ChartDrawingHelpers.GetFibExtensionSpan(a, b, c);
 		DrawFibLevels(
 			context,
-			ChartDrawingConstants.FibExtensionLevels,
+			paint,
+			levels,
 			level => ChartDrawingHelpers.GetFibExtensionPrice(a.Y, b.Y, c.Y, level),
 			level =>
 				ChartDrawingHelpers.GetFibExtensionPrice(
@@ -612,23 +729,30 @@ public partial class CandlestickChart
 		);
 	}
 
-	// Each level's line, a faint band to the next, and its label ("0.618 (123.45)") at the left
+	// Each shown level's line (in its colour, else the drawing's), a faint band to the next, and
+	// its label ("0.618 (123.45)") at the left
 	private void DrawFibLevels(
 		DrawingContext context,
-		IReadOnlyList<double> levels,
+		DrawingPaint paint,
+		IReadOnlyList<ChartDrawingFibLevelDto> all,
 		Func<double, double> y,
 		Func<double, double> price,
 		double left,
 		double right
 	)
 	{
+		var levels = VisibleLevels(all);
 		for (var i = 0; i < levels.Count; i++)
 		{
-			var brush = FibBrushes[i % FibBrushes.Length];
-			var levelY = y(levels[i]);
+			var brush =
+				levels[i].Color is { } hex && Color.TryParse(hex, out var color)
+					? new ImmutableSolidColorBrush(color)
+					: paint.Brush;
+			var value = levels[i].Value;
+			var levelY = y(value);
 			if (i + 1 < levels.Count)
 			{
-				var nextY = y(levels[i + 1]);
+				var nextY = y(levels[i + 1].Value);
 				context.DrawRectangle(
 					new ImmutableSolidColorBrush(brush.Color, 0.08),
 					null,
@@ -637,12 +761,12 @@ public partial class CandlestickChart
 			}
 			var lineY = Math.Round(levelY) + 0.5;
 			context.DrawLine(
-				new ImmutablePen(brush, 1),
+				new ImmutablePen(brush, paint.Width, paint.Dash),
 				new Point(left, lineY),
 				new Point(right, lineY)
 			);
 			var label = Text(
-				$"{levels[i].ToString("0.###", CultureInfo.CurrentCulture)} ({price(levels[i]).ToString("N" + _priceDecimals, CultureInfo.CurrentCulture)})",
+				$"{value.ToString("0.###", CultureInfo.CurrentCulture)} ({price(value).ToString("N" + _priceDecimals, CultureInfo.CurrentCulture)})",
 				10,
 				brush
 			);
@@ -659,13 +783,14 @@ public partial class CandlestickChart
 		IReadOnlyList<ChartDrawingPointDto> points,
 		(double X, double Y) a,
 		(double X, double Y) b,
-		int decimals
+		int decimals,
+		DrawingPaint paint
 	)
 	{
 		var up = points[1].Price >= points[0].Price;
 		context.DrawRectangle(up ? MeasureUpFill : MeasureDownFill, null, Box(a, b));
 		var midX = (a.X + b.X) / 2;
-		var pen = new ImmutablePen(up ? UpBrush : DownBrush, 1.5);
+		var pen = new ImmutablePen(up ? UpBrush : DownBrush, paint.Width, paint.Dash);
 		context.DrawLine(pen, new Point(midX, a.Y), new Point(midX, b.Y));
 		var (left, right) = ChartDrawingHelpers.GetArrowHead((midX, a.Y), (midX, b.Y), 8);
 		context.DrawLine(pen, new Point(midX, b.Y), new Point(left.X, left.Y));
@@ -684,15 +809,16 @@ public partial class CandlestickChart
 		DrawingContext context,
 		IReadOnlyList<ChartDrawingPointDto> points,
 		(double X, double Y) a,
-		(double X, double Y) b
+		(double X, double Y) b,
+		DrawingPaint paint
 	)
 	{
-		context.DrawRectangle(DrawingFillBrush, null, Box(a, b));
+		context.DrawRectangle(paint.Fill, null, Box(a, b));
 		var midY = (a.Y + b.Y) / 2;
-		context.DrawLine(DrawingPen, new Point(a.X, midY), new Point(b.X, midY));
+		context.DrawLine(paint.Pen, new Point(a.X, midY), new Point(b.X, midY));
 		var (left, right) = ChartDrawingHelpers.GetArrowHead((a.X, midY), (b.X, midY), 8);
-		context.DrawLine(DrawingPen, new Point(b.X, midY), new Point(left.X, left.Y));
-		context.DrawLine(DrawingPen, new Point(b.X, midY), new Point(right.X, right.Y));
+		context.DrawLine(paint.Anchor, new Point(b.X, midY), new Point(left.X, left.Y));
+		context.DrawLine(paint.Anchor, new Point(b.X, midY), new Point(right.X, right.Y));
 		DrawMeasureLabel(
 			context,
 			ChartDrawingHelpers.GetDateRangeLabel(
@@ -704,7 +830,7 @@ public partial class CandlestickChart
 			(a.X + b.X) / 2,
 			Math.Max(a.Y, b.Y),
 			false,
-			DrawingBrush
+			paint.Brush
 		);
 	}
 
@@ -783,6 +909,12 @@ public partial class CandlestickChart
 		}
 		var (drawn, anchor) = hit;
 		SelectedDrawingId = drawn.Drawing.Id;
+		// Locked by itself: selected (to restyle or unlock it), never moved or edited
+		if (drawn.Drawing.IsLocked)
+		{
+			InvalidateVisual();
+			return true;
+		}
 		if (e.ClickCount == 2 && drawn.Drawing.Kind == ChartDrawingKind.Text)
 		{
 			DrawingTextEditRequested?.Invoke(drawn.Drawing.Id);
@@ -846,7 +978,10 @@ public partial class CandlestickChart
 						drawn.Points,
 						point,
 						kind == ChartDrawingKind.VerticalLine ? plotBounds : bounds,
-						tolerance
+						tolerance,
+						ChartDrawingHelpers.IsFib(kind)
+							? [.. VisibleLevels(drawn.Drawing.FibLevels).Select(x => x.Value)]
+							: null
 					)
 			)
 				return (drawn, -1);
@@ -974,7 +1109,7 @@ public partial class CandlestickChart
 		if (!CanEditDrawings || _dragStart != null || !CanMapDrawings)
 			return null;
 		return HitDrawing(p) is { } hit
-			? hit.Anchor >= 0
+			? hit.Anchor >= 0 && !hit.Drawn.Drawing.IsLocked
 				? MoveCursor
 				: HandCursor
 			: null;

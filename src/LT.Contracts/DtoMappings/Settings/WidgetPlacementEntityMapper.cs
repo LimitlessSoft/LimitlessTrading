@@ -40,6 +40,8 @@ public class WidgetPlacementEntityMapper : ILSCoreMapper<WidgetPlacementDto, Wid
 			ChartDrawingMode = source.ChartDrawingMode,
 			ChartDrawingsLocked = source.ChartDrawingsLocked,
 			ChartDrawingsHidden = source.ChartDrawingsHidden,
+			ChartDrawingMagnet = source.ChartDrawingMagnet,
+			ChartKeepDrawingTool = source.ChartKeepDrawingTool,
 			NewsMode = source.NewsMode,
 			NewsProviders = source.NewsProviders is { } providers ? [.. providers] : null,
 			OptionQuickOrderQuantity = source.OptionQuickOrderQuantity,

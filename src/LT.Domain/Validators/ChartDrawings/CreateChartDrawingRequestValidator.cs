@@ -41,5 +41,8 @@ public class CreateChartDrawingRequestValidator : LSCoreValidatorBase<CreateChar
 					ChartDrawingConstants.MaxTextLength
 				)
 			);
+
+		this.AddStyleRules(x => x.Style);
+		this.AddFibLevelRules(x => x.FibLevels);
 	}
 }

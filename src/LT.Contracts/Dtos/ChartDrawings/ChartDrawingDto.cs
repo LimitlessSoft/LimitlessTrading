@@ -17,4 +17,16 @@ public class ChartDrawingDto
 
 	/// <summary>The note of a <see cref="ChartDrawingKind.Text"/> drawing; null for the others.</summary>
 	public string? Text { get; set; }
+
+	/// <summary>Its colour and lines; a drawing saved before styles has the kind's built-in one.</summary>
+	public ChartDrawingStyleDto Style { get; set; } = new();
+
+	/// <summary>Can be selected (to unlock it) but not moved, reshaped or deleted one by one.</summary>
+	public bool IsLocked { get; set; }
+
+	/// <summary>Not drawn and not hit; shown again from the chart's menu.</summary>
+	public bool IsHidden { get; set; }
+
+	/// <summary>A Fibonacci drawing's levels (the defaults until edited); empty for the others.</summary>
+	public List<ChartDrawingFibLevelDto> FibLevels { get; set; } = [];
 }

@@ -32,4 +32,22 @@ public enum ChartDrawingValidationCodes
 
 	[LSCoreValidationMessage("That drawing no longer exists.")]
 	CDVC_009,
+
+	[LSCoreValidationMessage("A drawing's colour is a hex colour like #2962FF.")]
+	CDVC_010,
+
+	[LSCoreValidationMessage("A drawing's lines are {0} to {1} pixels wide.")]
+	CDVC_011,
+
+	[LSCoreValidationMessage("That line style isn't known.")]
+	CDVC_012,
+
+	[LSCoreValidationMessage("A Fibonacci drawing has 1 to {0} levels.")]
+	CDVC_013,
+
+	[LSCoreValidationMessage("A Fibonacci level is a number from {0} to {1}.")]
+	CDVC_014,
+
+	[LSCoreValidationMessage("Each Fibonacci level can be there only once.")]
+	CDVC_015,
 }
