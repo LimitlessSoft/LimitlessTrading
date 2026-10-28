@@ -101,6 +101,26 @@ public class WorkspaceWindows : IWorkspaceHost
 		return next;
 	}
 
+	/// <summary>
+	/// Menu → Import layout: every workspace is replaced by the imported layout's. The extra windows
+	/// are discarded (the main window closes theirs) with their widgets, the main workspace is
+	/// replaced (<see cref="MainChanged"/>; the page rebinds and builds fresh frames) and the old
+	/// one disposed, and a window opens for every extra window of the layout. The main window's
+	/// bounds are the caller's to restore.
+	/// </summary>
+	public void Replace(LayoutDto layout)
+	{
+		WorkspaceWindowHelpers.Normalize(layout);
+		foreach (var window in Windows.ToList())
+			Discard(window);
+		var old = Main;
+		Main = Create(layout);
+		MainChanged?.Invoke();
+		old.DisposeWidgets();
+		foreach (var window in layout.Windows)
+			Windows.Add(new WorkspaceWindowViewModel(this, window, Create(window)));
+	}
+
 	public IReadOnlyList<ViewMoveTarget> GetMoveTargets(WorkspaceViewModel from) =>
 		Windows
 			.Select(x => new ViewMoveTarget(x.Name, x.Workspace))

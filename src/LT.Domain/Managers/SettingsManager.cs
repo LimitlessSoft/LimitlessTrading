@@ -91,6 +91,19 @@ public class SettingsManager(ISettingsRepository settingsRepository, IIbkrApiCli
 		settingsRepository.Save(settings);
 	}
 
+	public string ExportLayout() =>
+		LayoutFileHelpers.SerializeFile(settingsRepository.Get().Layout);
+
+	public LayoutDto ImportLayout(ImportLayoutRequest request)
+	{
+		request.Validate();
+		var settings = settingsRepository.Get();
+		// Only the layout is taken from the file, whatever else it holds
+		settings.Layout = LayoutFileHelpers.ParseFile(request.Json)!.Layout!;
+		settingsRepository.Save(settings);
+		return settings.Layout.ToMapped<LayoutEntity, LayoutDto>();
+	}
+
 	public string? GetSelectedAccount() => settingsRepository.Get().SelectedAccount;
 
 	public void SaveSelectedAccount(string? account)

@@ -21,6 +21,20 @@ public interface ISettingsManager
 	void SaveFlexSettings(SaveFlexSettingsRequest request);
 	LayoutDto GetLayout();
 	void SaveLayout(LayoutDto layout);
+
+	/// <summary>
+	/// The saved layout as a layout file (JSON): every window with its bounds, state and screen, its
+	/// views, docked and floating widgets and their per-instance settings. Only the layout: no
+	/// connection, Flex or account settings. Save the live layout first to export what is shown.
+	/// </summary>
+	string ExportLayout();
+
+	/// <summary>
+	/// Replaces the saved layout with the one in an exported file and returns it, to be applied.
+	/// The file is checked first (ours, not too big, not damaged, not from a newer version); when
+	/// it is refused nothing changes.
+	/// </summary>
+	LayoutDto ImportLayout(ImportLayoutRequest request);
 	string? GetSelectedAccount();
 	void SaveSelectedAccount(string? account);
 

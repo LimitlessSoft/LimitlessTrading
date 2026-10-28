@@ -13,6 +13,7 @@ using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 using LT.Contracts.Interfaces.IManagers;
+using LT.Contracts.Requests.Settings;
 
 namespace LT.App.Shell;
 
@@ -116,6 +117,27 @@ public partial class MainWindowViewModel : ViewModelBase
 		WindowPlacementHelpers.SetMain(layout, placement);
 		CurrentPage.FillLayout(layout);
 		_settingsManager.SaveLayout(layout);
+	}
+
+	/// <summary>
+	/// Menu → Export layout: saves the live layout (as on exit) and returns it as a layout file.
+	/// </summary>
+	public string ExportLayout(WindowPlacementDto placement)
+	{
+		SaveLayout(placement);
+		return _settingsManager.ExportLayout();
+	}
+
+	/// <summary>
+	/// Menu → Import layout: the file's layout replaces the saved one and every window shows it
+	/// right away. Returns it (the main window takes its bounds); throws, with nothing changed,
+	/// when the file is refused.
+	/// </summary>
+	public LayoutDto ImportLayout(string json)
+	{
+		var layout = _settingsManager.ImportLayout(new ImportLayoutRequest { Json = json });
+		Windows.Replace(layout);
+		return layout;
 	}
 
 	[RelayCommand]
