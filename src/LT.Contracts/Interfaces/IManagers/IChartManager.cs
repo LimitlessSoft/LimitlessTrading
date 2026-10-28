@@ -8,12 +8,24 @@ namespace LT.Contracts.Interfaces.IManagers;
 public interface IChartManager
 {
 	/// <summary>
-	/// Historical bars of the request's period (ending now), served from the local cache while it
-	/// is fresh. A period longer than the timeframe loads is cut to its longest
-	/// (<see cref="Dtos.Charts.ChartBarsDto.LimitedTo"/>).
+	/// Historical bars ending now, covering at least the timeframe's own span and the request's
+	/// period (its start in <see cref="Dtos.Charts.ChartBarsDto.From"/>; older bars are kept),
+	/// served from the local cache while it is fresh. A period longer than the timeframe loads is
+	/// cut to its longest (<see cref="Dtos.Charts.ChartBarsDto.LimitedTo"/>).
 	/// </summary>
 	Task<ChartBarsDto> GetBarsAsync(
 		GetBarsRequest request,
+		CancellationToken cancellationToken = default
+	);
+
+	/// <summary>
+	/// One page of bars before <see cref="GetOlderBarsRequest.Before"/>
+	/// (ChartTimeframeHelpers.GetPageDuration), only those older than it, oldest first; cached
+	/// like the latest bars (non-empty pages only). Empty at the start of the contract's history
+	/// (IB has no data there). Merge them with BarHelpers.Prepend.
+	/// </summary>
+	Task<IReadOnlyList<BarDto>> GetOlderBarsAsync(
+		GetOlderBarsRequest request,
 		CancellationToken cancellationToken = default
 	);
 

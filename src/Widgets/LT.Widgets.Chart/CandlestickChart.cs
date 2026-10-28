@@ -5,6 +5,7 @@ using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
+using Avalonia.Threading;
 using LT.App.Helpers;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Charts;
@@ -30,9 +31,12 @@ namespace LT.App.Widgets.Chart;
 /// left (CandlestickChart.Indicators.cs) whose rows raise <see cref="IndicatorAction"/>.
 /// </para>
 /// <para>
-/// With <see cref="FitBars"/> (a chosen period) a new series zooms out to show all of its bars,
-/// and keeps them all in view as the plot is resized or bars arrive until it is zoomed or its
-/// margin is dragged.
+/// With <see cref="FitStart"/> (a chosen period) a new series, <see cref="ResetView"/> and a
+/// double-click fit the bars from that start to the latest into the plot (older bars stay loaded,
+/// left of the view), and keep them fitted as the plot is resized or bars arrive until the view
+/// is zoomed, panned or its margin dragged; <see cref="IsFitted"/> tells which. When the view
+/// nears the oldest bar, <see cref="OlderBarsNeeded"/> asks for older history; bars put in front
+/// of the series leave the view where it is (positions count from the latest bar).
 /// </para>
 /// <para>
 /// With <see cref="RegularHours"/> set (intraday, pre- / post-market shown), bars outside the
@@ -81,10 +85,13 @@ public partial class CandlestickChart : Control
 	public static readonly StyledProperty<TradingScheduleDto?> RegularHoursProperty =
 		AvaloniaProperty.Register<CandlestickChart, TradingScheduleDto?>(nameof(RegularHours));
 
-	public static readonly StyledProperty<bool> FitBarsProperty = AvaloniaProperty.Register<
+	public static readonly StyledProperty<DateTimeOffset?> FitStartProperty =
+		AvaloniaProperty.Register<CandlestickChart, DateTimeOffset?>(nameof(FitStart));
+
+	public static readonly StyledProperty<bool> IsFittedProperty = AvaloniaProperty.Register<
 		CandlestickChart,
 		bool
-	>(nameof(FitBars));
+	>(nameof(IsFitted), defaultBindingMode: BindingMode.OneWayToSource);
 
 	private const double TimeAxisHeight = 22;
 	private const double TopPadding = 24;
@@ -175,10 +182,18 @@ public partial class CandlestickChart : Control
 	private double _barSpacing = DefaultBarSpacing;
 	private int _offset;
 
-	// Every render fits all bars into the plot (FitBars: a new series, double-click) until the
-	// view is zoomed or its margin dragged. Not just the first render: a restored chart is first
-	// laid out narrower than it ends up, and a fit to that width left the bars in its right part
+	// Every render fits the period's bars into the plot (FitStart: a new series, ResetView,
+	// double-click) until the view is zoomed, panned or its margin dragged. Not just the first
+	// render: a restored chart is first laid out narrower than it ends up, and a fit to that width
+	// left the bars in its right part
 	private bool _fitted;
+
+	// The view was zoomed, panned or its margin dragged since the last reset
+	private bool _moved;
+
+	// The oldest bar's time when older bars were last asked for (once per oldest bar until the
+	// view is zoomed or panned again)
+	private DateTimeOffset? _olderAskedFor;
 	private Point? _pointer;
 	private Point? _dragStart;
 	private int _dragStartOffset;
@@ -211,6 +226,7 @@ public partial class CandlestickChart : Control
 			TimeZoneProperty,
 			IndicatorsProperty,
 			RegularHoursProperty,
+			FitStartProperty,
 			AlertsProperty,
 			IsPlacingAlertProperty
 		);
@@ -283,14 +299,33 @@ public partial class CandlestickChart : Control
 	public event Action<string, ChartIndicatorAction>? IndicatorAction;
 
 	/// <summary>
-	/// Show every bar: a new series (and double-click) zooms out until all of it fits, instead of
-	/// the latest bars at the default zoom. Set for a chosen period, so its whole span is in view.
+	/// Start of the chosen period: a new series, <see cref="ResetView"/> and a double-click zoom
+	/// to fit the bars from here to the latest, instead of the latest bars at the default zoom.
+	/// Null (Auto): the default zoom.
 	/// </summary>
-	public bool FitBars
+	public DateTimeOffset? FitStart
 	{
-		get => GetValue(FitBarsProperty);
-		set => SetValue(FitBarsProperty, value);
+		get => GetValue(FitStartProperty);
+		set => SetValue(FitStartProperty, value);
 	}
+
+	/// <summary>
+	/// Set by the chart (bound one way to the source): the view is fitted to
+	/// <see cref="FitStart"/>. Turns false when the view is zoomed, panned or its margin dragged,
+	/// true again on <see cref="ResetView"/> (also a new series, a double-click). Never true
+	/// without a <see cref="FitStart"/>.
+	/// </summary>
+	public bool IsFitted
+	{
+		get => GetValue(IsFittedProperty);
+		set => SetValue(IsFittedProperty, value);
+	}
+
+	/// <summary>
+	/// The view is near the oldest bar (zoomed or scrolled there): load the history before it.
+	/// Raised once per oldest bar until the view moves again, after the render.
+	/// </summary>
+	public event Action? OlderBarsNeeded;
 
 	/// <summary>Empty bars after the latest one (fractions allowed).</summary>
 	public double RightMargin
@@ -311,33 +346,62 @@ public partial class CandlestickChart : Control
 			_tradesDirty = true;
 		if (change.Property == IsPlacingAlertProperty)
 			UpdateHandleHover(_pointer);
-		if (change.Property == FitBarsProperty)
-		{
-			ResetView();
-			return;
-		}
+		// A view the user hasn't moved follows the period's start (also when it is bound after
+		// the bars); a moved one stays where it is
+		if (change.Property == FitStartProperty && !_moved)
+			SetFitted(FitStart != null);
 		if (change.Property != BarsProperty)
 			return;
 
-		// A different series (new contract / timeframe) starts at the latest bar again
-		var oldBars = change.GetOldValue<IReadOnlyList<BarDto>?>();
-		var newBars = change.GetNewValue<IReadOnlyList<BarDto>?>();
+		// A different series (new contract / timeframe) starts at the latest bar again; older
+		// bars put in front keep the view (the offset counts from the latest bar)
 		if (
-			oldBars is not { Count: > 0 }
-			|| newBars is not { Count: > 0 }
-			|| oldBars[0].Time != newBars[0].Time
+			BarHelpers.GetPrependedCount(
+				change.GetOldValue<IReadOnlyList<BarDto>?>() ?? [],
+				change.GetNewValue<IReadOnlyList<BarDto>?>() ?? []
+			) < 0
 		)
 			ResetView();
 	}
 
-	// Back to the latest bar, at the default zoom or (FitBars) with every bar in view
-	private void ResetView()
+	/// <summary>
+	/// Back to the latest bar: fitted to <see cref="FitStart"/> when set, else at the default
+	/// zoom.
+	/// </summary>
+	public void ResetView()
 	{
 		_offset = 0;
 		_barSpacing = DefaultBarSpacing;
-		_fitted = FitBars;
+		_moved = false;
+		SetFitted(FitStart != null);
 		InvalidateVisual();
 	}
+
+	// The user moved the view away from the period's fit
+	private void Unfit()
+	{
+		_olderAskedFor = null;
+		_moved = true;
+		SetFitted(false);
+	}
+
+	private void SetFitted(bool fitted)
+	{
+		_fitted = fitted;
+		IsFitted = fitted;
+	}
+
+	// Bars the fit shows: those from the period's start on (all of them without one)
+	private int GetFitCount(IReadOnlyList<BarDto> bars) =>
+		FitStart is { } from
+			? bars.Count
+				- ChartPeriodHelpers.GetFirstIndex(
+					bars,
+					from,
+					Timeframe,
+					TimeZone ?? TimeZoneInfo.Local
+				)
+			: bars.Count;
 
 	// Which visible bars (start..end) are outside the regular session; all false without hours
 	private bool[] GetExtendedBars(IReadOnlyList<BarDto> bars, int start, int end)
@@ -414,6 +478,13 @@ public partial class CandlestickChart : Control
 		) = layout;
 		_plot = plot;
 		_panes = [.. panes.Select(x => x.Pane)];
+
+		// Near the oldest bar: ask for the history before it once the render is done
+		if (ChartViewportHelpers.NeedsOlderBars(start, end) && _olderAskedFor != bars[0].Time)
+		{
+			_olderAskedFor = bars[0].Time;
+			Dispatcher.UIThread.Post(() => OlderBarsNeeded?.Invoke());
+		}
 
 		double Y(double value) => price.Y(value);
 		double X(int index) =>
@@ -708,7 +779,7 @@ public partial class CandlestickChart : Control
 		_barSpacing = ChartViewportHelpers.GetBarSpacing(
 			_barSpacing,
 			_fitted,
-			bars.Count,
+			_fitted ? GetFitCount(bars) : 0,
 			RightMargin,
 			plot.Width,
 			MaxBarSpacing
@@ -990,10 +1061,17 @@ public partial class CandlestickChart : Control
 				_barSpacing
 			);
 		else if (_dragStart is { } start)
-			_offset = Math.Max(
+		{
+			var offset = Math.Max(
 				0,
 				_dragStartOffset + (int)Math.Round((position.X - start.X) / _barSpacing)
 			);
+			if (offset != _offset)
+			{
+				_offset = offset;
+				Unfit();
+			}
+		}
 		UpdateHandleHover(position);
 		InvalidateVisual();
 	}
@@ -1035,7 +1113,7 @@ public partial class CandlestickChart : Control
 			else
 			{
 				// The drag sets the margin at this zoom; fitting would rescale under it
-				_fitted = false;
+				Unfit();
 				_marginDragStartX = position.X;
 				_marginDragStartValue = ChartViewportHelpers.ClampRightMargin(
 					RightMargin,
@@ -1091,7 +1169,7 @@ public partial class CandlestickChart : Control
 	{
 		base.OnPointerWheelChanged(e);
 		// A fitted long period may be denser than the wheel goes; zooming out never jumps in
-		_fitted = false;
+		Unfit();
 		_barSpacing = Math.Clamp(
 			e.Delta.Y > 0 ? _barSpacing * 1.15 : _barSpacing / 1.15,
 			Math.Min(MinBarSpacing, _barSpacing),

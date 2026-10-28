@@ -119,7 +119,7 @@ Limits / caveats:
 | `GetContractDetailsAsync(Contract)` | `reqContractDetails` | Search by symbol, conId lookup, one expiration's options; `tradingHours` / `liquidHours` (a few days around today, in `timeZoneId`, which may be an old name like `US/Eastern`) mark a chart's pre- / post-market bars |
 | `GetOptionChainParametersAsync` | `reqSecDefOptParams` | Expirations + strikes per exchange / trading class |
 | `SubscribeMarketDataAsync` | `reqMktData` | Price, size, generic and string ticks; optional generic tick list (`106` = underlying option implied volatility, tick 24, used by the option chain) |
-| `GetHistoricalBarsAsync` | `reqHistoricalData` | IB strings: duration `"5 D"`, bar size `"5 mins"` |
+| `GetHistoricalBarsAsync` | `reqHistoricalData` | IB strings: duration `"5 D"`, bar size `"5 mins"`; `endDateTime` empty (now) or `yyyyMMdd-HH:mm:ss` UTC (a chart's older pages; the bar starting at the end may come back). No bars in the span: error `162` "HMDS query returned no data" |
 | `SubscribeRealtimeBarsAsync` | `reqRealTimeBars` | 5-second bars |
 | `GetPositionsAsync` / `SubscribePositionsAsync` | `reqPositions` | Snapshot / stream |
 | `SubscribeAccountSummaryAsync` | `reqAccountSummary` | Stream — see error 322 below |
@@ -391,12 +391,24 @@ deduplicated by IB's execution id, so the same fill from either stays one:
 - `MarketDataManager` counts lines and refuses a subscription above 90 (headroom under IB's 100).
   Chart price alerts hold one line per contract with an active alert while connected (at most
   20, `PriceAlertConstants.MaxWatchedContracts`).
-- `ChartManager` turns the chart's period into the IB duration (`ChartPeriodHelpers.GetRange`):
-  the span plus a day of slack, rounded up to 2/8/32/93/185/365 D or whole years (end is always
-  now), never longer than the timeframe's longest period (1m 7 days, 5m 1 month, 15m 3 months,
-  1h 1 year — IB serves long spans of small bars slowly), at least a week of daily / a month of
-  weekly bars; the bars are then cut to the period start. The duration is part of the cache key
-  (except the timeframe's own, Auto).
+- `ChartManager` turns the chart's period into the IB duration (`ChartPeriodHelpers.GetRange`).
+  The period is a zoom preset, not a filter: the request covers at least the timeframe's own
+  span (Auto's: 1m 1 D, 5m 5 D, 15m 10 D, 1h 1 M, 1D 1 Y, 1W 5 Y), and a longer period its span
+  plus a day of slack, rounded up to 2/8/32/93/185/365 D or whole years (end is always now),
+  never longer than the timeframe's longest period (1m 7 days, 5m 1 month, 15m 3 months, 1h 1
+  year — IB serves long spans of small bars slowly in one request). Every bar IB returns is kept;
+  the period's start only says where the chart's view begins. The duration is part of the cache
+  key (except the timeframe's own, Auto).
+- **Older history is paged** (`IChartManager.GetOlderBarsAsync`): when a chart's view nears its
+  oldest bar, one request ends there (`endDateTime`) for a page of
+  `ChartTimeframeHelpers.GetPageDuration` (1m 1 W, 5m 1 M, 15m 2 M, 1h 6 M, 1D 2 Y, 1W 10 Y — a
+  few thousand bars at most, never under a week so a weekend or holiday is never an empty page).
+  One page at a time per chart, through the same throttle and the `ChartBars` cache (keyed by
+  where the page ends; empty pages aren't cached). Bars at or after the end are dropped. `162`
+  with "no data" (or an empty answer) is the start of the contract's history: paging stops until
+  the chart reloads. The longest-period cap applies to a single request only; paging goes past it
+  page by page, up to `ChartConstants.MaxLoadedBars` (50,000) per chart. A failed page is logged
+  and retried no sooner than 10 s, and only when the view moves near the edge again.
 - `ChartManager` serves bars from the data cache while fresh (1 min intraday, 30 min daily+) and
   falls back to stale cache when IB is unreachable. Contract searches (3 days) and option chain
   structure (1 day) are cached too, which saves contract-details requests; see

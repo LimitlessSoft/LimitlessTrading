@@ -33,6 +33,29 @@ public static class ChartConstants
 	/// </summary>
 	public static readonly TimeSpan LivePriceMaxBarAge = TimeSpan.FromSeconds(15);
 
+	/// <summary>
+	/// Scrolling left stops loading older pages once a chart holds this many bars (memory, and
+	/// indicators compute over every bar).
+	/// </summary>
+	public const int MaxLoadedBars = 50_000;
+
+	/// <summary>
+	/// An older page is asked for while the view's left edge is within this share of a screen of
+	/// the oldest loaded bar, so it is usually there before the edge is reached.
+	/// </summary>
+	public const double OlderBarsPrefetchScreens = 0.5;
+
+	/// <summary>After an older page failed, the next one is asked for no sooner than this.</summary>
+	public static readonly TimeSpan OlderBarsRetryDelay = TimeSpan.FromSeconds(10);
+
+	/// <summary>
+	/// IB's historical data error; with <see cref="HistoricalNoDataText"/> in its text ("HMDS
+	/// query returned no data") it means there are no bars in the asked span.
+	/// </summary>
+	public const int HistoricalDataErrorCode = 162;
+
+	public const string HistoricalNoDataText = "no data";
+
 	/// <summary>Chart redraw interval (the throttled chart live update modes), in ms.</summary>
 	public const int RedrawIntervalMsMin = 250;
 	public const int RedrawIntervalMsMax = 5000;

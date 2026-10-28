@@ -98,17 +98,14 @@ public class ChartPeriodHelpersTests
 	}
 
 	[Theory]
-	[InlineData(ChartPeriod.OneDay, ChartTimeframe.FiveMinutes, "2 D")]
 	[InlineData(ChartPeriod.SevenDays, ChartTimeframe.OneMinute, "8 D")]
 	[InlineData(ChartPeriod.OneMonth, ChartTimeframe.FifteenMinutes, "32 D")]
 	[InlineData(ChartPeriod.ThreeMonths, ChartTimeframe.OneHour, "93 D")]
-	[InlineData(ChartPeriod.SixMonths, ChartTimeframe.OneDay, "185 D")]
 	[InlineData(ChartPeriod.OneYear, ChartTimeframe.OneDay, "1 Y")]
 	[InlineData(ChartPeriod.FiveYears, ChartTimeframe.OneWeek, "5 Y")]
 	[InlineData(ChartPeriod.Today, ChartTimeframe.OneMinute, "2 D")]
 	[InlineData(ChartPeriod.ThisMonth, ChartTimeframe.FiveMinutes, "32 D")]
-	[InlineData(ChartPeriod.ThisYear, ChartTimeframe.OneDay, "365 D")]
-	public void Duration_covers_the_period(
+	public void Duration_covers_a_period_longer_than_the_timeframes_span(
 		ChartPeriod period,
 		ChartTimeframe timeframe,
 		string duration
@@ -119,6 +116,24 @@ public class ChartPeriodHelpersTests
 		Assert.Equal(duration, range.Duration);
 		Assert.Equal(ChartPeriodHelpers.GetStart(period, Now, Belgrade), range.From);
 		Assert.Null(range.LimitedTo);
+	}
+
+	[Theory]
+	[InlineData(ChartPeriod.OneDay, ChartTimeframe.FiveMinutes)]
+	[InlineData(ChartPeriod.Today, ChartTimeframe.FifteenMinutes)]
+	[InlineData(ChartPeriod.SixMonths, ChartTimeframe.OneDay)]
+	[InlineData(ChartPeriod.ThisYear, ChartTimeframe.OneDay)]
+	[InlineData(ChartPeriod.Today, ChartTimeframe.OneDay)]
+	[InlineData(ChartPeriod.ThisWeek, ChartTimeframe.OneWeek)]
+	public void A_shorter_period_loads_the_timeframes_span_so_there_is_history_before_it(
+		ChartPeriod period,
+		ChartTimeframe timeframe
+	)
+	{
+		var range = ChartPeriodHelpers.GetRange(period, timeframe, Now, Belgrade);
+
+		Assert.Equal(ChartTimeframeHelpers.GetDuration(timeframe), range.Duration);
+		Assert.Equal(ChartPeriodHelpers.GetStart(period, Now, Belgrade), range.From);
 	}
 
 	[Theory]
@@ -146,24 +161,7 @@ public class ChartPeriodHelpersTests
 	}
 
 	[Fact]
-	public void Period_shorter_than_a_bar_still_asks_for_a_few_bars()
-	{
-		Assert.Equal(
-			"8 D",
-			ChartPeriodHelpers
-				.GetRange(ChartPeriod.Today, ChartTimeframe.OneDay, Now, Belgrade)
-				.Duration
-		);
-		Assert.Equal(
-			"32 D",
-			ChartPeriodHelpers
-				.GetRange(ChartPeriod.ThisWeek, ChartTimeframe.OneWeek, Now, Belgrade)
-				.Duration
-		);
-	}
-
-	[Fact]
-	public void Trim_keeps_intraday_bars_ending_after_the_start()
+	public void First_index_is_the_first_intraday_bar_ending_after_the_start()
 	{
 		var start = new DateTimeOffset(2026, 10, 26, 13, 0, 0, TimeSpan.Zero);
 		IReadOnlyList<BarDto> bars =
@@ -174,13 +172,14 @@ public class ChartPeriodHelpersTests
 			Bar(start.AddHours(1)),
 		];
 
-		var trimmed = ChartPeriodHelpers.Trim(bars, start, ChartTimeframe.OneHour, Belgrade);
-
-		Assert.Equal([start.AddMinutes(-30), start.AddHours(1)], trimmed.Select(x => x.Time));
+		Assert.Equal(
+			2,
+			ChartPeriodHelpers.GetFirstIndex(bars, start, ChartTimeframe.OneHour, Belgrade)
+		);
 	}
 
 	[Fact]
-	public void Trim_compares_daily_bars_by_the_zone_date()
+	public void First_index_compares_daily_bars_by_the_zone_date()
 	{
 		// Today in Belgrade starts at 23:00 UTC on the 25th; the 25th's daily bar is not today
 		var today = ChartPeriodHelpers.GetStart(ChartPeriod.Today, Now, Belgrade)!.Value;
@@ -191,21 +190,47 @@ public class ChartPeriodHelpersTests
 			Bar(new DateTimeOffset(2026, 10, 26, 0, 0, 0, TimeSpan.Zero)),
 		];
 
-		var trimmed = ChartPeriodHelpers.Trim(bars, today, ChartTimeframe.OneDay, Belgrade);
-
 		Assert.Equal(
-			new DateTimeOffset(2026, 10, 26, 0, 0, 0, TimeSpan.Zero),
-			Assert.Single(trimmed).Time
+			2,
+			ChartPeriodHelpers.GetFirstIndex(bars, today, ChartTimeframe.OneDay, Belgrade)
 		);
 	}
 
 	[Fact]
-	public void Trim_returns_nothing_when_every_bar_is_older()
+	public void First_index_is_past_the_bars_when_every_bar_is_older()
 	{
-		IReadOnlyList<BarDto> bars = [Bar(Now.AddDays(-3))];
+		IReadOnlyList<BarDto> bars = [Bar(Now.AddDays(-3)), Bar(Now.AddDays(-2))];
 
-		Assert.Empty(
-			ChartPeriodHelpers.Trim(bars, Now.AddHours(-1), ChartTimeframe.OneMinute, Belgrade)
+		Assert.Equal(
+			2,
+			ChartPeriodHelpers.GetFirstIndex(
+				bars,
+				Now.AddHours(-1),
+				ChartTimeframe.OneMinute,
+				Belgrade
+			)
+		);
+	}
+
+	[Theory]
+	[InlineData(0)]
+	[InlineData(1)]
+	[InlineData(500)]
+	[InlineData(999)]
+	public void First_index_finds_the_start_in_a_long_series(int index)
+	{
+		var first = new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
+		IReadOnlyList<BarDto> bars =
+		[
+			.. Enumerable.Range(0, 1000).Select(i => Bar(first.AddMinutes(i))),
+		];
+
+		// The start falls inside bar `index`: that bar is the first one in the period
+		var start = first.AddMinutes(index).AddSeconds(30);
+
+		Assert.Equal(
+			index,
+			ChartPeriodHelpers.GetFirstIndex(bars, start, ChartTimeframe.OneMinute, Belgrade)
 		);
 	}
 

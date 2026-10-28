@@ -43,6 +43,8 @@ public partial class ChartView : UserControl
 		Chart.AlertMoved += (id, price) => ViewModel?.MoveAlert(id, price);
 		Chart.AlertRemoved += id => ViewModel?.RemoveAlert(id);
 		Chart.AlertPlaced += price => ViewModel?.PlaceAlert(price);
+		Chart.OlderBarsNeeded += () => ViewModel?.LoadOlderBars();
+		DataContextChanged += (_, _) => OnViewModelChanged();
 		KeyDown += OnKeyDown;
 		ChartMenu.Opening += (_, _) => FillApplyTemplateMenu();
 		ChartMenu.Opening += (_, _) => FillAlertMenu();
@@ -117,6 +119,18 @@ public partial class ChartView : UserControl
 	}
 
 	private ChartViewModel? ViewModel => DataContext as ChartViewModel;
+
+	// The view model asks for the period's view (a period picked); only the current one is heard
+	private ChartViewModel? _resetSource;
+
+	private void OnViewModelChanged()
+	{
+		if (_resetSource != null)
+			_resetSource.ViewResetRequested -= Chart.ResetView;
+		_resetSource = ViewModel;
+		if (_resetSource != null)
+			_resetSource.ViewResetRequested += Chart.ResetView;
+	}
 
 	// Right-click: an alert at the price under the pointer (the last price off the price chart),
 	// and the alert under it to remove

@@ -70,12 +70,19 @@ public interface IIbkrApiClient
 		CancellationToken cancellationToken = default
 	);
 
+	/// <summary>
+	/// Historical bars (reqHistoricalData) of <paramref name="duration"/> ending now, or at
+	/// <paramref name="end"/> (IB may include the bar starting there). IB's refusals throw
+	/// <see cref="Exceptions.IbkrRequestException"/> with its code (162 with "no data" past the
+	/// start of the contract's history).
+	/// </summary>
 	Task<IReadOnlyList<BarDto>> GetHistoricalBarsAsync(
 		ContractDto contract,
 		string duration,
 		string barSize,
 		string whatToShow,
 		bool useRegularTradingHours,
+		DateTimeOffset? end = null,
 		CancellationToken cancellationToken = default
 	);
 

@@ -4,9 +4,11 @@ using LT.Contracts.Enums;
 namespace LT.Contracts.Helpers;
 
 /// <summary>
-/// A chart's period: where its bars start and what to ask IB for. Rolling periods go back from
-/// now; calendar periods start at midnight of the current day, week (Monday) or month / year in
-/// the display time zone, the zone the chart draws its time axis in. The end is always now.
+/// A chart's period: a zoom preset, not a filter. It says where the view starts (the chart fits
+/// the bars from there to now) and how much history to load so that start is covered. Rolling
+/// periods go back from now; calendar periods start at midnight of the current day, week
+/// (Monday) or month / year in the display time zone, the zone the chart draws its time axis in.
+/// The end is always now.
 /// </summary>
 public static class ChartPeriodHelpers
 {
@@ -28,6 +30,12 @@ public static class ChartPeriodHelpers
 	[ChartPeriod.Today, ChartPeriod.ThisWeek, ChartPeriod.ThisMonth, ChartPeriod.ThisYear];
 
 	public static bool IsCalendar(ChartPeriod period) => CalendarPeriods.Contains(period);
+
+	/// <summary>
+	/// What the header shows instead of the period once the view was zoomed or scrolled away from
+	/// it (not a period: the chosen one is still the one saved).
+	/// </summary>
+	public const string CustomDisplayName = "Custom";
 
 	public static string GetDisplayName(ChartPeriod period) =>
 		period switch
@@ -93,10 +101,11 @@ public static class ChartPeriodHelpers
 		};
 
 	/// <summary>
-	/// The request for a period at a timeframe. A period longer than the timeframe's longest
-	/// (<see cref="GetLongestPeriod"/>) is cut to it and says so in
-	/// <see cref="ChartRangeDto.LimitedTo"/>. A period shorter than a bar still asks IB for a
-	/// few bars (a week of daily, a month of weekly) and keeps the bar it is in.
+	/// What to load for a period at a timeframe: at least the timeframe's own span (what Auto
+	/// loads, so there is history to the left of the period), longer when the period needs it. A
+	/// period longer than the timeframe's longest (<see cref="GetLongestPeriod"/>) is cut to it
+	/// and says so in <see cref="ChartRangeDto.LimitedTo"/>. A period shorter than a bar still
+	/// asks IB for a few bars (a week of daily, a month of weekly).
 	/// </summary>
 	public static ChartRangeDto GetRange(
 		ChartPeriod period,
@@ -105,8 +114,9 @@ public static class ChartPeriodHelpers
 		TimeZoneInfo zone
 	)
 	{
+		var own = ChartTimeframeHelpers.GetDuration(timeframe);
 		if (GetStart(period, now, zone) is not { } start)
-			return new ChartRangeDto { Duration = ChartTimeframeHelpers.GetDuration(timeframe) };
+			return new ChartRangeDto { Duration = own };
 
 		ChartPeriod? limitedTo = null;
 		if (
@@ -122,7 +132,11 @@ public static class ChartPeriodHelpers
 		var days = Math.Max((int)Math.Ceiling((now - start).TotalDays), GetMinimumDays(timeframe));
 		return new ChartRangeDto
 		{
-			Duration = GetDuration(days),
+			// The day of slack GetDuration adds must fit in the timeframe's own span too
+			Duration =
+				days + 1 <= ChartTimeframeHelpers.GetDurationDays(timeframe)
+					? own
+					: GetDuration(days),
 			From = start,
 			LimitedTo = limitedTo,
 		};
@@ -130,7 +144,7 @@ public static class ChartPeriodHelpers
 
 	/// <summary>
 	/// IB durationStr covering <paramref name="days"/> back from now: a day of slack (IB counts
-	/// days its own way; the bars are cut to the period afterwards), rounded up to a few fixed
+	/// days its own way), rounded up to a few fixed
 	/// sizes; past a year in whole years.
 	/// </summary>
 	public static string GetDuration(int days)
@@ -142,12 +156,12 @@ public static class ChartPeriodHelpers
 	}
 
 	/// <summary>
-	/// The bars from <paramref name="from"/> on: those that end after it (the bar it falls in is
-	/// kept). Daily and weekly bars carry their calendar date at midnight UTC, so they are
-	/// compared with <paramref name="from"/>'s date in <paramref name="zone"/>. Bars are oldest
-	/// first; the input is not modified.
+	/// Index of the first bar from <paramref name="from"/> on: the first that ends after it (the
+	/// bar it falls in counts); <c>bars.Count</c> when every bar is older. Daily and weekly bars
+	/// carry their calendar date at midnight UTC, so they are compared with
+	/// <paramref name="from"/>'s date in <paramref name="zone"/>. Bars are oldest first.
 	/// </summary>
-	public static IReadOnlyList<BarDto> Trim(
+	public static int GetFirstIndex(
 		IReadOnlyList<BarDto> bars,
 		DateTimeOffset from,
 		ChartTimeframe timeframe,
@@ -158,10 +172,18 @@ public static class ChartPeriodHelpers
 			? from
 			: new DateTimeOffset(DisplayTimeHelpers.ToZone(from, zone).Date, TimeSpan.Zero);
 		var length = ChartTimeframeHelpers.GetBarLength(timeframe);
-		var first = 0;
-		while (first < bars.Count && bars[first].Time + length <= start)
-			first++;
-		return first == 0 ? bars : [.. bars.Skip(first)];
+		// Binary search: charts hold up to ChartConstants.MaxLoadedBars and ask on every render
+		var low = 0;
+		var high = bars.Count;
+		while (low < high)
+		{
+			var middle = low + (high - low) / 2;
+			if (bars[middle].Time + length <= start)
+				low = middle + 1;
+			else
+				high = middle;
+		}
+		return low;
 	}
 
 	private static int GetMinimumDays(ChartTimeframe timeframe) =>
