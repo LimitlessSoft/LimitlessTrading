@@ -224,6 +224,12 @@ public static class ContractHelpers
 			? contract.Exchange
 			: contract.PrimaryExchange;
 
+	/// <summary>An option (OPT) or an option on a future (FOP); case and spaces ignored.</summary>
+	public static bool IsOption(string? securityType) =>
+		Normalize(securityType)
+			is MarketDataConstants.OptionType
+				or MarketDataConstants.FutureOptionType;
+
 	public static bool SupportsOptionChain(ContractDto contract) =>
 		contract.SecurityType is MarketDataConstants.StockType or MarketDataConstants.IndexType;
 

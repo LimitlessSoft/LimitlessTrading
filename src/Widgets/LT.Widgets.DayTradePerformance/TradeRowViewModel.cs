@@ -11,7 +11,12 @@ public class TradeRowViewModel(RoundTripDto trade, TimeZoneInfo zone)
 {
 	public string Symbol { get; } = trade.Symbol;
 	public string Account { get; } = trade.Account;
-	public string Side { get; } = trade.Side == TradeSide.Long ? "Long" : "Short";
+
+	/// <summary>Long / Short; a dash for options, where buying a put is "long" yet bearish.</summary>
+	public string Side { get; } =
+		ContractHelpers.IsOption(trade.SecurityType) ? FormatHelpers.Empty
+		: trade.Side == TradeSide.Long ? "Long"
+		: "Short";
 	public string Quantity { get; } = FormatHelpers.Quantity(trade.Quantity);
 	public string Entry { get; } = FormatHelpers.Price(trade.EntryPrice);
 	public string Exit { get; } = FormatHelpers.Price(trade.ExitPrice);
