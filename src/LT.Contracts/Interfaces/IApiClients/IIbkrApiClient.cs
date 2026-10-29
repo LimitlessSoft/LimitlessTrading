@@ -253,6 +253,22 @@ public interface IIbkrApiClient
 		CancellationToken cancellationToken = default
 	);
 
+	/// <summary>
+	/// Changes the limit price of a working order placed by <see cref="PlaceOrderAsync"/> (IB
+	/// takes a change only from the client that placed it): re-sends the order as IB last reported
+	/// it in <paramref name="order"/> (contract, side, total quantity, type, time in force,
+	/// account) with <paramref name="limitPrice"/>. IB doesn't report the outside-hours flag, so it
+	/// goes out off, as the app places every order. This trades for real on a live account.
+	/// Completes when IB answers; a refusal throws <see cref="Exceptions.IbkrRequestException"/>
+	/// with IB's code (the order stays as it was), no answer within
+	/// <c>OrderConstants.ModifyAnswerTimeout</c> throws <see cref="TimeoutException"/>.
+	/// </summary>
+	Task ModifyOrderAsync(
+		OpenOrderDto order,
+		decimal limitPrice,
+		CancellationToken cancellationToken = default
+	);
+
 	/// <summary>Asks IB to cancel an order placed by <see cref="PlaceOrderAsync"/>.</summary>
 	Task CancelOrderAsync(int orderId, CancellationToken cancellationToken = default);
 }

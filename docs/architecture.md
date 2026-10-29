@@ -192,6 +192,10 @@ Zustand stores play in Termodom FEs:
   [ui-patterns.md → Display time zone](ui-patterns.md#display-time-zone-settings--general--time-zone).
 - `SettingsNavigator` / `OrderTicketNavigator` — let a widget ask the main window to open the
   Settings dialog on a page / an order ticket popup pre-filled with an `OrderDraftDto`.
+- `OpenOrdersStore` — the working orders of every account and client, read once for every
+  widget that `Watch()`es them (the charts' order lines): every 10 s while watched and connected,
+  and soon after `IOrderManager.OrdersChanged` (this app's statuses, cancels, price changes).
+  The Orders widget still reads its own.
 
 ## Persistence
 

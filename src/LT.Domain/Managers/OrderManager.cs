@@ -22,6 +22,8 @@ public class OrderManager(IIbkrApiClient ibkrApiClient, ICacheManager cacheManag
 
 	public event Action<OrderStatusDto>? OrderFilled;
 
+	public event Action? OrdersChanged;
+
 	public async Task<IReadOnlyList<OpenOrderDto>> GetOpenOrdersAsync(
 		string? account,
 		CancellationToken cancellationToken = default
@@ -74,7 +76,10 @@ public class OrderManager(IIbkrApiClient ibkrApiClient, ICacheManager cacheManag
 		return new PlacedOrderDto
 		{
 			OrderId = placed.OrderId,
-			Statuses = OrderHelpers.OnFillsAsync(placed.Statuses, x => OrderFilled?.Invoke(x)),
+			Statuses = OrderHelpers.OnFillsAsync(
+				AsyncEnumerableHelpers.OnEachAsync(placed.Statuses, _ => OrdersChanged?.Invoke()),
+				x => OrderFilled?.Invoke(x)
+			),
 		};
 	}
 
@@ -105,7 +110,13 @@ public class OrderManager(IIbkrApiClient ibkrApiClient, ICacheManager cacheManag
 			{
 				OrderId = placed.OrderId,
 				Statuses = AsyncEnumerableHelpers.OnEndAsync(
-					OrderHelpers.OnFillsAsync(placed.Statuses, x => OrderFilled?.Invoke(x)),
+					OrderHelpers.OnFillsAsync(
+						AsyncEnumerableHelpers.OnEachAsync(
+							placed.Statuses,
+							_ => OrdersChanged?.Invoke()
+						),
+						x => OrderFilled?.Invoke(x)
+					),
 					() => _exits.TryRemove(key, out _)
 				),
 			};
@@ -117,6 +128,36 @@ public class OrderManager(IIbkrApiClient ibkrApiClient, ICacheManager cacheManag
 		}
 	}
 
-	public Task CancelOrderAsync(int orderId, CancellationToken cancellationToken = default) =>
-		ibkrApiClient.CancelOrderAsync(orderId, cancellationToken);
+	public string? GetModifyBlockReason(OpenOrderDto order) =>
+		OrderHelpers.GetModifyBlock(order, ibkrApiClient.OrderClientId)?.GetValidationMessage();
+
+	public async Task ModifyOrderAsync(
+		ModifyOrderRequest request,
+		CancellationToken cancellationToken = default
+	)
+	{
+		request.Validate();
+		var order = request.Order!;
+		if (OrderHelpers.GetModifyBlock(order, ibkrApiClient.OrderClientId) is { } block)
+			throw new LSCoreBadRequestException(block.GetValidationMessage());
+		try
+		{
+			await ibkrApiClient.ModifyOrderAsync(
+				order,
+				request.LimitPrice!.Value,
+				cancellationToken
+			);
+		}
+		finally
+		{
+			// Taken, refused or unanswered: what IB holds now is what the orders show
+			OrdersChanged?.Invoke();
+		}
+	}
+
+	public async Task CancelOrderAsync(int orderId, CancellationToken cancellationToken = default)
+	{
+		await ibkrApiClient.CancelOrderAsync(orderId, cancellationToken);
+		OrdersChanged?.Invoke();
+	}
 }

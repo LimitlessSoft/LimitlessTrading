@@ -1043,7 +1043,7 @@ hidden: a chart's bars and a news feed would miss what arrives meanwhile.
 | Esc (side or bottom widget) | Back to the last focused center widget; an unpinned widget collapses |
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous center view |
 | Alt+A (chart) | Add a price alert at the price under the pointer, or at the last price |
-| Esc (chart) | Drop a drawing being placed or moved; else disarm the toolbox's armed tool (placing an alert, a drawing tool → the cursor); else drop the selected drawing |
+| Esc (chart) | Put back an order line being dragged or waiting for its confirmation; else drop a drawing being placed or moved; else disarm the toolbox's armed tool (placing an alert, a drawing tool → the cursor); else drop the selected drawing |
 | Delete / Backspace (chart, drawing mode) | Remove the selected drawing (not while it or all drawings are locked) |
 | Ctrl+Z / Ctrl+Y, Ctrl+Shift+Z (chart, drawing mode) | Undo / redo the symbol's last drawing change |
 | Ctrl+C / Ctrl+V / Ctrl+D (chart, drawing mode) | Copy the selected drawing / paste the copied one (any chart) / duplicate the selected one |
@@ -1210,6 +1210,26 @@ line sits at IB's average cost per unit (divided by the multiplier for options a
 commissions included) with its price on the axis; it is hidden while disconnected (no stale
 positions) and when off the visible price range. Each chart follows positions on its own
 `reqPositions` stream; new fills appear when the journal records them (every 30 s).
+
+**Working orders.** The charted contract's working orders of the selected account
+(`OpenOrdersStore`, one `reqAllOpenOrders` reading for every chart, every 10 s and right after
+this app's orders change) are lines across the price chart: green for a buy, red for a sell, one
+at the limit price and a dashed one at the stop price of STP / STP LMT / MIT / LIT orders, with a
+tag at the plot's right end ("SELL 1 LMT 1.60", what is left to fill, masked in privacy mode)
+and the price on the axis (`CandlestickChart.Orders.cs`, `ChartOrderHelpers.GetOrderLines`).
+The limit line of **this app's own limit orders** drags up and down; the price snaps to the
+contract's minimum tick (`IFootprintManager.GetTickSizeAsync`, the cached contract details) and
+the tag shows old → new as it goes. Dropping it at a new price asks over the plot ("Change the
+order's limit price?", side, quantity, symbol, old → new, time in force, account) and only
+**Send** changes the order (`IOrderManager.ModifyOrderAsync`); Cancel or Esc puts it back, and so
+does Esc while dragging. A sent change stays drawn dotted at the new price ("pending") until the
+orders are read again, which then show what IB holds; IB's refusal (e.g. 110, off the tick) puts
+the line back at once and shows IB's reason; no answer within 10 s says so and the next reading
+decides. If the order fills, is cancelled or is changed elsewhere while the question is open,
+the question is dropped. Lines that can't move — orders placed in TWS or by another client (IB
+takes a change only from the client that placed the order), stop prices, non-limit orders —
+are drawn but don't drag, and hovering one shows why in a tooltip
+(`OrderHelpers.GetModifyBlock`). Orders off the visible price range are not drawn.
 
 **Price alerts.** Right-click → *Add alert at <price>* (the price under the pointer, rounded as
 the axis shows it; the last price when opened off the price chart), Alt+A while the chart has

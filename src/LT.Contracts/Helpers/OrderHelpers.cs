@@ -4,6 +4,7 @@ using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Dtos.Positions;
 using LT.Contracts.Enums;
+using LT.Contracts.Enums.ValidationCodes;
 using LT.Contracts.Requests.Orders;
 
 namespace LT.Contracts.Helpers;
@@ -22,6 +23,43 @@ public static class OrderHelpers
 		orderClientId is { } clientId
 		&& order.ClientId == clientId
 		&& order.Status is not ("PendingCancel" or "Cancelled" or "ApiCancelled" or "Filled");
+
+	/// <summary>An order status after which the order works no more (Filled, Cancelled, ApiCancelled, Inactive).</summary>
+	public static bool IsDone(string status) =>
+		status is OrderConstants.FilledStatus or "Cancelled" or "ApiCancelled" or "Inactive";
+
+	/// <summary>
+	/// Why this app can't change the price of <paramref name="order"/>, null when it can: IB takes
+	/// a change only from the client that placed the order (the order connection,
+	/// <paramref name="orderClientId"/>, null while disconnected), only a limit order's limit price
+	/// is changed here, and not once it is done or being cancelled.
+	/// </summary>
+	public static OrderValidationCodes? GetModifyBlock(OpenOrderDto order, int? orderClientId) =>
+		orderClientId is not { } clientId || order.ClientId != clientId
+			? OrderValidationCodes.OVC_014
+		: order.OrderType != OrderConstants.LimitOrderType || order.LimitPrice is not > 0
+			? OrderValidationCodes.OVC_015
+		: IsDone(order.Status) || order.Status == "PendingCancel" ? OrderValidationCodes.OVC_016
+		: null;
+
+	/// <summary>
+	/// One line to confirm a new limit price before sending it, e.g. "SELL 1 SPY 20261029 767 P,
+	/// limit 1.60 → 1.55, DAY, account U1234567 (order 44)".
+	/// </summary>
+	public static string DescribeModification(OpenOrderDto order, double newLimitPrice)
+	{
+		var quantity = order.Quantity.ToString("#,0.########", CultureInfo.InvariantCulture);
+		var filled =
+			order.Filled > 0
+				? $" ({order.Filled.ToString("#,0.########", CultureInfo.InvariantCulture)} filled)"
+				: string.Empty;
+		var from = order.LimitPrice is { } limit ? FormatPrice(limit) : "?";
+		return $"{order.Action} {quantity}{filled} {order.Symbol}, limit {from} → {FormatPrice(newLimitPrice)}, {order.TimeInForce}, account {order.Account} (order {order.OrderId})";
+	}
+
+	/// <summary>A price with at least two decimals and no trailing zeros past them: 1.6 → "1.60", 1.555 → "1.555".</summary>
+	public static string FormatPrice(double price) =>
+		price.ToString("#,0.00######", CultureInfo.InvariantCulture);
 
 	/// <summary>
 	/// Time in force values an order may use, the default first. Crypto takes GTC or IOC only

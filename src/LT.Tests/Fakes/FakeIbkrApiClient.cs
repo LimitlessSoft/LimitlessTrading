@@ -92,6 +92,18 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	public Func<IAsyncEnumerable<OrderStatusDto>>? OrderStatusSource { get; set; }
 	public List<int> CancelledOrderIds { get; } = [];
 
+	/// <summary>Price changes sent through <see cref="ModifyOrderAsync"/>, in order (none reach IB).</summary>
+	public List<(OpenOrderDto Order, decimal LimitPrice)> ModifiedOrders { get; } = [];
+
+	/// <summary>
+	/// When set, <see cref="ModifyOrderAsync"/> records the change, then throws it (IB's refusal);
+	/// otherwise the change is "taken" and <see cref="OpenOrders"/> shows the new price.
+	/// </summary>
+	public Exception? ModifyException { get; set; }
+
+	/// <summary>When set, awaited by <see cref="ModifyOrderAsync"/> before it answers.</summary>
+	public Task? ModifyGate { get; set; }
+
 	public List<NewsProviderDto> NewsProviders { get; set; } = [];
 
 	/// <summary>Past headlines returned for every request (newest first).</summary>
@@ -424,9 +436,17 @@ public class FakeIbkrApiClient : IIbkrApiClient
 		CancellationToken cancellationToken = default
 	) => AsyncEnumerable.Empty<PositionPnlDto>();
 
+	/// <summary>How many times <see cref="GetOpenOrdersAsync"/> was asked.</summary>
+	public int OpenOrdersRequests => _openOrdersRequests;
+	private int _openOrdersRequests;
+
 	public Task<IReadOnlyList<OpenOrderDto>> GetOpenOrdersAsync(
 		CancellationToken cancellationToken = default
-	) => Task.FromResult<IReadOnlyList<OpenOrderDto>>(OpenOrders);
+	)
+	{
+		Interlocked.Increment(ref _openOrdersRequests);
+		return Task.FromResult<IReadOnlyList<OpenOrderDto>>([.. OpenOrders]);
+	}
 
 	public Task<IReadOnlyList<ExecutionDto>> GetExecutionsAsync(
 		CancellationToken cancellationToken = default
@@ -485,6 +505,40 @@ public class FakeIbkrApiClient : IIbkrApiClient
 		return WshException != null
 			? Task.FromException<string>(WshException)
 			: Task.FromResult(WshEventsBy(query));
+	}
+
+	public async Task ModifyOrderAsync(
+		OpenOrderDto order,
+		decimal limitPrice,
+		CancellationToken cancellationToken = default
+	)
+	{
+		ModifiedOrders.Add((order, limitPrice));
+		if (ModifyGate != null)
+			await ModifyGate.WaitAsync(cancellationToken);
+		if (ModifyException != null)
+			throw ModifyException;
+		// A new object, as a fresh read from IB would be: what was read before stays as it was
+		for (var i = 0; i < OpenOrders.Count; i++)
+			if (OpenOrders[i] is { } open && open.PermId == order.PermId)
+				OpenOrders[i] = new OpenOrderDto
+				{
+					OrderId = open.OrderId,
+					ClientId = open.ClientId,
+					PermId = open.PermId,
+					Account = open.Account,
+					Symbol = open.Symbol,
+					SecurityType = open.SecurityType,
+					Action = open.Action,
+					Quantity = open.Quantity,
+					Filled = open.Filled,
+					OrderType = open.OrderType,
+					LimitPrice = (double)limitPrice,
+					AuxPrice = open.AuxPrice,
+					TimeInForce = open.TimeInForce,
+					Status = open.Status,
+					Contract = open.Contract,
+				};
 	}
 
 	public Task CancelOrderAsync(int orderId, CancellationToken cancellationToken = default)

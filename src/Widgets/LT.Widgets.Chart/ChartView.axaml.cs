@@ -36,6 +36,10 @@ namespace LT.App.Widgets.Chart;
 /// places the alert; Esc disarms it.
 /// </para>
 /// <para>
+/// Orders: a dropped order line (<see cref="CandlestickChart.OrderMoved"/>) asks the view model to
+/// confirm the new price; Esc puts a line being dragged, or one waiting for its confirmation, back.
+/// </para>
+/// <para>
 /// Drawings: the chart raises a finished drawing, a moved one and a double-clicked note; they
 /// reach the view model here. A note's text is typed in a box opened at the pointer (Enter or
 /// clicking away keeps it, Esc drops it). Esc first drops a drawing being placed or moved, then
@@ -56,6 +60,7 @@ public partial class ChartView : UserControl
 		Chart.AlertMoved += (id, price) => ViewModel?.MoveAlert(id, price);
 		Chart.AlertRemoved += id => ViewModel?.RemoveAlert(id);
 		Chart.AlertPlaced += price => ViewModel?.PlaceAlert(price);
+		Chart.OrderMoved += (id, price) => ViewModel?.RequestOrderMove(id, price);
 		Chart.OlderBarsNeeded += () => ViewModel?.LoadOlderBars();
 		Chart.DrawingCreated += OnDrawingCreated;
 		Chart.DrawingEdited += (id, points) => ViewModel?.UpdateDrawing(id, points);
@@ -169,13 +174,19 @@ public partial class ChartView : UserControl
 				$"Remove alert at {PriceAlertHelpers.FormatPrice(_menuAlert.Price)}";
 	}
 
-	// Alt+A (TradingView's): an alert at the pointer's price, or the last price. Esc disarms the
+	// Alt+A (TradingView's): an alert at the pointer's price, or the last price. Esc first puts
+	// back an order line being dragged or waiting for its confirmation, then disarms the
 	// toolbox's armed tool
 	private void OnKeyDown(object? sender, KeyEventArgs e)
 	{
 		if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
 		{
-			if (Chart.CancelDrawing() || ViewModel?.CancelTool() == true)
+			if (
+				Chart.CancelOrderDrag()
+				|| ViewModel?.CancelOrderMove() == true
+				|| Chart.CancelDrawing()
+				|| ViewModel?.CancelTool() == true
+			)
 				e.Handled = true;
 			return;
 		}

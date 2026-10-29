@@ -92,4 +92,28 @@ public static class AsyncEnumerableHelpers
 			onEnd();
 		}
 	}
+
+	/// <summary>
+	/// The items of <paramref name="source"/>, calling <paramref name="onItem"/> for each first; an
+	/// <paramref name="onItem"/> that throws never ends the stream.
+	/// </summary>
+	public static async IAsyncEnumerable<T> OnEachAsync<T>(
+		IAsyncEnumerable<T> source,
+		Action<T> onItem,
+		[EnumeratorCancellation] CancellationToken cancellationToken = default
+	)
+	{
+		await foreach (var item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+		{
+			try
+			{
+				onItem(item);
+			}
+			catch (Exception)
+			{
+				// The stream matters more than what listens to it
+			}
+			yield return item;
+		}
+	}
 }

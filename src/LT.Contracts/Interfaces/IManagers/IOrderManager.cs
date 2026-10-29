@@ -16,6 +16,14 @@ public interface IOrderManager
 	event Action<OrderStatusDto>? OrderFilled;
 
 	/// <summary>
+	/// Raised on any thread when this app's orders may have changed, so open orders are worth
+	/// reading again: a status of an order placed through this manager (while its
+	/// <see cref="PlacedOrderDto.Statuses"/> are read), a cancel or a price change sent (also a
+	/// refused one).
+	/// </summary>
+	event Action? OrdersChanged;
+
+	/// <summary>
 	/// Working orders, with <see cref="OpenOrderDto.CanCancel"/> set for this app's own. Keeps the
 	/// account's last-known orders as a snapshot.
 	/// </summary>
@@ -48,6 +56,23 @@ public interface IOrderManager
 	/// </summary>
 	Task<PlacedOrderDto> ExitPositionAsync(
 		PositionDto position,
+		CancellationToken cancellationToken = default
+	);
+
+	/// <summary>
+	/// Why the price of <paramref name="order"/> can't be changed from this app (e.g. it was placed
+	/// in TWS), as a message for the user; null when it can (<see cref="ModifyOrderAsync"/>).
+	/// </summary>
+	string? GetModifyBlockReason(OpenOrderDto order);
+
+	/// <summary>
+	/// Validates and sends a new limit price for a working order of this app; this trades for real
+	/// on a live account. Completes when IB has taken it. IB's refusal (e.g. 110, a price off the
+	/// tick) throws with IB's text and leaves the order as it was; no answer in time throws
+	/// <see cref="TimeoutException"/> (the change may still go through: read the orders again).
+	/// </summary>
+	Task ModifyOrderAsync(
+		ModifyOrderRequest request,
 		CancellationToken cancellationToken = default
 	);
 

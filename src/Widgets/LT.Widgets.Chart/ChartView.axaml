@@ -447,6 +447,9 @@
 				IsFitted="{Binding IsPeriodFitted, Mode=OneWayToSource}"
 				Alerts="{Binding Alerts}"
 				IsPlacingAlert="{Binding IsPlacingAlert}"
+				OrderLines="{Binding OrderLines}"
+				OrderTickSize="{Binding OrderTickSize}"
+				helpers:Sensitive.Redraws="True"
 				Drawings="{Binding Drawings}"
 				IsDrawingMode="{Binding IsDrawingMode}"
 				DrawingTool="{Binding ActiveDrawingKind}"
@@ -658,6 +661,34 @@
 					Content="Remove"
 					Command="{Binding ConfirmRemoveAllDrawingsCommand}"
 				/>
+			</StackPanel>
+		</Border>
+		<!-- A dropped order line: nothing is sent until "Send" (Cancel or Esc puts it back) -->
+		<Border
+			HorizontalAlignment="Center"
+			VerticalAlignment="Top"
+			Margin="8,40,8,8"
+			Padding="10,6"
+			MaxWidth="560"
+			CornerRadius="6"
+			Background="{DynamicResource PanelBackground}"
+			BorderBrush="{DynamicResource WarningBrush}"
+			BorderThickness="1"
+			IsVisible="{Binding IsConfirmingOrderMove}"
+		>
+			<StackPanel Spacing="6">
+				<TextBlock Classes="warning" FontWeight="SemiBold" Text="Change the order's limit price?" />
+				<TextBlock TextWrapping="Wrap" Text="{Binding OrderMovePrompt}" />
+				<StackPanel Orientation="Horizontal" Spacing="8">
+					<Button Content="Send" Command="{Binding ConfirmOrderMoveCommand}" />
+					<Button Content="Cancel" Command="{Binding RevertOrderMoveCommand}" />
+					<TextBlock
+						Classes="secondary"
+						VerticalAlignment="Center"
+						Text="Sending…"
+						IsVisible="{Binding IsSendingOrderMove}"
+					/>
+				</StackPanel>
 			</StackPanel>
 		</Border>
 		<!-- Drawing mode: the selected drawing's style bar, floating at the bottom of the plot -->
