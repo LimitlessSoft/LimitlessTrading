@@ -15,6 +15,64 @@ public static class ChartViewportHelpers
 		barCount + Math.Max(0, rightMargin) - offset;
 
 	/// <summary>
+	/// The smallest (most negative) offset: how far the view may be panned into the future, past
+	/// the latest bar and the right margin, while
+	/// <see cref="ChartConstants.MinVisibleBarsWhenPanned"/> bars (all, when fewer) stay visible
+	/// at the plot's left edge. 0 when the plot or the zoom is unknown, or the plot can't be
+	/// panned that far.
+	/// </summary>
+	public static int GetMinOffset(
+		int barCount,
+		double rightMargin,
+		double plotWidth,
+		double barSpacing
+	)
+	{
+		if (barCount <= 0 || !(plotWidth > 0) || !(barSpacing > 0))
+			return 0;
+		var margin = double.IsNaN(rightMargin) ? 0 : Math.Max(0, rightMargin);
+		var keep = Math.Min(ChartConstants.MinVisibleBarsWhenPanned, barCount);
+		// The plot's left edge (right edge − plotWidth / barSpacing) at barCount − keep at most
+		var min = Math.Ceiling(margin + keep - plotWidth / barSpacing);
+		return min >= 0 ? 0 : (int)min;
+	}
+
+	/// <summary>
+	/// <paramref name="offset"/> limited to <see cref="GetMinOffset"/> (panned into the future)
+	/// … the oldest bar at the right edge (panned back into history).
+	/// </summary>
+	public static int ClampOffset(
+		int offset,
+		int barCount,
+		double rightMargin,
+		double plotWidth,
+		double barSpacing
+	) =>
+		Math.Clamp(
+			offset,
+			GetMinOffset(barCount, rightMargin, plotWidth, barSpacing),
+			Math.Max(0, barCount - 1)
+		);
+
+	/// <summary>
+	/// Bar spacing after a wheel step: <paramref name="deltaY"/> &gt; 0 zooms in, &lt; 0 out (by
+	/// <see cref="ChartConstants.WheelZoomFactor"/>), 0 (a horizontal swipe) leaves it. Never
+	/// below <see cref="ChartConstants.MinBarSpacing"/> — or below the current spacing, when that
+	/// is denser already — nor above <paramref name="maxSpacing"/>.
+	/// </summary>
+	public static double GetWheelBarSpacing(double barSpacing, double deltaY, double maxSpacing)
+	{
+		if (deltaY == 0 || double.IsNaN(deltaY))
+			return barSpacing;
+		var next =
+			deltaY > 0
+				? barSpacing * ChartConstants.WheelZoomFactor
+				: barSpacing / ChartConstants.WheelZoomFactor;
+		var min = Math.Min(ChartConstants.MinBarSpacing, barSpacing);
+		return Math.Clamp(next, min, Math.Max(min, maxSpacing));
+	}
+
+	/// <summary>
 	/// Bars whose centre lies inside a plot <paramref name="plotWidth"/> wide: <c>[Start, End)</c>.
 	/// Empty (Start == End) when none do.
 	/// </summary>

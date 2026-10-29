@@ -5,6 +5,21 @@ public static class ChartConstants
 	/// <summary>The empty space after the last bar is at most this share of the plot width.</summary>
 	public const double MaxRightMarginFraction = 0.5;
 
+	/// <summary>
+	/// Panning into the future (past the latest bar) stops while this many bars (or all, when
+	/// fewer) are still visible at the plot's left edge.
+	/// </summary>
+	public const int MinVisibleBarsWhenPanned = 5;
+
+	/// <summary>
+	/// Zooming out with the wheel stops at this bar spacing (DIPs); a fitted view that is denser
+	/// already keeps its spacing (zooming out never jumps in).
+	/// </summary>
+	public const double MinBarSpacing = 0.25;
+
+	/// <summary>One wheel notch zooms the bar spacing in or out by this factor.</summary>
+	public const double WheelZoomFactor = 1.15;
+
 	/// <summary>Half-width (DIPs) of the margin handle's grab area in the time axis.</summary>
 	public const double MarginHandleHitWidth = 5;
 
