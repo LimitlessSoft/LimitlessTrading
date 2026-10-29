@@ -246,16 +246,22 @@ new instance) and lives in one of four wrappers:
   (`MoveView`, `DetachView`); the drag is `WorkspaceView.ViewTabs.cs`. The saved layout follows
   (each window's `Views` and `Widgets`), so the order and placement come back on the next start.
 - **Widget categories.** Every widget definition has a `WidgetCategory` (`LT.Contracts/Enums`):
-  `Ibkr` for widgets backed by Interactive Brokers (all of them so far) and `Tools` for widgets
-  that work on their own, without a connection (Notes). Menu → Widgets has one section per
-  category, in the enum's order, each under a disabled header item ("Interactive Brokers",
-  "Tools", `WidgetMenuHelpers.GetCategoryTitle`) and keeping its own separators
-  (`WidgetMenuHelpers.Group` splits `WidgetsMenuItem.Order`). A `Tools` widget derives from
+  `Ibkr` for widgets backed by Interactive Brokers, `Tools` for widgets that work on their own,
+  without a connection (Notes), and `Mixed` for widgets showing both (News: IB's providers and
+  the app's own feeds). Menu → Widgets has one section per category, in the enum's order, each
+  under a disabled header item ("Interactive Brokers", "Tools",
+  `WidgetMenuHelpers.GetCategoryTitle`) and keeping its own separators
+  (`WidgetMenuHelpers.Group` splits `WidgetsMenuItem.Order`); a `Mixed` widget is listed under
+  Interactive Brokers (`WidgetMenuHelpers.GetMenuSection`). A `Tools` widget derives from
   `ViewModelBase`, not `ConnectedViewModelBase`, and needs nothing from IB.
   Every widget frame (center tile, side, bottom, floating, fullscreen — all one `WidgetFrame`)
-  has a 12 px wedge in its top-left corner in its category's color (`WidgetCategoryBrushes`, the
-  one mapping: Ibkr indigo `#5C6BC0`, Tools muted gold `#B8973A`, chosen away from buy / sell
-  green and red, the fullscreen amber and the link group dots); hovering it names the source.
+  has a 12 px wedge in its top-left corner in its category's color (`WidgetCategoryBrushes` in
+  `LT.Widgets.Core`, the one mapping: Ibkr indigo `#5C6BC0`, Tools muted gold `#B8973A`, Mixed
+  both, split along the diagonal; chosen away from buy / sell green and red, the fullscreen
+  amber and the link group dots); hovering it names the source ("Interactive Brokers + own
+  sources" for Mixed). Widgets that mix sources reuse the same brushes per item: the News
+  headline badges are indigo for IB's providers and gold for the app's own feeds
+  (`NewsHelpers.GetSourceCategory`).
   The wedge (`Workspace/CornerMarker`) takes the frame's top-left corner radius, so it is rounded
   in the card look and square when flush or docked.
 - **Spawning.** Menu → Widgets → any widget always opens a **new instance**

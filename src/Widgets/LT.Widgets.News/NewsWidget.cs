@@ -10,7 +10,8 @@ public class NewsWidget : IWidgetDefinition
 {
 	public WorkspaceTool Tool => WorkspaceTool.News;
 
-	public WidgetCategory Category => WidgetCategory.Ibkr;
+	// IB's providers and the app's own feeds
+	public WidgetCategory Category => WidgetCategory.Mixed;
 
 	public string Title => "News";
 
