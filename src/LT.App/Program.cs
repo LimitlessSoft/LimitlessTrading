@@ -14,12 +14,14 @@ using LT.Contracts.Constants;
 using LT.Contracts.Enums;
 using LT.Contracts.Interfaces.IApiClients;
 using LT.Contracts.Interfaces.ICalendarSources;
+using LT.Contracts.Interfaces.IEarningsResultSources;
 using LT.Contracts.Interfaces.IEngines;
 using LT.Contracts.Interfaces.IManagers;
 using LT.Contracts.Interfaces.INewsSources;
 using LT.Contracts.Interfaces.IProcesses;
 using LT.Contracts.Interfaces.IRepositories;
 using LT.Domain.CalendarSources;
+using LT.Domain.EarningsResultSources;
 using LT.Domain.Managers;
 using LT.Domain.NewsSources;
 using LT.Ibkr;
@@ -29,6 +31,7 @@ using LT.Indicators.Scripting;
 using LT.Nasdaq;
 using LT.Repository.Repositories;
 using LT.Sec;
+using LT.Yahoo;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -110,6 +113,11 @@ public static class Program
 			NasdaqApiClient.CreateHttpClient(),
 			services.GetRequiredService<TimeProvider>()
 		));
+		// One HttpClient and one pacing state for every Yahoo Finance request
+		builder.Services.AddSingleton<IYahooApiClient>(services => new YahooApiClient(
+			YahooApiClient.CreateHttpClient(),
+			services.GetRequiredService<TimeProvider>()
+		));
 		builder.Services.AddSingleton<IMessageLogManager, MessageLogManager>();
 		builder.Services.AddSingleton<IConnectionManager, ConnectionManager>();
 		builder.Services.AddSingleton<IGatewayProcess, GatewayProcess>();
@@ -121,6 +129,12 @@ public static class Program
 		builder.Services.AddSingleton<ICalendarSource, WshCalendarSource>();
 		builder.Services.AddSingleton<ICalendarSource, NasdaqCalendarSource>();
 		builder.Services.AddSingleton<ICalendarManager, CalendarManager>();
+		// Earnings results for the calendar's rows without one, fastest source first (the first
+		// result per symbol and day is kept); each keeps its own answers and interval
+		builder.Services.AddSingleton<IEarningsResultSource, SecEarningsResultSource>();
+		builder.Services.AddSingleton<IEarningsResultSource, YahooEarningsResultSource>();
+		builder.Services.AddSingleton<IEarningsResultSource, NasdaqEarningsResultSource>();
+		builder.Services.AddSingleton<IEarningsResultManager, EarningsResultManager>();
 		builder.Services.AddSingleton<ISettingsManager, SettingsManager>();
 		builder.Services.AddSingleton<IAppUpdater, AppUpdater>();
 		builder.Services.AddSingleton<IUpdateManager, UpdateManager>();

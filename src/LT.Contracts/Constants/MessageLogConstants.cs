@@ -16,4 +16,5 @@ public static class MessageLogConstants
 	public const string SourceSec = "SEC";
 	public const string SourceNotes = "Notes";
 	public const string SourceAlerts = "Alerts";
+	public const string SourceCalendar = "Calendar";
 }

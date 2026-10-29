@@ -50,6 +50,17 @@
 				<Setter Property="TextAlignment" Value="Right" />
 				<Setter Property="VerticalAlignment" Value="Center" />
 			</Style>
+			<!-- The 8-K link in the Actual column: a small amber text link (reported, figure pending) -->
+			<Style Selector="Button.filing">
+				<Setter Property="Padding" Value="2,0" />
+				<Setter Property="MinHeight" Value="0" />
+				<Setter Property="FontSize" Value="11" />
+				<Setter Property="Background" Value="Transparent" />
+				<Setter Property="BorderThickness" Value="0" />
+				<Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+				<Setter Property="Cursor" Value="Hand" />
+				<Setter Property="VerticalAlignment" Value="Center" />
+			</Style>
 			<Style Selector="TextBlock.caption">
 				<Setter Property="Width" Value="62" />
 				<Setter Property="FontSize" Value="10" />
@@ -197,7 +208,7 @@
 								<TextBlock
 									Classes="caption"
 									Text="Actual"
-									ToolTip.Tip="Reported EPS (Nasdaq lists it from the day after the report)"
+									ToolTip.Tip="Reported EPS: from Nasdaq the day after, the same day from Yahoo Finance; 8-K links to the company's release on SEC EDGAR until a figure is out"
 								/>
 								<TextBlock
 									Classes="caption"
@@ -261,7 +272,7 @@
 							<TextBlock
 								Classes="caption"
 								Text="Actual"
-								ToolTip.Tip="Reported EPS (Nasdaq lists it from the day after the report)"
+								ToolTip.Tip="Reported EPS: from Nasdaq the day after, the same day from Yahoo Finance; 8-K links to the company's release on SEC EDGAR until a figure is out"
 							/>
 							<TextBlock
 								Classes="caption"
@@ -303,7 +314,22 @@
 								IsVisible="{Binding ShowsFigures}"
 							>
 								<TextBlock Classes="figure estimate" Text="{Binding EstimateText}" />
-								<TextBlock Classes="figure" Text="{Binding ActualText}" />
+								<Panel Width="62">
+									<TextBlock
+										Classes="figure"
+										Text="{Binding ActualText}"
+										IsVisible="{Binding HasActualText}"
+									/>
+									<!-- The company's 8-K is out, no figure yet: opens the filing -->
+									<Button
+										Classes="filing"
+										HorizontalAlignment="Right"
+										Content="8-K"
+										IsVisible="{Binding ShowsFilingLink}"
+										Click="OnFilingClick"
+										ToolTip.Tip="Reported: the company's earnings release (8-K) is on SEC EDGAR; click to open it. The EPS fills in when a source has it."
+									/>
+								</Panel>
 								<TextBlock
 									Classes="figure"
 									Classes.positive="{Binding IsBeat}"

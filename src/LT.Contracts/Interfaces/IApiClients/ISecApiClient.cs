@@ -1,3 +1,4 @@
+using LT.Contracts.Dtos.Calendar;
 using LT.Contracts.Dtos.Fundamentals;
 
 namespace LT.Contracts.Interfaces.IApiClients;
@@ -38,6 +39,17 @@ public interface ISecApiClient
 	/// </summary>
 	Task<IReadOnlyList<SecFactDto>?> GetLatestFilingShareFactsAsync(
 		int cik,
+		CancellationToken cancellationToken = default
+	);
+
+	/// <summary>
+	/// A page of EDGAR's latest filings feed (<c>getcurrent</c>) for <paramref name="form"/>,
+	/// newest first, from position <paramref name="start"/> (at most
+	/// <see cref="Constants.SecConstants.CurrentFilingsPageSize"/> entries; about 400 8-Ks a day).
+	/// </summary>
+	Task<IReadOnlyList<SecCurrentFilingDto>> GetCurrentFilingsAsync(
+		string form,
+		int start,
 		CancellationToken cancellationToken = default
 	);
 }

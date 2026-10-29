@@ -483,7 +483,9 @@ new instance) and lives in one of four wrappers:
   **Surprise** (green a beat, red a miss; `positive` / `negative` classes) — fixed-width,
   right-aligned, tabular digits, an em dash for a figure the source didn't give, Actual and
   Surprise blank until reported (Nasdaq lists results from the day after the report;
-  `CalendarEventDto.EpsEstimate` / `EpsActual` / `EpsSurprisePercent`) — or the detail
+  `CalendarEventDto.EpsEstimate` / `EpsActual` / `EpsSurprisePercent`; the rows of today and
+  the three days before without one are filled in place from the earnings result sources,
+  below) — or the detail
   (dividend amount and payment date, split ratio, a release's actual / consensus / previous,
   WSH's earnings text) with the type (or a release's country when no flag is drawn for it).
   Earnings carry no type label. The columns' captions sit in the day's header when the day
@@ -505,6 +507,21 @@ new instance) and lives in one of four wrappers:
   in Settings (`ICalendarManager.SourcesChanged`). Switching range or filter cancels the load
   running; Refresh and F5 ask every source again (otherwise answers of the last 30 minutes come
   from memory, per source). Data from `ICalendarManager`, which merges every `ICalendarSource`.
+  **Results the same day:** after every load the earnings rows of today and the
+  `EarningsResultConstants.LookbackDays` before it that have no reported EPS are looked up in
+  `IEarningsResultManager` (SEC EDGAR's results 8-Ks, Yahoo Finance, Nasdaq; the first result per
+  symbol and day kept — [architecture.md → External data: earnings
+  results](architecture.md#external-data-earnings-results-sec-edgar-8-ks-yahoo-finance-nasdaq))
+  and set on the rows (`CalendarEventRowViewModel.Result`) without rebuilding the list, so the
+  scroll stays; the VM keeps them across loads. While today still has rows without figures, a
+  `TimeProvider` timer looks again at the shortest source interval (30 s around the open and the
+  close, while EDGAR is busy), only between 06:00 and 22:00 New York
+  (`EarningsResultHelpers.GetPollDelay`), and stops once every row has one. A row whose 8-K is
+  out but has no figure yet shows an amber **8-K** link in the Actual column that opens the
+  filing (the row isn't selected by it); a figure found by another source shows like Nasdaq's,
+  the surprise worked out from the estimate when the source gave none. The tooltip adds where
+  the result came from ("EPS from Yahoo Finance · 8-K filed 16:05 (SEC EDGAR)"). A failing
+  source is logged to Messages and the rows keep what they have.
 - **Overview** (`LT.Widgets.Overview`, right side, closed on first run, Ctrl+Alt+I): one
   contract in depth. The contract comes from the link group, a ticker typed into the header
   title (a `TickerTitle`, moving the group along) or a ticker dropped on the widget

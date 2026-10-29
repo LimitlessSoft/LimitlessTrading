@@ -27,6 +27,23 @@ public static class SecConstants
 		"https://www.sec.gov/Archives/edgar/data/{0}/{1}/{2}_htm.xml";
 
 	/// <summary>
+	/// EDGAR's latest filings as Atom, newest first (what its "Latest Filings" page lists): {0}
+	/// the form ("8-K"), {1} the 0-based start. Each entry names the CIK in its title, the 8-K
+	/// items in its summary and the acceptance time in <c>updated</c> (checked 2026-10-29).
+	/// </summary>
+	public const string CurrentFilingsUrl =
+		"https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type={0}&company=&dateb=&owner=include&start={1}&count=100&output=atom";
+
+	/// <summary>Entries per page of <see cref="CurrentFilingsUrl"/> (EDGAR's largest).</summary>
+	public const int CurrentFilingsPageSize = 100;
+
+	/// <summary>The form companies file their earnings release with.</summary>
+	public const string CurrentReportForm = "8-K";
+
+	/// <summary>8-K Item 2.02, Results of Operations and Financial Condition: the earnings release.</summary>
+	public const string ResultsOfOperationsItem = "2.02";
+
+	/// <summary>
 	/// The SEC blocks automated requests (403) without a User-Agent naming the tool and a contact
 	/// e-mail address.
 	/// </summary>

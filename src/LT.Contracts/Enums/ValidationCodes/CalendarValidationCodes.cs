@@ -41,4 +41,21 @@ public enum CalendarValidationCodes
 
 	[LSCoreValidationMessage("Nasdaq refused the calendar request: {0}")]
 	CLVC_010,
+
+	[LSCoreValidationMessage("Yahoo Finance's earnings calendar could not be loaded ({0}).")]
+	CLVC_011,
+
+	[LSCoreValidationMessage(
+		"Yahoo Finance's earnings calendar page has a layout the app can't read, so its results are left out. Yahoo sent: {0}"
+	)]
+	CLVC_012,
+
+	[LSCoreValidationMessage("Pick the day whose earnings results to look up.")]
+	CLVC_013,
+
+	[LSCoreValidationMessage("Earnings results are looked up for at most {0} symbols at a time.")]
+	CLVC_014,
+
+	[LSCoreValidationMessage("{0} earnings results could not be loaded: {1}")]
+	CLVC_015,
 }

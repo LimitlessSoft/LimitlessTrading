@@ -1,13 +1,15 @@
 using System.Globalization;
 using System.Net;
 using LT.Contracts.Constants;
+using LT.Contracts.Dtos.Calendar;
 using LT.Contracts.Dtos.Fundamentals;
 using LT.Contracts.Interfaces.IApiClients;
 
 namespace LT.Sec;
 
 /// <summary>
-/// SEC EDGAR over HTTPS: the ticker → CIK file, XBRL share counts and filings' cover pages. Every request goes through
+/// SEC EDGAR over HTTPS: the ticker → CIK file, XBRL share counts, filings' cover pages and the
+/// latest filings feed. Every request goes through
 /// one gate and stays <see cref="SecConstants.RequestSpacing"/> after the previous one (the SEC
 /// allows 10 per second per client). Singleton (Program.cs) so the spacing holds app-wide.
 /// </summary>
@@ -98,6 +100,23 @@ public sealed class SecApiClient(HttpClient http, TimeProvider timeProvider) : I
 		return await GetStringAsync(url, cancellationToken) is { } xml
 			? SecXbrlParser.ParseCoverPageShares(xml, filing.Form, filing.Filed)
 			: null;
+	}
+
+	public async Task<IReadOnlyList<SecCurrentFilingDto>> GetCurrentFilingsAsync(
+		string form,
+		int start,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var url = string.Format(
+			CultureInfo.InvariantCulture,
+			SecConstants.CurrentFilingsUrl,
+			Uri.EscapeDataString(form),
+			start
+		);
+		return await GetStringAsync(url, cancellationToken) is { } xml
+			? SecAtomParser.ParseCurrentFilings(xml)
+			: [];
 	}
 
 	private static string GetUrl(string format, int cik) =>

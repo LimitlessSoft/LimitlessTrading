@@ -8,6 +8,7 @@ using LT.Contracts.Enums;
 using LT.Contracts.Exceptions;
 using LT.Contracts.Requests.Settings;
 using LT.Domain.CalendarSources;
+using LT.Domain.EarningsResultSources;
 using LT.Domain.Managers;
 using LT.Tests.Fakes;
 
@@ -25,6 +26,7 @@ public class CalendarViewModelTests : IDisposable
 	private readonly TestCache _cache = new();
 	private readonly FakeIbkrApiClient _ibkr = new() { IsConnected = true };
 	private readonly FakeNasdaqApiClient _nasdaq = new();
+	private readonly FakeYahooApiClient _yahoo = new();
 	private readonly FakeConnectionManager _connection = new();
 	private readonly LinkGroupStore _links = new();
 	private readonly SettingsNavigator _navigator = new();
@@ -497,6 +499,86 @@ public class CalendarViewModelTests : IDisposable
 	}
 
 	// Opens the widget; its first load (offline) has finished
+	// Wednesday 28 October, 16:00 New York: AAPL reports after the close; Nasdaq lists no result
+	// for today, Yahoo has it once it's out
+	[Fact]
+	public async Task Todays_earnings_rows_get_the_reported_eps_from_yahoo()
+	{
+		_nasdaq.Answer = (calendar, day) =>
+			calendar == NasdaqCalendar.Earnings && day == Wednesday
+				? [Earnings("AAPL", Wednesday), Earnings("MSFT", Wednesday)]
+				: [];
+		_yahoo.Answer = (day, _) =>
+			day == Wednesday
+				? FakeYahooApiClient.Page(day, 1, 2, ("AAPL", 1.85m, 4.52m), ("msft", null, null))
+				: new();
+
+		await Loaded();
+		await WaitFor(() => Row("AAPL").ActualText.Length > 0);
+
+		var apple = TestUiThread.Invoke(() => Row("AAPL"));
+		Assert.Equal("$1.85", apple.ActualText);
+		Assert.Equal("+4.5%", apple.SurpriseText);
+		Assert.True(apple.IsBeat);
+		Assert.Contains("EPS from Yahoo Finance", apple.ToolTipText);
+		Assert.Equal(string.Empty, TestUiThread.Invoke(() => Row("MSFT").ActualText));
+	}
+
+	[Fact]
+	public async Task While_today_has_rows_without_a_result_it_looks_again_on_its_own()
+	{
+		var reported = false;
+		_nasdaq.Answer = (calendar, day) =>
+			calendar == NasdaqCalendar.Earnings && day == Wednesday
+				? [Earnings("AAPL", Wednesday)]
+				: [];
+		_yahoo.Answer = (day, _) =>
+			day == Wednesday && reported
+				? FakeYahooApiClient.Page(day, 1, 1, ("AAPL", 1.85m, 4.52m))
+				: FakeYahooApiClient.Page(day, 1, 1, ("AAPL", null, null));
+
+		await Loaded();
+		await WaitFor(() => _yahoo.Requests.Count > 0);
+		Assert.Equal(string.Empty, TestUiThread.Invoke(() => Row("AAPL").ActualText));
+		var itemsBefore = TestUiThread.Invoke(() => Calendar.Items.ToList());
+
+		// Out a few minutes later: the next look fills it in, in place (no reload)
+		reported = true;
+		_cache.Time.Advance(EarningsResultConstants.YahooInterval);
+		await WaitFor(() => Row("AAPL").ActualText == "$1.85");
+		Assert.Equal(itemsBefore, TestUiThread.Invoke(() => Calendar.Items.ToList()));
+
+		// Nothing left to look for: no more requests
+		var requests = _yahoo.Requests.Count;
+		_cache.Time.Advance(EarningsResultConstants.YahooInterval * 3);
+		TestUiThread.Invoke(() => Dispatcher.UIThread.RunJobs());
+		await Task.Delay(50, TestContext.Current.CancellationToken);
+		Assert.Equal(requests, _yahoo.Requests.Count);
+	}
+
+	[Fact]
+	public async Task When_yahoo_fails_the_nasdaq_rows_still_show()
+	{
+		_nasdaq.Answer = (calendar, day) =>
+			calendar == NasdaqCalendar.Earnings && day == Wednesday
+				? [Earnings("AAPL", Wednesday)]
+				: [];
+		_yahoo.Answer = (_, _) => throw new YahooServiceException("Yahoo is down");
+
+		await Loaded();
+		await WaitFor(() => _yahoo.Requests.Count > 0);
+
+		Assert.Single(
+			TestUiThread.Invoke(() => Calendar.Items.OfType<CalendarEventRowViewModel>().ToList())
+		);
+		Assert.Null(TestUiThread.Invoke(() => Calendar.ErrorMessage));
+		Assert.False(TestUiThread.Invoke(() => Calendar.HasNotice));
+		Assert.Equal(string.Empty, TestUiThread.Invoke(() => Row("AAPL").ActualText));
+	}
+
+	private CalendarEventRowViewModel Row(string symbol) =>
+		Calendar.Items.OfType<CalendarEventRowViewModel>().Single(x => x.Event.Symbol == symbol);
+
 	private Task Loaded()
 	{
 		Open();
@@ -541,6 +623,10 @@ public class CalendarViewModelTests : IDisposable
 				],
 				_settings,
 				_cache.Time
+			),
+			new EarningsResultManager(
+				[new YahooEarningsResultSource(_yahoo, _cache.Time)],
+				new MessageLogManager()
 			),
 			new ContractManager(_ibkr, _cache.Settings, _cache.Manager),
 			_connection,
