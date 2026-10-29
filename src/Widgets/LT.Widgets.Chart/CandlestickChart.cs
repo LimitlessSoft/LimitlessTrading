@@ -106,7 +106,6 @@ public partial class CandlestickChart : Control
 	private const double TimeAxisHeight = 22;
 	private const double TopPadding = 24;
 	private const double VolumeFraction = 0.18;
-	private const double MinBarSpacing = 2;
 	private const double MaxBarSpacing = 40;
 	private const double DefaultBarSpacing = 8;
 	private const double PaneGap = 6;
@@ -558,14 +557,18 @@ public partial class CandlestickChart : Control
 		context.DrawLine(AxisBorderPen, new Point(borderX, 0), new Point(borderX, size.Height));
 		context.DrawLine(AxisBorderPen, new Point(0, borderY), new Point(size.Width, borderY));
 
-		// time labels
+		// time labels; the slots after the latest bar (the margin, a view panned into the future)
+		// get times a bar length apart
 		var labelEvery = Math.Max(1, (int)Math.Ceiling(96 / _barSpacing));
+		var lastSlot = Math.Max(end, (int)Math.Floor(rightEdge - 0.5) + 1);
 		DateTimeOffset? previous = null;
-		for (var i = start; i < end; i++)
+		for (var i = start; i < lastSlot; i++)
 		{
 			if ((bars.Count - 1 - i) % labelEvery != 0)
 				continue;
-			var time = ToShown(bars[i].Time);
+			var time = ToShown(
+				i < bars.Count ? bars[i].Time : ChartDrawingHelpers.GetTimeAt(bars, i, BarLength)
+			);
 			var x = Math.Round(X(i)) + 0.5;
 			context.DrawLine(GridPen, new Point(x, plot.Y), new Point(x, plot.Bottom));
 			var label = Text(FormatTime(time, previous), 11, TextBrush);
@@ -826,9 +829,16 @@ public partial class CandlestickChart : Control
 			plot.Width,
 			GetMaxBarSpacing()
 		);
-		_offset = Math.Clamp(_offset, 0, bars.Count - 1);
 		var rightMargin = ChartViewportHelpers.ClampRightMargin(
 			RightMargin,
+			plot.Width,
+			_barSpacing
+		);
+		// Negative: panned into the future, a few bars kept at the left edge
+		_offset = ChartViewportHelpers.ClampOffset(
+			_offset,
+			bars.Count,
+			rightMargin,
 			plot.Width,
 			_barSpacing
 		);
@@ -1118,9 +1128,13 @@ public partial class CandlestickChart : Control
 			);
 		else if (_dragStart is { } start)
 		{
-			var offset = Math.Max(
-				0,
-				_dragStartOffset + (int)Math.Round((position.X - start.X) / _barSpacing)
+			// Clamped as the last layout laid the plot out (LayOut clamps again)
+			var offset = ChartViewportHelpers.ClampOffset(
+				_dragStartOffset + (int)Math.Round((position.X - start.X) / _barSpacing),
+				Bars?.Count ?? 0,
+				ChartViewportHelpers.ClampRightMargin(RightMargin, _plot.Width, _barSpacing),
+				_plot.Width,
+				_barSpacing
 			);
 			if (offset != _offset)
 			{
@@ -1252,11 +1266,14 @@ public partial class CandlestickChart : Control
 	protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
 	{
 		base.OnPointerWheelChanged(e);
+		// A horizontal touchpad swipe neither zooms nor leaves the fit
+		if (e.Delta.Y == 0)
+			return;
 		// A fitted long period may be denser than the wheel goes; zooming out never jumps in
 		Unfit();
-		_barSpacing = Math.Clamp(
-			e.Delta.Y > 0 ? _barSpacing * 1.15 : _barSpacing / 1.15,
-			Math.Min(MinBarSpacing, _barSpacing),
+		_barSpacing = ChartViewportHelpers.GetWheelBarSpacing(
+			_barSpacing,
+			e.Delta.Y,
 			GetMaxBarSpacing()
 		);
 		e.Handled = true;

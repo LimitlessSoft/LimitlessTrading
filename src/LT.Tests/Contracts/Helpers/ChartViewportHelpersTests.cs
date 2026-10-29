@@ -268,4 +268,109 @@ public class ChartViewportHelpersTests
 			(int)Math.Floor(ChartViewportHelpers.GetPositionAt(x, edge, PlotRight, Spacing) + 0.5)
 		);
 	}
+
+	[Fact]
+	public void Panning_into_the_future_stops_with_a_few_bars_left_at_the_left_edge()
+	{
+		// 80 slots: the right edge may go to 175, the left edge then at bar 95
+		var min = ChartViewportHelpers.GetMinOffset(100, 0, PlotWidth, Spacing);
+		var edge = ChartViewportHelpers.GetRightEdge(100, min, 0);
+
+		Assert.Equal(-75, min);
+		Assert.Equal(
+			(100 - ChartConstants.MinVisibleBarsWhenPanned, 100),
+			ChartViewportHelpers.GetVisibleRange(100, edge, PlotWidth, Spacing)
+		);
+		// Every slot after the last bar maps back to a slot past the bars
+		Assert.Equal(
+			174,
+			ChartViewportHelpers.GetBarIndexAt(PlotRight - 1, edge, PlotRight, Spacing)
+		);
+	}
+
+	[Fact]
+	public void The_margin_counts_towards_the_future_pan()
+	{
+		var min = ChartViewportHelpers.GetMinOffset(100, 10, PlotWidth, Spacing);
+		var edge = ChartViewportHelpers.GetRightEdge(100, min, 10);
+
+		Assert.Equal(-65, min);
+		Assert.Equal(
+			(95, 100),
+			ChartViewportHelpers.GetVisibleRange(100, edge, PlotWidth, Spacing)
+		);
+	}
+
+	[Fact]
+	public void Fewer_bars_than_kept_all_stay_visible_when_panned_into_the_future()
+	{
+		var min = ChartViewportHelpers.GetMinOffset(3, 0, PlotWidth, Spacing);
+		var edge = ChartViewportHelpers.GetRightEdge(3, min, 0);
+
+		Assert.Equal(-77, min);
+		Assert.Equal((0, 3), ChartViewportHelpers.GetVisibleRange(3, edge, PlotWidth, Spacing));
+	}
+
+	[Theory]
+	[InlineData(0, 800, 10)] // no bars
+	[InlineData(100, 0, 10)] // not laid out yet
+	[InlineData(100, 800, 0)]
+	[InlineData(100, 30, 10)] // narrower than the bars kept
+	public void Without_room_the_view_cannot_be_panned_into_the_future(
+		int barCount,
+		double plotWidth,
+		double barSpacing
+	) => Assert.Equal(0, ChartViewportHelpers.GetMinOffset(barCount, 0, plotWidth, barSpacing));
+
+	[Theory]
+	[InlineData(-1000, -75)]
+	[InlineData(-20, -20)]
+	[InlineData(0, 0)]
+	[InlineData(50, 50)]
+	[InlineData(1000, 99)]
+	public void The_offset_is_clamped_between_the_future_and_the_oldest_bar(
+		int offset,
+		int expected
+	) =>
+		Assert.Equal(
+			expected,
+			ChartViewportHelpers.ClampOffset(offset, 100, 0, PlotWidth, Spacing)
+		);
+
+	[Fact]
+	public void Zooming_out_goes_below_two_dips()
+	{
+		var spacing = ChartViewportHelpers.GetWheelBarSpacing(2, -1, 40);
+
+		Assert.Equal(2 / ChartConstants.WheelZoomFactor, spacing, 10);
+	}
+
+	[Fact]
+	public void Zooming_out_stops_at_the_minimum_spacing()
+	{
+		var spacing = 8.0;
+		for (var i = 0; i < 100; i++)
+			spacing = ChartViewportHelpers.GetWheelBarSpacing(spacing, -1, 40);
+
+		Assert.Equal(ChartConstants.MinBarSpacing, spacing);
+	}
+
+	[Fact]
+	public void A_view_denser_than_the_minimum_keeps_its_spacing_when_zoomed_out()
+	{
+		Assert.Equal(0.1, ChartViewportHelpers.GetWheelBarSpacing(0.1, -1, 40));
+		Assert.Equal(
+			0.1 * ChartConstants.WheelZoomFactor,
+			ChartViewportHelpers.GetWheelBarSpacing(0.1, 1, 40),
+			10
+		);
+	}
+
+	[Fact]
+	public void Zooming_in_stops_at_the_maximum_spacing() =>
+		Assert.Equal(40, ChartViewportHelpers.GetWheelBarSpacing(39, 1, 40));
+
+	[Fact]
+	public void A_horizontal_swipe_does_not_zoom() =>
+		Assert.Equal(5, ChartViewportHelpers.GetWheelBarSpacing(5, 0, 40));
 }
