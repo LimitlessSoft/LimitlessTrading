@@ -34,5 +34,8 @@ public abstract class OverviewTabViewModel : ViewModelBase, IDisposable
 	/// <summary>The widget's latest quote (throttled to the UI flush); null when there is none.</summary>
 	public virtual void OnQuote(QuoteDto? quote) { }
 
+	/// <summary>The tab became the one shown (true) or another one did: a tab can load only then.</summary>
+	public virtual void OnSelected(bool selected) { }
+
 	public virtual void Dispose() => GC.SuppressFinalize(this);
 }

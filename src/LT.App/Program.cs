@@ -156,6 +156,8 @@ public static class Program
 		builder.Services.AddSingleton<IFlexImportManager, FlexImportManager>();
 		// Shares one SEC lookup per ticker between watchlists
 		builder.Services.AddSingleton<ISharesOutstandingManager, SharesOutstandingManager>();
+		// Keeps each ticker's statements for every Overview widget
+		builder.Services.AddSingleton<IFinancialsManager, FinancialsManager>();
 		// Holds the quick exits still working, app-wide (every Positions widget)
 		builder.Services.AddSingleton<IOrderManager, OrderManager>();
 		// One Changed event for every watchlist widget, so two showing one list stay in step

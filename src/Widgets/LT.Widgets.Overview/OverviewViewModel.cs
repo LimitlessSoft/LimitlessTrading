@@ -16,7 +16,7 @@ using LT.Contracts.Interfaces.IManagers;
 namespace LT.App.Widgets.Overview;
 
 /// <summary>
-/// One contract in depth: a live quote header above tabs (Basic info now; fundamentals, news,
+/// One contract in depth: a live quote header above tabs (Basic info, Financials; news,
 /// options … later, see <see cref="OverviewTabViewModel"/>). The contract comes from the link
 /// group, a ticker typed into the header title or a ticker dropped on the widget, and is saved
 /// with the widget. Its IB details are read once per contract (cached) and handed to every tab;
@@ -62,6 +62,7 @@ public partial class OverviewViewModel
 		IContractManager contractManager,
 		IMarketDataManager marketDataManager,
 		ISharesOutstandingManager sharesOutstandingManager,
+		IFinancialsManager financialsManager,
 		IConnectionManager connectionManager,
 		LinkGroupStore linkGroupStore,
 		TimeProvider timeProvider
@@ -71,7 +72,11 @@ public partial class OverviewViewModel
 		_contractManager = contractManager;
 		_marketDataManager = marketDataManager;
 		_linkGroupStore = linkGroupStore;
-		Tabs = [new BasicInfoTabViewModel(sharesOutstandingManager, timeProvider)];
+		Tabs =
+		[
+			new BasicInfoTabViewModel(sharesOutstandingManager, timeProvider),
+			new FinancialsTabViewModel(financialsManager, sharesOutstandingManager),
+		];
 		SelectedTab = Tabs[0];
 		QuoteStats =
 		[
@@ -160,6 +165,15 @@ public partial class OverviewViewModel
 	/// <summary>Waiting / not connected / IB's refusal; "Delayed" or "Halted" next to a live quote.</summary>
 	[ObservableProperty]
 	public partial string? QuoteStatus { get; set; }
+
+	partial void OnSelectedTabChanged(
+		OverviewTabViewModel? oldValue,
+		OverviewTabViewModel? newValue
+	)
+	{
+		oldValue?.OnSelected(false);
+		newValue?.OnSelected(true);
+	}
 
 	/// <summary>Shows the newest quote the line brought since the last flush (the UI timer's tick).</summary>
 	public void FlushQuote()

@@ -12,6 +12,7 @@ public class FakeSecApiClient : ISecApiClient
 	public Dictionary<int, List<SecFactDto>> ConceptFacts { get; } = [];
 	public Dictionary<int, List<SecFactDto>> CompanyFacts { get; } = [];
 	public Dictionary<int, List<SecFactDto>> FilingFacts { get; } = [];
+	public Dictionary<int, SecCompanyFactsDto> FinancialFacts { get; } = [];
 	public Exception? Failure { get; set; }
 
 	/// <summary>When set, concept lookups wait for it (to overlap concurrent lookups).</summary>
@@ -21,6 +22,7 @@ public class FakeSecApiClient : ISecApiClient
 	public int ConceptCalls { get; private set; }
 	public int CompanyFactsCalls { get; private set; }
 	public int FilingCalls { get; private set; }
+	public int FinancialCalls { get; private set; }
 
 	/// <summary>The latest filings feed, newest first; each call answers the page at its start.</summary>
 	public List<SecCurrentFilingDto> CurrentFilings { get; } = [];
@@ -83,6 +85,20 @@ public class FakeSecApiClient : ISecApiClient
 	{
 		FilingCalls++;
 		return Task.FromResult<IReadOnlyList<SecFactDto>?>(FilingFacts.GetValueOrDefault(cik));
+	}
+
+	public async Task<SecCompanyFactsDto?> GetCompanyFinancialFactsAsync(
+		int cik,
+		IReadOnlyCollection<string> concepts,
+		CancellationToken cancellationToken = default
+	)
+	{
+		FinancialCalls++;
+		if (Gate != null)
+			await Gate.Task;
+		if (Failure != null)
+			throw Failure;
+		return FinancialFacts.GetValueOrDefault(cik);
 	}
 
 	/// <summary>A count as of <paramref name="end"/>; with <paramref name="start"/> a weighted average.</summary>
