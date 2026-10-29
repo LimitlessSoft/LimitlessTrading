@@ -7,6 +7,7 @@ using LT.Contracts.DtoMappings.Charts;
 using LT.Contracts.DtoMappings.Contracts;
 using LT.Contracts.DtoMappings.Executions;
 using LT.Contracts.DtoMappings.Flex;
+using LT.Contracts.DtoMappings.News;
 using LT.Contracts.DtoMappings.Performance;
 using LT.Contracts.DtoMappings.PriceAlerts;
 using LT.Contracts.DtoMappings.Settings;
@@ -17,6 +18,7 @@ using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Executions;
 using LT.Contracts.Dtos.Flex;
+using LT.Contracts.Dtos.News;
 using LT.Contracts.Dtos.Performance;
 using LT.Contracts.Dtos.PriceAlerts;
 using LT.Contracts.Dtos.Settings;
@@ -107,6 +109,15 @@ public static class LSCoreContainer
 				.AddSingleton<
 					LSCoreValidatorBase<SubscribeNewsRequest>,
 					SubscribeNewsRequestValidator
+				>()
+				.AddSingleton<LSCoreValidatorBase<SearchNewsRequest>, SearchNewsRequestValidator>()
+				.AddSingleton<
+					ILSCoreMapper<NewsHeadlineDto, NewsHeadlineEntity>,
+					NewsHeadlineEntityMapper
+				>()
+				.AddSingleton<
+					ILSCoreMapper<NewsHeadlineEntity, NewsHeadlineDto>,
+					NewsHeadlineDtoMapper
 				>()
 				.AddSingleton<
 					LSCoreValidatorBase<SaveAppSettingsRequest>,

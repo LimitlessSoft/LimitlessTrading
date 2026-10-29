@@ -21,6 +21,7 @@
 	<Project Path="src/LT.App/LT.App.csproj" />
 	<Project Path="src/LT.Contracts/LT.Contracts.csproj" />
 	<Project Path="src/LT.Domain/LT.Domain.csproj" />
+	<Project Path="src/LT.Feeds/LT.Feeds.csproj" />
 	<Project Path="src/LT.Ibkr/LT.Ibkr.csproj" />
 	<Project Path="src/LT.Indicators.Scripting/LT.Indicators.Scripting.csproj" />
 	<Project Path="src/LT.Indicators.Sdk/LT.Indicators.Sdk.csproj" />

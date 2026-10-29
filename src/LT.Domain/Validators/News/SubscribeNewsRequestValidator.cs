@@ -14,10 +14,11 @@ public class SubscribeNewsRequestValidator : LSCoreValidatorBase<SubscribeNewsRe
 			.NotEmpty()
 			.WithMessage(NewsValidationCodes.NVC_001.GetValidationMessage());
 
-		// No contract is the broad tape; a contract must be resolved
-		RuleFor(x => x.Contract!.ConId)
-			.GreaterThan(0)
+		// No contract is the broad tape; a contract needs a conId (IB) or at least a symbol (the
+		// app's feeds, while disconnected)
+		RuleFor(x => x.Contract)
+			.Must(x => x!.ConId > 0 || !string.IsNullOrWhiteSpace(x.Symbol))
 			.When(x => x.Contract != null)
-			.WithMessage(ContractValidationCodes.CTVC_004.GetValidationMessage());
+			.WithMessage(NewsValidationCodes.NVC_006.GetValidationMessage());
 	}
 }

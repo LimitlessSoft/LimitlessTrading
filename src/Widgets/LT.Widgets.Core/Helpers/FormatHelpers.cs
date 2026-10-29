@@ -94,21 +94,24 @@ public static class FormatHelpers
 	/// <summary>
 	/// <paramref name="time"/> in <paramref name="zone"/> (the display zone): in
 	/// <paramref name="todayFormat"/> when it falls on <paramref name="now"/>'s day there, else in
-	/// <paramref name="otherDayFormat"/> ("14:05" / "26 Oct 14:05").
+	/// <paramref name="otherDayFormat"/> ("14:05" / "26 Oct 14:05"), and in
+	/// <paramref name="otherYearFormat"/> when given and it falls in another year ("26 Oct 2025 14:05").
 	/// </summary>
 	public static string DayTime(
 		DateTimeOffset time,
 		DateTimeOffset now,
 		TimeZoneInfo zone,
 		string todayFormat = "HH:mm",
-		string otherDayFormat = "d MMM HH:mm"
+		string otherDayFormat = "d MMM HH:mm",
+		string? otherYearFormat = null
 	)
 	{
 		var shown = DisplayTimeHelpers.ToZone(time, zone);
 		var today = DisplayTimeHelpers.ToZone(now, zone).Date;
-		return shown.ToString(
-			shown.Date == today ? todayFormat : otherDayFormat,
-			CultureInfo.CurrentCulture
-		);
+		var format =
+			shown.Date == today ? todayFormat
+			: otherYearFormat != null && shown.Year != today.Year ? otherYearFormat
+			: otherDayFormat;
+		return shown.ToString(format, CultureInfo.CurrentCulture);
 	}
 }

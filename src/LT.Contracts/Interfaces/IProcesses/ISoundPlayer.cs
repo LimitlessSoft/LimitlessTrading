@@ -16,4 +16,10 @@ public interface ISoundPlayer
 	/// IPriceAlertAlarmManager) and returns at once; never throws. Skipped while a sound plays.
 	/// </summary>
 	void PlayAlarm();
+
+	/// <summary>
+	/// Starts the news alert sound (a soft two-tone, for a matching headline) and returns at once;
+	/// never throws. Skipped while a sound plays.
+	/// </summary>
+	void PlayNews();
 }

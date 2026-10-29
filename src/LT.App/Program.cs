@@ -24,6 +24,7 @@ using LT.Domain.CalendarSources;
 using LT.Domain.EarningsResultSources;
 using LT.Domain.Managers;
 using LT.Domain.NewsSources;
+using LT.Feeds;
 using LT.Ibkr;
 using LT.Ibkr.Flex;
 using LT.Ibkr.Gateway;
@@ -108,6 +109,11 @@ public static class Program
 			SecApiClient.CreateHttpClient(),
 			services.GetRequiredService<TimeProvider>()
 		));
+		// One HttpClient and one pacing state per host for every news feed request
+		builder.Services.AddSingleton<IFeedClient>(services => new FeedClient(
+			FeedClient.CreateHttpClient(),
+			services.GetRequiredService<TimeProvider>()
+		));
 		// One HttpClient and one pacing state for every Nasdaq calendar request
 		builder.Services.AddSingleton<INasdaqApiClient>(services => new NasdaqApiClient(
 			NasdaqApiClient.CreateHttpClient(),
@@ -173,9 +179,16 @@ public static class Program
 		// One for all charts: those following a template hear each other's saves through it
 		builder.Services.AddSingleton<IChartTemplateManager, ChartTemplateManager>();
 
-		// News: every INewsSource is aggregated by the news manager (more sources go here)
+		// News: every INewsSource is aggregated by the news manager with the local archive (one
+		// key index), the app's own feeds polled once per URL for every widget and the background
+		builder.Services.AddSingleton<INewsArchiveRepository, NewsArchiveRepository>();
+		builder.Services.AddSingleton<INewsArchiveManager, NewsArchiveManager>();
+		builder.Services.AddSingleton<INewsFeedPoller, NewsFeedPoller>();
 		builder.Services.AddSingleton<INewsSource, IbkrNewsSource>();
+		builder.Services.AddSingleton<INewsSource, FeedNewsSource>();
 		builder.Services.AddSingleton<INewsManager, NewsManager>();
+		// The alert rules and watchlist symbols, kept for every News widget and the alert sound
+		builder.Services.AddSingleton<INewsAlertManager, NewsAlertManager>();
 
 		// App-wide UI state shared between widgets (the zStore of this app)
 		builder.Services.AddSingleton<AccountStore>();
@@ -205,6 +218,8 @@ public static class Program
 		builder.Services.AddHostedService<PriceAlertService>();
 		builder.Services.AddHostedService<FlexImportScheduler>();
 		builder.Services.AddHostedService<IndicatorScriptHost>();
+		builder.Services.AddHostedService<NewsFeedCollector>();
+		builder.Services.AddHostedService<NewsAlertService>();
 
 		// ViewModels have no interfaces, so the convention scan skips them
 		builder.Services.AddTransient<MainWindowViewModel>();

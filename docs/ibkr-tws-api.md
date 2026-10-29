@@ -191,6 +191,8 @@ New calls are added to IBKR.Net from a wire recording first (`tools/IbkrWireReco
 `IIbkrApiClient` exposes the IBKR.Net news calls as DTOs (`LT.Ibkr/DtoMappings/News`);
 `IbkrNewsSource` (`LT.Domain/NewsSources`) turns them into an `INewsSource`, and `NewsManager`
 merges every source for the News widget (see [ui-patterns.md](ui-patterns.md#workspace-ltappworkspace)).
+The app's own source (SEC filings, press release wires, Fed, BLS …, no IB) and the local archive
+every headline is kept in, IB's included, are in [news-feeds.md](news-feeds.md).
 
 - **Providers** seen on the live account (2026-10-26, read-only): BRFG, BRFUPDN, DJ-N, DJ-RT,
   DJ-RTA, DJ-RTE, DJ-RTG, DJNL. A provider's codes are what history, articles and live ticks take.
@@ -220,7 +222,7 @@ merges every source for the News widget (see [ui-patterns.md](ui-patterns.md#wor
   arrive with type 0 and are told apart by their tags (`NewsHelpers.GetTextKind`). The widget
   shows plain text only (`NewsHelpers.ToPlainText`). Type 1 (base64, e.g. PDF) has not been seen
   yet; the widget offers to open it with the OS. The last 50 articles are kept in memory for 30
-  minutes.
+  minutes, and every text article read is kept in the news archive (readable offline).
 - News requests go through the message throttle only, not the historical data window (that is
   for bars; we have not seen IB pace `reqHistoricalNews`), and the widget pages only on "Load
   older". Not verified against IB's limits under heavy paging.

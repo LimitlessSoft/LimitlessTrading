@@ -18,4 +18,13 @@ public enum NewsValidationCodes
 
 	[LSCoreValidationMessage("The article is not available.")]
 	NVC_005,
+
+	[LSCoreValidationMessage("Pick a symbol to see its news.")]
+	NVC_006,
+
+	[LSCoreValidationMessage("Type at least {0} characters to search the news archive.")]
+	NVC_007,
+
+	[LSCoreValidationMessage("Couldn't read the {0} feed: {1}")]
+	NVC_008,
 }

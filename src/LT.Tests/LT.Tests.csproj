@@ -14,6 +14,7 @@
 		<ProjectReference Include="..\LT.Sec\LT.Sec.csproj" />
 		<ProjectReference Include="..\LT.Nasdaq\LT.Nasdaq.csproj" />
 		<ProjectReference Include="..\LT.Yahoo\LT.Yahoo.csproj" />
+		<ProjectReference Include="..\LT.Feeds\LT.Feeds.csproj" />
 		<!-- UI-free helpers only (FlexStatusHelpers); no view is created in tests -->
 		<ProjectReference Include="..\Widgets\LT.Widgets.Core\LT.Widgets.Core.csproj" />
 		<!-- Chart view model only (dropping a ticker); its view is never created -->
@@ -44,5 +45,10 @@
 
 	<ItemGroup>
 		<Using Include="Xunit" />
+	</ItemGroup>
+
+	<!-- Real feed answers (trimmed) for the RSS / Atom parser -->
+	<ItemGroup>
+		<None Include="Feeds/Fixtures/*.xml" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 </Project>

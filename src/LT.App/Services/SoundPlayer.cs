@@ -36,6 +36,8 @@ public class SoundPlayer : ISoundPlayer
 
 	public void PlayAlarm() => Play(SoundConstants.AlarmFileName, SoundHelpers.CreateAlarm);
 
+	public void PlayNews() => Play(SoundConstants.NewsFileName, SoundHelpers.CreateNewsChime);
+
 	private void Play(string fileName, Func<int, byte[]> create)
 	{
 		if (Interlocked.Exchange(ref _playing, 1) == 1)

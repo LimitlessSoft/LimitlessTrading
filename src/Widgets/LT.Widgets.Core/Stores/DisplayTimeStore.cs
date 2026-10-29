@@ -47,8 +47,9 @@ public partial class DisplayTimeStore : ObservableObject
 	public string FormatDayTime(
 		DateTimeOffset time,
 		string todayFormat = "HH:mm",
-		string otherDayFormat = "d MMM HH:mm"
-	) => FormatHelpers.DayTime(time, Now, Zone, todayFormat, otherDayFormat);
+		string otherDayFormat = "d MMM HH:mm",
+		string? otherYearFormat = null
+	) => FormatHelpers.DayTime(time, Now, Zone, todayFormat, otherDayFormat, otherYearFormat);
 
 	private void Apply(string? zoneId)
 	{

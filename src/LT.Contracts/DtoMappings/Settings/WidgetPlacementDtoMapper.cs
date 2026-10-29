@@ -45,6 +45,7 @@ public class WidgetPlacementDtoMapper : ILSCoreMapper<WidgetPlacementEntity, Wid
 			ChartKeepDrawingTool = source.ChartKeepDrawingTool,
 			NewsMode = source.NewsMode,
 			NewsProviders = source.NewsProviders is { } providers ? [.. providers] : null,
+			NewsOnlyMatches = source.NewsOnlyMatches,
 			OptionQuickOrderQuantity = source.OptionQuickOrderQuantity,
 			OptionHiddenColumns = source.OptionHiddenColumns is { } optionHidden
 				? [.. optionHidden]

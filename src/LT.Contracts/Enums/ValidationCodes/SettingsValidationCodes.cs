@@ -41,4 +41,12 @@ public enum SettingsValidationCodes
 
 	[LSCoreValidationMessage("Footprint imbalance must be between {0} and {1} %.")]
 	SVC_012,
+
+	[LSCoreValidationMessage(
+		"News archive retention must be between {0} and {1} days (0 keeps everything)."
+	)]
+	SVC_013,
+
+	[LSCoreValidationMessage("News alert keywords can be at most {0} characters.")]
+	SVC_014,
 }

@@ -26,4 +26,26 @@ public partial class NewsView : UserControl
 			viewModel.ShowDocumentError(ex.Message);
 		}
 	}
+
+	// The story on the web, in the system's browser
+	private async void OnOpenInBrowserClick(object? sender, RoutedEventArgs e)
+	{
+		if (
+			DataContext is not NewsViewModel viewModel
+			|| !Uri.TryCreate(viewModel.ArticleUrl, UriKind.Absolute, out var uri)
+		)
+			return;
+		try
+		{
+			if (
+				TopLevel.GetTopLevel(this)?.Launcher is not { } launcher
+				|| !await launcher.LaunchUriAsync(uri)
+			)
+				viewModel.ShowDocumentError($"Couldn't open the browser; the link is {uri}.");
+		}
+		catch (Exception ex)
+		{
+			viewModel.ShowDocumentError(ex.Message);
+		}
+	}
 }

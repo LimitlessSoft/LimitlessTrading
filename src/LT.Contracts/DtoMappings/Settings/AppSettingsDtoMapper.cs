@@ -29,5 +29,10 @@ public class AppSettingsDtoMapper : ILSCoreMapper<GeneralSettingsEntity, AppSett
 			PlayFillSound = source.PlayFillSound,
 			CalendarNasdaq = source.CalendarNasdaq,
 			CalendarWallStreetHorizon = source.CalendarWallStreetHorizon,
+			NewsFeeds = source.NewsFeeds,
+			NewsRetentionDays = source.NewsRetentionDays,
+			NewsAlertKeywords = source.NewsAlertKeywords,
+			NewsAlertWatchlist = source.NewsAlertWatchlist,
+			NewsAlertSound = source.NewsAlertSound,
 		};
 }

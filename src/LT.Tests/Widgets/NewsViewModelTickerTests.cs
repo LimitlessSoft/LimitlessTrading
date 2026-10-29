@@ -23,6 +23,7 @@ public class NewsViewModelTickerTests : IDisposable
 	private readonly FakeConnectionManager _connection = new();
 	private readonly FakeNewsSource _source = new("ibkr");
 	private readonly LinkGroupStore _links = new();
+	private readonly TestNewsArchive _archive = new();
 	private readonly ContractManager _contracts;
 	private readonly NewsViewModel _news;
 
@@ -49,7 +50,7 @@ public class NewsViewModelTickerTests : IDisposable
 		Assert.False(_news.TickerEditor.IsEditing);
 		Assert.Equal(Msft.ConId, _links.Get(LinkGroup.Red)?.ConId);
 		Assert.Equal(Msft.ConId, _contracts.GetRecentContracts()[0].ConId);
-		Assert.Equal(Msft.ConId, _source.HeadlineRequests[^1].Contract.ConId);
+		Assert.Equal(Msft.ConId, _source.HeadlineRequests[^1].Contract!.ConId);
 	}
 
 	[Fact]
@@ -62,7 +63,7 @@ public class NewsViewModelTickerTests : IDisposable
 
 		Assert.Equal(NewsMode.Linked, _news.Mode);
 		Assert.Equal("News · MSFT", _news.Title);
-		Assert.Equal(Msft.ConId, _source.HeadlineRequests[^1].Contract.ConId);
+		Assert.Equal(Msft.ConId, _source.HeadlineRequests[^1].Contract!.ConId);
 	}
 
 	[Fact]
@@ -98,6 +99,7 @@ public class NewsViewModelTickerTests : IDisposable
 	[Fact]
 	public async Task An_unknown_ticker_shows_an_error_and_keeps_the_contract()
 	{
+		await Connect();
 		_ibkr.SearchResults = [];
 		_news.TickerEditor.Begin();
 
@@ -108,19 +110,38 @@ public class NewsViewModelTickerTests : IDisposable
 		Assert.Equal(Aapl.ConId, _links.Get(LinkGroup.Red)?.ConId);
 	}
 
+	[Fact]
+	public async Task A_ticker_typed_while_disconnected_shows_news_by_its_symbol_without_moving_the_group()
+	{
+		await WaitFor(() => _source.HeadlineRequests.Count > 0);
+		_news.TickerEditor.Begin();
+
+		await OnUi(() => _news.TickerEditor.CommitAsync("kmb"));
+
+		Assert.Equal(0, _ibkr.SearchCalls);
+		Assert.Equal("News · KMB", _news.Title);
+		Assert.Equal(Aapl.ConId, _links.Get(LinkGroup.Red)?.ConId);
+		await WaitFor(() => _source.HeadlineRequests[^1].Contract?.Symbol == "KMB");
+		Assert.Equal(0, _source.HeadlineRequests[^1].Contract!.ConId);
+	}
+
 	public void Dispose()
 	{
 		TestUiThread.Invoke(_news.Dispose);
+		_archive.Dispose();
 		GC.SuppressFinalize(this);
 	}
 
-	// Connecting loads the providers and starts the linked feed for the group's contract
+	// Connecting reloads the providers and restarts the linked feed for the group's contract (it
+	// already ran disconnected: the source here is always available)
 	private async Task Connect()
 	{
+		await WaitFor(() => _source.HeadlineRequests.Count > 0);
+		var before = _source.HeadlineRequests.Count;
 		_connection.SetStatus(ConnectionState.Connected, "U1");
 		TestUiThread.Invoke(() => Dispatcher.UIThread.RunJobs());
-		await WaitFor(() => _source.HeadlineRequests.Count > 0);
-		Assert.Equal(Aapl.ConId, _source.HeadlineRequests[^1].Contract.ConId);
+		await WaitFor(() => _source.HeadlineRequests.Count > before);
+		Assert.Equal(Aapl.ConId, _source.HeadlineRequests[^1].Contract!.ConId);
 	}
 
 	// Started where the view model lives; the test awaits the returned task
@@ -137,9 +158,16 @@ public class NewsViewModelTickerTests : IDisposable
 	{
 		var settings = new SettingsManager(_cache.Settings, _ibkr);
 		return new NewsViewModel(
-			new NewsManager([_source], _cache.Time),
+			new NewsManager([_source], _archive.Manager, _cache.Time),
 			_contracts,
 			_connection,
+			new NewsAlertManager(
+				settings,
+				new WatchlistManager(_cache.Settings, _contracts),
+				new FakeSoundPlayer(),
+				_cache.Time
+			),
+			settings,
 			_links,
 			new DisplayTimeStore(settings, _cache.Time)
 		);

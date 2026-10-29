@@ -7,6 +7,7 @@ public class FakeSoundPlayer : ISoundPlayer
 {
 	public int FillsPlayed { get; private set; }
 	public int AlarmsPlayed { get; private set; }
+	public int NewsPlayed { get; private set; }
 	public Exception? Error { get; set; }
 
 	public void PlayFill()
@@ -21,5 +22,12 @@ public class FakeSoundPlayer : ISoundPlayer
 		if (Error != null)
 			throw Error;
 		AlarmsPlayed++;
+	}
+
+	public void PlayNews()
+	{
+		if (Error != null)
+			throw Error;
+		NewsPlayed++;
 	}
 }

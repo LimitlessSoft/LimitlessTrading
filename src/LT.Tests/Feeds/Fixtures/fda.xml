@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0" xml:base="http://www.fda.gov/">
+  <channel>
+    <title>FDA Press Releases RSS Feed</title>
+    <link>http://www.fda.gov/</link>
+    <description/>
+    <language>en</language>
+    
+    <item>
+  <title>FDA Launches New Program to Advance Neuroscience Medical Product Development </title>
+  <link>http://www.fda.gov/news-events/press-announcements/fda-launches-new-program-advance-neuroscience-medical-product-development</link>
+  <description>FDA announces the launch of the Neuroscience Advancement and Innovation Nexus (NAIN), a new agency program aligned with the Trump Administration’s efforts to accelerate medical innovation and deliver breakthrough treatments. </description>
+  <pubDate>Thu, 22 Oct 2026 12:58:19 EDT</pubDate>
+    <dc:creator>FDA</dc:creator>
+    <guid isPermaLink="true">http://www.fda.gov/news-events/press-announcements/fda-launches-new-program-advance-neuroscience-medical-product-development</guid>
+    </item>
+<item>
+  <title>FDA Approves First-of-Its-Kind Chronic Hepatitis B Treatment </title>
+  <link>http://www.fda.gov/news-events/press-announcements/fda-approves-first-its-kind-chronic-hepatitis-b-treatment</link>
+  <description>FDA today approved Hibsago (bepirovirsen) injection, in combination with existing antiviral therapy, to treat chronic hepatitis B virus (HBV) infection in certain adults without cirrhosis.</description>
+  <pubDate>Tue, 20 Oct 2026 15:40:38 EDT</pubDate>
+    <dc:creator>FDA</dc:creator>
+    <guid isPermaLink="true">http://www.fda.gov/news-events/press-announcements/fda-approves-first-its-kind-chronic-hepatitis-b-treatment</guid>
+    </item>
+
+  </channel>
+</rss>

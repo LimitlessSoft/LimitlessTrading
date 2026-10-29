@@ -20,4 +20,6 @@ public enum NewsSourceCapabilities
 
 	/// <summary>Headlines not tied to a contract (a provider's whole feed).</summary>
 	BroadTape = 16,
+
+	All = Live | History | Articles | BySymbol | BroadTape,
 }

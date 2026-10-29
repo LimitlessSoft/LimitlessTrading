@@ -98,4 +98,5 @@ csharpier format .
 | [docs/ibkr-flex.md](docs/ibkr-flex.md) | Flex Web Service history import: query setup, endpoints, merge rules |
 | [docs/architecture.md](docs/architecture.md) | Project layout, dependency direction, DI, Termodom mapping |
 | [docs/ui-patterns.md](docs/ui-patterns.md) | Widgets/pages, MVVM, threading, styling |
+| [docs/news-feeds.md](docs/news-feeds.md) | The app's own news feeds (SEC, wires, Fed, BLS …), local news archive, alerts, search |
 | [docs/indicators.md](docs/indicators.md) | Chart indicators: SDK, script files, compiler ban list, engine, panes |

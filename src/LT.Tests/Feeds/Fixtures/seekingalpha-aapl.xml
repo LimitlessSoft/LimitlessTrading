@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<rss xmlns:sa="https://seekingalpha.com/api/1.0" xmlns:media="http://search.yahoo.com/mrss/" version="2.0">
+  <channel>
+    <title>Apple Inc. - News and Analysis on Seeking Alpha</title>
+    <link>https://seekingalpha.com</link>
+    <description>&#xA9; seekingalpha.com. Use of this feed is limited to personal, non-commercial use and is governed by Seeking Alpha's Terms of Use (https://about.seekingalpha.com/terms). Publishing this feed for public or commercial use and/or misrepresentation by a third party is prohibited.</description>
+    <item>
+      <title>Apple's Stock Faces A Post-Earnings Selloff</title>
+      <link>https://seekingalpha.com/article/4959256-apples-stock-faces-a-post-earnings-selloff?source=feed_symbol_AAPL</link>
+      <guid isPermaLink="false">https://seekingalpha.com/Article:4959256</guid>
+      <pubDate>Thu, 29 Oct 2026 09:28:42 -0400</pubDate>
+      <sa:author_name>Mott Capital Management</sa:author_name>
+      <media:thumbnail url=""/>
+      <sa:picture/>
+      <sa:stock>
+        <sa:symbol>AAPL</sa:symbol>
+        <sa:company_name>Apple Inc.</sa:company_name>
+      </sa:stock>
+      <sa:stock>
+        <sa:symbol>GOOGL</sa:symbol>
+        <sa:company_name>Alphabet Inc.</sa:company_name>
+      </sa:stock>
+      <sa:stock>
+        <sa:symbol>MSFT</sa:symbol>
+        <sa:company_name>Microsoft Corporation</sa:company_name>
+      </sa:stock>
+      <sa:stock>
+        <sa:symbol>AAPL:CA</sa:symbol>
+        <sa:company_name>Apple Inc.</sa:company_name>
+      </sa:stock>
+      <sa:stock>
+        <sa:symbol>GOOG</sa:symbol>
+        <sa:company_name>Alphabet Inc.</sa:company_name>
+      </sa:stock>
+      <sa:stock>
+        <sa:symbol>GOOG:CA</sa:symbol>
+        <sa:company_name>Alphabet Inc.</sa:company_name>
+      </sa:stock>
+      <sa:stock>
+        <sa:symbol>GOOGM</sa:symbol>
+        <sa:company_name>Alphabet Inc. DEP SHS RP1/20 A</sa:company_name>
+      </sa:stock>
+      <sa:stock>
+        <sa:symbol>GOOGN</sa:symbol>
+        <sa:company_name>Alphabet Inc. DEP SHS RP1/20 B</sa:company_name>
+      </sa:stock>
+      <sa:stock>
+        <sa:symbol>MSFT:CA</sa:symbol>
+        <sa:company_name>Microsoft Corporation</sa:company_name>
+      </sa:stock>
+      <sa:stock>
+        <sa:symbol>ZAAP:CA</sa:symbol>
+        <sa:company_name>Apple Inc.</sa:company_name>
+      </sa:stock>
+      <sa:stock>
+        <sa:symbol>ZGOO:CA</sa:symbol>
+        <sa:company_name>Alphabet Inc.</sa:company_name>
+      </sa:stock>
+      <sa:stock>
+        <sa:symbol>ZMSF:CA</sa:symbol>
+        <sa:company_name>Microsoft Corporation</sa:company_name>
+      </sa:stock>
+    </item>
+  </channel>
+</rss>
+

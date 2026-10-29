@@ -23,8 +23,11 @@ public class GetNewsHeadlinesRequestValidator : LSCoreValidatorBase<GetNewsHeadl
 				)
 			);
 
-		RuleFor(x => x.Contract.ConId)
-			.GreaterThan(0)
-			.WithMessage(ContractValidationCodes.CTVC_004.GetValidationMessage());
+		// No contract is the broad feeds; a contract needs a conId (IB) or at least a symbol (the
+		// app's feeds and the archive, while disconnected)
+		RuleFor(x => x.Contract)
+			.Must(x => x!.ConId > 0 || !string.IsNullOrWhiteSpace(x.Symbol))
+			.When(x => x.Contract != null)
+			.WithMessage(NewsValidationCodes.NVC_006.GetValidationMessage());
 	}
 }

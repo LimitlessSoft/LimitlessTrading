@@ -1,6 +1,7 @@
 using LSCore.Exceptions;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Contracts;
+using LT.Contracts.Dtos.News;
 using LT.Contracts.Enums;
 using LT.Contracts.Requests.News;
 using LT.Domain.Managers;
@@ -9,7 +10,7 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace LT.Tests.Domain.Managers;
 
-public class NewsManagerTests
+public sealed class NewsManagerTests : IDisposable
 {
 	private static readonly ContractDto Aapl = new() { ConId = 265598, Symbol = "AAPL" };
 	private readonly FakeNewsSource _ibkr = new("ibkr");
@@ -20,9 +21,17 @@ public class NewsManagerTests
 
 	private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-	public NewsManagerTests() => LSCoreContainer.EnsureInitialized();
+	private readonly TestNewsArchive _archive;
 
-	private NewsManager Manager() => new([_ibkr, _rss], _time);
+	public NewsManagerTests()
+	{
+		LSCoreContainer.EnsureInitialized();
+		_archive = new TestNewsArchive(_time);
+	}
+
+	public void Dispose() => _archive.Dispose();
+
+	private NewsManager Manager() => new([_ibkr, _rss], _archive.Manager, _time);
 
 	[Fact]
 	public async Task Providers_come_from_every_available_source()
@@ -110,17 +119,126 @@ public class NewsManagerTests
 	{
 		_rss.Capabilities = NewsSourceCapabilities.Live | NewsSourceCapabilities.BroadTape;
 
+		var page = await Manager()
+			.GetHeadlinesAsync(
+				new GetNewsHeadlinesRequest
+				{
+					Contract = Aapl,
+					Providers = [_rss.Provider("Reuters")],
+				},
+				Ct
+			);
+
+		Assert.Empty(page.Headlines);
+		Assert.Empty(_rss.HeadlineRequests);
+	}
+
+	[Fact]
+	public async Task Providers_without_news_per_symbol_are_not_asked_for_a_symbol()
+	{
+		var broadOnly = _rss.Provider("CNBC");
+		broadOnly.Capabilities = NewsSourceCapabilities.All & ~NewsSourceCapabilities.BySymbol;
+
 		await Assert.ThrowsAsync<LSCoreBadRequestException>(() =>
 			Manager()
 				.GetHeadlinesAsync(
-					new GetNewsHeadlinesRequest
-					{
-						Contract = Aapl,
-						Providers = [_rss.Provider("Reuters")],
-					},
+					new GetNewsHeadlinesRequest { Contract = Aapl, Providers = [broadOnly] },
 					Ct
 				)
 		);
+		Assert.Empty(_rss.HeadlineRequests);
+	}
+
+	[Fact]
+	public async Task Without_any_source_there_are_no_providers()
+	{
+		_ibkr.IsAvailable = false;
+		_rss.IsAvailable = false;
+
+		Assert.Empty(await Manager().GetProvidersAsync(Ct));
+	}
+
+	[Fact]
+	public async Task History_comes_from_the_archive_while_the_source_is_unavailable()
+	{
+		_ibkr.History =
+		[
+			Tagged(_ibkr.Headline("DJ-N", "1", 1)),
+			Tagged(_ibkr.Headline("DJ-N", "2", 2)),
+		];
+		var request = new GetNewsHeadlinesRequest
+		{
+			Contract = Aapl,
+			Providers = [_ibkr.Provider("DJ-N")],
+		};
+		await Manager().GetHeadlinesAsync(request, Ct);
+
+		_ibkr.IsAvailable = false;
+		_ibkr.HeadlineRequests.Clear();
+		var page = await Manager().GetHeadlinesAsync(request, Ct);
+
+		Assert.Equal(["2", "1"], page.Headlines.Select(x => x.ArticleId));
+		Assert.Empty(_ibkr.HeadlineRequests);
+	}
+
+	[Fact]
+	public async Task Broad_history_is_the_archives()
+	{
+		_archive.Manager.Add([_rss.Headline("Reuters", "1", 1), _rss.Headline("Other", "2", 2)]);
+
+		var page = await Manager()
+			.GetHeadlinesAsync(
+				new GetNewsHeadlinesRequest { Providers = [_rss.Provider("Reuters")] },
+				Ct
+			);
+
+		Assert.Equal(["1"], page.Headlines.Select(x => x.ArticleId));
+	}
+
+	[Fact]
+	public async Task The_same_story_from_two_providers_is_shown_once_live()
+	{
+		var prn = _rss.Headline("PRN", "p", 1);
+		prn.Headline = "Aptar Reports Third Quarter 2026 Results";
+		var dj = _ibkr.Headline("DJ-N", "d", 3);
+		dj.Headline = "APTAR REPORTS THIRD QUARTER 2026 RESULTS";
+		_rss.Live = [prn];
+		_ibkr.Live = [dj];
+
+		var live = await Manager()
+			.SubscribeHeadlinesAsync(
+				new SubscribeNewsRequest
+				{
+					Providers = [_ibkr.Provider("DJ-N"), _rss.Provider("PRN")],
+				},
+				Ct
+			)
+			.ToListAsync(Ct);
+
+		Assert.Single(live);
+		Assert.Equal(2, _archive.Repository.GetHeadlines(new DateOnly(2026, 10, 26)).Count);
+	}
+
+	[Fact]
+	public async Task The_archive_is_searched_over_every_source()
+	{
+		var kept = _ibkr.Headline("DJ-N", "1", 1);
+		kept.Headline = "Kimberly-Clark raises guidance";
+		_archive.Manager.Add([kept, _rss.Headline("PRN", "2", 2)]);
+
+		var page = await Manager()
+			.SearchArchiveAsync(new SearchNewsRequest { Query = "kimberly" }, Ct);
+
+		Assert.Equal(["1"], page.Headlines.Select(x => x.ArticleId));
+		await Assert.ThrowsAsync<LSCoreBadRequestException>(() =>
+			Manager().SearchArchiveAsync(new SearchNewsRequest { Query = "k" }, Ct)
+		);
+	}
+
+	private static NewsHeadlineDto Tagged(NewsHeadlineDto headline)
+	{
+		headline.Symbol = "AAPL";
+		return headline;
 	}
 
 	[Theory]
@@ -209,35 +327,34 @@ public class NewsManagerTests
 	}
 
 	[Fact]
-	public async Task Articles_are_kept_for_a_while()
+	public async Task Articles_are_read_from_the_source_once_then_kept()
 	{
 		var manager = Manager();
 		var headline = _ibkr.Headline("DJ-N", "1", 1);
 
 		var first = await manager.GetArticleAsync(headline, Ct);
 		await manager.GetArticleAsync(headline, Ct);
+		_time.Advance(NewsConstants.ArticleCacheTtl);
+		var later = await Manager().GetArticleAsync(headline, Ct);
+
 		Assert.Equal(1, _ibkr.ArticleCalls);
 		Assert.Equal("ibkr 1", first.Body);
-
-		_time.Advance(NewsConstants.ArticleCacheTtl);
-		await manager.GetArticleAsync(headline, Ct);
-		Assert.Equal(2, _ibkr.ArticleCalls);
+		Assert.Equal("ibkr 1", later.Body);
 	}
 
 	[Fact]
-	public async Task The_article_cache_drops_the_oldest_past_its_size()
+	public async Task An_article_read_before_opens_without_its_source()
 	{
-		var manager = Manager();
-		for (var i = 0; i <= NewsConstants.ArticleCacheSize; i++)
-		{
-			await manager.GetArticleAsync(_ibkr.Headline("DJ-N", i.ToString(), 1), Ct);
-			_time.Advance(TimeSpan.FromSeconds(1));
-		}
+		var headline = _ibkr.Headline("DJ-N", "1", 1);
+		await Manager().GetArticleAsync(headline, Ct);
 
-		await manager.GetArticleAsync(_ibkr.Headline("DJ-N", "1", 1), Ct);
-		Assert.Equal(NewsConstants.ArticleCacheSize + 1, _ibkr.ArticleCalls);
-		await manager.GetArticleAsync(_ibkr.Headline("DJ-N", "0", 1), Ct);
-		Assert.Equal(NewsConstants.ArticleCacheSize + 2, _ibkr.ArticleCalls);
+		_ibkr.IsAvailable = false;
+		var article = await Manager().GetArticleAsync(headline, Ct);
+
+		Assert.Equal("ibkr 1", article.Body);
+		await Assert.ThrowsAsync<LSCoreBadRequestException>(() =>
+			Manager().GetArticleAsync(_ibkr.Headline("DJ-N", "2", 1), Ct)
+		);
 	}
 
 	[Fact]

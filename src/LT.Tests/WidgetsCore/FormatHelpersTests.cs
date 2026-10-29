@@ -39,6 +39,39 @@ public class FormatHelpersTests
 	}
 
 	[Fact]
+	public void Day_time_shows_the_year_only_for_another_year_when_asked()
+	{
+		const string day = "MM-dd HH:mm";
+		const string year = "yyyy-MM-dd HH:mm";
+
+		Assert.Equal(
+			"06-26 16:00",
+			FormatHelpers.DayTime(Time.AddMonths(-4), Time, TimeZoneInfo.Utc, "HH:mm", day, year)
+		);
+		Assert.Equal(
+			"2025-08-28 12:00",
+			FormatHelpers.DayTime(
+				new DateTimeOffset(2025, 8, 28, 12, 0, 0, TimeSpan.Zero),
+				Time,
+				TimeZoneInfo.Utc,
+				"HH:mm",
+				day,
+				year
+			)
+		);
+		Assert.Equal(
+			"08-28 12:00",
+			FormatHelpers.DayTime(
+				new DateTimeOffset(2025, 8, 28, 12, 0, 0, TimeSpan.Zero),
+				Time,
+				TimeZoneInfo.Utc,
+				"HH:mm",
+				day
+			)
+		);
+	}
+
+	[Fact]
 	public void Market_cap_is_compact()
 	{
 		var culture = CultureInfo.CurrentCulture;

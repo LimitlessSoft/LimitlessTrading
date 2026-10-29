@@ -45,7 +45,24 @@ public static partial class NewsHelpers
 
 	/// <summary>"ibkr:BRFG", how a widget saves a provider selection.</summary>
 	public static string GetProviderKey(NewsProviderDto provider) =>
-		$"{provider.SourceId}{NewsConstants.ProviderKeySeparator}{provider.Code}";
+		GetProviderKey(provider.SourceId, provider.Code);
+
+	public static string GetProviderKey(string sourceId, string providerCode) =>
+		$"{sourceId}{NewsConstants.ProviderKeySeparator}{providerCode}";
+
+	/// <summary>Adds the headline's provider key and tickers (feed style) to an index of a day's headlines.</summary>
+	public static void AddToIndex(
+		ISet<string> symbols,
+		ISet<string> providerKeys,
+		NewsHeadlineDto headline
+	)
+	{
+		providerKeys.Add(GetProviderKey(headline.SourceId, headline.ProviderCode));
+		if (headline.Symbol.Length > 0)
+			symbols.Add(NewsFeedHelpers.ToFeedSymbol(headline.Symbol));
+		foreach (var symbol in headline.Symbols)
+			symbols.Add(NewsFeedHelpers.ToFeedSymbol(symbol));
+	}
 
 	/// <summary>Codes of the providers that belong to <paramref name="sourceId"/>.</summary>
 	public static IReadOnlyList<string> GetProviderCodes(
@@ -107,6 +124,174 @@ public static partial class NewsHelpers
 				high = middle;
 		}
 		return low;
+	}
+
+	/// <summary>
+	/// A headline's words for spotting the same story from two sources: letters and digits only,
+	/// lower case, one space between words ("Aptar Reports Q3 Results" = "APTAR REPORTS Q3
+	/// RESULTS."). Empty when it has none.
+	/// </summary>
+	public static string GetStoryKey(NewsHeadlineDto headline) =>
+		string.Join(
+			' ',
+			NonWordRegex().Split(headline.Headline.ToLowerInvariant()).Where(x => x.Length > 0)
+		);
+
+	/// <summary>
+	/// Whether the same story (<see cref="GetStoryKey"/>) was already seen within
+	/// <paramref name="window"/> of the headline's time; if not, it is remembered in
+	/// <paramref name="stories"/> (story key → times seen). Headlines of one provider are never
+	/// each other's repeat (a provider repeating a headline means a new item, e.g. "Form 4").
+	/// </summary>
+	public static bool IsRepeatedStory(
+		IDictionary<string, List<(DateTimeOffset Time, string Provider)>> stories,
+		NewsHeadlineDto headline,
+		TimeSpan window
+	)
+	{
+		var key = GetStoryKey(headline);
+		if (key.Length == 0)
+			return false;
+		var provider = $"{headline.SourceId}|{headline.ProviderCode}";
+		if (!stories.TryGetValue(key, out var seen))
+			stories[key] = seen = [];
+		else if (
+			seen.Any(x => x.Provider != provider && (x.Time - headline.Time).Duration() <= window)
+		)
+			return true;
+		seen.Add((headline.Time, provider));
+		return false;
+	}
+
+	/// <summary>Forgets a headline <see cref="IsRepeatedStory"/> remembered (it left the list).</summary>
+	public static void ForgetStory(
+		IDictionary<string, List<(DateTimeOffset Time, string Provider)>> stories,
+		NewsHeadlineDto headline
+	)
+	{
+		var key = GetStoryKey(headline);
+		if (!stories.TryGetValue(key, out var seen))
+			return;
+		seen.RemoveAll(x =>
+			x.Time == headline.Time && x.Provider == $"{headline.SourceId}|{headline.ProviderCode}"
+		);
+		if (seen.Count == 0)
+			stories.Remove(key);
+	}
+
+	/// <summary>
+	/// The newest-first merge of <see cref="Merge"/>, also dropping a later copy of the same story
+	/// from another provider (<see cref="IsRepeatedStory"/>; the newer copy goes, the first
+	/// published stays).
+	/// </summary>
+	public static List<NewsHeadlineDto> MergeStories(
+		IEnumerable<NewsHeadlineDto> headlines,
+		int max,
+		TimeSpan window
+	)
+	{
+		var keys = new HashSet<string>();
+		var stories = new Dictionary<string, List<(DateTimeOffset, string)>>();
+		return headlines
+			.Where(x => keys.Add(GetKey(x)))
+			.OrderBy(x => x.Time)
+			.Where(x => !IsRepeatedStory(stories, x, window))
+			.OrderByDescending(x => x.Time)
+			.Take(max)
+			.ToList();
+	}
+
+	/// <summary>Alert keywords as typed in Settings: comma- or line-separated words and phrases, trimmed.</summary>
+	public static IReadOnlyList<string> ParseKeywords(string? keywords) =>
+		string.IsNullOrWhiteSpace(keywords)
+			? []
+			:
+			[
+				.. keywords
+					.Split([',', ';', '\n'], StringSplitOptions.TrimEntries)
+					.Where(x => x.Length > 0)
+					.Distinct(StringComparer.OrdinalIgnoreCase),
+			];
+
+	/// <summary>
+	/// A "match": a keyword in the headline or its summary (whole words, any case), or a
+	/// headline about one of <paramref name="symbols"/>.
+	/// </summary>
+	public static bool MatchesAlert(
+		NewsHeadlineDto headline,
+		IReadOnlyList<string> keywords,
+		IReadOnlySet<string> symbols
+	)
+	{
+		if (
+			symbols.Count > 0
+			&& (
+				symbols.Contains(NewsFeedHelpers.ToFeedSymbol(headline.Symbol))
+				|| headline.Symbols.Any(x => symbols.Contains(NewsFeedHelpers.ToFeedSymbol(x)))
+			)
+		)
+			return true;
+		foreach (var keyword in keywords)
+		{
+			var pattern = $@"(?<![\p{{L}}\p{{N}}]){Regex.Escape(keyword)}(?![\p{{L}}\p{{N}}])";
+			if (
+				Regex.IsMatch(headline.Headline, pattern, RegexOptions.IgnoreCase)
+				|| (
+					headline.Summary != null
+					&& Regex.IsMatch(headline.Summary, pattern, RegexOptions.IgnoreCase)
+				)
+			)
+				return true;
+		}
+		return false;
+	}
+
+	/// <summary>Archive search: every word of the query in the headline, summary, provider or symbols.</summary>
+	public static bool MatchesSearch(NewsHeadlineDto headline, string? query) =>
+		SettingsSearchHelpers.Matches(
+			query,
+			headline.Headline,
+			headline.Summary,
+			headline.ProviderCode,
+			string.Join(' ', headline.Symbols)
+		);
+
+	/// <summary>
+	/// Whether a widget's saved selection selects the provider: no saved selection, or none for
+	/// its source (saved before the source existed), means its default; otherwise whether its key
+	/// is saved.
+	/// </summary>
+	public static bool IsProviderSelected(IReadOnlySet<string>? saved, NewsProviderDto provider)
+	{
+		if (saved == null)
+			return provider.SelectedByDefault;
+		var marker = NewsConstants.GetSourceMarker(provider.SourceId);
+		return saved.Any(x => x.StartsWith(marker, StringComparison.Ordinal))
+			? saved.Contains(GetProviderKey(provider))
+			: provider.SelectedByDefault;
+	}
+
+	/// <summary>
+	/// The selection to save: the selected keys of the providers shown, a marker per shown
+	/// source (so "none of this source" is kept), and what was saved for sources not shown now
+	/// (IB's while disconnected).
+	/// </summary>
+	public static List<string> MergeProviderSelection(
+		IReadOnlyList<(NewsProviderDto Provider, bool Selected)> shown,
+		IEnumerable<string>? saved
+	)
+	{
+		var sources = shown.Select(x => x.Provider.SourceId).Distinct().ToList();
+		var markers = sources.Select(NewsConstants.GetSourceMarker).ToList();
+		var kept = (saved ?? []).Where(x =>
+			!markers.Any(m => x.StartsWith(m, StringComparison.Ordinal))
+		);
+		return
+		[
+			.. kept,
+			.. markers,
+			.. shown.Where(x => x.Selected).Select(x => GetProviderKey(x.Provider)),
+		];
 	}
 
 	/// <summary>Local filter: every word in the headline, provider or symbol, any case.</summary>
@@ -315,4 +500,7 @@ public static partial class NewsHelpers
 
 	[GeneratedRegex(@"[^A-Za-z0-9._-]")]
 	private static partial Regex UnsafeFileCharsRegex();
+
+	[GeneratedRegex(@"[^\p{L}\p{N}]+")]
+	private static partial Regex NonWordRegex();
 }

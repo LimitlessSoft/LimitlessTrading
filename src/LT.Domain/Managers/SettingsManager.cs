@@ -48,6 +48,11 @@ public class SettingsManager(ISettingsRepository settingsRepository, IIbkrApiCli
 		settings.General.PlayFillSound = request.PlayFillSound;
 		settings.General.CalendarNasdaq = request.CalendarNasdaq;
 		settings.General.CalendarWallStreetHorizon = request.CalendarWallStreetHorizon;
+		settings.General.NewsFeeds = request.NewsFeeds;
+		settings.General.NewsRetentionDays = request.NewsRetentionDays;
+		settings.General.NewsAlertKeywords = (request.NewsAlertKeywords ?? string.Empty).Trim();
+		settings.General.NewsAlertWatchlist = request.NewsAlertWatchlist;
+		settings.General.NewsAlertSound = request.NewsAlertSound;
 		settingsRepository.Save(settings);
 		if (ibkrApiClient.IsConnected)
 			ibkrApiClient.SetMarketDataType(request.MarketDataType);
