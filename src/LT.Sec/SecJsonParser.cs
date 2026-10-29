@@ -81,6 +81,39 @@ public static class SecJsonParser
 	}
 
 	/// <summary>
+	/// A companyfacts answer: the company's name and every value of the us-gaap
+	/// <paramref name="concepts"/>, in whichever unit each is reported (USD, USD/shares, shares).
+	/// </summary>
+	public static SecCompanyFactsDto ParseCompanyFinancialFacts(
+		string json,
+		IReadOnlyCollection<string> concepts
+	)
+	{
+		using var document = JsonDocument.Parse(json);
+		var root = document.RootElement;
+		var name =
+			root.TryGetProperty("entityName", out var entity)
+			&& entity.ValueKind == JsonValueKind.String
+				? entity.GetString()
+				: null;
+		var facts = new List<SecFactDto>();
+		if (
+			root.TryGetProperty("facts", out var all)
+			&& all.TryGetProperty(SecConstants.UsGaapTaxonomy, out var usGaap)
+			&& usGaap.ValueKind == JsonValueKind.Object
+		)
+			foreach (var concept in usGaap.EnumerateObject())
+				if (
+					concepts.Contains(concept.Name)
+					&& concept.Value.TryGetProperty("units", out var units)
+					&& units.ValueKind == JsonValueKind.Object
+				)
+					foreach (var unit in units.EnumerateObject())
+						facts.AddRange(ReadFacts(concept.Value, concept.Name, unit.Name));
+		return new SecCompanyFactsDto { EntityName = name, Facts = facts };
+	}
+
+	/// <summary>
 	/// A submissions answer: the newest of its recent filings in <paramref name="forms"/> that is
 	/// inline XBRL (EDGAR extracts an instance document only from those); null when there is none.
 	/// </summary>
@@ -140,12 +173,15 @@ public static class SecJsonParser
 			? ReadShareFacts(element, concept)
 			: [];
 
-	// { "units": { "shares": [ { "start"?, "end", "val", "form", "filed", … } ] } }
-	private static IEnumerable<SecFactDto> ReadShareFacts(JsonElement concept, string name)
+	private static IEnumerable<SecFactDto> ReadShareFacts(JsonElement concept, string name) =>
+		ReadFacts(concept, name, SecConstants.SharesUnit);
+
+	// { "units": { "<unit>": [ { "start"?, "end", "val", "form", "filed", … } ] } }
+	private static IEnumerable<SecFactDto> ReadFacts(JsonElement concept, string name, string unit)
 	{
 		if (
 			!concept.TryGetProperty("units", out var units)
-			|| !units.TryGetProperty(SecConstants.SharesUnit, out var values)
+			|| !units.TryGetProperty(unit, out var values)
 			|| values.ValueKind != JsonValueKind.Array
 		)
 			yield break;

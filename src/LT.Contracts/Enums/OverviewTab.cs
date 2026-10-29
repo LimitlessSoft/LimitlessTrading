@@ -4,4 +4,5 @@ namespace LT.Contracts.Enums;
 public enum OverviewTab
 {
 	BasicInfo = 0,
+	Financials = 1,
 }

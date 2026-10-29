@@ -59,6 +59,30 @@ public static class FormatHelpers
 			_ => value.Value.ToString("#,0", CultureInfo.CurrentCulture),
 		};
 
+	/// <summary>Compact signed amount (statements): 109.42B, -2.35B, 950.2M, 12.3K, 512.</summary>
+	public static string CompactAmount(decimal? value)
+	{
+		if (value is not { } v)
+			return Empty;
+		var size = Math.Abs(v);
+		return size switch
+		{
+			>= 1_000_000_000_000 => (v / 1_000_000_000_000).ToString(
+				"0.00",
+				CultureInfo.CurrentCulture
+			) + "T",
+			>= 1_000_000_000 => (v / 1_000_000_000).ToString("0.00", CultureInfo.CurrentCulture)
+				+ "B",
+			>= 1_000_000 => (v / 1_000_000).ToString("0.0", CultureInfo.CurrentCulture) + "M",
+			>= 10_000 => (v / 1_000).ToString("0.0", CultureInfo.CurrentCulture) + "K",
+			_ => v.ToString("#,0", CultureInfo.CurrentCulture),
+		};
+	}
+
+	/// <summary>A fraction as a percentage with one decimal: 0.4623 → 46.2%.</summary>
+	public static string Percent(double? fraction) =>
+		fraction is { } f ? (f * 100).ToString("0.0'%'", CultureInfo.CurrentCulture) : Empty;
+
 	/// <summary>Date and time in <paramref name="zone"/> (the display zone).</summary>
 	public static string Time(DateTimeOffset? value, TimeZoneInfo zone) =>
 		value is { } v

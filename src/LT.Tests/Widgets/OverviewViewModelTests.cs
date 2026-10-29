@@ -3,6 +3,7 @@ using LT.App.Stores;
 using LT.App.Widgets.Overview;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Contracts;
+using LT.Contracts.Dtos.Fundamentals;
 using LT.Contracts.Dtos.MarketData;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
@@ -48,6 +49,8 @@ public class OverviewViewModelTests : IDisposable
 	private readonly FakeConnectionManager _connection = new();
 	private readonly LinkGroupStore _links = new();
 	private readonly StubSharesOutstanding _shares = new();
+	private readonly FakeSecApiClient _sec = new();
+	private readonly FinancialsManager _financials;
 	private readonly MarketDataManager _marketData;
 	private readonly Dictionary<int, ContractDetailsDto> _details = [];
 	private readonly ContractManager _contracts;
@@ -57,6 +60,14 @@ public class OverviewViewModelTests : IDisposable
 	{
 		_marketData = new MarketDataManager(_ibkr, TimeProvider.System);
 		_contracts = new ContractManager(_ibkr, _cache.Settings, _cache.Manager);
+		_financials = new FinancialsManager(_sec, new MessageLogManager(), TimeProvider.System);
+		_sec.Ciks["AAPL"] = 320193;
+		_sec.Ciks["SPY"] = 884394;
+		_sec.FinancialFacts[320193] = new SecCompanyFactsDto
+		{
+			EntityName = "Apple Inc.",
+			Facts = AppleFacts(),
+		};
 		Detail(Spy, "SPDR S&P 500 ETF TRUST");
 		Detail(Aapl, "APPLE INC", "Technology");
 		Detail(Sap, "SAP SE");
@@ -194,6 +205,121 @@ public class OverviewViewModelTests : IDisposable
 	}
 
 	[Fact]
+	public void The_financials_load_only_once_their_tab_is_shown()
+	{
+		_links.Set(LinkGroup.Red, Aapl);
+		var overview = Create();
+		var financials = Financials(overview);
+
+		Assert.Equal(0, _sec.FinancialCalls);
+		Ui(() => overview.SelectedTab = financials);
+		WaitFor(() => financials.HasStatements);
+
+		Assert.Equal(1, _sec.FinancialCalls);
+		Assert.Null(financials.StatusText);
+		Assert.Equal("Apple Inc. · SEC 10-K / 10-Q filings · USD", financials.SourceText);
+		Assert.Equal(["FY2025"], financials.Columns.Select(x => x.Name));
+		Assert.Equal(
+			["Income statement", "Balance sheet", "Ratios"],
+			financials.Sections.Select(x => x.Title)
+		);
+		var revenue = financials.Sections[0].Rows.Single(x => x.Label == "Revenue");
+		Assert.Equal("416.00B", Assert.Single(revenue.Cells).Text);
+	}
+
+	[Fact]
+	public void The_quarterly_toggle_shows_the_quarters_newest_first()
+	{
+		_links.Set(LinkGroup.Red, Aapl);
+		var overview = Create();
+		var financials = Financials(overview);
+		Ui(() => overview.SelectedTab = financials);
+		WaitFor(() => financials.HasStatements);
+
+		Ui(() => financials.IsQuarterly = true);
+
+		Assert.False(financials.IsAnnual);
+		Assert.Equal(
+			["Q3 FY2026", "Q2 FY2026", "Q1 FY2026", "Q4 FY2025"],
+			financials.Columns.Select(x => x.Name)
+		);
+		var margin = financials.Sections.Single(x => x.Title == "Ratios").Rows[0];
+		Assert.Equal("Net margin", margin.Label);
+		Assert.Equal(25.0.ToString("0.0") + "%", margin.Cells[0].Text);
+	}
+
+	[Fact]
+	public void The_valuation_is_worked_out_at_the_live_price()
+	{
+		_shares.Shares[Aapl.Symbol] = 15_000_000_000;
+		_links.Set(LinkGroup.Red, Aapl);
+		var overview = Create();
+		var financials = Financials(overview);
+		Ui(() => overview.SelectedTab = financials);
+		Connect();
+
+		// 15B shares × 600 = 9T over 100B net income, 400B revenue, 100B equity
+		WaitFor(() =>
+		{
+			overview.FlushQuote();
+			return Valuation(overview, "P/E (TTM)") == 90.0.ToString("0.0");
+		});
+		Assert.Equal(22.5.ToString("0.0"), Valuation(overview, "P/S (TTM)"));
+		Assert.Equal(90.0.ToString("0.0"), Valuation(overview, "P/B"));
+		Assert.Equal("400.00B", Valuation(overview, "Revenue (TTM)"));
+	}
+
+	[Fact]
+	public void An_etf_says_the_sec_has_no_statements_for_it()
+	{
+		_links.Set(LinkGroup.Red, Spy);
+		var overview = Create();
+		var financials = Financials(overview);
+
+		Ui(() => overview.SelectedTab = financials);
+		WaitFor(() => !financials.IsLoading && financials.StatusText != null);
+
+		Assert.False(financials.HasStatements);
+		Assert.StartsWith("The SEC has no 10-K / 10-Q statements for SPY", financials.StatusText);
+		Assert.Empty(financials.Sections);
+	}
+
+	[Fact]
+	public void A_stock_outside_the_us_says_why_it_has_no_statements()
+	{
+		_links.Set(LinkGroup.Red, Sap);
+		var overview = Create();
+		var financials = Financials(overview);
+
+		Ui(() => overview.SelectedTab = financials);
+		WaitFor(() => !financials.IsLoading && financials.StatusText != null);
+
+		Assert.Contains("only US stocks", financials.StatusText);
+		Assert.Equal(0, _sec.TickerCalls);
+	}
+
+	[Fact]
+	public void A_saved_financials_tab_is_shown_again_and_loads()
+	{
+		var links = new LinkGroupStore();
+		var restored = TestUiThread.Invoke(() => Create(links));
+		_overview = restored;
+
+		Ui(() =>
+			restored.LoadState(
+				new WidgetPlacementDto
+				{
+					OverviewContract = Aapl,
+					OverviewTab = OverviewTab.Financials,
+				}
+			)
+		);
+		WaitFor(() => Financials(restored).HasStatements);
+
+		Assert.Same(Financials(restored), restored.SelectedTab);
+	}
+
+	[Fact]
 	public void The_contract_and_tab_are_saved_and_a_saved_contract_shows_in_an_empty_group()
 	{
 		var first = Create();
@@ -321,7 +447,7 @@ public class OverviewViewModelTests : IDisposable
 	}
 
 	private OverviewViewModel Create(LinkGroupStore links) =>
-		new(_contracts, _marketData, _shares, _connection, links, _cache.Time);
+		new(_contracts, _marketData, _shares, _financials, _connection, links, _cache.Time);
 
 	private void Connect()
 	{
@@ -343,6 +469,56 @@ public class OverviewViewModelTests : IDisposable
 			ValidExchanges = "SMART,NYSE,ARCA",
 			SecurityIds = contract == Aapl ? new() { ["ISIN"] = "US0378331005" } : [],
 		};
+	}
+
+	private static FinancialsTabViewModel Financials(OverviewViewModel overview) =>
+		Assert.IsType<FinancialsTabViewModel>(overview.Tabs[1]);
+
+	private static string? Valuation(OverviewViewModel overview, string label) =>
+		Financials(overview).Valuation.FirstOrDefault(x => x.Label == label)?.Value;
+
+	// Four quarters of 100 revenue and 25 net income (billions), the last ending Jun 27, 2026,
+	// and fiscal 2025 (to Sep 27, 2025)
+	private static List<SecFactDto> AppleFacts()
+	{
+		const decimal billion = 1_000_000_000m;
+		var facts = new List<SecFactDto>();
+		void Add(string concept, string? start, string end, decimal value, string form = "10-Q") =>
+			facts.Add(
+				new SecFactDto
+				{
+					Concept = concept,
+					Start = start == null ? null : DateOnly.Parse(start),
+					End = DateOnly.Parse(end),
+					Filed = DateOnly.Parse(end).AddDays(35),
+					Value = value * billion,
+					Form = form,
+				}
+			);
+		Add(
+			"RevenueFromContractWithCustomerExcludingAssessedTax",
+			"2024-09-29",
+			"2025-09-27",
+			416,
+			"10-K"
+		);
+		Add("NetIncomeLoss", "2024-09-29", "2025-09-27", 112, "10-K");
+		Add("StockholdersEquity", null, "2025-09-27", 74, "10-K");
+		foreach (
+			var (start, end) in new[]
+			{
+				("2025-06-29", "2025-09-27"),
+				("2025-09-28", "2025-12-27"),
+				("2025-12-28", "2026-03-28"),
+				("2026-03-29", "2026-06-27"),
+			}
+		)
+		{
+			Add("RevenueFromContractWithCustomerExcludingAssessedTax", start, end, 100);
+			Add("NetIncomeLoss", start, end, 25);
+		}
+		Add("StockholdersEquity", null, "2026-06-27", 100);
+		return facts;
 	}
 
 	private static BasicInfoTabViewModel BasicInfo(OverviewViewModel overview) =>

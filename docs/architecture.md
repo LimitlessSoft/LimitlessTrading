@@ -258,6 +258,34 @@ cache, so the Cache settings don't apply) keyed by SEC ticker: a count is looked
 request at a time, 125 ms apart (the SEC allows 10/s). After a failure no lookup starts for
 5 minutes, the failure is logged once (source "SEC") and a stale count is used if there is one.
 
+**Financial statements** (the Overview widget's Financials tab; IB's `reqFundamentalData` is
+refused with 10358) come from the same `companyfacts` answer: `FinancialsManager` maps the ticker
+to a CIK like the shares lookup (its own copy of the ticker file, once per run), asks
+`ISecApiClient.GetCompanyFinancialFactsAsync` for the us-gaap concepts of
+`FinancialsConstants.Items` (in every unit: USD, USD/shares, shares) and
+`FinancialsHelpers.Build` turns them into periods:
+
+- Only 10-K / 10-Q values count (`SecConstants.SharesOutstandingForms`): 20-F / 40-F filers
+  report IFRS, so TSM and other foreign issuers have no statements, like ETFs (SPY: no
+  companyfacts, 404).
+- Periods go by each fact's own start and end — a fact's `fy` / `fp` are the filing's, so the
+  comparative values of last year in this year's 10-Q carry this year's `fy`. 350–380 days is a
+  fiscal year, 80–100 a quarter; a value filed again later is taken from the latest filing.
+- A quarter not reported as such (cash flows are only years to date in 10-Qs; nobody files a
+  Q4) is the difference of two years to date with the same start, 80–100 days apart: Q2 = six
+  months less three, Q4 = the 10-K's year less nine months. Per-share values and share counts
+  are never derived. Such values are marked (`FinancialPeriodDto.Derived`), and so are lines
+  computed from them.
+- Each line lists the concepts companies report it under; per period the first one with a value
+  wins (Apple's revenue is `Revenues` until FY2018, then
+  `RevenueFromContractWithCustomerExcludingAssessedTax`). Gross profit, free cash flow and total
+  liabilities are computed when not reported.
+- Fiscal years are named by the year they end in (a 52 / 53-week year ending Jan 1–7 by the
+  year before); a quarter is numbered back from the next fiscal year end.
+
+Results are kept in memory per ticker: 12 hours, "no statements" a day; after a failure the
+same 5-minute backoff and one log line, an earlier result is kept meanwhile.
+
 ### External data: Nasdaq calendar
 
 The Calendar widget's default source (IB's Wall Street Horizon needs a paid subscription) is

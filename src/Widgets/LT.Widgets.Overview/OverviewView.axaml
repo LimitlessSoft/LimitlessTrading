@@ -11,6 +11,9 @@
 		<DataTemplate DataType="vm:BasicInfoTabViewModel">
 			<vm:BasicInfoTabView />
 		</DataTemplate>
+		<DataTemplate DataType="vm:FinancialsTabViewModel">
+			<vm:FinancialsTabView />
+		</DataTemplate>
 	</UserControl.DataTemplates>
 
 	<UserControl.Styles>

@@ -457,7 +457,13 @@ deduplicated by IB's execution id, so the same fill from either stays one:
   fundamentals entitlement rejects the whole `reqMktData`**: `10358 Fundamentals data is not
   allowed` comes back for the request id within milliseconds and no tick follows, not even
   bid/ask/last (recorded read-only on IB Gateway 4001, protocol 178, 2026-10-26, for AAPL, SPY,
-  VOW and EUR.USD). Never add `258` to a shared quote line. That is why the watchlist's market cap
+  VOW and EUR.USD). `reqFundamentalData` (`52`) is refused the same way: every report type
+  (`ReportSnapshot`, `ReportsFinSummary`, `ReportsFinStatements`, `ReportRatios`, `RESC`,
+  `CalendarReport`, `ReportsOwnership`) got `10358` within a millisecond for AAPL (recorded
+  read-only at protocol 187, 2026-10-29; request `52`, `2`, reqId, conId, symbol, secType,
+  exchange, primaryExchange, currency, localSymbol, report type, `0`, `""`). The data reply was
+  never seen, so IBKR.Net doesn't have the call; the Overview widget's Financials tab reads SEC
+  filings instead (see [architecture.md](architecture.md#external-data-sec-edgar)). Never add `258` to a shared quote line. That is why the watchlist's market cap
   is **SEC shares outstanding × IB's last price** instead: `ISharesOutstandingManager` looks up
   US stocks (STK in USD) at SEC EDGAR (`LT.Sec`, see
   [architecture.md](architecture.md#external-data-sec-edgar)) and the row multiplies by every

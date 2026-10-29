@@ -545,7 +545,19 @@ new instance) and lives in one of four wrappers:
   time, `OverviewHelpers`) and, for US stocks, Shares (SEC shares outstanding via
   `ISharesOutstandingManager` and the market cap at the live price). Blank fields are left out;
   until the details load only what the contract holds shows, with "Loading details…", "Not
-  connected to IB: …" or "IB has no details for …" in the header. Adding a tab: an
+  connected to IB: …" or "IB has no details for …" in the header. **Financials** (US stocks,
+  from SEC filings — IB's fundamentals are refused with 10358, see
+  [ibkr-tws-api.md](ibkr-tws-api.md#fundamentals-10358)): loads the first time the tab is shown
+  for a contract (`OverviewTabViewModel.OnSelected`; the SEC's companyfacts is several MB) through
+  `IFinancialsManager`. An Annual / Quarterly toggle (6 fiscal years or 8 quarters, newest
+  first, named "FY2025" / "Q3 FY2026" by the company's own fiscal year) over income statement,
+  balance sheet, cash flow and ratios (margins, return on equity for years, current ratio, debt /
+  equity); a quarter only reported as years to date is worked out (Q4 is the 10-K less nine
+  months) and shown dimmed with a tool tip. Above the table the valuation at the live price:
+  market cap (SEC shares outstanding × the widget's quote), P/E, P/S and P/FCF over the
+  trailing four quarters, P/B, TTM revenue and net income. A ticker without statements says why
+  instead of an empty table: not a US stock, "The SEC has no 10-K / 10-Q statements for SPY…"
+  (ETFs, funds, 20-F / 40-F filers), or the SEC unreachable. Adding a tab: an
   `OverviewTab` value at the end, a subclass of `OverviewTabViewModel` created in
   `OverviewViewModel`'s constructor, and a `DataTemplate` for its view in `OverviewView.axaml`.
 - **Notes** (`LT.Widgets.Notes`, a Tools widget, right side, closed on first run, Ctrl+Alt+S): a

@@ -8,8 +8,8 @@ using LT.Contracts.Interfaces.IApiClients;
 namespace LT.Sec;
 
 /// <summary>
-/// SEC EDGAR over HTTPS: the ticker → CIK file, XBRL share counts, filings' cover pages and the
-/// latest filings feed. Every request goes through
+/// SEC EDGAR over HTTPS: the ticker → CIK file, XBRL share counts, financial statement facts,
+/// filings' cover pages and the latest filings feed. Every request goes through
 /// one gate and stays <see cref="SecConstants.RequestSpacing"/> after the previous one (the SEC
 /// allows 10 per second per client). Singleton (Program.cs) so the spacing holds app-wide.
 /// </summary>
@@ -69,6 +69,16 @@ public sealed class SecApiClient(HttpClient http, TimeProvider timeProvider) : I
 		await GetStringAsync(GetUrl(SecConstants.CompanyFactsUrl, cik), cancellationToken)
 			is { } json
 			? SecJsonParser.ParseCompanyShareFacts(json)
+			: null;
+
+	public async Task<SecCompanyFactsDto?> GetCompanyFinancialFactsAsync(
+		int cik,
+		IReadOnlyCollection<string> concepts,
+		CancellationToken cancellationToken = default
+	) =>
+		await GetStringAsync(GetUrl(SecConstants.CompanyFactsUrl, cik), cancellationToken)
+			is { } json
+			? SecJsonParser.ParseCompanyFinancialFacts(json, concepts)
 			: null;
 
 	public async Task<IReadOnlyList<SecFactDto>?> GetLatestFilingShareFactsAsync(

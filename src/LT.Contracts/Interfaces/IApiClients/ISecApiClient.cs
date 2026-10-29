@@ -52,4 +52,15 @@ public interface ISecApiClient
 		int start,
 		CancellationToken cancellationToken = default
 	);
+
+	/// <summary>
+	/// From the company's full facts (several MB): every value of the us-gaap
+	/// <paramref name="concepts"/> (what the financial statements are read from) and the
+	/// company's name; null when the SEC has no facts for the CIK (ETFs, funds).
+	/// </summary>
+	Task<SecCompanyFactsDto?> GetCompanyFinancialFactsAsync(
+		int cik,
+		IReadOnlyCollection<string> concepts,
+		CancellationToken cancellationToken = default
+	);
 }

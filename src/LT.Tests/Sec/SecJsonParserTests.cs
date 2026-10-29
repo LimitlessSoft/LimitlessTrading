@@ -91,6 +91,43 @@ public class SecJsonParserTests
 	}
 
 	[Fact]
+	public void Company_financial_facts_take_the_asked_concepts_in_every_unit()
+	{
+		const string json = """
+			{"cik":320193,"entityName":"Apple Inc.","facts":{
+			  "dei":{"EntityCommonStockSharesOutstanding":{"units":{"shares":[
+			   {"end":"2026-07-17","val":14594180000,"form":"10-Q","filed":"2026-07-31"}]}}},
+			  "us-gaap":{
+			  "NetIncomeLoss":{"units":{"USD":[
+			   {"start":"2026-03-29","end":"2026-06-27","val":29789000000,"fy":2026,"fp":"Q3","form":"10-Q","filed":"2026-07-31"}]}},
+			  "EarningsPerShareDiluted":{"units":{"USD/shares":[
+			   {"start":"2026-03-29","end":"2026-06-27","val":2.02,"form":"10-Q","filed":"2026-07-31"}]}},
+			  "Assets":{"units":{"USD":[{"end":"2026-06-27","val":383266000000,"form":"10-Q","filed":"2026-07-31"}]}},
+			  "AccountsPayableCurrent":{"units":{"USD":[{"end":"2026-06-27","val":1,"form":"10-Q","filed":"2026-07-31"}]}}}}}
+			""";
+
+		var facts = SecJsonParser.ParseCompanyFinancialFacts(
+			json,
+			[
+				"NetIncomeLoss",
+				"EarningsPerShareDiluted",
+				"Assets",
+				"EntityCommonStockSharesOutstanding",
+			]
+		);
+
+		Assert.Equal("Apple Inc.", facts.EntityName);
+		Assert.Equal(
+			["NetIncomeLoss", "EarningsPerShareDiluted", "Assets"],
+			facts.Facts.Select(x => x.Concept)
+		);
+		Assert.Equal(new DateOnly(2026, 3, 29), facts.Facts[0].Start);
+		Assert.Equal(2.02m, facts.Facts[1].Value);
+		Assert.Null(facts.Facts[2].Start);
+		Assert.Empty(SecJsonParser.ParseCompanyFinancialFacts("""{"cik":1}""", ["Assets"]).Facts);
+	}
+
+	[Fact]
 	public void Submissions_give_the_newest_inline_us_report()
 	{
 		const string json = """
