@@ -21,7 +21,10 @@ public static class CacheConstants
 	/// </summary>
 	public static readonly TimeSpan TradingHoursTtl = TimeSpan.FromHours(12);
 
-	/// <summary>Expirations and strike lists (never prices or greeks).</summary>
+	/// <summary>
+	/// Upper bound for expirations and strike lists (never prices or greeks); they are cached only
+	/// until the next New York midnight, see OptionChainHelpers.GetCacheTtl.
+	/// </summary>
 	public static readonly TimeSpan OptionChainTtl = TimeSpan.FromDays(1);
 
 	/// <summary>Short: a refresh right after a fill must still show it.</summary>

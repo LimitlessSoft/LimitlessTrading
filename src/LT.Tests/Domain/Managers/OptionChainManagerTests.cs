@@ -36,7 +36,8 @@ public class OptionChainManagerTests
 		new(
 			_ibkr,
 			new MarketDataManager(_ibkr, TimeProvider.System),
-			new CacheManager(_cache, _settings, _time)
+			new CacheManager(_cache, _settings, _time),
+			_time
 		);
 
 	private static readonly GetOptionChainRequest NovemberChain = new()
@@ -59,12 +60,14 @@ public class OptionChainManagerTests
 		_ibkr.SearchResults = [Option("20261120", 200, "C"), Option("20261120", 200, "P")];
 	}
 
+	// The clock starts at 11:00 New York (EDT); New York midnight is 13 hours later
+
 	[Fact]
-	public async Task Expirations_are_served_from_the_cache_for_a_day()
+	public async Task Expirations_are_served_from_the_cache_until_new_york_midnight()
 	{
 		ListAaplOptions();
 		await Manager().GetExpirationsAsync(Aapl, Ct);
-		_time.Advance(TimeSpan.FromHours(23));
+		_time.Advance(TimeSpan.FromHours(12.9));
 
 		var expirations = await Manager().GetExpirationsAsync(Aapl, Ct);
 
@@ -73,15 +76,90 @@ public class OptionChainManagerTests
 	}
 
 	[Fact]
-	public async Task Expirations_are_asked_again_after_a_day()
+	public async Task Expirations_are_asked_again_after_new_york_midnight()
 	{
 		ListAaplOptions();
 		await Manager().GetExpirationsAsync(Aapl, Ct);
-		_time.Advance(CacheConstants.OptionChainTtl);
+		_time.Advance(TimeSpan.FromHours(13));
 
 		await Manager().GetExpirationsAsync(Aapl, Ct);
 
 		Assert.Equal(2, _ibkr.OptionParameterCalls);
+	}
+
+	[Fact]
+	public async Task A_list_from_yesterday_drops_the_expired_date()
+	{
+		_ibkr.OptionChainParameters =
+		[
+			new OptionChainParametersDto
+			{
+				Exchange = "SMART",
+				TradingClass = "AAPL",
+				Expirations = ["20261023", "20261026", "20261120"],
+			},
+		];
+		await Manager().GetExpirationsAsync(Aapl, Ct);
+		_time.Advance(TimeSpan.FromHours(13.5));
+		_ibkr.OptionParametersException = new InvalidOperationException("Not connected");
+
+		var expirations = await Manager().GetExpirationsAsync(Aapl, Ct);
+
+		Assert.Equal(["20261026", "20261120"], expirations.Select(x => x.Expiration));
+	}
+
+	[Fact]
+	public async Task Expiring_today_is_still_listed()
+	{
+		_ibkr.OptionChainParameters =
+		[
+			new OptionChainParametersDto
+			{
+				Exchange = "SMART",
+				TradingClass = "AAPL",
+				Expirations = ["20261023", "20261120"],
+			},
+		];
+
+		var expirations = await Manager().GetExpirationsAsync(Aapl, Ct);
+
+		Assert.Equal(["20261023", "20261120"], expirations.Select(x => x.Expiration));
+	}
+
+	[Fact]
+	public async Task Only_expired_dates_left_is_reported_as_no_options()
+	{
+		_ibkr.OptionChainParameters =
+		[
+			new OptionChainParametersDto
+			{
+				Exchange = "SMART",
+				TradingClass = "AAPL",
+				Expirations = ["20261023"],
+			},
+		];
+		await Manager().GetExpirationsAsync(Aapl, Ct);
+		_time.Advance(TimeSpan.FromHours(13));
+
+		await Assert.ThrowsAsync<LSCoreBadRequestException>(() =>
+			Manager().GetExpirationsAsync(Aapl, Ct)
+		);
+	}
+
+	[Fact]
+	public async Task Strikes_are_asked_again_after_new_york_midnight()
+	{
+		ListAaplOptions();
+		_ibkr.Ticks = [new MarketDataTickDto { Field = TickTypeHelpers.Last, Price = 201.25 }];
+		await Manager().GetChainAsync(NovemberChain, Ct);
+		_time.Advance(TimeSpan.FromHours(12.9));
+		await Manager().GetChainAsync(NovemberChain, Ct);
+		Assert.Equal(1, _ibkr.SearchCalls);
+
+		_time.Advance(TimeSpan.FromHours(0.1));
+		await Manager().GetChainAsync(NovemberChain, Ct);
+
+		Assert.Equal(2, _ibkr.SearchCalls);
 	}
 
 	[Fact]
