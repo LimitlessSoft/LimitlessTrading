@@ -557,4 +557,65 @@ public class OptionChainHelpersTests
 	[InlineData("2026-11", false)]
 	public void Expiry_format(string expiry, bool valid) =>
 		Assert.Equal(valid, OptionChainHelpers.ExpiryRegex().IsMatch(expiry));
+
+	[Theory]
+	[InlineData("20261028", true)]
+	[InlineData("20261029", false)]
+	[InlineData("20261030", false)]
+	[InlineData("202609", true)]
+	[InlineData("202610", false)]
+	[InlineData("202611", false)]
+	[InlineData("bad", false)]
+	public void Expired_on_the_exchange_date(string expiry, bool expired) =>
+		Assert.Equal(expired, OptionChainHelpers.IsExpired(expiry, new DateOnly(2026, 10, 29)));
+
+	[Fact]
+	public void Exchange_date_is_new_york_not_utc() =>
+		// 02:00 UTC on Oct 29 is still the evening of Oct 28 in New York
+		Assert.Equal(
+			new DateOnly(2026, 10, 28),
+			OptionChainHelpers.GetExchangeDate(
+				new DateTimeOffset(2026, 10, 29, 2, 0, 0, TimeSpan.Zero)
+			)
+		);
+
+	[Fact]
+	public void Expired_expirations_are_removed_by_the_new_york_date()
+	{
+		OptionExpirationDto[] expirations =
+		[
+			new() { Expiration = "20261028" },
+			new() { Expiration = "20261029" },
+			new() { Expiration = "202610" },
+		];
+
+		var left = OptionChainHelpers.RemoveExpired(
+			expirations,
+			new DateTimeOffset(2026, 10, 29, 14, 0, 0, TimeSpan.Zero)
+		);
+
+		Assert.Equal(["20261029", "202610"], left.Select(x => x.Expiration));
+	}
+
+	[Theory]
+	// 15:00 UTC = 11:00 New York (EDT): written since 00:00 New York
+	[InlineData(2026, 10, 23, 15, 0, 11)]
+	// 04:00 UTC = New York midnight: nothing cached is fresh
+	[InlineData(2026, 10, 24, 4, 0, 0)]
+	// 03:30 UTC = 22:30 New York (EST, after the clocks went back)
+	[InlineData(2026, 11, 3, 3, 30, 22.5)]
+	public void Cache_ttl_reaches_back_to_new_york_midnight(
+		int year,
+		int month,
+		int day,
+		int hour,
+		int minute,
+		double hours
+	) =>
+		Assert.Equal(
+			TimeSpan.FromHours(hours),
+			OptionChainHelpers.GetCacheTtl(
+				new DateTimeOffset(year, month, day, hour, minute, 0, TimeSpan.Zero)
+			)
+		);
 }

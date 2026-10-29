@@ -296,7 +296,7 @@ One cache for everything fetched from IB that is worth keeping, with a section i
   |---|---|---|---|
   | `ChartBars` | historical bars (the latest per duration, older pages per where they end) | 1 min intraday, 30 min daily+ | stale copy, "Cached HH:mm" |
   | `Contracts` | `SearchAsync`, `SearchSymbolAsync` (so `ResolveTickerAsync`); non-empty answers only | 3 days | expired copy |
-  | `OptionChains` | expirations, strike lists (contracts only, never prices or greeks) | 1 day | expired copy |
+  | `OptionChains` | expirations, strike lists (contracts only, never prices or greeks) | until the next New York midnight (at most 1 day); expired dates dropped on read | expired copy |
   | `Executions` | fills per account | 10 s | stale copy, marked in the widget |
   | `Snapshots` | last-known positions, open orders, account summary, per account | — | shown only while disconnected or failing |
 

@@ -172,7 +172,7 @@ public class OptionChainViewModelVisibilityTests : IDisposable
 		{
 			var settings = new SettingsManager(_cache.Settings, _ibkr);
 			return new OptionChainViewModel(
-				new OptionChainManager(_ibkr, _marketData, _cache.Manager),
+				new OptionChainManager(_ibkr, _marketData, _cache.Manager, _cache.Time),
 				new ContractManager(_ibkr, _cache.Settings, _cache.Manager),
 				_marketData,
 				_connection,

@@ -126,7 +126,7 @@ public class OptionChainViewModelQuickOrderTests : IDisposable
 		var settings = new SettingsManager(_cache.Settings, _ibkr);
 		var marketData = new MarketDataManager(_ibkr, TimeProvider.System);
 		return new OptionChainViewModel(
-			new OptionChainManager(_ibkr, marketData, _cache.Manager),
+			new OptionChainManager(_ibkr, marketData, _cache.Manager, _cache.Time),
 			new ContractManager(_ibkr, _cache.Settings, _cache.Manager),
 			marketData,
 			_connection,

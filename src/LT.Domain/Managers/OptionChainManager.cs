@@ -16,13 +16,15 @@ namespace LT.Domain.Managers;
 /// <summary>
 /// Expirations from reqSecDefOptParams; the chain of one expiration (or month) from
 /// reqContractDetails, so only strikes that exist that day are listed, plus the underlying's price.
-/// Expirations and strike lists are cached (CacheType.OptionChains) for a day; the underlying's
-/// price is always asked live.
+/// Expirations and strike lists are cached (CacheType.OptionChains) until the next New York
+/// midnight, and expirations already past are dropped, cached or not; the underlying's price is
+/// always asked live.
 /// </summary>
 public class OptionChainManager(
 	IIbkrApiClient ibkrApiClient,
 	IMarketDataManager marketDataManager,
-	ICacheManager cacheManager
+	ICacheManager cacheManager,
+	TimeProvider timeProvider
 ) : IOptionChainManager
 {
 	public async Task<IReadOnlyList<OptionExpirationDto>> GetExpirationsAsync(
@@ -42,7 +44,7 @@ public class OptionChainManager(
 		var cached = await cacheManager.GetOrFetchAsync(
 			CacheType.OptionChains,
 			OptionChainHelpers.GetExpirationsCacheKey(underlying),
-			CacheConstants.OptionChainTtl,
+			OptionChainHelpers.GetCacheTtl(timeProvider.GetUtcNow()),
 			async ct =>
 				OptionChainHelpers
 					.SelectExpirations(
@@ -53,7 +55,8 @@ public class OptionChainManager(
 			cancellationToken,
 			x => x.Count > 0
 		);
-		var expirations = cached.Value;
+		// A list from an earlier day (or a stale copy) still holds the expirations since passed
+		var expirations = OptionChainHelpers.RemoveExpired(cached.Value, timeProvider.GetUtcNow());
 		if (expirations.Count == 0)
 			throw new LSCoreBadRequestException(
 				OptionChainValidationCodes.OCVC_004.GetValidationMessage(underlying.Symbol)
@@ -72,7 +75,7 @@ public class OptionChainManager(
 		var cached = await cacheManager.GetOrFetchAsync(
 			CacheType.OptionChains,
 			OptionChainHelpers.GetStrikesCacheKey(request),
-			CacheConstants.OptionChainTtl,
+			OptionChainHelpers.GetCacheTtl(timeProvider.GetUtcNow()),
 			async ct =>
 				OptionChainHelpers
 					.BuildStrikes(

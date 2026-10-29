@@ -57,6 +57,74 @@ public static partial class OptionChainHelpers
 			.ToList();
 	}
 
+	/// <summary>Today's date where options expire (New York), the day expirations are judged by.</summary>
+	public static DateOnly GetExchangeDate(DateTimeOffset now) =>
+		DateOnly.FromDateTime(
+			TimeZoneInfo
+				.ConvertTime(
+					now,
+					IbTimeHelpers.FindTimeZone(MarketDataConstants.OptionExpirationTimeZone)
+				)
+				.DateTime
+		);
+
+	/// <summary>
+	/// Whether an expiry is over by <paramref name="today"/> (the exchange date): a yyyyMMdd date
+	/// before today, a yyyyMM month before this month. An expiry in neither form is kept.
+	/// </summary>
+	public static bool IsExpired(string expiry, DateOnly today)
+	{
+		if (
+			DateOnly.TryParseExact(
+				expiry,
+				"yyyyMMdd",
+				CultureInfo.InvariantCulture,
+				DateTimeStyles.None,
+				out var date
+			)
+		)
+			return date < today;
+		if (
+			DateOnly.TryParseExact(
+				expiry,
+				"yyyyMM",
+				CultureInfo.InvariantCulture,
+				DateTimeStyles.None,
+				out var month
+			)
+		)
+			return month < new DateOnly(today.Year, today.Month, 1);
+		return false;
+	}
+
+	/// <summary>
+	/// The expirations not yet over at <paramref name="now"/> (see <see cref="IsExpired"/>): a list
+	/// fetched or cached on an earlier day still holds the days since passed.
+	/// </summary>
+	public static IReadOnlyList<OptionExpirationDto> RemoveExpired(
+		IEnumerable<OptionExpirationDto> expirations,
+		DateTimeOffset now
+	)
+	{
+		var today = GetExchangeDate(now);
+		return expirations.Where(x => !IsExpired(x.Expiration, today)).ToList();
+	}
+
+	/// <summary>
+	/// How old a cached expiration or strike list may be at <paramref name="now"/>: written since
+	/// the last New York midnight (so an entry lasts until the next one, when an expiration may
+	/// have passed), and never more than <see cref="CacheConstants.OptionChainTtl"/>.
+	/// </summary>
+	public static TimeSpan GetCacheTtl(DateTimeOffset now)
+	{
+		var zone = IbTimeHelpers.FindTimeZone(MarketDataConstants.OptionExpirationTimeZone);
+		var midnight = TimeZoneInfo.ConvertTime(now, zone).Date;
+		var sinceMidnight = now - new DateTimeOffset(midnight, zone.GetUtcOffset(midnight));
+		return sinceMidnight < CacheConstants.OptionChainTtl
+			? sinceMidnight
+			: CacheConstants.OptionChainTtl;
+	}
+
 	/// <summary>Pairs calls and puts by expiration and strike.</summary>
 	public static IReadOnlyList<OptionStrikeDto> BuildStrikes(IEnumerable<ContractDto> options) =>
 		options
