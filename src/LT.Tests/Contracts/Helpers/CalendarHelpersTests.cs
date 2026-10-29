@@ -1,3 +1,4 @@
+using System.Globalization;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Calendar;
 using LT.Contracts.Dtos.Settings;
@@ -374,6 +375,79 @@ public class CalendarHelpersTests
 		);
 		// The source's own event is not changed (it is cached)
 		Assert.Equal(string.Empty, wsh.Company);
+	}
+
+	[Fact]
+	public void A_merged_earnings_event_takes_the_EPS_figures_another_source_has()
+	{
+		var wsh = new CalendarEventDto
+		{
+			Date = Day,
+			Kind = CalendarEventKind.Earnings,
+			Symbol = "MSFT",
+			Company = "Microsoft",
+			Time = CalendarEventTime.AfterClose,
+			Detail = "Q1 earnings",
+			ConId = 272093,
+			Source = CalendarSource.WallStreetHorizon,
+		};
+		var nasdaq = new CalendarEventDto
+		{
+			Date = Day,
+			Kind = CalendarEventKind.Earnings,
+			Symbol = "MSFT",
+			EpsEstimate = 4.71m,
+			EpsActual = 4.89m,
+			EpsSurprisePercent = 3.82m,
+			Source = CalendarSource.Nasdaq,
+		};
+
+		var merged = Assert.Single(CalendarHelpers.Merge([wsh, nasdaq]));
+
+		Assert.Equal(
+			(CalendarSource.WallStreetHorizon, "Q1 earnings", 4.71m, 4.89m, 3.82m),
+			(
+				merged.Source,
+				merged.Detail,
+				merged.EpsEstimate,
+				merged.EpsActual,
+				merged.EpsSurprisePercent
+			)
+		);
+		Assert.Null(wsh.EpsActual);
+	}
+
+	[Theory]
+	[InlineData("$4.89", "4.89")]
+	[InlineData("($0.04)", "-0.04")]
+	[InlineData("-$1,234.5", "-1234.5")]
+	[InlineData("-27.89", "-27.89")]
+	[InlineData("3.82%", "3.82")]
+	[InlineData(".5", "0.5")]
+	[InlineData("N/A", null)]
+	[InlineData("", null)]
+	[InlineData(null, null)]
+	[InlineData("$", null)]
+	[InlineData("()", null)]
+	public void Figures_are_read_as_sources_write_them(string? text, string? expected) =>
+		Assert.Equal(
+			expected is null ? null : decimal.Parse(expected, CultureInfo.InvariantCulture),
+			CalendarHelpers.ParseFigure(text)
+		);
+
+	[Fact]
+	public void EPS_and_surprise_are_formatted_for_the_columns()
+	{
+		Assert.Equal(
+			["$4.89", "-$0.04", "$13.50", "$0.1234", "\u2014"],
+			new decimal?[] { 4.89m, -0.04m, 13.5m, 0.1234m, null }.Select(CalendarHelpers.FormatEps)
+		);
+		Assert.Equal(
+			["+3.8%", "-27.9%", "0.0%", "\u2014"],
+			new decimal?[] { 3.82m, -27.89m, 0m, null }.Select(CalendarHelpers.FormatSurprise)
+		);
+		Assert.Equal(string.Empty, CalendarHelpers.FormatEarningsDetail(null, null, null));
+		Assert.Equal("EPS est. $1.75", CalendarHelpers.FormatEarningsDetail(1.75m, null, null));
 	}
 
 	[Fact]

@@ -260,7 +260,7 @@ all four answer:
 
 | Calendar | Rows | Date semantics |
 |---|---|---|
-| `earnings` | `data.rows`: `symbol`, `name`, `time` (`time-pre-market` / `time-after-hours` / `time-not-supplied`), `epsForecast`, `fiscalQuarterEnding`, `marketCap` … | the day asked; ~170–620 rows on a busy day |
+| `earnings` | `data.rows`: `symbol`, `name`, `time` (`time-pre-market` / `time-after-hours` / `time-not-supplied`), `epsForecast`, `fiscalQuarterEnding`, `marketCap` …; **past days only** (checked 2026-10-29: the 28th had them, the 29th not even for pre-market reports) also `eps` (reported, `($0.01)` negative) and `surprise` (percent, `N/A` for none — also when equal to the estimate, and for some foreign listings), today and later `lastYearRptDt` / `lastYearEPS` instead | the day asked; ~170–620 rows on a busy day; a past day's rows mostly lose their time (`time-not-supplied`) |
 | `dividends` | `data.calendar.rows`: `symbol`, `companyName`, `dividend_Ex_Date`, `payment_Date`, `record_Date`, `dividend_Rate` (a number) … | ex-date = the day asked |
 | `splits` | `data.rows`: `symbol`, `name`, `ratio` ("3 : 1"), `executionDate` | **ignores the day:** every split known from it on, each on its own effective date |
 | `economicevents` | `data.rows`: `gmt` (a clock time, US Eastern by the look of it despite the name, or "All Day"), `country`, `eventName`, `actual`, `consensus`, `previous` (`&nbsp;` for none), `description` | **a day behind:** `date=D` lists D−1's releases, so D+1 is asked for (`NasdaqConstants.EconomicDateOffsetDays`) |

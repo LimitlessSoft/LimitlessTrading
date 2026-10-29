@@ -478,9 +478,18 @@ new instance) and lives in one of four wrappers:
   country or currency → code in `CountryFlagHelpers`, the euro area → EU; the country in its
   tooltip), time
   badge (Before open / After close, a release's clock time as Nasdaq gives it, or WSH's own
-  text), symbol (none for a release), company or release, detail (EPS estimate, dividend amount
-  and payment date, split ratio, a release's actual / consensus / previous) and the type (or a
-  release's country when no flag is drawn for it); the tooltip repeats it all and names the source ("from Nasdaq"). An event
+  text), symbol (none for a release), company or release, then on the right either an earnings
+  report's three figure columns — **Est.** (consensus EPS), **Actual** (reported EPS) and
+  **Surprise** (green a beat, red a miss; `positive` / `negative` classes) — fixed-width,
+  right-aligned, tabular digits, an em dash for a figure the source didn't give, Actual and
+  Surprise blank until reported (Nasdaq lists results from the day after the report;
+  `CalendarEventDto.EpsEstimate` / `EpsActual` / `EpsSurprisePercent`) — or the detail
+  (dividend amount and payment date, split ratio, a release's actual / consensus / previous,
+  WSH's earnings text) with the type (or a release's country when no flag is drawn for it).
+  Earnings carry no type label. The columns' captions sit in the day's header when the day
+  starts with earnings, else over its first earnings row (below the releases). A past row dims
+  all but its result: Actual and Surprise stay at full strength. The tooltip repeats it all
+  ("EPS $4.89 · est. $4.71 · +3.8%") and names the source ("from Nasdaq"). An event
   both sources report (same day, kind and symbol) shows once, the first source's (WSH) with
   blanks filled from the other (`CalendarHelpers.Merge`). Clicking an event looks the symbol up
   (`IContractManager.SearchSymbolAsync`, the listing with WSH's conId if it gave one; needs IB) and

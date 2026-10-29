@@ -326,6 +326,12 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 		_shownToday = today;
 		foreach (var day in result.Days)
 		{
+			// The figure columns' captions: in the header when the day starts with earnings,
+			// else over its first earnings row (below the releases, labelled their own way)
+			var firstEarnings = day.Events.FirstOrDefault(x =>
+				x.Kind == CalendarEventKind.Earnings
+			);
+			var captionsInHeader = firstEarnings != null && day.Events[0] == firstEarnings;
 			Items.Add(
 				new CalendarDayHeaderViewModel(
 					day.Date,
@@ -335,7 +341,8 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 						? $"WSH returns at most {CalendarConstants.MaxEventsPerRequest} events per day; there may be more."
 						: null,
 					day.Date == today,
-					day.Date < today
+					day.Date < today,
+					captionsInHeader
 				)
 			);
 			foreach (var item in day.Events)
@@ -346,7 +353,8 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 						item,
 						CalendarHelpers.FormatTime(item.Time, item.TimeText),
 						passedAt,
-						now >= passedAt
+						now >= passedAt,
+						!captionsInHeader && item == firstEarnings
 					)
 				);
 			}

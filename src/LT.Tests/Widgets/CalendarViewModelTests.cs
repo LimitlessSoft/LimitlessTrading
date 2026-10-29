@@ -220,6 +220,107 @@ public class CalendarViewModelTests : IDisposable
 		Assert.Equal(aapl.ConId, _links.Get(LinkGroup.Red)!.ConId);
 	}
 
+	[Fact]
+	public void Earnings_rows_show_their_figures_in_columns_with_a_beat_or_a_miss()
+	{
+		CalendarEventRowViewModel Row(CalendarEventDto item) =>
+			new(item, string.Empty, DateTimeOffset.MinValue, isPast: true);
+		var beat = Row(
+			new CalendarEventDto
+			{
+				Kind = CalendarEventKind.Earnings,
+				TypeName = "Earnings",
+				Symbol = "MSFT",
+				EpsEstimate = 4.71m,
+				EpsActual = 4.89m,
+				EpsSurprisePercent = 3.82m,
+			}
+		);
+		var miss = Row(
+			new CalendarEventDto
+			{
+				Kind = CalendarEventKind.Earnings,
+				Symbol = "GOOG",
+				EpsEstimate = 2.94m,
+				EpsActual = 2.12m,
+				EpsSurprisePercent = -27.89m,
+			}
+		);
+		var upcoming = Row(
+			new CalendarEventDto
+			{
+				Kind = CalendarEventKind.Earnings,
+				Symbol = "V",
+				EpsEstimate = 3.43m,
+			}
+		);
+		var noSurprise = Row(
+			new CalendarEventDto
+			{
+				Kind = CalendarEventKind.Earnings,
+				Symbol = "BBVA",
+				EpsActual = 0.49m,
+			}
+		);
+		var wshOnly = Row(
+			new CalendarEventDto
+			{
+				Kind = CalendarEventKind.Earnings,
+				Symbol = "AAPL",
+				Detail = "Q4 earnings",
+			}
+		);
+		var dividend = Row(
+			new CalendarEventDto
+			{
+				Kind = CalendarEventKind.Dividend,
+				TypeName = "Ex-dividend",
+				Symbol = "ASML",
+				Detail = "2.1077 · pays 4 Nov",
+			}
+		);
+
+		Assert.Equal(
+			(true, false, "$4.71", "$4.89", "+3.8%", true, false),
+			(
+				beat.ShowsFigures,
+				beat.ShowsTypeName,
+				beat.EstimateText,
+				beat.ActualText,
+				beat.SurpriseText,
+				beat.IsBeat,
+				beat.IsMiss
+			)
+		);
+		Assert.Equal(("-27.9%", false, true), (miss.SurpriseText, miss.IsBeat, miss.IsMiss));
+		// Not reported yet: the estimate only, no dashes where the result will be
+		Assert.Equal(
+			("$3.43", "", "", false, false),
+			(
+				upcoming.EstimateText,
+				upcoming.ActualText,
+				upcoming.SurpriseText,
+				upcoming.IsBeat,
+				upcoming.IsMiss
+			)
+		);
+		Assert.Equal(
+			("\u2014", "$0.49", "\u2014", false, false),
+			(
+				noSurprise.EstimateText,
+				noSurprise.ActualText,
+				noSurprise.SurpriseText,
+				noSurprise.IsBeat,
+				noSurprise.IsMiss
+			)
+		);
+		Assert.Equal((false, true), (wshOnly.ShowsFigures, wshOnly.ShowsDetail));
+		Assert.Equal(
+			(false, true, true),
+			(dividend.ShowsFigures, dividend.ShowsDetail, dividend.ShowsTypeName)
+		);
+	}
+
 	private static readonly DateOnly Wednesday = new(2026, 10, 28);
 
 	private static CalendarEventDto Release(DateOnly day, string name, string time) =>
@@ -322,7 +423,33 @@ public class CalendarViewModelTests : IDisposable
 		Assert.Equal("US", release.FlagCode);
 		Assert.False(release.ShowsTypeName);
 		Assert.Null(earnings.FlagCode);
-		Assert.True(earnings.ShowsTypeName);
+		// Earnings name no type: their figure columns tell them apart
+		Assert.False(earnings.ShowsTypeName);
+		Assert.True(earnings.ShowsFigures);
+	}
+
+	[Fact]
+	public async Task The_earnings_captions_sit_over_a_days_first_earnings_row()
+	{
+		AnswerWednesdayAndThursday();
+		await Loaded();
+
+		var (headers, rows) = TestUiThread.Invoke(() =>
+			(
+				Calendar.Items.OfType<CalendarDayHeaderViewModel>().ToList(),
+				Calendar.Items.OfType<CalendarEventRowViewModel>().ToList()
+			)
+		);
+
+		// Wednesday opens with a release (its figures labelled their own way): the captions go
+		// over AAPL; Thursday opens with earnings: in its header
+		Assert.Equal([false, true], headers.Select(x => x.ShowsCaptions));
+		Assert.Equal(
+			[("GDP", false), ("AAPL", true), ("MSFT", false)],
+			rows.Select(x =>
+				(x.Event.Symbol.Length > 0 ? x.Event.Symbol : x.Event.Company, x.ShowsCaptions)
+			)
+		);
 	}
 
 	[Fact]
