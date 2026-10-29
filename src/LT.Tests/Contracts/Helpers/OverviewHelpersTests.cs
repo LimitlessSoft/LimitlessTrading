@@ -125,4 +125,24 @@ public class OverviewHelpersTests
 	[InlineData(0, "")]
 	public void The_min_tick_has_no_trailing_zeros(double tick, string text) =>
 		Assert.Equal(text, OverviewHelpers.FormatMinTick(tick));
+
+	[Theory]
+	[InlineData("Meaning", "Detail", "Meaning\n\nDetail")]
+	[InlineData("Meaning", null, "Meaning")]
+	[InlineData(null, "Detail", "Detail")]
+	[InlineData(" ", null, null)]
+	public void A_tip_puts_the_meaning_above_the_details(
+		string? description,
+		string? details,
+		string? tip
+	) => Assert.Equal(tip, OverviewHelpers.JoinTip(description, details));
+
+	[Theory]
+	[InlineData("ISIN", true)]
+	[InlineData(" cusip ", true)]
+	[InlineData("FIGI", true)]
+	[InlineData("XYZ", false)]
+	[InlineData(null, false)]
+	public void Known_security_ids_are_explained(string? type, bool explained) =>
+		Assert.Equal(explained, OverviewHelpers.DescribeSecurityId(type) != null);
 }

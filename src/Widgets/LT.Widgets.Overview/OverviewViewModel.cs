@@ -34,17 +34,45 @@ public partial class OverviewViewModel
 	private readonly IMarketDataManager _marketDataManager;
 	private readonly LinkGroupStore _linkGroupStore;
 	private readonly DispatcherTimer _flushTimer;
-	private readonly OverviewField _bid = new("Bid", FormatHelpers.Empty);
-	private readonly OverviewField _ask = new("Ask", FormatHelpers.Empty);
-	private readonly OverviewField _open = new("Open", FormatHelpers.Empty);
-	private readonly OverviewField _previousClose = new("Prev close", FormatHelpers.Empty);
-	private readonly OverviewField _dayRange = new("Day range", FormatHelpers.Empty);
-	private readonly OverviewField _yearRange = new("52-week range", FormatHelpers.Empty);
-	private readonly OverviewField _volume = new("Volume", FormatHelpers.Empty);
+	private readonly OverviewField _bid = new(
+		"Bid",
+		FormatHelpers.Empty,
+		description: "The highest price a buyer is offering right now, × the quantity bid at it."
+	);
+	private readonly OverviewField _ask = new(
+		"Ask",
+		FormatHelpers.Empty,
+		description: "The lowest price a seller is asking right now, × the quantity offered at it."
+	);
+	private readonly OverviewField _open = new(
+		"Open",
+		FormatHelpers.Empty,
+		description: "The price of today's first trade in the regular session."
+	);
+	private readonly OverviewField _previousClose = new(
+		"Prev close",
+		FormatHelpers.Empty,
+		description: "The previous trading day's closing price; the change next to the price is measured from it."
+	);
+	private readonly OverviewField _dayRange = new(
+		"Day range",
+		FormatHelpers.Empty,
+		description: "Today's lowest and highest traded price."
+	);
+	private readonly OverviewField _yearRange = new(
+		"52-week range",
+		FormatHelpers.Empty,
+		description: "The lowest and highest price of the last 52 weeks."
+	);
+	private readonly OverviewField _volume = new(
+		"Volume",
+		FormatHelpers.Empty,
+		description: "How many shares (or contracts) have traded today."
+	);
 	private readonly OverviewField _averageVolume = new(
 		"Avg volume",
 		FormatHelpers.Empty,
-		"90-day average daily volume"
+		description: "How many shares (or contracts) trade on an average day, over the last 90 days."
 	);
 	private CancellationToken _session = new(true);
 	private ContractDto? _contract;

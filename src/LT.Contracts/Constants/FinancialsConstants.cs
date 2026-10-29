@@ -47,6 +47,7 @@ public static class FinancialsConstants
 			FinancialItem.Revenue,
 			FinancialStatement.IncomeStatement,
 			"Revenue",
+			"Money from selling the company's goods and services, before any costs.",
 			"Revenues",
 			"RevenueFromContractWithCustomerExcludingAssessedTax",
 			"RevenueFromContractWithCustomerIncludingAssessedTax",
@@ -59,6 +60,7 @@ public static class FinancialsConstants
 			FinancialItem.CostOfRevenue,
 			FinancialStatement.IncomeStatement,
 			"Cost of revenue",
+			"The direct cost of the goods and services sold: materials, production, delivery.",
 			"CostOfRevenue",
 			"CostOfGoodsAndServicesSold",
 			"CostOfGoodsSold",
@@ -68,6 +70,7 @@ public static class FinancialsConstants
 			FinancialItem.GrossProfit,
 			FinancialStatement.IncomeStatement,
 			"Gross profit",
+			"Revenue less the cost of revenue: what is left to pay for running the business.",
 			"GrossProfit"
 		) with
 		{
@@ -77,6 +80,7 @@ public static class FinancialsConstants
 			FinancialItem.ResearchAndDevelopment,
 			FinancialStatement.IncomeStatement,
 			"Research & development",
+			"Spending on research and on developing new products.",
 			"ResearchAndDevelopmentExpense",
 			"ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost"
 		),
@@ -84,22 +88,22 @@ public static class FinancialsConstants
 			FinancialItem.SellingGeneralAdministrative,
 			FinancialStatement.IncomeStatement,
 			"SG&A",
+			"Selling, general and administrative expenses: sales, marketing, management and other overhead.",
 			"SellingGeneralAndAdministrativeExpense",
 			"GeneralAndAdministrativeExpense"
-		) with
-		{
-			ToolTip = "Selling, general and administrative expenses",
-		},
+		),
 		Flow(
 			FinancialItem.OperatingIncome,
 			FinancialStatement.IncomeStatement,
 			"Operating income",
+			"Profit from the core business: gross profit less operating expenses, before interest and taxes.",
 			"OperatingIncomeLoss"
 		),
 		Flow(
 			FinancialItem.PretaxIncome,
 			FinancialStatement.IncomeStatement,
 			"Pretax income",
+			"Profit before income tax, after interest and other non-operating items.",
 			"IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
 			"IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
 			"IncomeLossFromContinuingOperationsBeforeIncomeTaxesDomestic"
@@ -108,12 +112,14 @@ public static class FinancialsConstants
 			FinancialItem.IncomeTax,
 			FinancialStatement.IncomeStatement,
 			"Income tax",
+			"Income tax expense for the period (negative: a tax benefit).",
 			"IncomeTaxExpenseBenefit"
 		),
 		Flow(
 			FinancialItem.NetIncome,
 			FinancialStatement.IncomeStatement,
 			"Net income",
+			"The bottom line: profit after every expense, interest and tax.",
 			"NetIncomeLoss",
 			"NetIncomeLossAvailableToCommonStockholdersBasic",
 			"ProfitLoss"
@@ -121,18 +127,21 @@ public static class FinancialsConstants
 		PerShare(
 			FinancialItem.EpsBasic,
 			"EPS (basic)",
+			"Earnings per share: net income divided by the average number of shares outstanding.",
 			"EarningsPerShareBasic",
 			"EarningsPerShareBasicAndDiluted"
 		),
 		PerShare(
 			FinancialItem.EpsDiluted,
 			"EPS (diluted)",
+			"Earnings per share counting the shares options, convertibles and other rights would add; the figure usually quoted.",
 			"EarningsPerShareDiluted",
 			"EarningsPerShareBasicAndDiluted"
 		),
 		PerShare(
 			FinancialItem.DilutedShares,
 			"Diluted shares",
+			"The share count diluted EPS is divided by: shares outstanding plus those options and convertibles would add.",
 			"WeightedAverageNumberOfDilutedSharesOutstanding"
 		) with
 		{
@@ -141,6 +150,7 @@ public static class FinancialsConstants
 		Instant(
 			FinancialItem.Cash,
 			"Cash & equivalents",
+			"Cash and investments so short-term and liquid they count as cash.",
 			"CashAndCashEquivalentsAtCarryingValue",
 			"CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
 			"Cash"
@@ -148,31 +158,54 @@ public static class FinancialsConstants
 		Instant(
 			FinancialItem.ShortTermInvestments,
 			"Short-term investments",
+			"Marketable securities the company can turn into cash within a year.",
 			"MarketableSecuritiesCurrent",
 			"ShortTermInvestments",
 			"AvailableForSaleSecuritiesDebtSecuritiesCurrent"
 		),
-		Instant(FinancialItem.CurrentAssets, "Current assets", "AssetsCurrent"),
-		Instant(FinancialItem.TotalAssets, "Total assets", "Assets"),
-		Instant(FinancialItem.CurrentLiabilities, "Current liabilities", "LiabilitiesCurrent"),
+		Instant(
+			FinancialItem.CurrentAssets,
+			"Current assets",
+			"Assets expected to turn into cash within a year: cash, investments, receivables, inventory.",
+			"AssetsCurrent"
+		),
+		Instant(
+			FinancialItem.TotalAssets,
+			"Total assets",
+			"Everything the company owns or is owed.",
+			"Assets"
+		),
+		Instant(
+			FinancialItem.CurrentLiabilities,
+			"Current liabilities",
+			"What the company owes that is due within a year.",
+			"LiabilitiesCurrent"
+		),
 		Instant(
 			FinancialItem.CurrentDebt,
 			"Current debt",
+			"Borrowings due within a year.",
 			"DebtCurrent",
 			"LongTermDebtCurrent",
 			"LongTermDebtAndCapitalLeaseObligationsCurrent"
 		) with
 		{
-			ToolTip = "Debt due within a year (commercial paper not included)",
+			ToolTip = "Commercial paper not included",
 		},
 		Instant(
 			FinancialItem.LongTermDebt,
 			"Long-term debt",
+			"Borrowings due in more than a year.",
 			"LongTermDebtNoncurrent",
 			"LongTermDebtAndCapitalLeaseObligations",
 			"LongTermDebt"
 		),
-		Instant(FinancialItem.TotalLiabilities, "Total liabilities", "Liabilities") with
+		Instant(
+			FinancialItem.TotalLiabilities,
+			"Total liabilities",
+			"Everything the company owes.",
+			"Liabilities"
+		) with
 		{
 			ToolTip =
 				"Total liabilities and equity less equity where the company doesn't report it",
@@ -180,14 +213,16 @@ public static class FinancialsConstants
 		Instant(
 			FinancialItem.Equity,
 			"Shareholders' equity",
+			"Book value: total assets less total liabilities, what belongs to the shareholders.",
 			"StockholdersEquity",
 			"StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"
 		),
-		Instant(FinancialItem.LiabilitiesAndEquity, null, "LiabilitiesAndStockholdersEquity"),
+		Instant(FinancialItem.LiabilitiesAndEquity, null, null, "LiabilitiesAndStockholdersEquity"),
 		Flow(
 			FinancialItem.OperatingCashFlow,
 			FinancialStatement.CashFlow,
 			"Operating cash flow",
+			"Cash the business itself brought in during the period.",
 			"NetCashProvidedByUsedInOperatingActivities",
 			"NetCashProvidedByUsedInOperatingActivitiesContinuingOperations"
 		),
@@ -195,13 +230,19 @@ public static class FinancialsConstants
 			FinancialItem.CapitalExpenditure,
 			FinancialStatement.CashFlow,
 			"Capital expenditure",
+			"Cash spent on property, plant and equipment to keep and grow the business.",
 			"PaymentsToAcquirePropertyPlantAndEquipment",
 			"PaymentsToAcquireProductiveAssets"
 		) with
 		{
-			ToolTip = "Paid for property, plant and equipment (as reported, a positive amount)",
+			ToolTip = "As reported, a positive amount",
 		},
-		Flow(FinancialItem.FreeCashFlow, FinancialStatement.CashFlow, "Free cash flow") with
+		Flow(
+			FinancialItem.FreeCashFlow,
+			FinancialStatement.CashFlow,
+			"Free cash flow",
+			"Cash left after investing in the business, free for debt, dividends and buybacks."
+		) with
 		{
 			ToolTip = "Operating cash flow less capital expenditure",
 		},
@@ -209,6 +250,7 @@ public static class FinancialsConstants
 			FinancialItem.InvestingCashFlow,
 			FinancialStatement.CashFlow,
 			"Investing cash flow",
+			"Cash spent on (negative) or received from (positive) investments, equipment and acquisitions.",
 			"NetCashProvidedByUsedInInvestingActivities",
 			"NetCashProvidedByUsedInInvestingActivitiesContinuingOperations"
 		),
@@ -216,6 +258,7 @@ public static class FinancialsConstants
 			FinancialItem.FinancingCashFlow,
 			FinancialStatement.CashFlow,
 			"Financing cash flow",
+			"Cash raised from (positive) or returned to (negative) lenders and shareholders: borrowing, repayments, dividends, buybacks.",
 			"NetCashProvidedByUsedInFinancingActivities",
 			"NetCashProvidedByUsedInFinancingActivitiesContinuingOperations"
 		),
@@ -223,6 +266,7 @@ public static class FinancialsConstants
 			FinancialItem.DepreciationAmortization,
 			FinancialStatement.CashFlow,
 			"Depreciation & amortization",
+			"The cost of long-lived assets spread over their useful life: an expense paid in an earlier period, added back to cash flow.",
 			"DepreciationDepletionAndAmortization",
 			"DepreciationAndAmortization",
 			"DepreciationAmortizationAndAccretionNet",
@@ -232,6 +276,7 @@ public static class FinancialsConstants
 			FinancialItem.ShareBasedCompensation,
 			FinancialStatement.CashFlow,
 			"Stock-based compensation",
+			"Pay in shares or options: an expense paid without cash, added back to cash flow, but it dilutes shareholders.",
 			"ShareBasedCompensation",
 			"AllocatedShareBasedCompensationExpense"
 		),
@@ -239,6 +284,7 @@ public static class FinancialsConstants
 			FinancialItem.DividendsPaid,
 			FinancialStatement.CashFlow,
 			"Dividends paid",
+			"Cash paid to shareholders as dividends.",
 			"PaymentsOfDividends",
 			"PaymentsOfDividendsCommonStock"
 		),
@@ -246,6 +292,7 @@ public static class FinancialsConstants
 			FinancialItem.ShareRepurchases,
 			FinancialStatement.CashFlow,
 			"Share buybacks",
+			"Cash spent buying back the company's own shares.",
 			"PaymentsForRepurchaseOfCommonStock"
 		),
 	];
@@ -259,19 +306,37 @@ public static class FinancialsConstants
 		FinancialItem item,
 		FinancialStatement statement,
 		string label,
+		string description,
 		params string[] concepts
-	) => new(item, statement, FinancialValueKind.Flow, label, concepts);
+	) => new(item, statement, FinancialValueKind.Flow, label, concepts, Description: description);
 
 	private static FinancialItemDefinitionDto PerShare(
 		FinancialItem item,
 		string label,
+		string description,
 		params string[] concepts
 	) =>
-		new(item, FinancialStatement.IncomeStatement, FinancialValueKind.PerShare, label, concepts);
+		new(
+			item,
+			FinancialStatement.IncomeStatement,
+			FinancialValueKind.PerShare,
+			label,
+			concepts,
+			Description: description
+		);
 
 	private static FinancialItemDefinitionDto Instant(
 		FinancialItem item,
 		string? label,
+		string? description,
 		params string[] concepts
-	) => new(item, FinancialStatement.BalanceSheet, FinancialValueKind.Instant, label, concepts);
+	) =>
+		new(
+			item,
+			FinancialStatement.BalanceSheet,
+			FinancialValueKind.Instant,
+			label,
+			concepts,
+			Description: description
+		);
 }

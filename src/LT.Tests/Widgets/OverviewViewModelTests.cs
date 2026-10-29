@@ -228,6 +228,51 @@ public class OverviewViewModelTests : IDisposable
 	}
 
 	[Fact]
+	public void Every_quote_stat_and_basic_info_row_says_what_it_means()
+	{
+		_links.Set(LinkGroup.Red, Aapl);
+		var overview = Create();
+
+		Connect();
+		WaitFor(() => overview.DetailsStatus == null && !overview.IsLoadingDetails);
+
+		var fields = overview
+			.QuoteStats.Concat(BasicInfo(overview).Sections.SelectMany(x => x.Fields))
+			.ToList();
+		Assert.All(fields, x => Assert.False(string.IsNullOrWhiteSpace(x.Description), x.Label));
+		Assert.All(fields, x => Assert.StartsWith(x.Description!, x.Tip));
+		// The meaning first, then the details the row already had
+		Assert.Equal(
+			Field(overview, "Routes to")!.Description + "\n\nSMART, NYSE, ARCA",
+			Field(overview, "Routes to")!.Tip
+		);
+	}
+
+	[Fact]
+	public void Every_valuation_figure_and_statement_line_says_what_it_means()
+	{
+		_links.Set(LinkGroup.Red, Aapl);
+		var overview = Create();
+		var financials = Financials(overview);
+		Ui(() => overview.SelectedTab = financials);
+		WaitFor(() => financials.HasStatements);
+
+		Assert.All(
+			financials.Valuation,
+			x => Assert.False(string.IsNullOrWhiteSpace(x.Description), x.Label)
+		);
+		var rows = financials.Sections.SelectMany(x => x.Rows).ToList();
+		Assert.NotEmpty(rows);
+		Assert.All(rows, x => Assert.False(string.IsNullOrWhiteSpace(x.Description), x.Label));
+		Assert.All(rows, x => Assert.StartsWith(x.Description!, x.Tip));
+		// Every line that can be shown has its meaning, not just the ones Apple's facts fill
+		Assert.All(
+			FinancialsConstants.Items.Where(x => x.Label != null),
+			x => Assert.False(string.IsNullOrWhiteSpace(x.Description), x.Label)
+		);
+	}
+
+	[Fact]
 	public void The_quarterly_toggle_shows_the_quarters_newest_first()
 	{
 		_links.Set(LinkGroup.Red, Aapl);

@@ -33,6 +33,34 @@ public static class OverviewHelpers
 		};
 
 	/// <summary>
+	/// What an identifier IB lists for a contract is ("ISIN" → "International Securities
+	/// Identification Number …"); null for a type not known here.
+	/// </summary>
+	public static string? DescribeSecurityId(string? type) =>
+		type?.Trim().ToUpperInvariant() switch
+		{
+			"ISIN" =>
+				"International Securities Identification Number: the 12-character code that identifies the security worldwide.",
+			"CUSIP" =>
+				"The 9-character code that identifies a US or Canadian security in clearing and settlement.",
+			"SEDOL" =>
+				"The 7-character code the London Stock Exchange assigns, used mainly for UK and Irish securities.",
+			"FIGI" =>
+				"Financial Instrument Global Identifier: Bloomberg's open 12-character code for the instrument.",
+			"RIC" => "Reuters Instrument Code: the instrument's ticker on Refinitiv / LSEG data.",
+			"WKN" =>
+				"Wertpapierkennnummer: the 6-character German securities identification number.",
+			"VALOR" => "Valorennummer: the Swiss securities identification number.",
+			_ => null,
+		};
+
+	/// <summary>A hover text: the meaning, a blank line, then the details; either alone; null with neither.</summary>
+	public static string? JoinTip(string? description, string? details) =>
+		string.IsNullOrWhiteSpace(description) ? details
+		: string.IsNullOrWhiteSpace(details) ? description
+		: $"{description}\n\n{details}";
+
+	/// <summary>
 	/// The market right now, in the exchange's zone: "Open · closes 16:00", "Pre-market · opens
 	/// 09:30", "After hours · until 20:00", "Closed · opens Mon 04:00" (a day name when it isn't
 	/// today), or "Closed" with no listed session ahead. Regular sessions come from
