@@ -122,4 +122,10 @@ public class WidgetPlacementEntity
 	/// <summary>Calendar instances: the days and events shown (null: this week, everything).</summary>
 	public CalendarRange? CalendarRange { get; set; }
 	public CalendarEventFilter? CalendarFilter { get; set; }
+
+	/// <summary>Overview instances: the contract shown (null: the link group's, if any).</summary>
+	public ContractEntity? OverviewContract { get; set; }
+
+	/// <summary>Overview instances: the tab shown (null: the first, Basic info).</summary>
+	public OverviewTab? OverviewTab { get; set; }
 }

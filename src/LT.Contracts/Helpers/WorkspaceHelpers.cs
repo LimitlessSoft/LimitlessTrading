@@ -20,7 +20,8 @@ public static class WorkspaceHelpers
 			or WorkspaceTool.OrderTicket
 			or WorkspaceTool.Depth
 			or WorkspaceTool.Calendar
-			or WorkspaceTool.Notes => WidgetDock.Right,
+			or WorkspaceTool.Notes
+			or WorkspaceTool.Overview => WidgetDock.Right,
 			WorkspaceTool.News => WidgetDock.Bottom,
 			_ => WidgetDock.Center,
 		};

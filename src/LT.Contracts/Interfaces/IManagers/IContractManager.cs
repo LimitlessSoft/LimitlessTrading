@@ -31,6 +31,16 @@ public interface IContractManager
 		CancellationToken cancellationToken = default
 	);
 
+	/// <summary>
+	/// The details of a resolved contract (conId &gt; 0, else it throws): names, classification,
+	/// trading hours, identifiers. Null when IB has none for the conId. Cached for
+	/// <c>CacheConstants.TradingHoursTtl</c>, as the hours IB lists move with the days.
+	/// </summary>
+	Task<ContractDetailsDto?> GetDetailsAsync(
+		ContractDto contract,
+		CancellationToken cancellationToken = default
+	);
+
 	/// <summary>Resolves a typed ticker to its first listing and remembers it as recent.</summary>
 	Task<ContractDto> ResolveTickerAsync(
 		string ticker,

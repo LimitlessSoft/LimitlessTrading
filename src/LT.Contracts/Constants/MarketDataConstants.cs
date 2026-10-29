@@ -96,7 +96,8 @@ public static class MarketDataConstants
 
 	/// <summary>
 	/// Generic tick list for the 90-day average daily volume (tick 21, in shares like tick 8's
-	/// volume) on a quote line; the watchlist's Avg Vol column uses it.
+	/// volume) on a quote line; the watchlist's Avg Vol column uses it. The same list brings the
+	/// 52-week low and high (ticks 19 and 20), which the Overview widget shows.
 	/// </summary>
 	public const string AverageVolumeGenericTick = "165";
 

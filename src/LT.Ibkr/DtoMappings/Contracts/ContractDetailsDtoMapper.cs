@@ -19,6 +19,11 @@ public class ContractDetailsDtoMapper : ILSCoreMapper<ContractDetails, ContractD
 			LiquidHours = source.LiquidHours,
 			Industry = source.Industry,
 			Category = source.Category,
+			Subcategory = source.Subcategory,
 			ContractMonth = source.ContractMonth,
+			MarketName = source.MarketName,
+			ValidExchanges = source.ValidExchanges,
+			UnderlyingConId = source.UnderlyingConId,
+			SecurityIds = new Dictionary<string, string>(source.SecurityIds),
 		};
 }

@@ -19,6 +19,8 @@ public static class TickTypeHelpers
 	public const int Low = 7;
 	public const int Volume = 8;
 	public const int Close = 9;
+	public const int Week52Low = 19;
+	public const int Week52High = 20;
 	public const int AverageVolume = 21;
 	public const int OptionImpliedVolatility = 24;
 	public const int Open = 14;
@@ -79,6 +81,12 @@ public static class TickTypeHelpers
 				return true;
 			case Volume or DelayedVolume:
 				quote.Volume = tick.Size;
+				return true;
+			case Week52Low:
+				quote.Week52Low = price;
+				return true;
+			case Week52High:
+				quote.Week52High = price;
 				return true;
 			case AverageVolume:
 				quote.AverageVolume = tick.Size is > 0 ? tick.Size : null;

@@ -1,0 +1,46 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.Overview"
+	x:Class="LT.App.Widgets.Overview.BasicInfoTabView"
+	x:DataType="vm:BasicInfoTabViewModel"
+>
+	<!-- Sections of label · value rows; values can be selected and copied (IDs, ISIN) -->
+	<ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+		<ItemsControl Margin="4,8,4,4" ItemsSource="{Binding Sections}">
+			<ItemsControl.ItemTemplate>
+				<DataTemplate x:DataType="vm:OverviewSection">
+					<StackPanel Margin="0,0,0,12">
+						<TextBlock
+							Margin="0,0,0,4"
+							Classes="secondary"
+							FontSize="11"
+							FontWeight="SemiBold"
+							Text="{Binding Title}"
+						/>
+						<ItemsControl ItemsSource="{Binding Fields}">
+							<ItemsControl.ItemTemplate>
+								<DataTemplate x:DataType="vm:OverviewField">
+									<Grid
+										Margin="0,2"
+										Background="Transparent"
+										ColumnDefinitions="130,*"
+										ToolTip.Tip="{Binding ToolTip}"
+									>
+										<TextBlock Classes="secondary" FontSize="13" Text="{Binding Label}" />
+										<SelectableTextBlock
+											Grid.Column="1"
+											FontSize="13"
+											TextWrapping="Wrap"
+											Text="{Binding Value}"
+										/>
+									</Grid>
+								</DataTemplate>
+							</ItemsControl.ItemTemplate>
+						</ItemsControl>
+					</StackPanel>
+				</DataTemplate>
+			</ItemsControl.ItemTemplate>
+		</ItemsControl>
+	</ScrollViewer>
+</UserControl>

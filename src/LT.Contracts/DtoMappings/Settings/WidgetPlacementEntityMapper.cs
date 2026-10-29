@@ -66,5 +66,9 @@ public class WidgetPlacementEntityMapper : ILSCoreMapper<WidgetPlacementDto, Wid
 			ChartContract = source.ChartContract is { } contract
 				? new ContractEntityMapper().ToMapped(contract)
 				: null,
+			OverviewContract = source.OverviewContract is { } overviewContract
+				? new ContractEntityMapper().ToMapped(overviewContract)
+				: null,
+			OverviewTab = source.OverviewTab,
 		};
 }

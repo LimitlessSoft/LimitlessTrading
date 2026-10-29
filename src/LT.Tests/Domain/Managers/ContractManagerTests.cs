@@ -325,4 +325,46 @@ public class ContractManagerTests
 		await Assert.ThrowsAsync<LSCoreBadRequestException>(() =>
 			Manager().FindAsync(new ContractDto { SecurityType = "STK" }, Ct)
 		);
+
+	[Fact]
+	public async Task Details_are_the_listing_with_the_conid_and_are_cached()
+	{
+		var spy = Stock(756733, "SPY");
+		_ibkr.SearchResults =
+		[
+			new ContractDetailsDto { Contract = Stock(1, "SPY"), LongName = "Other" },
+			new ContractDetailsDto
+			{
+				Contract = spy,
+				LongName = "SPDR S&P 500 ETF TRUST",
+				SecurityIds = new() { ["ISIN"] = "US78462F1030" },
+			},
+		];
+		var manager = Manager();
+
+		var details = await manager.GetDetailsAsync(spy, Ct);
+		var again = await manager.GetDetailsAsync(spy, Ct);
+
+		Assert.Equal("SPDR S&P 500 ETF TRUST", details!.LongName);
+		Assert.Equal("US78462F1030", again!.SecurityIds["ISIN"]);
+		Assert.Equal(756733, _ibkr.LastSearch!.ConId);
+		Assert.Equal(1, _ibkr.SearchCalls);
+	}
+
+	[Fact]
+	public async Task No_details_is_null_and_is_asked_again_next_time()
+	{
+		var spy = Stock(756733, "SPY");
+		var manager = Manager();
+
+		Assert.Null(await manager.GetDetailsAsync(spy, Ct));
+		Assert.Null(await manager.GetDetailsAsync(spy, Ct));
+		Assert.Equal(2, _ibkr.SearchCalls);
+	}
+
+	[Fact]
+	public async Task Details_of_an_unresolved_contract_are_rejected() =>
+		await Assert.ThrowsAsync<LSCoreBadRequestException>(() =>
+			Manager().GetDetailsAsync(new ContractDto { Symbol = "SPY" }, Ct)
+		);
 }

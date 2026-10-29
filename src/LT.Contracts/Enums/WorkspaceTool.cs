@@ -18,4 +18,5 @@ public enum WorkspaceTool
 	Depth = 12,
 	Notes = 13,
 	Calendar = 14,
+	Overview = 15,
 }

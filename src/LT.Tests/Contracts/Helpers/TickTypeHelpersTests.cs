@@ -29,6 +29,27 @@ public class TickTypeHelpersTests
 	}
 
 	[Fact]
+	public void The_52_week_low_and_high_of_generic_tick_165_are_kept()
+	{
+		var quote = new QuoteDto();
+
+		Assert.True(
+			TickTypeHelpers.Apply(
+				quote,
+				new MarketDataTickDto { Field = TickTypeHelpers.Week52Low, Price = 480.5 }
+			)
+		);
+		Assert.True(
+			TickTypeHelpers.Apply(
+				quote,
+				new MarketDataTickDto { Field = TickTypeHelpers.Week52High, Price = 690.25 }
+			)
+		);
+
+		Assert.Equal((480.5d, 690.25d), (quote.Week52Low, quote.Week52High));
+	}
+
+	[Fact]
 	public void Volume_rate_is_kept_in_shares_per_minute_and_zero_is_a_rate()
 	{
 		var quote = new QuoteDto();

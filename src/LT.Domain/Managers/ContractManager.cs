@@ -129,6 +129,31 @@ public class ContractManager(
 		return cached.Value;
 	}
 
+	public async Task<ContractDetailsDto?> GetDetailsAsync(
+		ContractDto contract,
+		CancellationToken cancellationToken = default
+	)
+	{
+		if (contract.ConId <= 0)
+			throw new LSCoreBadRequestException(
+				ContractValidationCodes.CTVC_004.GetValidationMessage()
+			);
+
+		// A missing answer may be a hiccup; it is never kept
+		var cached = await cacheManager.GetOrFetchAsync(
+			CacheType.Contracts,
+			ContractHelpers.GetDetailsCacheKey(contract.ConId),
+			CacheConstants.TradingHoursTtl,
+			async ct =>
+				(await ibkrApiClient.SearchContractsAsync(contract, ct)).FirstOrDefault(x =>
+					x.Contract.ConId == contract.ConId
+				),
+			cancellationToken,
+			x => x != null
+		);
+		return cached.Value;
+	}
+
 	public async Task<ContractDto> ResolveTickerAsync(
 		string ticker,
 		CancellationToken cancellationToken = default

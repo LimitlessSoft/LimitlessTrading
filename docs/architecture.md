@@ -220,7 +220,7 @@ journal) the plan is SQLite + EF Core behind the same repository interfaces.
 
 ### External data: SEC EDGAR
 
-The watchlist's market cap needs shares outstanding, which IB only has behind the fundamentals
+The watchlist's market cap (and the Overview widget's Shares section) needs shares outstanding, which IB only has behind the fundamentals
 entitlement (tick 258, [error 10358](ibkr-tws-api.md#fundamentals-10358)). `SharesOutstandingManager`
 gets them from SEC EDGAR instead: `company_tickers.json` maps the ticker to a CIK (loaded once per
 run; IB's `BRK B` is the SEC's `BRK-B`), then `companyconcept/…/dei/EntityCommonStockSharesOutstanding`

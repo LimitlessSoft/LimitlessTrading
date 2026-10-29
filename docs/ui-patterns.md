@@ -505,6 +505,32 @@ new instance) and lives in one of four wrappers:
   in Settings (`ICalendarManager.SourcesChanged`). Switching range or filter cancels the load
   running; Refresh and F5 ask every source again (otherwise answers of the last 30 minutes come
   from memory, per source). Data from `ICalendarManager`, which merges every `ICalendarSource`.
+- **Overview** (`LT.Widgets.Overview`, right side, closed on first run, Ctrl+Alt+I): one
+  contract in depth. The contract comes from the link group, a ticker typed into the header
+  title (a `TickerTitle`, moving the group along) or a ticker dropped on the widget
+  (`ITickerDropTarget`, like a chart); it is saved with the widget
+  (`WidgetPlacementDto.OverviewContract`) and shown again on restart when its link group has no
+  contract yet (a group that has one wins, so linked widgets agree). On top a quote header: IB's
+  long name, listing · currency · type, last price with the change against the previous close,
+  then bid / ask with sizes, open, previous close, day and 52-week range, volume and 90-day
+  average volume — one market data line (`SubscribeQuotesAsync` with generic tick 165, owner
+  "Overview"), only while the widget is shown; "Waiting for a quote…", "Not connected",
+  "Delayed", "Halted" or IB's refusal ("No quote: …") show next to the price. Under it a
+  `TabControl` of `OverviewTabViewModel`s (the tab shown is saved, `OverviewTab`, appended
+  values): the widget reads the contract's IB details once per contract
+  (`IContractManager.GetDetailsAsync`) and hands contract, details and each flushed quote to
+  every tab; a tab loads anything else itself. **Basic info**: Instrument (name, symbol, local
+  symbol, type, exchange, currency, contract ID, ISIN and other security ids, market, expiry /
+  strike / multiplier for derivatives), Classification (industry, category, subcategory),
+  Trading (market state now — "Open · closes 16:00", "Pre-market · opens 09:30", "After hours ·
+  until 20:00", "Closed · opens Mon 04:00", refreshed every 30 s — today's regular and extended
+  hours, time zone, min tick, contract month, routing exchanges, underlying ID; all in exchange
+  time, `OverviewHelpers`) and, for US stocks, Shares (SEC shares outstanding via
+  `ISharesOutstandingManager` and the market cap at the live price). Blank fields are left out;
+  until the details load only what the contract holds shows, with "Loading details…", "Not
+  connected to IB: …" or "IB has no details for …" in the header. Adding a tab: an
+  `OverviewTab` value at the end, a subclass of `OverviewTabViewModel` created in
+  `OverviewViewModel`'s constructor, and a `DataTemplate` for its view in `OverviewView.axaml`.
 - **Notes** (`LT.Widgets.Notes`, a Tools widget, right side, closed on first run, Ctrl+Alt+S): a
   free-text pad, one wrapping multi-line text box, no Save button. Every Notes widget has a note
   of its own, its id saved in the layout (`WidgetPlacementDto.NoteId`), so it shows its text

@@ -12,6 +12,7 @@
 		<Project Path="src/Widgets/LT.Widgets.News/LT.Widgets.News.csproj" />
 		<Project Path="src/Widgets/LT.Widgets.Notes/LT.Widgets.Notes.csproj" />
 		<Project Path="src/Widgets/LT.Widgets.OptionChain/LT.Widgets.OptionChain.csproj" />
+		<Project Path="src/Widgets/LT.Widgets.Overview/LT.Widgets.Overview.csproj" />
 		<Project Path="src/Widgets/LT.Widgets.OrderTicket/LT.Widgets.OrderTicket.csproj" />
 		<Project Path="src/Widgets/LT.Widgets.Orders/LT.Widgets.Orders.csproj" />
 		<Project Path="src/Widgets/LT.Widgets.Positions/LT.Widgets.Positions.csproj" />
