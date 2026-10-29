@@ -16,7 +16,8 @@ namespace LT.App.Widgets.OptionChain;
 /// <paramref name="quickTrade"/> (the chain's, which holds the managers and the double-send
 /// guard); <paramref name="canTrade"/> says whether the chain may trade at all (connected). Its
 /// strike cell opens an order ticket for the call or the put through <paramref name="openTicket"/>
-/// (right "C" / "P"); nothing is sent from there without the ticket's review.
+/// (right "C" / "P"); nothing is sent from there without the ticket's review. A half also drags
+/// its option onto a chart (<c>TickerDragDrop.Contract</c> in the view).
 /// </summary>
 public partial class OptionRowViewModel(
 	OptionStrikeDto strike,
@@ -50,7 +51,10 @@ public partial class OptionRowViewModel(
 	[NotifyPropertyChangedFor(nameof(PutTicketTip))]
 	public partial string? SigmaText { get; set; }
 
-	/// <summary>Tooltip of the strike cell's call half: what a click opens, then the σ distance.</summary>
+	/// <summary>
+	/// Tooltip of the strike cell's call half: what a click opens and that it drags onto a chart,
+	/// then the σ distance.
+	/// </summary>
 	public string CallTicketTip => BuildTicketTip(Strike.Call, "call");
 
 	/// <summary>Tooltip of the strike cell's put half, like <see cref="CallTicketTip"/>.</summary>
@@ -197,7 +201,7 @@ public partial class OptionRowViewModel(
 		var head =
 			option == null
 				? $"No {kind} at this strike"
-				: $"Order the {StrikeText} {kind}: market or limit, reviewed before it is sent";
+				: $"Order the {StrikeText} {kind}: market or limit, reviewed before it is sent\nDrag onto a chart to show it there";
 		return SigmaText is { } sigma ? $"{head}\n{sigma}" : head;
 	}
 
