@@ -224,19 +224,22 @@ public partial class ChartViewModel
 	}
 
 	/// <summary>
-	/// A ticker dragged onto this chart (from a watchlist, positions, orders or executions row):
-	/// shown here like a picked one and added to the recent tickers, but only this chart switches —
-	/// the link group keeps its contract, so other charts stay put. The chart stays in its group
-	/// and follows the group's next contract.
+	/// A ticker dragged onto this chart (from a watchlist, positions, orders, executions or option
+	/// chain row): handled exactly like one picked in the ticker box — added to the recent tickers,
+	/// shown here and sent to this chart's link group, so every widget in the group follows. A
+	/// chart that is not linked switches alone.
 	/// </summary>
 	public void DropContract(ContractDto contract)
 	{
 		ErrorMessage = null;
 		_contractManager.AddRecentContract(contract);
 		if (contract.ConId == _contract?.ConId)
+		{
+			// Already shown here: no reload, but the group still gets it
+			Link.Publish(contract);
 			return;
-		_contract = contract;
-		Reload();
+		}
+		ShowContract(contract);
 	}
 
 	// A ticker picked here moves every widget in this chart's link group along

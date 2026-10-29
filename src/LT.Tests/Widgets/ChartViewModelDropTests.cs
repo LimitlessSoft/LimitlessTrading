@@ -8,7 +8,7 @@ using LT.Tests.Fakes;
 
 namespace LT.Tests.Widgets;
 
-/// <summary>A ticker dragged onto a chart switches that chart only, never its link group.</summary>
+/// <summary>A ticker dragged onto a chart switches it and its link group, like a picked one.</summary>
 public class ChartViewModelDropTests : IDisposable
 {
 	private static readonly ContractDto Spy = Stock(756733, "SPY");
@@ -26,7 +26,7 @@ public class ChartViewModelDropTests : IDisposable
 		_contracts = new ContractManager(_ibkr, _cache.Settings, _cache.Manager);
 
 	[Fact]
-	public void Dropping_a_ticker_switches_only_the_chart_it_was_dropped_on()
+	public void Dropping_a_ticker_moves_every_chart_in_the_same_link_group()
 	{
 		var first = CreateChart();
 		var second = CreateChart();
@@ -36,7 +36,41 @@ public class ChartViewModelDropTests : IDisposable
 		second.DropContract(Aapl);
 
 		Assert.Equal("AAPL", second.Title);
-		Assert.Equal("SPY", first.Title);
+		Assert.Equal("AAPL", first.Title);
+		Assert.Equal(Aapl.ConId, _links.Get(LinkGroup.Red)?.ConId);
+	}
+
+	[Fact]
+	public void Dropping_a_ticker_leaves_charts_in_other_groups_and_unlinked_ones_alone()
+	{
+		var dropped = CreateChart();
+		var other = CreateChart();
+		var unlinked = CreateChart();
+		other.Link.Group = LinkGroup.Green;
+		other.OpenContract(Msft);
+		unlinked.Link.Group = LinkGroup.None;
+		unlinked.OpenContract(Spy);
+
+		dropped.DropContract(Aapl);
+
+		Assert.Equal("AAPL", dropped.Title);
+		Assert.Equal("MSFT", other.Title);
+		Assert.Equal("SPY", unlinked.Title);
+		Assert.Equal(Msft.ConId, _links.Get(LinkGroup.Green)?.ConId);
+	}
+
+	[Fact]
+	public void Dropping_on_an_unlinked_chart_switches_only_that_chart()
+	{
+		var linked = CreateChart();
+		var unlinked = CreateChart();
+		linked.OpenContract(Spy);
+		unlinked.Link.Group = LinkGroup.None;
+
+		unlinked.DropContract(Aapl);
+
+		Assert.Equal("AAPL", unlinked.Title);
+		Assert.Equal("SPY", linked.Title);
 		Assert.Equal(Spy.ConId, _links.Get(LinkGroup.Red)?.ConId);
 	}
 
