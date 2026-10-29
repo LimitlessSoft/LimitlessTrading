@@ -131,8 +131,9 @@ public interface IIbkrApiClient
 	/// <c>FootprintConstants.MaxTicksPerRequest</c>) when there are that many, often more (IB ends
 	/// on a whole second). Paging back with the oldest tick's time as the next
 	/// <paramref name="before"/> neither repeats nor skips ticks. Trades come as
-	/// <see cref="TickByTickType.AllLast"/> ticks, odd lots flagged unreported. Paced with the
-	/// historical requests of small bars. IB's refusals throw
+	/// <see cref="TickByTickType.AllLast"/> ticks, odd lots flagged unreported. One at a time
+	/// (IB holds concurrent ones far longer), no pacing window: IB paces them itself by holding
+	/// its answers. IB's refusals throw
 	/// <see cref="Exceptions.IbkrRequestException"/> with its code (10187 no market data
 	/// permissions, 200 unknown contract).
 	/// </summary>

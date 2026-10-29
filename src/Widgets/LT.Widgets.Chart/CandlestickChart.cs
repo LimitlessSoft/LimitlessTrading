@@ -512,6 +512,7 @@ public partial class CandlestickChart : Control
 			_olderAskedFor = bars[0].Time;
 			Dispatcher.UIThread.Post(() => OlderBarsNeeded?.Invoke());
 		}
+		NotifyVisibleBars(bars, start, end);
 
 		double Y(double value) => price.Y(value);
 		double X(int index) =>

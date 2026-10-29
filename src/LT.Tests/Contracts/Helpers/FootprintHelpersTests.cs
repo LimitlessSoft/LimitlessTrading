@@ -137,6 +137,34 @@ public class FootprintHelpersTests
 		Assert.Equal([10m, 0m, 0m, 2m], rows.Select(x => x.Volume));
 	}
 
+	// SPY 14:50 on 2026-10-29: a 40-share print at 769.65, two dollars above the bar's high,
+	// stretched the bar into 200 rows of 0 × 0
+	[Fact]
+	public void Prints_outside_the_bars_range_are_left_out_of_its_rows()
+	{
+		var rows = FootprintHelpers.GetRows(
+			Bar((10.00, 5, 5), (10.01, 1, 1), (12.00, 0, 40)),
+			1,
+			3,
+			10.00,
+			10.01
+		);
+
+		Assert.Equal([10.00, 10.01], rows.Select(x => Math.Round(x.Price, 2)));
+	}
+
+	[Fact]
+	public void A_side_counted_as_unknown_moves_to_the_side_found_later()
+	{
+		var bar = Bar();
+		FootprintHelpers.AddTrade(bar, Trade(10.00, 30, FootprintSide.Unknown));
+
+		FootprintHelpers.SetSide(bar, 1000, 30, FootprintSide.Bid);
+
+		Assert.Equal((30m, 0m), (bar.Levels[1000].BidVolume, bar.Levels[1000].AskVolume));
+		Assert.Equal((30m, 0m), (bar.BidVolume, bar.AskVolume));
+	}
+
 	[Fact]
 	public void The_point_of_control_is_the_row_with_the_most_volume()
 	{

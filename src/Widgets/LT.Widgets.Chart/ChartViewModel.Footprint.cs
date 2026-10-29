@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LT.App.Helpers;
 using LT.Contracts.Constants;
+using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
@@ -15,16 +16,27 @@ namespace LT.App.Widgets.Chart;
 /// Footprint bars (<see cref="ChartBarStyle.Footprint"/>, toggled from the header, saved per
 /// chart): once the bars are in, live trades with their side
 /// (<see cref="IFootprintManager.SubscribeTradesAsync"/>, two of IB's five tick-by-tick
-/// subscriptions) and past trades paged back from now, newest bars first, through the session's
-/// first bar or <see cref="FootprintConstants.MaxBackfillRequests"/> requests
-/// (<see cref="ChartFootprint"/>). Bars waiting for their trades draw as candles marked loading,
-/// bars past the backfill or without a live stream as candles marked "no footprint". The status
-/// line says how far the footprint reaches and why it stops.
+/// subscriptions) and past trades paged back one page at a time (<see cref="ChartFootprint"/>):
+/// the visible bars first, newest first, then the session back to its first bar, and older bars
+/// once the view scrolls to them (<see cref="ShowFootprintBars"/>), up to
+/// <see cref="FootprintConstants.MaxBackfillRequests"/> pages; before the pages of a day, the
+/// trades the footprint trade cache has of it (<see cref="IFootprintManager.GetRecordedTradesAsync"/>),
+/// so only its gaps are paged. Bars show the trades loaded so far
+/// (marked partial until all are in); bars past the backfill or without a live stream are candles
+/// marked "no footprint". The status line says how far the footprint reaches and whether it is
+/// still loading.
 /// </summary>
 public partial class ChartViewModel
 {
 	private readonly IFootprintManager _footprintManager;
 	private CancellationTokenSource? _footprintLoad;
+	private GetBarsRequest? _footprintRequest;
+
+	// The footprint whose pages are being loaded (one page at a time per chart)
+	private ChartFootprint? _footprintPaging;
+
+	// The bars the chart shows (oldest and newest start), from its last render
+	private (DateTimeOffset From, DateTimeOffset To)? _footprintVisible;
 
 	// Why the footprint is short of live trades or quotes; shown in the status line
 	private string? _footprintLiveError;
@@ -54,7 +66,7 @@ public partial class ChartViewModel
 
 	public string BarStyleToolTip =>
 		BarStyle == ChartBarStyle.Footprint
-			? "Footprint: volume at the bid × at the ask per price, imbalances, the bar's busiest price boxed. Zoom in for the numbers. Click for candles"
+			? "Footprint: volume at the bid × at the ask per price, imbalances, the bar's busiest price boxed. Bars still loading their trades show what is in so far. Click for candles"
 			: "Candles. Click for footprint bars (intraday: volume at the bid and the ask per price; uses two of IB's five tick-by-tick subscriptions)";
 
 	/// <summary>Header bar style toggle: candles ↔ footprint, for this chart only.</summary>
@@ -93,6 +105,8 @@ public partial class ChartViewModel
 		_footprintLoad?.Cancel();
 		_footprintLoad?.Dispose();
 		_footprintLoad = null;
+		_footprintRequest = null;
+		_footprintPaging = null;
 		Footprint?.Dispose();
 		Footprint = null;
 		_footprintLiveError = null;
@@ -151,6 +165,7 @@ public partial class ChartViewModel
 			tickSize,
 			liveFrom,
 			FootprintHelpers.GetSessionStart(Bars, DisplayTime.Zone) ?? liveFrom,
+			() => _live?.Bars ?? Bars,
 			_timeProvider,
 			() =>
 			{
@@ -161,6 +176,9 @@ public partial class ChartViewModel
 			}
 		);
 		Footprint = footprint;
+		_footprintRequest = request;
+		if (_footprintVisible is { } visible)
+			footprint.SetVisible(visible.From, visible.To);
 		_status.Rebuild();
 		_ = Task.Run(
 			() => StreamFootprintTradesAsync(contract, footprint, cancellationToken),
@@ -169,45 +187,118 @@ public partial class ChartViewModel
 		await BackfillFootprintAsync(request, footprint, cancellationToken);
 	}
 
-	// Pages of past trades, newest first, until the session's first bar or the request cap
+	/// <summary>
+	/// The chart shows the bars from <paramref name="from"/> to <paramref name="to"/>
+	/// (CandlestickChart.VisibleBarsChanged): their footprints load first, and scrolling back to
+	/// bars without one loads them.
+	/// </summary>
+	public void ShowFootprintBars(DateTimeOffset from, DateTimeOffset to)
+	{
+		_footprintVisible = (from, to);
+		if (Footprint is not { } footprint || !footprint.SetVisible(from, to))
+			return;
+		if (_footprintRequest is { } request && _footprintLoad is { } load)
+			_ = BackfillFootprintAsync(request, footprint, load.Token);
+		_status.Rebuild();
+	}
+
+	// One page of past trades at a time, where the footprint asks for it, until it has nothing
+	// more to load; before the pages of a day, what the footprint trade cache has of it (counted a
+	// slice at a time, the chart drawing in between). Started again when the view moves to bars
+	// without their trades
 	private async Task BackfillFootprintAsync(
 		GetBarsRequest request,
 		ChartFootprint footprint,
 		CancellationToken cancellationToken
 	)
 	{
-		while (footprint.GetNextPageEnd(FootprintConstants.MaxBackfillRequests) is { } before)
+		if (_footprintPaging == footprint || cancellationToken.IsCancellationRequested)
+			return;
+		_footprintPaging = footprint;
+		try
 		{
-			try
+			while (true)
 			{
+				if (footprint.GetNextRecordedDay() is { } day)
+				{
+					await AddRecordedFootprintDayAsync(
+						request.Contract,
+						footprint,
+						day,
+						cancellationToken
+					);
+					if (cancellationToken.IsCancellationRequested)
+						return;
+					continue;
+				}
+				if (footprint.GetNextPageEnd() is not { } before)
+					break;
 				var page = await _footprintManager.GetTradesAsync(
-					new GetFootprintTradesRequest
-					{
-						Contract = request.Contract,
-						UseRegularTradingHours = request.UseRegularTradingHours,
-						Before = before,
-					},
+					new GetFootprintTradesRequest { Contract = request.Contract, Before = before },
 					cancellationToken
 				);
 				if (cancellationToken.IsCancellationRequested)
 					return;
-				footprint.AddPage(page, _live?.Bars ?? Bars);
-			}
-			catch (Exception) when (cancellationToken.IsCancellationRequested)
-			{
-				return;
-			}
-			catch (Exception ex)
-			{
-				_messageLogManager.Add(
-					MessageSeverity.Info,
-					MessageLogConstants.SourceChart,
-					$"{ContractHelpers.GetDisplayName(request.Contract)}: footprint history unavailable ({ErrorMessageHelpers.ToUserMessage(ex)})"
-				);
-				break;
+				footprint.AddPage(page, before);
 			}
 		}
-		footprint.StopBackfill();
+		catch (Exception) when (cancellationToken.IsCancellationRequested)
+		{
+			return;
+		}
+		catch (Exception ex)
+		{
+			_messageLogManager.Add(
+				MessageSeverity.Info,
+				MessageLogConstants.SourceChart,
+				$"{ContractHelpers.GetDisplayName(request.Contract)}: footprint history unavailable ({ErrorMessageHelpers.ToUserMessage(ex)})"
+			);
+			footprint.StopBackfill();
+		}
+		finally
+		{
+			if (_footprintPaging == footprint)
+				_footprintPaging = null;
+		}
+		if (Footprint == footprint)
+			_status.Rebuild();
+	}
+
+	// The cached trades of a UTC day into the footprint, a slice at a time; an unreadable cache is
+	// an empty one (IB pages the day)
+	private async Task AddRecordedFootprintDayAsync(
+		ContractDto contract,
+		ChartFootprint footprint,
+		DateTimeOffset day,
+		CancellationToken cancellationToken
+	)
+	{
+		IReadOnlyList<FootprintTapeRangeDto> ranges;
+		try
+		{
+			ranges = await _footprintManager.GetRecordedTradesAsync(
+				contract,
+				day,
+				day.AddDays(1),
+				cancellationToken
+			);
+		}
+		catch (Exception) when (!cancellationToken.IsCancellationRequested)
+		{
+			ranges = [];
+		}
+		footprint.AddRecorded(day, []);
+		foreach (var range in ranges)
+		foreach (
+			var slice in FootprintTapeHelpers.Slice(range, FootprintConstants.TapeTradesPerSlice)
+		)
+		{
+			if (cancellationToken.IsCancellationRequested)
+				return;
+			footprint.AddRecorded(day, [slice]);
+			// Let the chart draw what is in before the next slice
+			await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+		}
 	}
 
 	// Thread pool: live trades into the footprint; a refused or ended stream leaves newer bars
@@ -245,7 +336,7 @@ public partial class ChartViewModel
 					)
 					.ConfigureAwait(false)
 			)
-				footprint.AddLiveTrade(trade, () => _live?.Bars ?? Bars);
+				footprint.AddLiveTrade(trade);
 			error = "live trades ended";
 		}
 		catch (Exception) when (cancellationToken.IsCancellationRequested)
@@ -283,12 +374,20 @@ public partial class ChartViewModel
 			return $" · footprint: {_footprintUnavailable}";
 		if (Footprint is not { } footprint)
 			return string.Empty;
+		var completeFrom = footprint.GetCompleteFrom();
+		var (complete, visible) = footprint.GetVisibleProgress();
 		var text =
-			footprint.IsBackfilling
-				? $" · footprint loading {footprint.Requests}/{FootprintConstants.MaxBackfillRequests}"
-			: footprint.PagedTo > footprint.BackfillTo
-				? $" · footprint from {DisplayTime.FormatDayTime(footprint.PagedTo)}"
-			: " · footprint";
+			_footprintPaging == footprint && footprint.GetNextPageEnd() != null
+				? complete < visible
+					? $" · footprint loading… {complete}/{visible} bars on screen complete"
+					: completeFrom is { } loadingFrom
+						? $" · footprint from {DisplayTime.FormatDayTime(loadingFrom)}, loading…"
+						: " · footprint loading…"
+				: completeFrom is { } from && from > footprint.SessionStart
+					? $" · footprint from {DisplayTime.FormatDayTime(from)}"
+					: completeFrom == null
+						? " · footprint partial"
+						: " · footprint";
 		if (_footprintLiveError != null)
 			text += $" (not live: {_footprintLiveError})";
 		else if (_footprintQuotesError != null)

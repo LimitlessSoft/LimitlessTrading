@@ -430,11 +430,29 @@ deduplicated by IB's execution id, so the same fill from either stays one:
   exclusive, so paging back with the oldest tick's time as the next end neither repeats nor skips
   one. Trades include odd lots (flagged unreported, like `AllLast`) but carry no bid / ask, so the
   footprint backfill tells the aggressor by the tick rule. AAPL trades about 1000 times in 30 s
-  at 10:50 New York; eight pages back to back were answered in 0.2–0.3 s each with no pacing error
-  (recorded read-only on IB Gateway 4001, 2026-10-28, versions 178 and 187). IB doesn't say
-  clearly whether they count toward historical pacing, so `IbkrApiClient` holds them to the
-  small-bar window (`HistoricalPacing.WaitTicksAsync`, 60 per 10 minutes, shared with bars of 30 s
-  or less) and the chart sends at most `FootprintConstants.MaxBackfillRequests` (40) per load.
+  at 10:50 New York; SPY 1000 times in 3–5 s in the last minutes before the close and in about a
+  minute mid-afternoon (~220,000 trades, 213 pages, from 13:05 to 16:00 on 2026-10-29; its 15:55
+  bar alone took 34 pages). Prints include late and out-of-sequence reports far from the market
+  (40 shares at 769.65 in a 767.2–767.7 bar), which IB's bars leave out of their high / low.
+  **Pacing, measured read-only on IB Gateway 4001 (live), 2026-10-29 after the close:** 213 SPY
+  TRADES pages of 1000 sent back to back, one at a time, all answered, **no pacing error** (no
+  162 / 420 / 366, no notice at all). The first ~10 come back in 0.2–0.5 s each; then IB holds the
+  answers and releases them on a **6-second clock** (every held answer arrived at the same phase
+  of a 6 s cycle): one to seven a tick, an occasional 12–18 s gap; sustained **~22 pages a
+  minute** (p50 0.29 s, p90 6.0 s, max 18 s). Historical bar requests for other contracts sent
+  meanwhile (1 D of 1 and 5 min, every 12 s) were answered in 0.17–1.5 s as usual: the holding
+  is the ticks' own. **Several at once are worse:** four in flight (distinct ends) got 40 pages
+  in 222 s, answers held up to ~100 s, against 40 in ~73 s one at a time. So `IbkrApiClient`
+  sends historical ticks one at a time (`HistoricalPacing.WaitTicksAsync` / `ReleaseTicks`)
+  with no pacing window of its own — the earlier 60 / 10 min window held each page ~10 s once 60
+  were sent. A footprint chart pages at most `FootprintConstants.MaxBackfillRequests` (1200)
+  per load (a whole SPY session is ~500). Because of that pace, every page (and every live
+  trade) goes into the footprint trade cache, so a chart reopened later asks IB only for what
+  it lacks — see [ui-patterns.md → Footprint bars](ui-patterns.md#charts). Footprint pages
+  are asked for outside regular hours too (`useRTH` 0) whatever the chart shows, so what is
+  cached is every trade and serves RTH and ETH charts alike; an RTH chart's page then reaches
+  only the pre-market trades just before 9:30 (its next page goes straight to the previous
+  session's last bar, not through the night).
 - <a id="fundamentals-10358"></a>**Generic tick 258 (fundamental ratios) without the
   fundamentals entitlement rejects the whole `reqMktData`**: `10358 Fundamentals data is not
   allowed` comes back for the request id within milliseconds and no tick follows, not even
@@ -448,8 +466,9 @@ deduplicated by IB's execution id, so the same fill from either stays one:
 ## How LT.Ibkr applies the rules
 
 - `RequestThrottle` (sliding window) paces every request: 40 msg/s overall, and
-  `HistoricalPacing` holds historical requests for bars of 30 s or less, and historical ticks, to
-  60 per 10 minutes.
+  `HistoricalPacing` holds historical requests for bars of 30 s or less to 60 per 10 minutes and
+  sends historical ticks one at a time (IB paces those itself, see
+  [Historical ticks](#historical-ticks)).
   Requests wait instead of tripping IB's disconnect. Chart bars (1 min and up) are not held to
   the 60 / 10 min window: IB doesn't enforce it for them (75 distinct 15-min requests in 70 s,
   recorded read-only on IB Gateway 4001, 2026-10-26, all answered; IB slowed its answers to

@@ -6,7 +6,6 @@ namespace LT.Contracts.Requests.Charts;
 public class GetFootprintTradesRequest
 {
 	public ContractDto Contract { get; set; } = new();
-	public bool UseRegularTradingHours { get; set; }
 
 	/// <summary>The page holds trades strictly before this (the oldest trade of the page after it).</summary>
 	public DateTimeOffset Before { get; set; }

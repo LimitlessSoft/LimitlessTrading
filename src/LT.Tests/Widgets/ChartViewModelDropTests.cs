@@ -148,7 +148,9 @@ public class ChartViewModelDropTests : IDisposable
 			new FootprintManager(
 				_ibkr,
 				_cache.Manager,
-				new MarketDataManager(_ibkr, TimeProvider.System)
+				new MarketDataManager(_ibkr, TimeProvider.System),
+				new InMemoryFootprintTapeRepository(),
+				_cache.Time
 			),
 			_contracts,
 			_connection,
