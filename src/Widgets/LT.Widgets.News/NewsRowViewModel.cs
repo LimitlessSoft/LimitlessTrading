@@ -1,7 +1,11 @@
 using System.Globalization;
+using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using LT.App.Stores;
+using LT.App.Workspace;
+using LT.Contracts.Constants;
 using LT.Contracts.Dtos.News;
+using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 
 namespace LT.App.Widgets.News;
@@ -27,6 +31,16 @@ public class NewsRowViewModel(NewsHeadlineDto headline, DisplayTimeStore display
 	public void RefreshTime() => OnPropertyChanged(nameof(TimeText));
 
 	public string Provider => Headline.ProviderCode;
+
+	/// <summary>IB's or the app's own feeds: the provider badge's color, as on the frame corners.</summary>
+	public WidgetCategory SourceCategory => NewsHelpers.GetSourceCategory(Headline.SourceId);
+
+	public IBrush SourceBrush => WidgetCategoryBrushes.Get(SourceCategory);
+
+	public string SourceTip =>
+		SourceCategory == WidgetCategory.Tools
+			? $"{Headline.ProviderCode} · {FeedNewsConstants.SourceName} feed"
+			: $"{Headline.ProviderCode} · IB";
 
 	public string Text => Headline.Headline;
 

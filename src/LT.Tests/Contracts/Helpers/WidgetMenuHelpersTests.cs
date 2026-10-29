@@ -64,11 +64,22 @@ public class WidgetMenuHelpersTests
 			section =>
 				Assert.All(
 					section.Items.OfType<WorkspaceTool>(),
-					tool => Assert.Equal(section.Category, WidgetCatalog.GetCategory(tool))
+					tool =>
+						Assert.Equal(
+							section.Category,
+							WidgetMenuHelpers.GetMenuSection(WidgetCatalog.GetCategory(tool))
+						)
 				)
 		);
 		Assert.Equal([WorkspaceTool.Notes], sections[1].Items);
 	}
+
+	[Fact]
+	public void A_mixed_widget_is_listed_under_interactive_brokers() =>
+		Assert.Contains(
+			WorkspaceTool.News,
+			WidgetsMenuItem.Sections.Single(x => x.Category == WidgetCategory.Ibkr).Items
+		);
 
 	[Fact]
 	public void Notes_works_without_ib() =>

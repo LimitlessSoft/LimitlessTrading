@@ -11,4 +11,10 @@ public enum WidgetCategory
 
 	/// <summary>Works on its own, without IB (notes, …).</summary>
 	Tools = 1,
+
+	/// <summary>
+	/// Both: IBKR's data and the app's own sources (News: IB's providers and our feeds). Listed in
+	/// the Interactive Brokers section of the menu.
+	/// </summary>
+	Mixed = 2,
 }

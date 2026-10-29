@@ -64,6 +64,14 @@ public static partial class NewsHelpers
 			symbols.Add(NewsFeedHelpers.ToFeedSymbol(symbol));
 	}
 
+	/// <summary>
+	/// Where a news source's items come from, as a widget category (the same colors as the frame
+	/// corner markers): the app's own feeds are <see cref="WidgetCategory.Tools"/>, everything else
+	/// (IB) <see cref="WidgetCategory.Ibkr"/>.
+	/// </summary>
+	public static WidgetCategory GetSourceCategory(string sourceId) =>
+		sourceId == FeedNewsConstants.SourceId ? WidgetCategory.Tools : WidgetCategory.Ibkr;
+
 	/// <summary>Codes of the providers that belong to <paramref name="sourceId"/>.</summary>
 	public static IReadOnlyList<string> GetProviderCodes(
 		IEnumerable<NewsProviderDto> providers,

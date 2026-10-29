@@ -40,4 +40,20 @@ public class WidgetShortcutTests
 		Assert.Equal("Tools", notes.CategoryToolTip);
 		Assert.NotSame(ibkr.CategoryBrush, notes.CategoryBrush);
 	}
+
+	[Fact]
+	public void News_corner_marker_is_mixed_ib_and_own_sources()
+	{
+		var news = new WidgetItem("n1", WorkspaceTool.News, new object());
+
+		Assert.Equal(WidgetCategory.Mixed, news.Category);
+		Assert.Equal("Interactive Brokers + own sources", news.CategoryToolTip);
+		Assert.Same(WidgetCategoryBrushes.Mixed, news.CategoryBrush);
+		// Both colors: IB's and the tools'
+		var stops = Assert
+			.IsAssignableFrom<Avalonia.Media.IGradientBrush>(news.CategoryBrush)
+			.GradientStops.Select(x => x.Color.ToString())
+			.Distinct();
+		Assert.Equal(["#ffb8973a", "#ff5c6bc0"], stops);
+	}
 }

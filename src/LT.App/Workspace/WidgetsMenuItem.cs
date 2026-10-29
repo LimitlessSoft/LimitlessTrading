@@ -40,7 +40,11 @@ public class WidgetsMenuItem : MenuItem
 	public static IReadOnlyList<(
 		WidgetCategory Category,
 		IReadOnlyList<WorkspaceTool?> Items
-	)> Sections { get; } = WidgetMenuHelpers.Group(Order, WidgetCatalog.GetCategory);
+	)> Sections { get; } =
+		WidgetMenuHelpers.Group(
+			Order,
+			x => WidgetMenuHelpers.GetMenuSection(WidgetCatalog.GetCategory(x))
+		);
 
 	public WidgetsMenuItem()
 	{

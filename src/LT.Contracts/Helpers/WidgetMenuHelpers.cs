@@ -4,14 +4,22 @@ namespace LT.Contracts.Helpers;
 
 public static class WidgetMenuHelpers
 {
-	/// <summary>Section header of a category in menu → Widgets.</summary>
+	/// <summary>Section header of a category in menu → Widgets; the frame's corner marker tooltip.</summary>
 	public static string GetCategoryTitle(WidgetCategory category) =>
 		category switch
 		{
 			WidgetCategory.Ibkr => "Interactive Brokers",
 			WidgetCategory.Tools => "Tools",
+			WidgetCategory.Mixed => "Interactive Brokers + own sources",
 			_ => category.ToString(),
 		};
+
+	/// <summary>
+	/// The menu section a category's widgets are listed in: a mixed widget under Interactive
+	/// Brokers, the rest under their own.
+	/// </summary>
+	public static WidgetCategory GetMenuSection(WidgetCategory category) =>
+		category == WidgetCategory.Mixed ? WidgetCategory.Ibkr : category;
 
 	/// <summary>
 	/// Menu → Widgets in sections: <paramref name="order"/> (null is a separator) split by
