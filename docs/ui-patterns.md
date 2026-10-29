@@ -897,10 +897,8 @@ charts as Not linked.
 
 A row of the Watchlist, Positions, Orders or Executions can be dragged onto any chart: the
 chart the ticker is dropped on shows it, like one picked in its own ticker box (it also goes to
-the recent tickers). Only that chart switches: the drop doesn't touch the link group, so other
-charts keep their contract. The chart stays in its group and follows the group's next contract
-(the group store skips a contract it already holds, so re-clicking the group's current row
-doesn't pull the chart back). Remembered (stale) positions, orders and fills don't drag, like
+the recent tickers) and sends it to its link group, so every widget in the chart's group follows
+it. A chart that is Not linked switches alone; widgets in other groups stay put. Remembered (stale) positions, orders and fills don't drag, like
 they don't link. The press still selects the row (and so sends it to the source's group).
 
 - A left press on a row turns into a drag once it moves 6 px (`WorkspaceHelpers.IsBeyondDragThreshold`,
