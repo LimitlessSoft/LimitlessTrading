@@ -19,6 +19,10 @@ namespace LT.App.Widgets.Overview;
 /// </summary>
 public class BasicInfoTabViewModel : OverviewTabViewModel
 {
+	/// <summary>Market cap's meaning, here and on the Financials tab.</summary>
+	public const string MarketCapDescription =
+		"What the market values the whole company at: shares outstanding times the share price.";
+
 	private readonly ISharesOutstandingManager _sharesOutstandingManager;
 	private readonly TimeProvider _timeProvider;
 	private readonly DispatcherTimer _stateTimer;
@@ -116,17 +120,37 @@ public class BasicInfoTabViewModel : OverviewTabViewModel
 			AddSection(
 				"Classification",
 				[
-					Field("Industry", details.Industry),
-					Field("Category", details.Category),
-					Field("Subcategory", details.Subcategory),
+					Field(
+						"Industry",
+						details.Industry,
+						description: "The broad sector IB classifies the company under."
+					),
+					Field(
+						"Category",
+						details.Category,
+						description: "The industry group within the sector."
+					),
+					Field(
+						"Subcategory",
+						details.Subcategory,
+						description: "The narrowest level of IB's industry classification, within the category."
+					),
 				]
 			);
 			AddSection("Trading", GetTradingFields(contract, details));
 		}
 		if (MarketCapHelpers.IsEligible(contract))
 		{
-			_sharesField = new OverviewField("Shares outstanding", string.Empty);
-			_marketCapField = new OverviewField("Market cap", string.Empty);
+			_sharesField = new OverviewField(
+				"Shares outstanding",
+				string.Empty,
+				description: "Every share of the company held by its shareholders, insiders and institutions included."
+			);
+			_marketCapField = new OverviewField(
+				"Market cap",
+				string.Empty,
+				description: MarketCapDescription
+			);
 			AddSection("Shares", [_sharesField, _marketCapField]);
 			UpdateShares();
 		}
@@ -140,36 +164,78 @@ public class BasicInfoTabViewModel : OverviewTabViewModel
 	{
 		var fields = new List<OverviewField?>
 		{
-			Field("Name", details?.LongName),
-			Field("Symbol", contract.Symbol),
+			Field(
+				"Name",
+				details?.LongName,
+				description: "The instrument's full name as IB lists it: the company, fund or index."
+			),
+			Field(
+				"Symbol",
+				contract.Symbol,
+				description: "The ticker IB knows the instrument by, the one typed to find it."
+			),
 			contract.LocalSymbol != contract.Symbol
-				? Field("Local symbol", contract.LocalSymbol)
+				? Field(
+					"Local symbol",
+					contract.LocalSymbol,
+					description: "The symbol on the exchange itself where it differs from the ticker, e.g. an option's OCC symbol or a future's month code."
+				)
 				: null,
-			Field("Type", OverviewHelpers.GetSecurityTypeName(contract.SecurityType)),
-			Field("Exchange", ContractHelpers.GetListingExchange(contract)),
-			Field("Currency", contract.Currency),
+			Field(
+				"Type",
+				OverviewHelpers.GetSecurityTypeName(contract.SecurityType),
+				description: "IB's security type: what kind of instrument this is. ETFs are stocks to IB."
+			),
+			Field(
+				"Exchange",
+				ContractHelpers.GetListingExchange(contract),
+				description: "The primary exchange the instrument is listed on. Orders can still be routed to other venues (see Routes to)."
+			),
+			Field(
+				"Currency",
+				contract.Currency,
+				description: "The currency the instrument is quoted and traded in."
+			),
 			Field(
 				"Contract ID",
-				contract.ConId > 0 ? contract.ConId.ToString(CultureInfo.InvariantCulture) : null
+				contract.ConId > 0 ? contract.ConId.ToString(CultureInfo.InvariantCulture) : null,
+				description: "IB's unique number for this exact contract (conId): it identifies it unambiguously, unlike a ticker."
 			),
 		};
 		foreach (var (type, id) in (details?.SecurityIds ?? []).OrderBy(x => x.Key))
-			fields.Add(Field(type, id));
+			fields.Add(Field(type, id, description: OverviewHelpers.DescribeSecurityId(type)));
 		var market = details?.MarketName is { Length: > 0 } name ? name : contract.TradingClass;
 		if (market != contract.Symbol)
-			fields.Add(Field("Market", market));
+			fields.Add(
+				Field(
+					"Market",
+					market,
+					description: "IB's market name (trading class) the contract belongs to, e.g. NMS for Nasdaq-listed stocks or an option's class."
+				)
+			);
 		if (contract.LastTradeDateOrContractMonth.Length > 0)
-			fields.Add(Field("Expiry", contract.LastTradeDateOrContractMonth));
+			fields.Add(
+				Field(
+					"Expiry",
+					contract.LastTradeDateOrContractMonth,
+					description: "The last trading day (or contract month) of the derivative; it can't be traded after it."
+				)
+			);
 		if (contract.Strike > 0)
 			fields.Add(
 				Field(
 					"Strike",
-					$"{contract.Strike.ToString("0.####", CultureInfo.CurrentCulture)} {contract.Right}"
+					$"{contract.Strike.ToString("0.####", CultureInfo.CurrentCulture)} {contract.Right}",
+					description: "The price the option can be exercised at; C is a call (the right to buy), P a put (the right to sell)."
 				)
 			);
 		if (ContractHelpers.GetMultiplier(contract) is { } multiplier)
 			fields.Add(
-				Field("Multiplier", multiplier.ToString("0.####", CultureInfo.CurrentCulture))
+				Field(
+					"Multiplier",
+					multiplier.ToString("0.####", CultureInfo.CurrentCulture),
+					description: "Units one contract stands for: a price move of 1 changes one contract's value by this much (100 for US stock options)."
+				)
 			);
 		return fields;
 	}
@@ -177,7 +243,12 @@ public class BasicInfoTabViewModel : OverviewTabViewModel
 	private List<OverviewField?> GetTradingFields(ContractDto contract, ContractDetailsDto details)
 	{
 		var now = _timeProvider.GetUtcNow();
-		_marketState = new OverviewField("Market", string.Empty, "In the exchange's time zone");
+		_marketState = new OverviewField(
+			"Market",
+			string.Empty,
+			"In the exchange's time zone",
+			"Whether the market is open right now (regular session, pre-market, after hours or closed) and when that changes."
+		);
 		var exchanges = OverviewHelpers.GetValidExchanges(details.ValidExchanges);
 		return
 		[
@@ -185,27 +256,43 @@ public class BasicInfoTabViewModel : OverviewTabViewModel
 			Field(
 				"Regular hours",
 				OverviewHelpers.DescribeToday(details.LiquidHours, details.TimeZoneId, now),
-				"Today's regular session, exchange time"
+				"Today's regular session, exchange time",
+				"The regular (liquid) trading session, when most of the volume trades and the official open and close are set."
 			),
 			Field(
 				"Extended hours",
 				OverviewHelpers.DescribeToday(details.TradingHours, details.TimeZoneId, now),
-				"Every session today, pre- and post-market included, exchange time"
+				"Every session today, pre- and post-market included, exchange time",
+				"IB's full trading hours. Outside the regular hours an order only fills if it is allowed to trade outside regular trading hours (RTH)."
 			),
-			Field("Time zone", details.TimeZoneId),
-			Field("Min tick", OverviewHelpers.FormatMinTick(details.MinTick)),
-			Field("Contract month", details.ContractMonth),
+			Field(
+				"Time zone",
+				details.TimeZoneId,
+				description: "The exchange's time zone; the hours in this tab are in it."
+			),
+			Field(
+				"Min tick",
+				OverviewHelpers.FormatMinTick(details.MinTick),
+				description: "The smallest price increment the instrument is quoted and ordered in: a limit price must be a multiple of it."
+			),
+			Field(
+				"Contract month",
+				details.ContractMonth,
+				description: "The month the future or option contract is for (YYYYMM)."
+			),
 			exchanges.Count > 0
 				? Field(
 					"Routes to",
 					exchanges.Count == 1 ? exchanges[0] : $"{exchanges.Count} exchanges",
-					string.Join(", ", exchanges)
+					string.Join(", ", exchanges),
+					"The exchanges IB can send orders for this contract to; SMART routing picks among them for the best price."
 				)
 				: null,
 			details.UnderlyingConId > 0 && details.UnderlyingConId != contract.ConId
 				? Field(
 					"Underlying ID",
-					details.UnderlyingConId.ToString(CultureInfo.InvariantCulture)
+					details.UnderlyingConId.ToString(CultureInfo.InvariantCulture),
+					description: "IB's contract ID (conId) of the instrument this derivative is based on."
 				)
 				: null,
 		];
@@ -257,6 +344,13 @@ public class BasicInfoTabViewModel : OverviewTabViewModel
 	}
 
 	// Blank values are left out
-	private static OverviewField? Field(string label, string? value, string? toolTip = null) =>
-		string.IsNullOrWhiteSpace(value) ? null : new OverviewField(label, value.Trim(), toolTip);
+	private static OverviewField? Field(
+		string label,
+		string? value,
+		string? toolTip = null,
+		string? description = null
+	) =>
+		string.IsNullOrWhiteSpace(value)
+			? null
+			: new OverviewField(label, value.Trim(), toolTip, description);
 }

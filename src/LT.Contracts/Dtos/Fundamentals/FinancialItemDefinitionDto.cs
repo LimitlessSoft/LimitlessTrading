@@ -8,6 +8,8 @@ namespace LT.Contracts.Dtos.Fundamentals;
 /// Apple's revenue is <c>Revenues</c> until 2018, then
 /// <c>RevenueFromContractWithCustomerExcludingAssessedTax</c>). No concepts: always worked out
 /// from other lines (free cash flow). A null label: read only to work other lines out.
+/// <see cref="Description"/> says what the line means, <see cref="ToolTip"/> how it is read or
+/// worked out here; both show on hover.
 /// </summary>
 public record FinancialItemDefinitionDto(
 	FinancialItem Item,
@@ -15,5 +17,6 @@ public record FinancialItemDefinitionDto(
 	FinancialValueKind Kind,
 	string? Label,
 	IReadOnlyList<string> Concepts,
-	string? ToolTip = null
+	string? ToolTip = null,
+	string? Description = null
 );

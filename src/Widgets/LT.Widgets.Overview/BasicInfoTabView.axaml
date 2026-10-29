@@ -25,7 +25,7 @@
 										Margin="0,2"
 										Background="Transparent"
 										ColumnDefinitions="130,*"
-										ToolTip.Tip="{Binding ToolTip}"
+										ToolTip.Tip="{Binding Tip}"
 									>
 										<TextBlock Classes="secondary" FontSize="13" Text="{Binding Label}" />
 										<SelectableTextBlock

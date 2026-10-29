@@ -27,36 +27,46 @@ public partial class FinancialsTabViewModel : OverviewTabViewModel
 
 	private readonly IFinancialsManager _financialsManager;
 	private readonly ISharesOutstandingManager _sharesOutstandingManager;
-	private readonly OverviewField _marketCap = new("Market cap", FormatHelpers.Empty);
+	private readonly OverviewField _marketCap = new(
+		"Market cap",
+		FormatHelpers.Empty,
+		description: BasicInfoTabViewModel.MarketCapDescription
+	);
 	private readonly OverviewField _priceToEarnings = new(
 		"P/E (TTM)",
 		FormatHelpers.Empty,
-		"Market cap / net income of the last four quarters"
+		"Market cap / net income of the last four quarters",
+		"Price to earnings: what the market pays for each dollar of a year's profit. High: the price expects growth."
 	);
 	private readonly OverviewField _priceToSales = new(
 		"P/S (TTM)",
 		FormatHelpers.Empty,
-		"Market cap / revenue of the last four quarters"
+		"Market cap / revenue of the last four quarters",
+		"Price to sales: what the market pays for each dollar of a year's revenue; telling where there is no profit yet."
 	);
 	private readonly OverviewField _priceToBook = new(
 		"P/B",
 		FormatHelpers.Empty,
-		"Market cap / shareholders' equity of the latest quarter"
+		"Market cap / shareholders' equity of the latest quarter",
+		"Price to book: the market's value against the company's value on its books (assets less liabilities)."
 	);
 	private readonly OverviewField _priceToFreeCashFlow = new(
 		"P/FCF (TTM)",
 		FormatHelpers.Empty,
-		"Market cap / free cash flow of the last four quarters"
+		"Market cap / free cash flow of the last four quarters",
+		"Price to free cash flow: what the market pays for each dollar of cash the business generates in a year after investing."
 	);
 	private readonly OverviewField _revenueTtm = new(
 		"Revenue (TTM)",
 		FormatHelpers.Empty,
-		"The last four quarters"
+		"The last four quarters",
+		"Money from selling the company's goods and services over the trailing twelve months."
 	);
 	private readonly OverviewField _netIncomeTtm = new(
 		"Net income (TTM)",
 		FormatHelpers.Empty,
-		"The last four quarters"
+		"The last four quarters",
+		"Profit after every expense, interest and tax over the trailing twelve months."
 	);
 	private ContractDto? _contract;
 	private CancellationToken _load;
@@ -249,17 +259,50 @@ public partial class FinancialsTabViewModel : OverviewTabViewModel
 		AddSection("Balance sheet", FinancialStatement.BalanceSheet, periods);
 		AddSection("Cash flow", FinancialStatement.CashFlow, periods);
 		var ratios = new List<FinancialRow>();
-		AddRatio(ratios, periods, FinancialRatio.GrossMargin, "Gross margin", true);
-		AddRatio(ratios, periods, FinancialRatio.OperatingMargin, "Operating margin", true);
-		AddRatio(ratios, periods, FinancialRatio.NetMargin, "Net margin", true);
-		AddRatio(ratios, periods, FinancialRatio.FreeCashFlowMargin, "FCF margin", true);
+		AddRatio(
+			ratios,
+			periods,
+			FinancialRatio.GrossMargin,
+			"Gross margin",
+			true,
+			"Gross profit / revenue",
+			"How much of each sale is left after its direct cost."
+		);
+		AddRatio(
+			ratios,
+			periods,
+			FinancialRatio.OperatingMargin,
+			"Operating margin",
+			true,
+			"Operating income / revenue",
+			"How much of each sale the core business keeps as profit, before interest and taxes."
+		);
+		AddRatio(
+			ratios,
+			periods,
+			FinancialRatio.NetMargin,
+			"Net margin",
+			true,
+			"Net income / revenue",
+			"How much of each sale ends up as profit after everything."
+		);
+		AddRatio(
+			ratios,
+			periods,
+			FinancialRatio.FreeCashFlowMargin,
+			"FCF margin",
+			true,
+			"Free cash flow / revenue",
+			"How much of each sale turns into cash free for debt, dividends and buybacks."
+		);
 		AddRatio(
 			ratios,
 			periods,
 			FinancialRatio.ReturnOnEquity,
 			"Return on equity",
 			true,
-			"Net income / shareholders' equity at the year's end (fiscal years only)"
+			"Net income / shareholders' equity at the year's end (fiscal years only)",
+			"Return on equity: the profit the company makes on its shareholders' money."
 		);
 		AddRatio(
 			ratios,
@@ -267,7 +310,8 @@ public partial class FinancialsTabViewModel : OverviewTabViewModel
 			FinancialRatio.CurrentRatio,
 			"Current ratio",
 			false,
-			"Current assets / current liabilities"
+			"Current assets / current liabilities",
+			"Whether what turns into cash within a year covers what is due within a year; below 1 it doesn't."
 		);
 		AddRatio(
 			ratios,
@@ -275,7 +319,8 @@ public partial class FinancialsTabViewModel : OverviewTabViewModel
 			FinancialRatio.DebtToEquity,
 			"Debt / equity",
 			false,
-			"(Current + long-term debt) / shareholders' equity"
+			"(Current + long-term debt) / shareholders' equity",
+			"How much the company borrows for each dollar of its shareholders' money."
 		);
 		if (ratios.Count > 0)
 			Sections.Add(new FinancialSection("Ratios", ratios));
@@ -300,6 +345,7 @@ public partial class FinancialsTabViewModel : OverviewTabViewModel
 				new FinancialRow(
 					definition.Label,
 					definition.ToolTip,
+					definition.Description,
 					periods
 						.Select(period =>
 						{
@@ -324,7 +370,8 @@ public partial class FinancialsTabViewModel : OverviewTabViewModel
 		FinancialRatio ratio,
 		string label,
 		bool percent,
-		string? toolTip = null
+		string? toolTip,
+		string? description
 	)
 	{
 		var values = periods.Select(x => FinancialsHelpers.GetRatio(ratio, x)).ToList();
@@ -334,6 +381,7 @@ public partial class FinancialsTabViewModel : OverviewTabViewModel
 			new FinancialRow(
 				label,
 				toolTip,
+				description,
 				values
 					.Select(x => new FinancialCell(
 						percent ? FormatHelpers.Percent(x)
@@ -396,8 +444,17 @@ public record FinancialColumn(string Name, string EndText, string ToolTip);
 /// <summary>A statement ("Income statement" …) and its lines.</summary>
 public record FinancialSection(string Title, IReadOnlyList<FinancialRow> Rows);
 
-/// <summary>One line: its label and a cell per column.</summary>
-public record FinancialRow(string Label, string? ToolTip, IReadOnlyList<FinancialCell> Cells);
+/// <summary>One line: its label, what it means, how it is read here and a cell per column.</summary>
+public record FinancialRow(
+	string Label,
+	string? ToolTip,
+	string? Description,
+	IReadOnlyList<FinancialCell> Cells
+)
+{
+	/// <summary>What the label shows on hover: the meaning, then the details.</summary>
+	public string? Tip => OverviewHelpers.JoinTip(Description, ToolTip);
+}
 
 /// <summary>One value; the tool tip says when it was worked out rather than reported.</summary>
 public record FinancialCell(string Text, string? ToolTip, bool IsNegative)
