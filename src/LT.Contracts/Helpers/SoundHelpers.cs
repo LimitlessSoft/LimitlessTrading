@@ -34,6 +34,18 @@ public static class SoundHelpers
 		return ToWav(samples, sampleRate);
 	}
 
+	/// <summary>
+	/// The news alert: two soft falling tones (E6, B5), about a third of a second; unlike the
+	/// fill's rising pair, so the two can't be confused.
+	/// </summary>
+	public static byte[] CreateNewsChime(int sampleRate = SoundConstants.SampleRate)
+	{
+		var samples = new List<short>();
+		AddTone(samples, sampleRate, 1318.5, 0.12);
+		AddTone(samples, sampleRate, 987.8, 0.22);
+		return ToWav(samples, sampleRate);
+	}
+
 	/// <summary>Mono 16-bit PCM WAV (RIFF) of the samples.</summary>
 	public static byte[] ToWav(IReadOnlyList<short> samples, int sampleRate)
 	{

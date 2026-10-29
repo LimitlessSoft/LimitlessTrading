@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:media="http://search.yahoo.com/mrss/" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0"
+>
+<channel>
+<title>MarketWatch.com - Top Stories</title>
+<description>MarketWatch, a leading publisher of business and financial news, offers users up-to-the minute news, investment tools, and subscription products.</description>
+<link>http://www.marketwatch.com/</link>
+<language>en-us</language>
+<copyright>Copyright &#169; Dow Jones &amp; Company, Inc. All rights reserved.</copyright>
+<lastBuildDate>Thu, 29 Oct 2026 21:11:23 GMT</lastBuildDate>
+<ttl>60</ttl>
+<image>
+<title>MarketWatch.com - Top Stories</title>
+<url>https://www.marketwatch.com/rss/marketwatch.gif</url>
+<link>http://www.marketwatch.com/</link>
+</image>
+<item>
+<guid isPermaLink="false">WP-MKTW-0005315718</guid>
+<title>A Starbucks turnaround is brewing &#x2014;&#xa0;but perhaps not quickly enough</title>
+<description>The coffee chain beat expectations on a key sales metric, but its stock was still moving lower.</description>
+<link>https://www.marketwatch.com/story/a-starbucks-turnaround-is-brewing-but-perhaps-not-quickly-enough-3b5f57ac?mod=mw_rss_topstories</link>
+<pubDate>Thu, 29 Oct 2026 21:07:00 GMT</pubDate>
+<dc:creator>Bill Peters</dc:creator>
+<media:content url="https://images.mktw.net/im-01171452" medium="image" type="image/jpeg">
+<media:credit>Getty Images</media:credit>
+</media:content>
+</item>
+<item>
+<guid isPermaLink="false">WP-MKTW-0005306475</guid>
+<title>My wife cried when I found out she had only $80,000 in her 401(k). I have $2.2 million. Am I wrong to be shocked?</title>
+<description>&#x201c;When I brought up retiring last spring, she said she was ready whenever I was, and I took that to mean we were in good shape.&#x201d;</description>
+<link>https://www.marketwatch.com/story/my-wife-has-only-80-000-saved-for-retirement-i-have-2-2-million-am-i-wrong-to-be-shocked-3e27b490?mod=mw_rss_topstories</link>
+<pubDate>Thu, 29 Oct 2026 20:45:00 GMT</pubDate>
+<dc:creator>Quentin Fottrell</dc:creator>
+<media:content url="https://images.mktw.net/im-19916000" medium="image" type="image/jpeg">
+<media:credit>Getty Images</media:credit>
+</media:content>
+</item>
+</channel>
+</rss>

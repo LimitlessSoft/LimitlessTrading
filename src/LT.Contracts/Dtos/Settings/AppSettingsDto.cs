@@ -42,4 +42,19 @@ public class AppSettingsDto
 	/// paid IB subscription most accounts don't have (IB then refuses with 10276).
 	/// </summary>
 	public bool CalendarWallStreetHorizon { get; set; }
+
+	/// <summary>News widget: the app's own feeds (SEC filings, press releases, Fed, BLS …), source "LimitlessTrading".</summary>
+	public bool NewsFeeds { get; set; }
+
+	/// <summary>Days of headlines the local news archive keeps; 0 keeps everything.</summary>
+	public int NewsRetentionDays { get; set; }
+
+	/// <summary>Words or phrases, comma-separated: a headline with any of them is a match.</summary>
+	public string NewsAlertKeywords { get; set; } = string.Empty;
+
+	/// <summary>A headline about a symbol on any watchlist is a match.</summary>
+	public bool NewsAlertWatchlist { get; set; }
+
+	/// <summary>Play a sound when a new matching headline arrives.</summary>
+	public bool NewsAlertSound { get; set; }
 }

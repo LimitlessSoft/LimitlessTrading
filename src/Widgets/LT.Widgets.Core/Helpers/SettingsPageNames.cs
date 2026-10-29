@@ -8,4 +8,7 @@ public static class SettingsPageNames
 
 	/// <summary>Calendar → Sources: which sources the Calendar widget shows (Nasdaq, IB Wall Street Horizon).</summary>
 	public const string Calendar = "Calendar";
+
+	/// <summary>News → Sources, Alerts, Archive: the app's own feeds, alert keywords, the local archive.</summary>
+	public const string News = "News";
 }

@@ -69,6 +69,23 @@ public class SaveAppSettingsRequestValidator : LSCoreValidatorBase<SaveAppSettin
 				)
 			);
 
+		RuleFor(x => x.NewsRetentionDays)
+			.InclusiveBetween(NewsConstants.RetentionDaysMin, NewsConstants.RetentionDaysMax)
+			.WithMessage(
+				SettingsValidationCodes.SVC_013.GetValidationMessage(
+					NewsConstants.RetentionDaysMin,
+					NewsConstants.RetentionDaysMax
+				)
+			);
+
+		RuleFor(x => x.NewsAlertKeywords)
+			.MaximumLength(NewsConstants.AlertKeywordsMaxLength)
+			.WithMessage(
+				SettingsValidationCodes.SVC_014.GetValidationMessage(
+					NewsConstants.AlertKeywordsMaxLength
+				)
+			);
+
 		RuleFor(x => x.DisplayTimeZoneId)
 			.Must(DisplayTimeHelpers.IsValidZoneId)
 			.WithMessage(SettingsValidationCodes.SVC_005.GetValidationMessage());

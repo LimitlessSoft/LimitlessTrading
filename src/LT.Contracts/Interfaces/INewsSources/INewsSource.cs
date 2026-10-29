@@ -5,7 +5,7 @@ using LT.Contracts.Requests.News;
 namespace LT.Contracts.Interfaces.INewsSources;
 
 /// <summary>
-/// Somewhere headlines come from (IB now; RSS, Benzinga … later). Every registered source is
+/// Somewhere headlines come from (IB; the app's own feeds, "lt"). Every registered source is
 /// aggregated by <c>INewsManager</c>; requests reach a source with only its own providers.
 /// </summary>
 public interface INewsSource
@@ -17,14 +17,17 @@ public interface INewsSource
 
 	NewsSourceCapabilities Capabilities { get; }
 
-	/// <summary>Whether it can be asked now (IB: connected).</summary>
+	/// <summary>Whether it can be asked now (IB: connected; the app's feeds: turned on in Settings).</summary>
 	bool IsAvailable { get; }
 
 	Task<IReadOnlyList<NewsProviderDto>> GetProvidersAsync(
 		CancellationToken cancellationToken = default
 	);
 
-	/// <summary>Past headlines, newest first; <see cref="GetNewsHeadlinesRequest.Before"/> pages back.</summary>
+	/// <summary>
+	/// Past headlines, newest first; <see cref="GetNewsHeadlinesRequest.Before"/> pages back.
+	/// Requests reach it only with providers that can serve them (their capabilities).
+	/// </summary>
 	Task<NewsHeadlinesPageDto> GetHeadlinesAsync(
 		GetNewsHeadlinesRequest request,
 		CancellationToken cancellationToken = default

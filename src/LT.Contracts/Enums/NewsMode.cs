@@ -8,4 +8,7 @@ public enum NewsMode
 
 	/// <summary>Every headline of the selected providers' broad tapes, live.</summary>
 	All = 1,
+
+	/// <summary>The local news archive searched for the typed words; no live headlines.</summary>
+	Search = 2,
 }

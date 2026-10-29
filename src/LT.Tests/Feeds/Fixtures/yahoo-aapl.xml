@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<rss version="2.0">
+    <channel>
+        <copyright>Copyright (c) 2026 Yahoo Inc. All rights reserved.</copyright>
+        <description>Latest Financial News for AAPL</description>
+        <image>
+            <height>45</height>
+            <link>http://finance.yahoo.com/q/h?s=AAPL</link>
+            <title>Yahoo! Finance: AAPL News</title>
+            <url>https://s.yimg.com/rz/stage/p/yahoo_finance_en-US_h_p_finance_2.png</url>
+            <width>144</width>
+        </image>
+        <item>
+            <description>Apple and Nvidia are the only two companies with market caps above $5 trillion today. Apple is ready to zoom past Nvidia.</description>
+            <guid isPermaLink="false">deef24b2-d4c6-3212-8d91-a05ef593a470</guid>
+            <link>https://www.fool.com/investing/2026/10/29/nvidia-is-getting-dangerously-close-to-getting-sur/?.tsrc=rss</link>
+            <pubDate>Thu, 29 Oct 2026 16:58:00 +0000</pubDate>
+            <title>Nvidia Is Getting Dangerously Close to Getting Surpassed by Apple in Market Cap. Here's the Better Growth Stock to Buy Now.</title>
+        </item>
+<item>
+            <description>Apple’s price tag looks steep, but the real story is how it’s handling rising costs without raising prices for everyone.</description>
+            <guid isPermaLink="false">81eb650c-8d5d-39bb-b7b6-4af753295e22</guid>
+            <link>https://www.fool.com/investing/2026/10/29/apple-unveils-its-first-ever-touchscreen-macbook-pro-should-investors-be-concerned-about-the-2899-price-tag/?.tsrc=rss</link>
+            <pubDate>Thu, 29 Oct 2026 16:06:30 +0000</pubDate>
+            <title>Apple Unveils Its First-Ever Touchscreen MacBook Pro. Should Investors Be Concerned About the $2,899 Price Tag?</title>
+        </item>
+        <language>en-US</language>
+        <lastBuildDate>Thu, 29 Oct 2026 21:12:59 +0000</lastBuildDate>
+        <link>http://finance.yahoo.com/q/h?s=AAPL</link>
+        <title>Yahoo! Finance: AAPL News</title>
+    </channel>
+</rss>

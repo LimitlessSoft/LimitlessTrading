@@ -399,8 +399,18 @@ new instance) and lives in one of four wrappers:
   update, so a stale size is never sent twice); `OrderManager` (a singleton) also refuses a second
   exit of a position while one is working, across widgets. Sent / done / rejected go to Messages;
   failures also show in the widget's error line.
-- **News** (`LT.Widgets.News`, bottom, Ctrl+Alt+N): two modes, saved per widget with the provider
-  selection (`WidgetPlacementDto.NewsMode` / `NewsProviders`, keys `source:code`, null = all).
+- **News** (`LT.Widgets.News`, bottom, Ctrl+Alt+N): works without IB — the app's own feeds
+  ("LimitlessTrading", [news-feeds.md](news-feeds.md)) are always there, IB's provider chips join on
+  connect and leave on disconnect (the widget derives from `ConnectedViewModelBase` only to hear
+  that; its feeds live on its own token). Three modes, saved per widget with the provider
+  selection (`WidgetPlacementDto.NewsMode` / `NewsProviders`, keys `source:code` plus a `source:`
+  marker per saved source; null or no key of a source = that source's defaults: off-by-default
+  feeds start unselected) and `NewsOnlyMatches`. *Search* searches the whole local archive (every
+  source, chips hidden) for the words typed in the text box (400 ms after typing stops).
+  While disconnected a typed ticker isn't resolved: it is shown by symbol (our feeds and the
+  archive go by symbol) and not passed to the link group. Rows matching the news alerts
+  (Settings › News) get an accent bar and bold text; "Matches" shows only those. The reading
+  pane has "Open in browser" when the headline links a story.
   *Linked* follows the link group's contract: the latest 100 past headlines, then live ones
   (Load older pages back). The header title ("News · AAPL") is a `TickerTitle`: a ticker typed
   there (Enter or clicking away) becomes the contract, moves the link group along and switches
@@ -413,7 +423,9 @@ new instance) and lives in one of four wrappers:
   reading pane as plain text (`NewsHelpers.ToPlainText`, no HTML renderer); a document (PDF) gets
   "Open document", which writes it to the temp folder and opens it with the OS. Live headlines
   are read on the thread pool and posted to the UI in batches. Data comes from `INewsManager`,
-  which merges every `INewsSource` (IB now) and dedupes on (source, provider, article id).
+  which merges every `INewsSource` and the archive, dedupes on (source, provider, article id) and
+  shows the same story from two providers once (10 min window); the widget does the same across
+  history and live.
 - **Day trade performance** (`LT.Widgets.DayTradePerformance`, center, closed on first run,
   Ctrl+Alt+J): one trading day of the selected account from the trade journal
   ([ibkr-tws-api.md → Trade journal](ibkr-tws-api.md#trade-journal)) — ‹ / › step over recorded

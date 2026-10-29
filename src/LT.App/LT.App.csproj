@@ -26,6 +26,7 @@
 		<ProjectReference Include="..\LT.Sec\LT.Sec.csproj" />
 		<ProjectReference Include="..\LT.Nasdaq\LT.Nasdaq.csproj" />
 		<ProjectReference Include="..\LT.Yahoo\LT.Yahoo.csproj" />
+		<ProjectReference Include="..\LT.Feeds\LT.Feeds.csproj" />
 		<ProjectReference Include="..\LT.Ibkr\LT.Ibkr.csproj" />
 		<ProjectReference Include="..\LT.Indicators.Scripting\LT.Indicators.Scripting.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.Core\LT.Widgets.Core.csproj" />

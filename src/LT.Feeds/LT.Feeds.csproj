@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<!-- Public RSS / Atom news feeds over HTTPS (SEC EDGAR, press wires, Fed, BLS …); no IB code -->
+	<ItemGroup>
+		<ProjectReference Include="..\LT.Contracts\LT.Contracts.csproj" />
+	</ItemGroup>
+</Project>

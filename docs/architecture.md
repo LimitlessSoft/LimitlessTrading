@@ -37,13 +37,14 @@ src/
 │   └── Requests/<Feature>/
 ├── LT.Domain/
 │   ├── Managers/                  # IConnectionManager → ConnectionManager, …
-│   ├── NewsSources/               # INewsSource implementations (IbkrNewsSource)
+│   ├── NewsSources/               # INewsSource implementations (IbkrNewsSource, FeedNewsSource) + NewsFeedPoller
 │   ├── CalendarSources/           # ICalendarSource implementations (WshCalendarSource, NasdaqCalendarSource)
 │   ├── EarningsResultSources/     # IEarningsResultSource implementations (Sec…, Yahoo…, Nasdaq…)
 │   └── Validators/                # LSCoreValidatorBase<TRequest>
 ├── LT.Repository/
 │   └── Repositories/              # SettingsRepository (JSON in the user's app-data folder)
 ├── LT.Sec/                       # SecApiClient + parsers: SEC EDGAR (shares outstanding, latest 8-Ks)
+├── LT.Feeds/                     # FeedClient + FeedParser: public RSS / Atom news feeds (docs/news-feeds.md)
 ├── LT.Nasdaq/                    # NasdaqApiClient + NasdaqCalendarParser: nasdaq.com calendars
 ├── LT.Yahoo/                     # YahooApiClient + YahooEarningsParser: Yahoo's earnings calendar page
 ├── LT.Ibkr/
@@ -126,8 +127,12 @@ LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
   `YahooEarningsResultSource`, `NasdaqEarningsResultSource`), for `EarningsResultManager`; the
   Yahoo client is a singleton too.
 - News sources (`INewsSource`) don't match the `Foo : IFoo` convention, so each is registered
-  explicitly (`AddSingleton<INewsSource, IbkrNewsSource>()`); `NewsManager` takes all of them
-  (`IEnumerable<INewsSource>`). A new source (RSS, Benzinga …) is one class and one line there.
+  explicitly (`IbkrNewsSource`, `FeedNewsSource`); `NewsManager` takes all of them
+  (`IEnumerable<INewsSource>`) plus `INewsArchiveManager`. A new source is one class and one line
+  there. The feed client, the archive (repository and manager), `INewsFeedPoller` and
+  `INewsAlertManager` are singletons; `NewsFeedCollector` (background collection of the default
+  feeds, archive retention) and `NewsAlertService` (archive → alert sound) are hosted services.
+  See [news-feeds.md](news-feeds.md).
 - `TimeProvider.System` is registered so managers that depend on time (reconnect backoff, bar
   cache TTL) are testable with `FakeTimeProvider`.
 - The host is started (`host.Start()`) so `ConnectionWatchdog` (a `BackgroundService`) runs the

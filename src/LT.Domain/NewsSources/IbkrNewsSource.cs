@@ -57,21 +57,22 @@ public class IbkrNewsSource(IIbkrApiClient ibkrApiClient, IMarketDataManager mar
 	)
 	{
 		var codes = NewsHelpers.GetProviderCodes(request.Providers, Id);
-		if (codes.Count == 0)
+		// IB's history is per contract (conId): none for the broad tapes or a symbol alone
+		if (codes.Count == 0 || request.Contract is not { ConId: > 0 } contract)
 			return new NewsHeadlinesPageDto();
 
 		var page = await ibkrApiClient.GetHistoricalNewsAsync(
-			request.Contract.ConId,
+			contract.ConId,
 			codes,
 			Math.Min(request.Limit, NewsConstants.MaxHeadlinesPerRequest),
 			request.Before,
 			cancellationToken
 		);
-		var symbol = ContractHelpers.GetDisplayName(request.Contract);
+		var symbol = ContractHelpers.GetDisplayName(contract);
 		foreach (var headline in page.Headlines)
 		{
 			headline.SourceId = Id;
-			headline.ContractId = request.Contract.ConId;
+			headline.ContractId = contract.ConId;
 			headline.Symbol = symbol;
 		}
 		return page;
@@ -83,7 +84,8 @@ public class IbkrNewsSource(IIbkrApiClient ibkrApiClient, IMarketDataManager mar
 	)
 	{
 		var codes = NewsHelpers.GetProviderCodes(request.Providers, Id);
-		if (codes.Count == 0)
+		// A contract typed while disconnected has no conId: IB can't stream it
+		if (codes.Count == 0 || request.Contract is { ConId: <= 0 })
 			yield break;
 
 		// Each stream with what it streams (the contract or the broad tape), for the line list

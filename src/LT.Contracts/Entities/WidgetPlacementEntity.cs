@@ -81,9 +81,13 @@ public class WidgetPlacementEntity
 	/// <summary>Chart instances: a drawing tool stays armed after a drawing (null: back to the cursor).</summary>
 	public bool? ChartKeepDrawingTool { get; set; }
 
-	// News instances: what they show and which providers (keys "ibkr:BRFG"; null: all of them)
+	// News instances: what they show and which providers (keys "ibkr:BRFG" and a "lt:" marker per
+	// source saved; null, or no key of a source: its providers' defaults)
 	public NewsMode? NewsMode { get; set; }
 	public List<string>? NewsProviders { get; set; }
+
+	/// <summary>News instances: only headlines matching the news alert rules (null: all).</summary>
+	public bool? NewsOnlyMatches { get; set; }
 
 	/// <summary>Option chain instances: contracts per one-click order (null: the default).</summary>
 	public int? OptionQuickOrderQuantity { get; set; }

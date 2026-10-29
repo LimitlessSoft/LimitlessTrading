@@ -22,6 +22,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 	private readonly ISettingsManager _settingsManager;
 	private readonly ICacheManager _cacheManager;
 	private readonly IFlexImportManager _flexImportManager;
+	private readonly INewsManager _newsManager;
 	private readonly DisplayTimeStore _displayTime;
 
 	private readonly GuideSettingViewModel _flexSetup = FlexSetupGuide.Create();
@@ -112,6 +113,41 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		"calendar wsh wall street horizon ib corporate events subscription source"
 	);
 
+	private readonly BoolSettingViewModel _newsFeeds = new(
+		FeedNewsConstants.SourceName,
+		"The app's own news, fetched by this computer from public feeds: SEC filings (8-K and a symbol's filings, tagged with tickers), press releases (PR Newswire, Business Wire), the Federal Reserve, BLS releases, FDA, CNBC, MarketWatch, and per-symbol news from Yahoo Finance and Seeking Alpha. No account, no IB connection. SEC, PR Newswire, Fed and BLS are on by default; the unofficial ones only once picked as a chip in a News widget. Each headline links to the story on the web.",
+		"news feeds rss sec edgar filings press releases pr newswire business wire fed federal reserve bls fda cnbc marketwatch yahoo seeking alpha source limitlesstrading"
+	);
+
+	private readonly NumberSettingViewModel _newsRetentionDays = new(
+		"Keep news for (days)",
+		NewsConstants.RetentionDaysMin,
+		NewsConstants.RetentionDaysMax,
+		"Every headline the app sees (IB's too) is kept on this computer, so history and search work later and offline. Older days are deleted on start; 0 keeps everything.",
+		"news archive history retention days keep delete disk"
+	);
+
+	private readonly ActionSettingViewModel _clearNewsArchive;
+
+	private readonly TextSettingViewModel _newsAlertKeywords = new(
+		"Keywords",
+		placeholder: "e.g. FDA approval, acquire, guidance",
+		description: "Words or phrases, separated by commas: a headline (or its summary) with any of them, as a whole word, is a match. Matches are marked in News widgets; \"Matches\" there shows only them.",
+		keywords: "news alert keywords filter words match highlight"
+	);
+
+	private readonly BoolSettingViewModel _newsAlertWatchlist = new(
+		"Headlines about a watchlist symbol",
+		"A headline about a symbol on any watchlist is a match (SEC filings and press releases are tagged with the tickers they name).",
+		"news alert watchlist symbols filter match"
+	);
+
+	private readonly BoolSettingViewModel _newsAlertSound = new(
+		"Play a sound on a matching headline",
+		"When a new headline matches (one sound for several at once); not for the backlog a feed lists when the app starts.",
+		"news alert sound audio chime notification match keyword"
+	);
+
 	private readonly BoolSettingViewModel _cacheEnabled = new(
 		"Cache data on disk",
 		"Keeps data fetched from IB to open things faster and to show the last known values, marked as cached, while IB can't be reached. Off: nothing is read from or written to the cache.",
@@ -185,12 +221,14 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		ISettingsManager settingsManager,
 		ICacheManager cacheManager,
 		IFlexImportManager flexImportManager,
+		INewsManager newsManager,
 		DisplayTimeStore displayTime
 	)
 	{
 		_settingsManager = settingsManager;
 		_cacheManager = cacheManager;
 		_flexImportManager = flexImportManager;
+		_newsManager = newsManager;
 		_displayTime = displayTime;
 		_flexImport = new ActionSettingViewModel(
 			"Flex import",
@@ -212,6 +250,13 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 			"Clearing deletes every cached entry right away; it doesn't wait for Save.",
 			"cache clear delete size used disk space"
 		);
+		_clearNewsArchive = new ActionSettingViewModel(
+			"News archive",
+			"Clear news archive",
+			ClearNewsArchive,
+			"Deletes every kept headline and article right away; it doesn't wait for Save. The feeds still list their latest items, so a few come back.",
+			"news archive clear delete size disk"
+		);
 		var settings = settingsManager.GetAppSettings();
 		var zones = TimeZoneOption.CreateAll(settings.DisplayTimeZoneId);
 		_displayTimeZone = new ChoiceSettingViewModel(
@@ -231,6 +276,11 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		_playFillSound.Value = settings.PlayFillSound;
 		_calendarNasdaq.Value = settings.CalendarNasdaq;
 		_calendarWallStreetHorizon.Value = settings.CalendarWallStreetHorizon;
+		_newsFeeds.Value = settings.NewsFeeds;
+		_newsRetentionDays.Value = settings.NewsRetentionDays;
+		_newsAlertKeywords.Value = settings.NewsAlertKeywords;
+		_newsAlertWatchlist.Value = settings.NewsAlertWatchlist;
+		_newsAlertSound.Value = settings.NewsAlertSound;
 		_layoutStyle.Value = settings.LayoutStyle;
 		_cacheEnabled.Value = settings.CacheEnabled;
 		_cacheChartBars.Value = settings.CacheChartBars;
@@ -249,6 +299,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 				UpdateChartRedrawInterval();
 		};
 		RefreshCacheSize();
+		RefreshNewsArchiveSize();
 
 		Pages =
 		[
@@ -280,6 +331,14 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 			new SettingsPageViewModel(
 				SettingsPageNames.Calendar,
 				[new("Sources", _calendarNasdaq, _calendarWallStreetHorizon)]
+			),
+			new SettingsPageViewModel(
+				SettingsPageNames.News,
+				[
+					new("Sources", _newsFeeds),
+					new("Alerts", _newsAlertKeywords, _newsAlertWatchlist, _newsAlertSound),
+					new("Archive", _newsRetentionDays, _clearNewsArchive),
+				]
 			),
 			new SettingsPageViewModel(
 				"Account history",
@@ -378,6 +437,13 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 					PlayFillSound = _playFillSound.Value,
 					CalendarNasdaq = _calendarNasdaq.Value,
 					CalendarWallStreetHorizon = _calendarWallStreetHorizon.Value,
+					NewsFeeds = _newsFeeds.Value,
+					NewsRetentionDays = (int)(
+						_newsRetentionDays.Value ?? NewsConstants.DefaultRetentionDays
+					),
+					NewsAlertKeywords = _newsAlertKeywords.Value,
+					NewsAlertWatchlist = _newsAlertWatchlist.Value,
+					NewsAlertSound = _newsAlertSound.Value,
 				}
 			);
 			// a lowered limit applies now, not at the next cache write
@@ -474,6 +540,22 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		_clearCache.Status = "Clearing…";
 		Task.Run(_cacheManager.Clear).ContinueWith(_ => RefreshCacheSize());
 	}
+
+	private void ClearNewsArchive()
+	{
+		_clearNewsArchive.Status = "Clearing…";
+		Task.Run(_newsManager.ClearArchive).ContinueWith(_ => RefreshNewsArchiveSize());
+	}
+
+	private void RefreshNewsArchiveSize() =>
+		Task.Run(_newsManager.GetArchiveSizeBytes)
+			.ContinueWith(t =>
+				Dispatcher.UIThread.Post(() =>
+					_clearNewsArchive.Status = t.IsCompletedSuccessfully
+						? $"{CacheHelpers.FormatSize(t.Result)} used"
+						: "Size unknown"
+				)
+			);
 
 	// Walks the cache folder off the UI thread
 	private void RefreshCacheSize() =>

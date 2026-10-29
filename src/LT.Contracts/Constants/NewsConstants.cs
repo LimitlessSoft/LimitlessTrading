@@ -51,4 +51,40 @@ public static class NewsConstants
 
 	/// <summary>Separates source id and provider code in a saved provider key ("ibkr:BRFG").</summary>
 	public const char ProviderKeySeparator = ':';
+
+	/// <summary>Days the local news archive keeps by default; whole days are deleted past it on start.</summary>
+	public const int DefaultRetentionDays = 365;
+
+	/// <summary>0 keeps everything.</summary>
+	public const int RetentionDaysMin = 0;
+	public const int RetentionDaysMax = 3650;
+
+	/// <summary>Folder under the app data directory: <c>news/&lt;yyyy-MM-dd&gt;.jsonl</c>, one line per headline.</summary>
+	public const string ArchiveDirectoryName = "news";
+
+	/// <summary>Under the archive folder: <c>articles/&lt;yyyy-MM-dd&gt;.jsonl</c>, articles read once.</summary>
+	public const string ArticlesDirectoryName = "articles";
+
+	/// <summary>The newest days whose headlines the archive keeps in memory; older ones are read on demand.</summary>
+	public const int ArchiveCachedDays = 3;
+
+	/// <summary>
+	/// The same story from two sources (a press release on PR Newswire and on IB's Dow Jones) is
+	/// shown once: same headline words within this time.
+	/// </summary>
+	public static readonly TimeSpan StoryWindow = TimeSpan.FromMinutes(10);
+
+	/// <summary>A new matching headline older than this (a feed's backlog on start) plays no sound.</summary>
+	public static readonly TimeSpan AlertMaxAge = TimeSpan.FromMinutes(15);
+
+	public const int AlertKeywordsMaxLength = 500;
+
+	/// <summary>Shortest archive search.</summary>
+	public const int SearchMinLength = 2;
+
+	/// <summary>Typing in Search mode searches once the typing pauses this long.</summary>
+	public static readonly TimeSpan SearchDelay = TimeSpan.FromMilliseconds(400);
+
+	/// <summary>A source saved in a widget's provider selection with no provider selected ("lt:").</summary>
+	public static string GetSourceMarker(string sourceId) => $"{sourceId}{ProviderKeySeparator}";
 }
