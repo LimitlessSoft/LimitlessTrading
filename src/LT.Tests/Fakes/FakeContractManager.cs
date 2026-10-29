@@ -77,6 +77,14 @@ public class FakeContractManager : IContractManager
 		}
 	}
 
+	/// <summary>What <see cref="GetDetailsAsync"/> answers, by conId; any other gives null.</summary>
+	public Dictionary<int, ContractDetailsDto> Details { get; } = [];
+
+	public Task<ContractDetailsDto?> GetDetailsAsync(
+		ContractDto contract,
+		CancellationToken cancellationToken = default
+	) => Task.FromResult(Details.GetValueOrDefault(contract.ConId));
+
 	public Task<ContractDto> ResolveTickerAsync(
 		string ticker,
 		CancellationToken cancellationToken = default

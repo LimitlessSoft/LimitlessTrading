@@ -24,6 +24,7 @@
 		<ProjectReference Include="..\Widgets\LT.Widgets.Watchlist\LT.Widgets.Watchlist.csproj" />
 		<!-- Option chain view model only (typing its underlying); its view is never created -->
 		<ProjectReference Include="..\Widgets\LT.Widgets.OptionChain\LT.Widgets.OptionChain.csproj" />
+		<ProjectReference Include="..\Widgets\LT.Widgets.Overview\LT.Widgets.Overview.csproj" />
 		<!-- Notes view model only (per-instance notes); its view is never created -->
 		<ProjectReference Include="..\Widgets\LT.Widgets.Notes\LT.Widgets.Notes.csproj" />
 		<!-- Messages view model only (copying rows); its view is never created -->

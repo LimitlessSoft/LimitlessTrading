@@ -188,6 +188,9 @@ public static class ContractHelpers
 	/// <summary>Cache key of a contract's details read for its trading hours.</summary>
 	public static string GetTradingHoursCacheKey(int conId) => $"hours|{conId}";
 
+	/// <summary>Cache key of a contract's details read whole (the Overview widget).</summary>
+	public static string GetDetailsCacheKey(int conId) => $"details|{conId}";
+
 	/// <summary>Cache key of a ticker box's search of every type.</summary>
 	public static string GetSymbolSearchCacheKey(string symbol) =>
 		$"symbol|{symbol.Trim().ToUpperInvariant()}";

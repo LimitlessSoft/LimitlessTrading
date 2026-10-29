@@ -13,4 +13,5 @@ public static class MarketDataStreamOwners
 	public const string OrderTicket = "Order ticket";
 	public const string PriceAlerts = "Price alerts";
 	public const string News = "News";
+	public const string Overview = "Overview";
 }

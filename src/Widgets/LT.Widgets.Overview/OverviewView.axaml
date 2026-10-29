@@ -1,0 +1,151 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:helpers="using:LT.App.Helpers"
+	xmlns:vm="using:LT.App.Widgets.Overview"
+	x:Class="LT.App.Widgets.Overview.OverviewView"
+	x:DataType="vm:OverviewViewModel"
+>
+	<!-- Each tab's view, by its view model's type; a new tab adds its template here -->
+	<UserControl.DataTemplates>
+		<DataTemplate DataType="vm:BasicInfoTabViewModel">
+			<vm:BasicInfoTabView />
+		</DataTemplate>
+	</UserControl.DataTemplates>
+
+	<UserControl.Styles>
+		<Style Selector="TextBlock.statLabel">
+			<Setter Property="FontSize" Value="11" />
+			<Setter Property="Foreground" Value="{DynamicResource SecondaryText}" />
+		</Style>
+		<Style Selector="TextBlock.statValue">
+			<Setter Property="FontSize" Value="13" />
+			<Setter Property="FontFeatures" Value="+tnum" />
+			<Setter Property="TextTrimming" Value="CharacterEllipsis" />
+		</Style>
+	</UserControl.Styles>
+
+	<!-- The contract is the frame header's ticker title; a ticker dropped here is shown too -->
+	<Panel x:Name="DropRoot" Background="Transparent" helpers:TickerDragDrop.IsTarget="True">
+		<DockPanel>
+			<StackPanel DockPanel.Dock="Top" Margin="2,0,0,4" Spacing="2">
+				<TextBlock
+					Classes="secondary"
+					TextWrapping="Wrap"
+					Text="{Binding InfoText}"
+					IsVisible="{Binding InfoText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+				/>
+				<TextBlock
+					Classes="negative"
+					TextWrapping="Wrap"
+					Text="{Binding ErrorMessage}"
+					IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+				/>
+			</StackPanel>
+
+			<!-- Name, listing, live price and the day's numbers -->
+			<StackPanel
+				DockPanel.Dock="Top"
+				Margin="4,0,4,6"
+				Spacing="1"
+				IsVisible="{Binding HasContract}"
+			>
+				<TextBlock
+					FontSize="15"
+					FontWeight="SemiBold"
+					TextTrimming="CharacterEllipsis"
+					Text="{Binding NameText}"
+					ToolTip.Tip="{Binding NameText}"
+				/>
+				<TextBlock Classes="secondary" FontSize="12" Text="{Binding ListingText}" />
+				<WrapPanel Margin="0,4,0,0" Orientation="Horizontal">
+					<TextBlock
+						Margin="0,0,10,0"
+						FontSize="24"
+						FontWeight="SemiBold"
+						FontFeatures="+tnum"
+						Text="{Binding PriceText}"
+					/>
+					<TextBlock
+						Margin="0,0,10,4"
+						VerticalAlignment="Bottom"
+						FontSize="14"
+						FontFeatures="+tnum"
+						Classes.positive="{Binding IsUp}"
+						Classes.negative="{Binding IsDown}"
+						Text="{Binding ChangeText}"
+						ToolTip.Tip="Against the previous close"
+					/>
+					<TextBlock
+						Margin="0,0,0,5"
+						VerticalAlignment="Bottom"
+						FontSize="12"
+						Classes="warning"
+						Text="{Binding QuoteStatus}"
+					/>
+				</WrapPanel>
+				<ItemsControl Margin="0,2,0,0" ItemsSource="{Binding QuoteStats}">
+					<ItemsControl.ItemsPanel>
+						<ItemsPanelTemplate>
+							<WrapPanel />
+						</ItemsPanelTemplate>
+					</ItemsControl.ItemsPanel>
+					<ItemsControl.ItemTemplate>
+						<DataTemplate x:DataType="vm:OverviewField">
+							<StackPanel
+								Width="150"
+								Margin="0,4,6,0"
+								Background="Transparent"
+								ToolTip.Tip="{Binding ToolTip}"
+							>
+								<TextBlock Classes="statLabel" Text="{Binding Label}" />
+								<TextBlock Classes="statValue" Text="{Binding Value}" />
+							</StackPanel>
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
+				<StackPanel
+					Margin="0,6,0,0"
+					Orientation="Horizontal"
+					Spacing="8"
+					IsVisible="{Binding DetailsStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+				>
+					<ProgressBar
+						Width="48"
+						MinWidth="48"
+						VerticalAlignment="Center"
+						IsIndeterminate="True"
+						IsVisible="{Binding IsLoadingDetails}"
+					/>
+					<TextBlock Classes="secondary" TextWrapping="Wrap" Text="{Binding DetailsStatus}" />
+				</StackPanel>
+			</StackPanel>
+
+			<TabControl
+				Padding="0"
+				IsVisible="{Binding HasContract}"
+				ItemsSource="{Binding Tabs}"
+				SelectedItem="{Binding SelectedTab}"
+			>
+				<TabControl.ItemTemplate>
+					<DataTemplate x:DataType="vm:OverviewTabViewModel">
+						<TextBlock Text="{Binding Header}" />
+					</DataTemplate>
+				</TabControl.ItemTemplate>
+			</TabControl>
+		</DockPanel>
+		<Border
+			Classes="dropTarget"
+			Margin="4"
+			IsHitTestVisible="False"
+			IsVisible="{Binding #DropRoot.(helpers:TickerDragDrop.HoverText), Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+		>
+			<TextBlock
+				HorizontalAlignment="Center"
+				VerticalAlignment="Center"
+				FontWeight="SemiBold"
+				Text="{Binding #DropRoot.(helpers:TickerDragDrop.HoverText)}"
+			/>
+		</Border>
+	</Panel>
+</UserControl>

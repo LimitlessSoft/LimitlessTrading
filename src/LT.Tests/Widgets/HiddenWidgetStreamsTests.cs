@@ -60,8 +60,8 @@ public class HiddenWidgetStreamsTests : IDisposable
 		WaitFor(() => _marketData.ActiveLines == 0 && _ibkr.OpenMarketDataStreams == 0);
 
 		Ui(() => ticket.SetShown(true));
-		WaitFor(() => _marketData.ActiveLines == 1);
-		Assert.Equal(2, _ibkr.MarketDataRequested.Count);
+		// The line is counted before its pump asks IB, on the thread pool
+		WaitFor(() => _marketData.ActiveLines == 1 && _ibkr.MarketDataRequested.Count == 2);
 	}
 
 	[Fact]
@@ -77,7 +77,7 @@ public class HiddenWidgetStreamsTests : IDisposable
 		Assert.Empty(_ibkr.MarketDataRequested);
 
 		Ui(() => ticket.SetShown(true));
-		WaitFor(() => _marketData.ActiveLines == 1);
+		WaitFor(() => _marketData.ActiveLines == 1 && _ibkr.MarketDataRequested.Count > 0);
 		Assert.Equal(272093, Assert.Single(_ibkr.MarketDataRequested).ConId);
 	}
 

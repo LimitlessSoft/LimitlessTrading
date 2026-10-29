@@ -12,6 +12,7 @@ using LT.App.Widgets.Notes;
 using LT.App.Widgets.OptionChain;
 using LT.App.Widgets.Orders;
 using LT.App.Widgets.OrderTicket;
+using LT.App.Widgets.Overview;
 using LT.App.Widgets.Positions;
 using LT.App.Widgets.Watchlist;
 using LT.Contracts.Enums;
@@ -39,6 +40,7 @@ public static class WidgetCatalog
 		new DepthWidget(),
 		new NotesWidget(),
 		new CalendarWidget(),
+		new OverviewWidget(),
 	];
 
 	public static IWidgetDefinition Get(WorkspaceTool tool) =>
