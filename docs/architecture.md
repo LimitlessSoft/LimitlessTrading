@@ -211,8 +211,12 @@ SDK copy, [indicators.md](indicators.md#script-files)). IB Flex imports go into 
 Chart price alerts (active and fired) are in `price-alerts.json` (`PriceAlertRepository`, apart
 from `settings.json` so an alert firing on a price stream never races a settings save); chart
 drawings, per contract (ConId), and the last used style per drawing tool in `chart-drawings.json`
-(`ChartDrawingRepository`; the undo history is in memory only). None of
-these are part of the cache, so Clear cache and the size limit never touch them; nor do they touch
+(`ChartDrawingRepository`; the undo history is in memory only). Footprint trades (every trade
+of the stretches of time a footprint chart paged or streamed, raw, per contract and UTC day) are
+in `footprint-trades/<conId>/<yyyy-MM-dd>.lttape` (`FootprintTapeRepository`, a compact
+append-only binary format, see [ui-patterns.md → Footprint bars](ui-patterns.md#charts)); it
+keeps 30 days and at most 2 GB on its own (`FootprintConstants.TapeRetentionDays` /
+`TapeMaxBytes`). None of these are part of the cache, so Clear cache and the size limit never touch them; nor do they touch
 the Notes widgets' text, `notes.json` (one entry per note id). All live under the OS app-data folder
 (`Environment.SpecialFolder.ApplicationData`: `%APPDATA%\LimitlessTrading` on Windows,
 `~/.config/LimitlessTrading` on Linux and macOS). When we need queryable local data (layouts,

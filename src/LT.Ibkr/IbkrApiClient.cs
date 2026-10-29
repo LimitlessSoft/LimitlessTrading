@@ -295,9 +295,9 @@ public class IbkrApiClient : IIbkrApiClient
 	)
 	{
 		await _historical.WaitTicksAsync(cancellationToken);
-		await _messages.WaitAsync(cancellationToken);
 		try
 		{
+			await _messages.WaitAsync(cancellationToken);
 			var ticks = await RequireClient()
 				.GetHistoricalTicksAsync(
 					contract.ToMapped<ContractDto, Contract>(),
@@ -312,6 +312,10 @@ public class IbkrApiClient : IIbkrApiClient
 		catch (IbkrException ex)
 		{
 			throw new IbkrRequestException(ex.Code, ex.ErrorText, ex);
+		}
+		finally
+		{
+			_historical.ReleaseTicks();
 		}
 	}
 

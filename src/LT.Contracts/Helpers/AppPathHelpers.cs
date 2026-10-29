@@ -21,6 +21,13 @@ public static class AppPathHelpers
 	public static string GetLegacyBarCacheDirectory() =>
 		Path.Combine(GetAppDataDirectory(), CacheConstants.LegacyBarCacheDirectoryName);
 
+	/// <summary>
+	/// The footprint trade cache: one folder per contract id, one file per UTC day
+	/// (<c>FootprintTapeHelpers</c>).
+	/// </summary>
+	public static string GetFootprintTapeDirectory() =>
+		Path.Combine(GetAppDataDirectory(), FootprintConstants.TapeDirectoryName);
+
 	/// <summary>Recorded account performance: one JSON file per account.</summary>
 	public static string GetAccountHistoryDirectory() =>
 		Path.Combine(GetAppDataDirectory(), AccountPerformanceConstants.HistoryDirectoryName);

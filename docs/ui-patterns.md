@@ -1356,22 +1356,64 @@ tick rules, `AddTrade`, `GetRows`, `FormatVolume`).
 - **Trades.** After the bars load, `ChartFootprint` (one per load, UI thread) takes live trades
   from the current whole second on (`IFootprintManager.SubscribeTradesAsync`: tick-by-tick
   `AllLast` + `BidAsk`, two of IB's five — see
-  [ibkr-tws-api.md](ibkr-tws-api.md#tick-by-tick)) and pages past trades back from there
-  (`IFootprintManager.GetTradesAsync`, IB historical ticks, 1000 a page, through the historical
-  pacing — see [ibkr-tws-api.md](ibkr-tws-api.md#historical-ticks)), newest bars first, down to
-  the first bar of the latest bar's day in the display zone or
-  `FootprintConstants.MaxBackfillRequests` (40) pages. A bar counts once a page reaches a trade
-  before its start, so the tick rule has the trade before its first (past trades have no bid /
-  ask; live ones go by the quote rule, the tick rule when IB gives no quotes). Row prices are the
-  contract's minimum tick (`GetTickSizeAsync`, contract details cached with the trading hours).
-- **Bars without a footprint** stay candles: in a dashed box while their trades load, with a small
-  ring above them past the backfill (older than its target or its cap, at the start of IB's data,
-  a failed page) or once the live stream failed (limit reached, refusal: "not live" in the status
-  line and the message log). The status line says "footprint loading 12/40", then "footprint from
-  10:12" when it stopped short of the session. Daily and weekly charts and forex (no trades) stay
-  candles and say why.
-- Not built yet: loading older footprints when scrolled back past the backfill, a session
-  (instead of visible-range) profile, cell text sizes / colours as settings, stacked imbalances.
+  [ibkr-tws-api.md](ibkr-tws-api.md#tick-by-tick)) and fills the past bars from the footprint
+  trade cache first, then from IB pages for what the cache lacks
+  (`IFootprintManager.GetTradesAsync`, IB historical ticks, 1000 a page, one at a time — see
+  [ibkr-tws-api.md](ibkr-tws-api.md#historical-ticks)), each bar filled from its end towards
+  its start. Pages go where the view is: the chart raises the bars it shows after each render
+  (`CandlestickChart.VisibleBarsChanged` → `ChartViewModel.ShowFootprintBars`), and each visible
+  bar gets one page first (newest first), then the rest of each, newest first; then the session
+  back to the first bar of the latest bar's day in the display zone, in the background. Scrolling
+  back to older bars pages them too. At most `FootprintConstants.MaxBackfillRequests` (1200)
+  pages per load. Trades are counted into each bar's price levels as they arrive (no raw ticks
+  kept in memory); what is counted is a set of stretches of time, each holding every trade in it.
+  Past trades have no bid / ask, so their side goes by the tick rule, and the run at the start of
+  a stretch counts half on each side until the stretch before it is in. Live trades go by the
+  quote rule (the tick rule when IB gives no quotes). Row prices are the contract's minimum tick
+  (`GetTickSizeAsync`, contract details cached with the trading hours); prints outside the chart
+  bar's high / low (late reports IB's bars leave out) are not drawn.
+- **Trade cache.** IB pages ~22 a minute, so a SPY session takes 20+ minutes to backfill; every
+  trade paged or streamed is therefore kept on disk and a chart reopened (or the app restarted)
+  shows those bars at once, asking IB only for the gaps. `IFootprintTapeRepository`
+  (`FootprintTapeRepository`, singleton) keeps raw trades — time (whole seconds), price, size and
+  the quote rule's side for live trades that had one — not bars, so every timeframe, RTH and ETH
+  share it: `<app-data>/footprint-trades/<conId>/<yyyy-MM-dd>.lttape`, one file per UTC day.
+  A file is a header and appended frames (`FootprintTapeHelpers`): each frame is one stretch of
+  time with every trade in it, varint-packed (~3.4 bytes a trade),
+  with its length and an FNV-1a checksum, so a stretch counts as recorded only together with its
+  trades — a torn or corrupt frame (a crash mid-write) is dropped with everything after it and cut
+  off before the next append. What each file covers is read once per run; appends skip what is
+  already there (two charts of one symbol, a page reaching over recorded trades). Pages are
+  recorded by `FootprintManager.GetTradesAsync` as they arrive, from their oldest trade's second
+  to their end, but at most up to `TapeHistoricalSettle` (30 s) before now (IB's history may lack
+  the last moment's trades); IB is asked outside regular hours too, so the cache holds every
+  trade. Live trades are recorded by `SubscribeTradesAsync` in batches of
+  `TapeLiveFlushInterval` (2 s), from the second after the first trade (that second may have
+  begun before the stream) to the last trade's second when the stream ends; trades counted by
+  the tick rule are stored without a side and told again on load, so cached and paged trades get
+  the same sides. On load, `ChartFootprint.GetNextRecordedDay` names the UTC days the pages would
+  go to, in the same order (visible bars first, newest first, then the session);
+  `ChartViewModel` reads each (`IFootprintManager.GetRecordedTradesAsync`, off the UI thread) and
+  counts it `TapeTradesPerSlice` (100,000) trades at a time, the chart drawing in between, before
+  any page of that day. `GetRecordedTradesAsync` prunes first: days older than
+  `TapeRetentionDays` (30), then the oldest days past `TapeMaxBytes` (2 GB). Not part of
+  Settings' cache (Clear cache and its size limit don't touch it). Measured on SPY, 2026-10-29:
+  311,000 real trades (11:25–16:00 New York) took 1.05 MB, read in 13 ms and folded into
+  5-minute bars in 32 ms; a full day of 1.1 M trades (tiled from those) is 3.5 MB, read in
+  ~50 ms and folded in ~100 ms in slices of at most 10 ms. Reopening the chart showed the 54
+  bars complete before complete at 0.5 s, with no IB request for them.
+- **Loading.** A bar shows the trades it has as soon as its first page is in (the forming bar
+  its live trades at once), with a dotted line over it until all are in (`Partial`; the readout
+  says from when). Before its first page it is a thin candle with three dots above; past the
+  backfill (the cap, the start of IB's data, a failed page) or once the live stream failed
+  (limit reached, refusal: "not live" in the status line and the message log) a candle with a
+  small ring above. The status line says "footprint loading… 3/14 bars on screen complete",
+  then "footprint from 14:35, loading…" while the session fills, "footprint" once it is
+  complete or "footprint from 14:35" when it stopped short. IB answers ~22 pages a minute after
+  its first ~10, so a heavy symbol fills slowly: SPY's last bar of the day alone is ~34 pages.
+  Daily and weekly charts and forex (no trades) stay candles and say why.
+- Not built yet: a session (instead of visible-range) profile, cell text sizes / colours as
+  settings, stacked imbalances.
 
 ## Styling
 

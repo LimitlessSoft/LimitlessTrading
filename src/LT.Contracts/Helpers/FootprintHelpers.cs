@@ -123,24 +123,60 @@ public static class FootprintHelpers
 	/// Counts a trade at its price (rounded to the bar's tick); a trade of unknown side counts half
 	/// on each side, so the bar's volume stays whole.
 	/// </summary>
-	public static void AddTrade(FootprintBarDto bar, FootprintTradeDto trade)
+	public static void AddTrade(FootprintBarDto bar, FootprintTradeDto trade) =>
+		AddTrade(bar, trade.Price, trade.Size, trade.Side);
+
+	/// <inheritdoc cref="AddTrade(FootprintBarDto, FootprintTradeDto)"/>
+	public static void AddTrade(FootprintBarDto bar, double price, decimal size, FootprintSide side)
 	{
-		if (trade.Size <= 0 || trade.Price <= 0)
+		if (size <= 0 || price <= 0)
 			return;
-		var index = GetTickIndex(trade.Price, bar.TickSize);
+		var index = GetTickIndex(price, bar.TickSize);
 		if (!bar.Levels.TryGetValue(index, out var level))
 			bar.Levels[index] = level = new FootprintLevelDto { TickIndex = index };
-		var (bid, ask) = trade.Side switch
+		var (bid, ask) = side switch
 		{
-			FootprintSide.Bid => (trade.Size, 0m),
-			FootprintSide.Ask => (0m, trade.Size),
-			_ => (trade.Size / 2, trade.Size / 2),
+			FootprintSide.Bid => (size, 0m),
+			FootprintSide.Ask => (0m, size),
+			_ => (size / 2, size / 2),
 		};
 		level.BidVolume += bid;
 		level.AskVolume += ask;
 		bar.BidVolume += bid;
 		bar.AskVolume += ask;
 	}
+
+	/// <summary>
+	/// A trade counted with an unknown side (half on each, <see cref="AddTrade"/>) once its side
+	/// is known: its volume moves to that side. Nothing for <see cref="FootprintSide.Unknown"/>.
+	/// </summary>
+	public static void SetSide(
+		FootprintBarDto bar,
+		long tickIndex,
+		decimal size,
+		FootprintSide side
+	)
+	{
+		if (side == FootprintSide.Unknown || size <= 0)
+			return;
+		if (!bar.Levels.TryGetValue(tickIndex, out var level))
+			return;
+		var half = size / 2;
+		var (bid, ask) = side == FootprintSide.Bid ? (half, -half) : (-half, half);
+		level.BidVolume += bid;
+		level.AskVolume += ask;
+		bar.BidVolume += bid;
+		bar.AskVolume += ask;
+	}
+
+	/// <summary>
+	/// The tick rule's side for the first trade of a run at <paramref name="price"/> given the
+	/// trade before it (null: none known).
+	/// </summary>
+	public static FootprintSide GetSideAfter(double price, FootprintTradeDto? previous) =>
+		previous == null
+			? FootprintSide.Unknown
+			: ClassifyByTickRule(price, previous.Price, previous.Side);
 
 	/// <summary>
 	/// The start of the chart bar a trade at <paramref name="time"/> belongs to: the bar containing
@@ -203,20 +239,30 @@ public static class FootprintHelpers
 	/// equal ones). Imbalances are diagonal — the ask of a row against the bid one row down, the
 	/// bid against the ask one row up — at <paramref name="imbalanceRatio"/> (3 = 300 %); an
 	/// empty opposite row inside the bar counts as an imbalance, there is none past its ends.
+	/// With <paramref name="barLow"/> / <paramref name="barHigh"/> (the chart bar's), prices outside
+	/// them are left out: IB's trades include prints its bars don't count (late and
+	/// out-of-sequence reports far from the market), which would stretch the bar into a column of
+	/// empty rows.
 	/// </summary>
 	public static IReadOnlyList<FootprintRowDto> GetRows(
 		FootprintBarDto bar,
 		int ticksPerRow,
-		double imbalanceRatio
+		double imbalanceRatio,
+		double? barLow = null,
+		double? barHigh = null
 	)
 	{
 		if (bar.Levels.Count == 0)
 			return [];
 		ticksPerRow = Math.Max(1, ticksPerRow);
+		var lowIndex = barLow is { } l ? GetTickIndex(l, bar.TickSize) : long.MinValue;
+		var highIndex = barHigh is { } h ? GetTickIndex(h, bar.TickSize) : long.MaxValue;
 		var grouped = new Dictionary<long, (decimal Bid, decimal Ask)>();
 		foreach (var level in bar.Levels.Values)
 		{
 			if (level.BidVolume == 0 && level.AskVolume == 0)
+				continue;
+			if (level.TickIndex < lowIndex || level.TickIndex > highIndex)
 				continue;
 			var key = FloorDiv(level.TickIndex, ticksPerRow);
 			var (bid, ask) = grouped.GetValueOrDefault(key);

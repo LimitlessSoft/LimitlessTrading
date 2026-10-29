@@ -25,6 +25,28 @@ public class HistoricalPacingTests
 		Assert.True(pacing.WaitAsync(barSize, TestContext.Current.CancellationToken).IsCompleted);
 	}
 
+	// IB answered 213 ticks pages back to back without a pacing error (holding them to ~22 a
+	// minute itself); the old 60 / 10 min window left footprints waiting ~10 s a page
+	[Fact]
+	public async Task Historical_ticks_go_one_at_a_time_with_no_window()
+	{
+		var time = new FakeTimeProvider(new DateTimeOffset(2026, 10, 26, 18, 0, 0, TimeSpan.Zero));
+		var pacing = new HistoricalPacing(time);
+		var token = TestContext.Current.CancellationToken;
+
+		for (var i = 0; i < MarketDataConstants.MaxHistoricalRequests * 2; i++)
+		{
+			Assert.True(pacing.WaitTicksAsync(token).IsCompleted);
+			pacing.ReleaseTicks();
+		}
+
+		Assert.True(pacing.WaitTicksAsync(token).IsCompleted);
+		var next = pacing.WaitTicksAsync(token);
+		Assert.False(next.IsCompleted);
+		pacing.ReleaseTicks();
+		await next.WaitAsync(TimeSpan.FromSeconds(5), token);
+	}
+
 	[Fact]
 	public void Small_bars_above_sixty_requests_wait_for_the_window()
 	{

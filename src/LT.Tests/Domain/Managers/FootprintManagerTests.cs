@@ -27,6 +27,7 @@ public class FootprintManagerTests
 
 	private readonly FakeIbkrApiClient _ibkr = new() { IsConnected = true };
 	private readonly TestCache _cache = new();
+	private readonly InMemoryFootprintTapeRepository _tape = new();
 	private readonly MarketDataManager _marketData;
 	private readonly FootprintManager _manager;
 
@@ -36,7 +37,7 @@ public class FootprintManagerTests
 	{
 		LSCoreContainer.EnsureInitialized();
 		_marketData = new MarketDataManager(_ibkr, TimeProvider.System);
-		_manager = new FootprintManager(_ibkr, _cache.Manager, _marketData);
+		_manager = new FootprintManager(_ibkr, _cache.Manager, _marketData, _tape, _cache.Time);
 	}
 
 	private static TickByTickDto Trade(double price, int second = 0) =>
@@ -48,27 +49,101 @@ public class FootprintManagerTests
 			Size = 100,
 		};
 
+	// Outside regular hours too, so the cache holds every trade for any chart
 	[Fact]
 	public async Task A_page_asks_ib_for_a_thousand_trades_before_the_time()
 	{
-		_ibkr.HistoricalTicksBefore = _ => [Trade(10)];
+		_ibkr.HistoricalTicksBefore = _ => [Trade(10, -5)];
 
 		var page = await _manager.GetTradesAsync(
-			new GetFootprintTradesRequest
-			{
-				Contract = Aapl,
-				Before = T0,
-				UseRegularTradingHours = true,
-			},
+			new GetFootprintTradesRequest { Contract = Aapl, Before = T0 },
 			Ct
 		);
 
 		Assert.Single(page);
 		var request = Assert.Single(_ibkr.HistoricalTickRequests);
 		Assert.Equal(
-			(HistoricalTickType.Trades, FootprintConstants.MaxTicksPerRequest, T0, true),
+			(HistoricalTickType.Trades, FootprintConstants.MaxTicksPerRequest, T0, false),
 			(request.Type, request.Count, request.Before, request.UseRegularTradingHours)
 		);
+	}
+
+	[Fact]
+	public async Task A_page_is_recorded_from_its_oldest_trade_to_where_it_ends()
+	{
+		_cache.Time.SetUtcNow(T0.AddMinutes(1));
+		_ibkr.HistoricalTicksBefore = _ => [Trade(10, -60), Trade(10.01, -5)];
+
+		await _manager.GetTradesAsync(
+			new GetFootprintTradesRequest { Contract = Aapl, Before = T0 },
+			Ct
+		);
+
+		var range = Assert.Single(
+			await _manager.GetRecordedTradesAsync(Aapl, T0.AddDays(-1), T0.AddDays(1), Ct)
+		);
+		Assert.Equal((T0.AddSeconds(-60), T0), (range.From, range.To));
+		Assert.Equal([10, 10.01], range.Trades.Select(x => x.Price));
+		Assert.All(range.Trades, x => Assert.Equal(FootprintSide.Unknown, x.QuoteSide));
+	}
+
+	// IB's history may still lack the last moment's trades: that part is paged again next time
+	[Fact]
+	public async Task A_page_ending_now_is_recorded_only_up_to_a_little_before()
+	{
+		_cache.Time.SetUtcNow(T0);
+		_ibkr.HistoricalTicksBefore = _ => [Trade(10, -60), Trade(10.01, -5)];
+
+		await _manager.GetTradesAsync(
+			new GetFootprintTradesRequest { Contract = Aapl, Before = T0 },
+			Ct
+		);
+
+		var range = Assert.Single(
+			await _manager.GetRecordedTradesAsync(Aapl, T0.AddDays(-1), T0.AddDays(1), Ct)
+		);
+		Assert.Equal(
+			(T0.AddSeconds(-60), T0 - FootprintConstants.TapeHistoricalSettle),
+			(range.From, range.To)
+		);
+		Assert.Equal([10], range.Trades.Select(x => x.Price));
+	}
+
+	[Fact]
+	public async Task An_empty_page_records_nothing()
+	{
+		_ibkr.HistoricalTicksBefore = _ => [];
+
+		await _manager.GetTradesAsync(
+			new GetFootprintTradesRequest { Contract = Aapl, Before = T0 },
+			Ct
+		);
+
+		Assert.Equal(0, _tape.Appends);
+	}
+
+	// From the second after the first trade (its second may have started before the stream) to
+	// the last one's second, with the quote rule's sides
+	[Fact]
+	public async Task Live_trades_are_recorded_in_whole_seconds_from_the_one_after_the_first()
+	{
+		_ibkr.TickByTicksByType[TickByTickType.AllLast] =
+		[
+			Trade(10),
+			Trade(10.01, 1),
+			Trade(10.02, 1),
+			Trade(10.01, 4),
+			Trade(10.03, 9),
+		];
+
+		await _manager.SubscribeTradesAsync(Aapl, cancellationToken: Ct).ToListAsync(Ct);
+
+		var ranges = await _manager.GetRecordedTradesAsync(Aapl, T0.AddDays(-1), T0.AddDays(1), Ct);
+		var range = Assert.Single(ranges);
+		Assert.Equal((T0.AddSeconds(1), T0.AddSeconds(9)), (range.From, range.To));
+		Assert.Equal([10.01, 10.02, 10.01], range.Trades.Select(x => x.Price));
+		// Batches of at least 2 s: 01–04, then 04–09
+		Assert.Equal(2, _tape.Appends);
 	}
 
 	[Fact]

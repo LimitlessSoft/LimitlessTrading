@@ -24,10 +24,28 @@ public interface IFootprintManager
 	/// <summary>
 	/// One page of past trades strictly before <see cref="GetFootprintTradesRequest.Before"/>,
 	/// oldest first (about <see cref="Constants.FootprintConstants.MaxTicksPerRequest"/>, whole
-	/// seconds; empty where IB has none). Not cached; every call is one paced IB request.
+	/// seconds; empty where IB has none), outside regular trading hours too. Every call is one
+	/// IB request (one at a time, ~22 a minute); the page is recorded to the footprint trade
+	/// cache (<see cref="GetRecordedTradesAsync"/>) as every trade from its oldest one's second
+	/// to <see cref="GetFootprintTradesRequest.Before"/>, at most up to
+	/// <see cref="Constants.FootprintConstants.TapeHistoricalSettle"/> before now.
 	/// </summary>
 	Task<IReadOnlyList<TickByTickDto>> GetTradesAsync(
 		GetFootprintTradesRequest request,
+		CancellationToken cancellationToken = default
+	);
+
+	/// <summary>
+	/// What the footprint trade cache holds of the UTC days from <paramref name="from"/> to
+	/// before <paramref name="to"/> (past pages and live trades recorded earlier, by any chart):
+	/// the stretches it has every trade of, oldest first. Read off the calling thread; prunes the
+	/// cache first (<see cref="Constants.FootprintConstants.TapeRetentionDays"/>,
+	/// <see cref="Constants.FootprintConstants.TapeMaxBytes"/>).
+	/// </summary>
+	Task<IReadOnlyList<FootprintTapeRangeDto>> GetRecordedTradesAsync(
+		ContractDto contract,
+		DateTimeOffset from,
+		DateTimeOffset to,
 		CancellationToken cancellationToken = default
 	);
 
@@ -39,7 +57,9 @@ public interface IFootprintManager
 	/// <see cref="IMarketDataManager"/>. Without a trade subscription (limit reached, IB refusal)
 	/// the stream fails with that error; when only the quotes fail,
 	/// <paramref name="quotesFailed"/> is called with the error (on a thread-pool thread) and
-	/// sides go by the tick rule from then on.
+	/// sides go by the tick rule from then on. The trades are recorded to the footprint trade
+	/// cache every <see cref="Constants.FootprintConstants.TapeLiveFlushInterval"/> (and when the
+	/// stream ends), from the second after the first one to the last one's second.
 	/// </summary>
 	IAsyncEnumerable<FootprintTradeDto> SubscribeTradesAsync(
 		ContractDto contract,

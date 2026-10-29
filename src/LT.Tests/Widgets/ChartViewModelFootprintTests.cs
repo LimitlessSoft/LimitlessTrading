@@ -5,6 +5,7 @@ using LT.App.Widgets.Chart;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
+using LT.Contracts.Dtos.MarketData;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
 using LT.Contracts.Requests.Settings;
@@ -33,6 +34,9 @@ public class ChartViewModelFootprintTests : IDisposable
 	private readonly FakeIbkrApiClient _ibkr = new() { IsConnected = true };
 	private readonly FakeConnectionManager _connection = new();
 	private readonly MessageLogManager _messages = new();
+
+	// Shared by the charts of a test: what one recorded, the next one reads
+	private readonly InMemoryFootprintTapeRepository _tape = new();
 	private readonly SettingsManager _settings;
 	private readonly List<ChartViewModel> _charts = [];
 
@@ -105,6 +109,150 @@ public class ChartViewModelFootprintTests : IDisposable
 			Assert.Equal(ChartBarStyle.Footprint, saved.ChartBarStyle);
 		});
 	}
+
+	// Bars older than the session (scrolled back to) loaded no footprint: the backfill had ended
+	// at the session's first bar for good
+	[Fact]
+	public void Scrolling_back_past_the_session_loads_the_older_bars_footprints()
+	{
+		var now = _cache.Time.GetUtcNow();
+		var yesterday = now.AddDays(-1).AddMinutes(-5);
+		_ibkr.HistoricalBars =
+		[
+			new BarDto
+			{
+				Time = yesterday,
+				Open = 1,
+				High = 2,
+				Low = 0.5,
+				Close = 1.5,
+			},
+			.. _ibkr.HistoricalBars,
+		];
+		// One trade six minutes before each page's end: every page completes a bar
+		_ibkr.HistoricalTicksBefore = before =>
+			[
+				new TickByTickDto
+				{
+					Type = TickByTickType.AllLast,
+					Time = before.AddMinutes(-6),
+					Price = 1,
+					Size = 100,
+				},
+			];
+		var chart = TestUiThread.Invoke(() =>
+		{
+			var chart = CreateChart();
+			// The view shows today's bars
+			chart.ShowFootprintBars(now.AddMinutes(-10), now.AddMinutes(-5));
+			chart.LoadState(
+				new WidgetPlacementDto
+				{
+					ChartBarStyle = ChartBarStyle.Footprint,
+					ChartContract = Spy,
+					ChartTimeframe = ChartTimeframe.FiveMinutes,
+				}
+			);
+			return chart;
+		});
+		WaitFor(() =>
+			TestUiThread.Invoke(() =>
+				chart.Footprint?.GetState(now.AddMinutes(-10)) == FootprintBarState.Ready
+			)
+		);
+		var sessionRequests = _ibkr.HistoricalTickRequests.Count;
+		TestUiThread.Invoke(() =>
+			Assert.Equal(FootprintBarState.Loading, chart.Footprint!.GetState(yesterday))
+		);
+
+		TestUiThread.Invoke(() => chart.ShowFootprintBars(yesterday, now.AddMinutes(-5)));
+		WaitFor(() =>
+			TestUiThread.Invoke(() =>
+				chart.Footprint?.GetState(yesterday) == FootprintBarState.Ready
+			)
+		);
+
+		Assert.Contains(
+			_ibkr.HistoricalTickRequests.Skip(sessionRequests),
+			x => x.Before == yesterday.AddMinutes(5)
+		);
+	}
+
+	// Reopening a chart (or restarting the app): the bars complete before come from the cache at
+	// once, and IB is asked only for the trades since
+	[Fact]
+	public void A_second_load_takes_the_cached_trades_and_pages_only_what_is_new()
+	{
+		var start = _cache.Time.GetUtcNow();
+		// One trade six minutes before each page's end: every page completes a bar
+		_ibkr.HistoricalTicksBefore = before =>
+			[
+				new TickByTickDto
+				{
+					Type = TickByTickType.AllLast,
+					Time = before.AddMinutes(-6),
+					Price = 1,
+					Size = 100,
+				},
+			];
+		var first = LoadFootprintChart();
+		WaitFor(() =>
+			TestUiThread.Invoke(() =>
+				first.Footprint?.GetState(start.AddMinutes(-10)) == FootprintBarState.Ready
+			)
+		);
+		Assert.Equal(
+			[start, start.AddMinutes(-6)],
+			_ibkr.HistoricalTickRequests.Select(x => x.Before)
+		);
+		TestUiThread.Invoke(() => first.Dispose());
+
+		// Five minutes later, with a new bar
+		_cache.Time.Advance(TimeSpan.FromMinutes(5));
+		_ibkr.HistoricalBars =
+		[
+			.. _ibkr.HistoricalBars,
+			new BarDto
+			{
+				Time = start,
+				Open = 1.2,
+				High = 1.3,
+				Low = 1.1,
+				Close = 1.25,
+			},
+		];
+		_ibkr.HistoricalTickRequests.Clear();
+		var second = LoadFootprintChart();
+		WaitFor(() =>
+			TestUiThread.Invoke(() => second.Footprint?.GetState(start) == FootprintBarState.Ready)
+		);
+
+		TestUiThread.Invoke(() =>
+		{
+			Assert.Equal(
+				FootprintBarState.Ready,
+				second.Footprint!.GetState(start.AddMinutes(-10))
+			);
+			Assert.Equal(FootprintBarState.Ready, second.Footprint.GetState(start.AddMinutes(-5)));
+		});
+		var request = Assert.Single(_ibkr.HistoricalTickRequests);
+		Assert.Equal(start.AddMinutes(5), request.Before);
+	}
+
+	private ChartViewModel LoadFootprintChart() =>
+		TestUiThread.Invoke(() =>
+		{
+			var chart = CreateChart();
+			chart.LoadState(
+				new WidgetPlacementDto
+				{
+					ChartBarStyle = ChartBarStyle.Footprint,
+					ChartContract = Spy,
+					ChartTimeframe = ChartTimeframe.FiveMinutes,
+				}
+			);
+			return chart;
+		});
 
 	[Fact]
 	public void A_candle_chart_asks_for_no_trades_and_saves_no_style()
@@ -209,7 +357,9 @@ public class ChartViewModelFootprintTests : IDisposable
 			new FootprintManager(
 				_ibkr,
 				_cache.Manager,
-				new MarketDataManager(_ibkr, TimeProvider.System)
+				new MarketDataManager(_ibkr, TimeProvider.System),
+				_tape,
+				_cache.Time
 			),
 			new ContractManager(_ibkr, _cache.Settings, _cache.Manager),
 			_connection,

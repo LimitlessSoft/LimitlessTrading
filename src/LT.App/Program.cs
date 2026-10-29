@@ -92,6 +92,8 @@ public static class Program
 		builder.Services.AddSingleton<ISharesOutstandingRepository, SharesOutstandingRepository>();
 		builder.Services.AddSingleton<IPatchNotesRepository, PatchNotesRepository>();
 		builder.Services.AddSingleton<INotesRepository, NotesRepository>();
+		// One lock and one record of what each footprint trade file covers, for every chart
+		builder.Services.AddSingleton<IFootprintTapeRepository, FootprintTapeRepository>();
 		builder.Services.AddSingleton<IIbkrApiClient, IbkrApiClient>();
 		// One HttpClient and one pacing state for every Flex request (IB's limits are per token)
 		builder.Services.AddSingleton<IFlexApiClient>(services => new FlexApiClient(

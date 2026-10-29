@@ -62,6 +62,7 @@ public partial class ChartView : UserControl
 		Chart.AlertPlaced += price => ViewModel?.PlaceAlert(price);
 		Chart.OrderMoved += (id, price) => ViewModel?.RequestOrderMove(id, price);
 		Chart.OlderBarsNeeded += () => ViewModel?.LoadOlderBars();
+		Chart.VisibleBarsChanged += (from, to) => ViewModel?.ShowFootprintBars(from, to);
 		Chart.DrawingCreated += OnDrawingCreated;
 		Chart.DrawingEdited += (id, points) => ViewModel?.UpdateDrawing(id, points);
 		Chart.DrawingTextEditRequested += OnDrawingTextEditRequested;

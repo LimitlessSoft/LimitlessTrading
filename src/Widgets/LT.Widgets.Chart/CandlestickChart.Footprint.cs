@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
+using Avalonia.Threading;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
@@ -15,8 +16,11 @@ namespace LT.App.Widgets.Chart;
 /// candle down the middle; a volume profile of the visible footprints along the plot's right
 /// edge, its point of control orange. Rows merge several ticks as the view zooms out so they stay
 /// readable; numbers show only where every number of a bar fits its cells, shading only where a
-/// bar is too narrow for them, and plain candles below that. Bars still loading their trades are
-/// candles in a dashed box, bars without a footprint candles with a small ring above them.
+/// bar is too narrow for them, and plain candles below that. Bars still loading their trades show
+/// the ones in so far with a dotted line over them; bars before their first page are thin candles
+/// with three dots above, bars without a footprint candles with a small ring above them. After
+/// each render the visible bars are raised (<see cref="VisibleBarsChanged"/>) so their trades
+/// load first.
 /// </summary>
 public partial class CandlestickChart
 {
@@ -59,11 +63,12 @@ public partial class CandlestickChart
 	private static readonly ImmutableSolidColorBrush ProfilePocBrush = new(
 		Color.Parse("#80FF9800")
 	);
-	private static readonly IPen LoadingPen = new ImmutablePen(
-		new ImmutableSolidColorBrush(Color.Parse("#6B7385")),
+	private static readonly IPen PartialPen = new ImmutablePen(
+		new ImmutableSolidColorBrush(Color.Parse("#8A93A3")),
 		1,
-		new ImmutableDashStyle([2, 3], 0)
+		new ImmutableDashStyle([1, 3], 0)
 	);
+	private static readonly ImmutableSolidColorBrush LoadingBrush = new(Color.Parse("#8A93A3"));
 	private static readonly IPen UnavailablePen = new ImmutablePen(
 		new ImmutableSolidColorBrush(Color.Parse("#8A93A3")),
 		1.2
@@ -79,6 +84,15 @@ public partial class CandlestickChart
 		0.55,
 		0.95
 	);
+
+	// The visible bars last raised (oldest, newest start)
+	private (DateTimeOffset From, DateTimeOffset To)? _visibleRaised;
+
+	/// <summary>
+	/// The footprint bars shown changed (oldest and newest start): raised after the render, only
+	/// with <see cref="BarStyle"/> footprint.
+	/// </summary>
+	public event Action<DateTimeOffset, DateTimeOffset>? VisibleBarsChanged;
 
 	/// <summary>Candles, or footprint bars when <see cref="Footprint"/> has them.</summary>
 	public ChartBarStyle BarStyle
@@ -109,6 +123,21 @@ public partial class CandlestickChart
 	}
 
 	private bool IsFootprint => BarStyle == ChartBarStyle.Footprint;
+
+	// Footprints load for the bars on screen first: tell the view model which they are
+	private void NotifyVisibleBars(IReadOnlyList<BarDto> bars, int start, int end)
+	{
+		if (!IsFootprint || start >= end)
+		{
+			_visibleRaised = null;
+			return;
+		}
+		var visible = (bars[start].Time, bars[end - 1].Time);
+		if (_visibleRaised == visible)
+			return;
+		_visibleRaised = visible;
+		Dispatcher.UIThread.Post(() => VisibleBarsChanged?.Invoke(visible.Item1, visible.Item2));
+	}
 
 	private double GetMaxBarSpacing() => IsFootprint ? FootprintMaxBarSpacing : MaxBarSpacing;
 
@@ -165,13 +194,16 @@ public partial class CandlestickChart
 					rows[bars[i].Time] = FootprintHelpers.GetRows(
 						bar,
 						ticksPerRow,
-						FootprintImbalanceRatio
+						FootprintImbalanceRatio,
+						bars[i].Low,
+						bars[i].High
 					);
 		return new FootprintFrame(footprint, ticksPerRow, showsText, columnWidth, rows);
 	}
 
-	// One bar: its cells and a thin candle when it has a footprint and room; a marked candle
-	// while loading or without one. False: draw it as a regular candle
+	// One bar: its cells and a thin candle when it has trades and room (a dotted line over a bar
+	// still loading the rest); a marked candle before its first trades or without a footprint.
+	// False: draw it as a regular candle
 	private bool DrawFootprintBar(
 		DrawingContext context,
 		FootprintFrame frame,
@@ -182,28 +214,28 @@ public partial class CandlestickChart
 	)
 	{
 		var state = frame.Footprint.GetState(bar.Time);
-		if (state == FootprintBarState.Ready && frame.Rows.TryGetValue(bar.Time, out var rows))
+		var candleWidth = Math.Clamp(frame.ColumnWidth * 0.06, 2, 5);
+		if (
+			state is FootprintBarState.Ready or FootprintBarState.Partial
+			&& frame.Rows.TryGetValue(bar.Time, out var rows)
+		)
 		{
 			DrawFootprintCells(context, frame, rows, x, price, priceRect);
-			DrawThinCandle(context, bar, x, price, Math.Clamp(frame.ColumnWidth * 0.06, 2, 5));
+			DrawThinCandle(context, bar, x, price, candleWidth);
+			if (state == FootprintBarState.Partial)
+			{
+				var y = Math.Round(price.Y(bar.High)) - 4.5;
+				var half = frame.ColumnWidth / 2 - 1;
+				context.DrawLine(PartialPen, new Point(x - half, y), new Point(x + half, y));
+			}
 			return true;
 		}
 		if (state == FootprintBarState.Loading && frame.ColumnWidth >= FootprintMinColumnWidth)
 		{
-			var top = price.Y(bar.High) - 3;
-			var bottom = price.Y(bar.Low) + 3;
-			var half = frame.ColumnWidth / 2 - 1;
-			context.DrawRectangle(
-				null,
-				LoadingPen,
-				new Rect(
-					Math.Round(x - half) + 0.5,
-					Math.Round(top) + 0.5,
-					Math.Round(half * 2),
-					Math.Round(bottom - top)
-				)
-			);
-			DrawThinCandle(context, bar, x, price, Math.Clamp(frame.ColumnWidth * 0.06, 2, 5));
+			DrawThinCandle(context, bar, x, price, candleWidth);
+			var y = price.Y(bar.High) - 6;
+			for (var i = -1; i <= 1; i++)
+				context.DrawEllipse(LoadingBrush, null, new Point(x + i * 5, y), 1.2, 1.2);
 			return true;
 		}
 		if (state == FootprintBarState.Unavailable && frame.ColumnWidth >= FootprintMinColumnWidth)
@@ -385,10 +417,14 @@ public partial class CandlestickChart
 	{
 		if (!IsFootprint || Footprint is not { } footprint)
 			return string.Empty;
+		var partial = footprint.GetLoadedFrom(bar.Time) is { } from
+			? $"   (loading: from {ToShown(from).ToString("HH:mm:ss", CultureInfo.CurrentCulture)})"
+			: "";
 		return footprint.GetState(bar.Time) switch
 		{
-			FootprintBarState.Ready when footprint.Get(bar.Time) is { } fp =>
-				$"   Δ {(fp.Delta > 0 ? "+" : "")}{fp.Delta.ToString("#,0.##", CultureInfo.CurrentCulture)}   Bid {fp.BidVolume.ToString("#,0.##", CultureInfo.CurrentCulture)} × Ask {fp.AskVolume.ToString("#,0.##", CultureInfo.CurrentCulture)}",
+			FootprintBarState.Ready
+			or FootprintBarState.Partial when footprint.Get(bar.Time) is { } fp =>
+				$"   Δ {(fp.Delta > 0 ? "+" : "")}{fp.Delta.ToString("#,0.##", CultureInfo.CurrentCulture)}   Bid {fp.BidVolume.ToString("#,0.##", CultureInfo.CurrentCulture)} × Ask {fp.AskVolume.ToString("#,0.##", CultureInfo.CurrentCulture)}{partial}",
 			FootprintBarState.Loading => "   footprint loading…",
 			FootprintBarState.Unavailable => "   no footprint",
 			_ => string.Empty,

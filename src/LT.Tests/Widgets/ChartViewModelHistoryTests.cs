@@ -308,7 +308,9 @@ public class ChartViewModelHistoryTests : IDisposable
 			new FootprintManager(
 				_ibkr,
 				_cache.Manager,
-				new MarketDataManager(_ibkr, TimeProvider.System)
+				new MarketDataManager(_ibkr, TimeProvider.System),
+				new InMemoryFootprintTapeRepository(),
+				_cache.Time
 			),
 			new ContractManager(_ibkr, _cache.Settings, _cache.Manager),
 			_connection,
