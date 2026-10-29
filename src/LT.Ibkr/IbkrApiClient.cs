@@ -561,6 +561,41 @@ public class IbkrApiClient : IIbkrApiClient
 		};
 	}
 
+	// placeOrder again with the order's id; IB's answer is awaited for a while only
+	public async Task ModifyOrderAsync(
+		OpenOrderDto order,
+		decimal limitPrice,
+		CancellationToken cancellationToken = default
+	)
+	{
+		var client = await RequireOrderClientAsync(cancellationToken);
+		await _messages.WaitAsync(cancellationToken);
+		using var answer = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+		answer.CancelAfter(OrderConstants.ModifyAnswerTimeout);
+		try
+		{
+			await client.ModifyOrderAsync(
+				order.OrderId,
+				order.Contract.ToMapped<ContractDto, Contract>(),
+				order.ToMapped<OpenOrderDto, Order>() with
+				{
+					LimitPrice = (double)limitPrice,
+				},
+				answer.Token
+			);
+		}
+		catch (IbkrException ex)
+		{
+			throw new IbkrRequestException(ex.Code, ex.ErrorText, ex);
+		}
+		catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+		{
+			throw new TimeoutException(
+				$"IB did not confirm the new price of order {order.OrderId} within {OrderConstants.ModifyAnswerTimeout.TotalSeconds:0} s; the orders show what IB holds."
+			);
+		}
+	}
+
 	public async Task CancelOrderAsync(int orderId, CancellationToken cancellationToken = default)
 	{
 		var client = await RequireOrderClientAsync(cancellationToken);

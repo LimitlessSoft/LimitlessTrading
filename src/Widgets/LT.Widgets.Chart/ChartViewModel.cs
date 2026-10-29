@@ -57,6 +57,10 @@ namespace LT.App.Widgets.Chart;
 /// turns on drawing mode: trend lines, shapes, Fibonacci levels, measures and notes, kept per
 /// contract; see ChartViewModel.Drawings.cs.
 /// </para>
+/// <para>
+/// The contract's working orders are drawn as lines; this app's own limit orders change price by
+/// dragging their line and confirming; see ChartViewModel.Orders.cs.
+/// </para>
 /// </summary>
 public partial class ChartViewModel
 	: ConnectedViewModelBase,
@@ -117,7 +121,9 @@ public partial class ChartViewModel
 		IChartTemplateManager chartTemplateManager,
 		IPriceAlertManager priceAlertManager,
 		IChartDrawingManager chartDrawingManager,
+		IOrderManager orderManager,
 		ChartDrawingClipboardStore drawingClipboard,
+		OpenOrdersStore openOrdersStore,
 		AccountStore accountStore,
 		LinkGroupStore linkGroupStore,
 		DisplayTimeStore displayTime,
@@ -139,6 +145,8 @@ public partial class ChartViewModel
 		_priceAlertManager = priceAlertManager;
 		_chartDrawingManager = chartDrawingManager;
 		_drawingClipboard = drawingClipboard;
+		_orderManager = orderManager;
+		_openOrders = openOrdersStore;
 		_settingsManager = settingsManager;
 		_timeProvider = timeProvider;
 		_accountStore = accountStore;
@@ -154,6 +162,8 @@ public partial class ChartViewModel
 		tradeJournalManager.FillsChanged += OnFillsChanged;
 		priceAlertManager.AlertsChanged += OnAlertsChanged;
 		chartDrawingManager.DrawingsChanged += OnDrawingsChangedElsewhere;
+		openOrdersStore.Changed += OnOpenOrdersChanged;
+		_ordersWatch = openOrdersStore.Watch();
 		accountStore.PropertyChanged += OnAccountChanged;
 		settingsManager.AppSettingsChanged += OnAppSettingsChanged;
 		ApplyFootprintSettings(settingsManager.GetAppSettings().ChartFootprintImbalancePercent);
@@ -307,6 +317,8 @@ public partial class ChartViewModel
 		_tradeJournalManager.FillsChanged -= OnFillsChanged;
 		_priceAlertManager.AlertsChanged -= OnAlertsChanged;
 		_chartDrawingManager.DrawingsChanged -= OnDrawingsChangedElsewhere;
+		_openOrders.Changed -= OnOpenOrdersChanged;
+		_ordersWatch.Dispose();
 		_accountStore.PropertyChanged -= OnAccountChanged;
 		_settingsManager.AppSettingsChanged -= OnAppSettingsChanged;
 		DisplayTime.ZoneChanged -= _status.Rebuild;
@@ -556,6 +568,7 @@ public partial class ChartViewModel
 	{
 		LoadTrades();
 		LoadAlerts();
+		ResetOrderLines();
 		// A pending "Remove all" named the symbol shown before
 		IsConfirmingRemoveAllDrawings = false;
 		LoadDrawings();
@@ -655,6 +668,7 @@ public partial class ChartViewModel
 			return;
 		LoadTrades();
 		UpdateBreakEven();
+		UpdateOrderLines();
 	}
 
 	// From the thread that saved the settings. Live-update changes reload

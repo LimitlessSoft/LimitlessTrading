@@ -125,6 +125,7 @@ Limits / caveats:
 | `GetPositionsAsync` / `SubscribePositionsAsync` | `reqPositions` | Snapshot / stream |
 | `SubscribeAccountSummaryAsync` | `reqAccountSummary` | Stream — see error 322 below |
 | `SubscribeAccountPnlAsync` / `SubscribePositionPnlAsync` | `reqPnL` / `reqPnLSingle` | `reqPnL` is shared per account — see below |
+| `ModifyOrderAsync` | `placeOrder` with the order's id | A working order's new price (0.11.0); built from the recorded placeOrder layout, never sent while recording — see [Orders](#orders) |
 | `GetOpenOrdersAsync` | `reqAllOpenOrders` | Every client's and TWS's orders (0.3.0); `reqOpenOrders` would only return the asking client id's, and LT places orders on the order connection's id |
 | `GetExecutionsAsync` | `reqExecutions` | The day's fills of every account, client and TWS, each with its commission report (0.5.0); side stays `BOT` / `SLD`, multiplier `null` for none |
 | `GetNewsProvidersAsync` | `reqNewsProviders` | The account's API providers (0.4.0) |
@@ -148,7 +149,7 @@ Limits / caveats:
 - Matching symbols (`reqMatchingSymbols`): search is by exact symbol + type via
   `reqContractDetails`.
 - `reqAccountUpdates` (portfolio with market value / P&L per position in one stream).
-- Order modification, what-if previews, bracket / OCA orders; open order, execution and
+- What-if previews, bracket / OCA orders; open order, execution and
   commission frames (no order was accepted while recording).
 
 ## Orders
@@ -163,6 +164,20 @@ Limits / caveats:
   only from the client that placed the order, so TWS's and other clients' orders are not
   cancellable here; an order placed before an app restart still is, because the order connection
   reconnects with the same client id.
+- Changing a price: a chart's order line (this app's own limit orders only, after a
+  confirmation) → `IOrderManager.ModifyOrderAsync` → `IIbkrApiClient.ModifyOrderAsync` →
+  IBKR.Net `ModifyOrderAsync` (0.11.0): placeOrder again with the order's id on the order
+  connection, the order as `reqAllOpenOrders` last reported it (contract by conId + exchange,
+  side, total quantity, type, time in force, account) with the new limit price. Like a cancel,
+  IB takes it only from the client that placed the order (`OrderHelpers.GetModifyBlock`): TWS's
+  orders (client 0) and other clients' are drawn but not movable; binding them would need client
+  id 0, which the app doesn't use. IB doesn't report the outside-hours flag in open orders, so
+  the change goes out with it off — the app never sets it, but one ticked in TWS on this app's
+  order would be cleared. The answer awaited is the first open order / order status frame for
+  the id, an error for the id is a refusal (the order stays as it was); with none in 10 s
+  (`OrderConstants.ModifyAnswerTimeout`) the open orders are read again. No modification has
+  been sent to IB while developing it (it trades for real), so the answer is from IB's
+  documentation, not a recording.
 - An order is a quantity, or for a market order a **cash amount** (`cashQty`, e.g. $10 of BTC).
 - Status comes from orderStatus only; a rejection is an IB error for the order id (e.g. 460 "No
   trading permissions", 435 "You must specify an account" — so the ticket always sends one).

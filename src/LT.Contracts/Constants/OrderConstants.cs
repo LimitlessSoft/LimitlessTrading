@@ -11,6 +11,32 @@ public static class OrderConstants
 	/// <summary>IB's order status of a completely filled order.</summary>
 	public const string FilledStatus = "Filled";
 
+	/// <summary>IB's order type of a limit order, as open orders report it.</summary>
+	public const string LimitOrderType = "LMT";
+
+	/// <summary>IB's order types whose aux price is a stop (trigger) price.</summary>
+	public static readonly IReadOnlySet<string> StopOrderTypes = new HashSet<string>
+	{
+		"STP",
+		"STP LMT",
+		"TRAIL",
+		"TRAIL LIMIT",
+		"MIT",
+		"LIT",
+	};
+
+	/// <summary>
+	/// How long a change of an order's price waits for IB's answer; after it the change may still
+	/// have gone through, so the open orders are read again.
+	/// </summary>
+	public static readonly TimeSpan ModifyAnswerTimeout = TimeSpan.FromSeconds(10);
+
+	/// <summary>
+	/// After this app's orders change (a status, a cancel, a new price) the shared open orders are
+	/// read again this much later, once per burst of statuses.
+	/// </summary>
+	public static readonly TimeSpan OrdersChangedDebounce = TimeSpan.FromMilliseconds(300);
+
 	/// <summary>Bounds of a cash amount order (e.g. $10 of BTC); a guard against typos.</summary>
 	public const decimal CashAmountMin = 1;
 	public const decimal CashAmountMax = 10_000;

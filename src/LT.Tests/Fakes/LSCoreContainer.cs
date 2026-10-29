@@ -85,6 +85,10 @@ public static class LSCoreContainer
 				>()
 				.AddSingleton<LSCoreValidatorBase<PlaceOrderRequest>, PlaceOrderRequestValidator>()
 				.AddSingleton<
+					LSCoreValidatorBase<ModifyOrderRequest>,
+					ModifyOrderRequestValidator
+				>()
+				.AddSingleton<
 					LSCoreValidatorBase<GetCalendarEventsRequest>,
 					GetCalendarEventsRequestValidator
 				>()

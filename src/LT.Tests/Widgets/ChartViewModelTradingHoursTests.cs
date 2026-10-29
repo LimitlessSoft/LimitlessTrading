@@ -165,7 +165,9 @@ public class ChartViewModelTradingHoursTests : IDisposable
 				_cache.Time
 			),
 			new ChartDrawingManager(new InMemoryChartDrawingRepository()),
+			new OrderManager(_ibkr, _cache.Manager),
 			new ChartDrawingClipboardStore(),
+			new OpenOrdersStore(new OrderManager(_ibkr, _cache.Manager), _connection, _cache.Time),
 			new AccountStore(_connection, _settings),
 			new LinkGroupStore(),
 			new DisplayTimeStore(_settings, _cache.Time),

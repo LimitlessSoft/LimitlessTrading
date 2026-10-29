@@ -169,6 +169,8 @@ public static class Program
 		builder.Services.AddSingleton<PrivacyStore>();
 		builder.Services.AddSingleton<SettingsNavigator>();
 		builder.Services.AddSingleton<OrderTicketNavigator>();
+		// One reading of the working orders for every chart's order lines
+		builder.Services.AddSingleton<OpenOrdersStore>();
 
 		// Creates widget view models per spawned instance (several charts)
 		builder.Services.AddSingleton<WidgetViewModelFactory>();

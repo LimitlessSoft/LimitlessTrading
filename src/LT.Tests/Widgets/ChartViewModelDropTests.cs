@@ -140,7 +140,9 @@ public class ChartViewModelDropTests : IDisposable
 				_cache.Time
 			),
 			new ChartDrawingManager(new InMemoryChartDrawingRepository()),
+			new OrderManager(_ibkr, _cache.Manager),
 			new ChartDrawingClipboardStore(),
+			new OpenOrdersStore(new OrderManager(_ibkr, _cache.Manager), _connection, _cache.Time),
 			new AccountStore(_connection, settings),
 			_links,
 			new DisplayTimeStore(settings, _cache.Time),

@@ -47,6 +47,11 @@ namespace LT.App.Widgets.Chart;
 /// them (CandlestickChart.Alerts.cs).
 /// </para>
 /// <para>
+/// Working orders (<see cref="OrderLines"/>) are lines at their prices; the ones this app may
+/// change drag to a new price on the tick, which the view model confirms before sending
+/// (CandlestickChart.Orders.cs).
+/// </para>
+/// <para>
 /// Drawings (<see cref="Drawings"/>: trend lines, shapes, Fibonacci levels, measures, notes) are
 /// anchored at a time and a price; in drawing mode they are drawn, selected and moved with the
 /// pointer (CandlestickChart.Drawings.cs).
@@ -234,6 +239,8 @@ public partial class CandlestickChart : Control
 			FitStartProperty,
 			AlertsProperty,
 			IsPlacingAlertProperty,
+			OrderLinesProperty,
+			OrderTickSizeProperty,
 			DrawingsProperty,
 			IsDrawingModeProperty,
 			DrawingToolProperty,
@@ -458,6 +465,7 @@ public partial class CandlestickChart : Control
 			_pricePane = null;
 			_alertLines.Clear();
 			_alertCloseButtons.Clear();
+			_orderLines.Clear();
 			_drawn.Clear();
 			return;
 		}
@@ -657,6 +665,7 @@ public partial class CandlestickChart : Control
 		}
 
 		DrawAlerts(context, price, decimals);
+		DrawOrderLines(context, price, decimals);
 
 		// last price
 		var last = bars[^1].Close;
@@ -1003,12 +1012,14 @@ public partial class CandlestickChart : Control
 			_dragStart != null
 			|| _marginDragStartX != null
 			|| _draggedAlert != null
+			|| _draggedOrder != null
 			|| IsPlacingAlert
 			|| _edit != null
 			|| IsDrawingToolArmed;
 		UpdateLegendHover(dragging ? null : position);
 		Cursor =
-			GetAlertCursor(position) is { } alertCursor ? alertCursor
+			GetOrderCursor(position) is { } orderCursor ? orderCursor
+			: GetAlertCursor(position) is { } alertCursor ? alertCursor
 			: GetDrawingCursor(position) is { } drawingCursor ? drawingCursor
 			: _handleHovered || _marginDragStartX != null ? ResizeCursor
 			: !dragging && position is { } q && HitLegend(q) != null ? HandCursor
@@ -1094,6 +1105,8 @@ public partial class CandlestickChart : Control
 		_pointer = position;
 		if (_stroke != null || _edit != null)
 			OnDrawingPointerMoved(position);
+		else if (_draggedOrder != null)
+			DragOrder(position);
 		else if (_draggedAlert != null)
 			DragAlert(position);
 		else if (_marginDragStartX is { } marginStart)
@@ -1150,6 +1163,12 @@ public partial class CandlestickChart : Control
 			UpdateHandleHover(position);
 			return;
 		}
+		if (OnOrderPressed(e, position))
+		{
+			e.Handled = true;
+			UpdateHandleHover(position);
+			return;
+		}
 		if (OnAlertPressed(e, position))
 		{
 			e.Handled = true;
@@ -1196,6 +1215,7 @@ public partial class CandlestickChart : Control
 	{
 		base.OnPointerReleased(e);
 		OnDrawingReleased(e.GetPosition(this));
+		OnOrderReleased();
 		OnAlertReleased();
 		_dragStart = null;
 		_marginDragStartX = null;
@@ -1209,6 +1229,8 @@ public partial class CandlestickChart : Control
 		base.OnPointerCaptureLost(e);
 		// Lost before the release (another window took the pointer): the alert stays where it was
 		_draggedAlert = null;
+		// An order line being dragged goes back: nothing is asked
+		_draggedOrder = null;
 		_dragStart = null;
 		_marginDragStartX = null;
 		// A drawing being moved goes back, a stroke is dropped; clicked points stay
@@ -1223,6 +1245,7 @@ public partial class CandlestickChart : Control
 		base.OnPointerExited(e);
 		_pointer = null;
 		UpdateHandleHover(null);
+		SetOrderTip(null);
 		InvalidateVisual();
 	}
 

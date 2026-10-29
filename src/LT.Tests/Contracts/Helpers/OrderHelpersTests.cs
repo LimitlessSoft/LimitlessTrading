@@ -2,6 +2,7 @@ using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Orders;
 using LT.Contracts.Dtos.Positions;
 using LT.Contracts.Enums;
+using LT.Contracts.Enums.ValidationCodes;
 using LT.Contracts.Helpers;
 using LT.Contracts.Requests.Orders;
 
@@ -207,4 +208,72 @@ public class OrderHelpersTests
 	[Fact]
 	public void A_flat_position_has_no_quick_exit() =>
 		Assert.Null(OrderHelpers.GetQuickExitRequest(Position(0)));
+
+	private static OpenOrderDto Working(
+		int clientId = 101,
+		string type = "LMT",
+		double? limit = 1.60,
+		string status = "Submitted"
+	) =>
+		new()
+		{
+			OrderId = 44,
+			ClientId = clientId,
+			Account = "U0000001",
+			Symbol = "SPY 20261029 767 P",
+			Action = "SELL",
+			Quantity = 1,
+			OrderType = type,
+			LimitPrice = limit,
+			TimeInForce = "DAY",
+			Status = status,
+		};
+
+	[Fact]
+	public void This_apps_working_limit_order_can_be_changed() =>
+		Assert.Null(OrderHelpers.GetModifyBlock(Working(), 101));
+
+	[Theory]
+	[InlineData(0)] // TWS
+	[InlineData(1)] // the app's main connection never places orders
+	[InlineData(7)] // another API client
+	public void Only_the_order_connections_orders_can_be_changed(int clientId) =>
+		Assert.Equal(
+			OrderValidationCodes.OVC_014,
+			OrderHelpers.GetModifyBlock(Working(clientId), 101)
+		);
+
+	[Fact]
+	public void Nothing_can_be_changed_while_disconnected() =>
+		Assert.Equal(OrderValidationCodes.OVC_014, OrderHelpers.GetModifyBlock(Working(), null));
+
+	[Theory]
+	[InlineData("MKT", null)]
+	[InlineData("STP", null)]
+	[InlineData("STP LMT", 1.5)]
+	[InlineData("LMT", null)]
+	public void Only_a_limit_orders_price_can_be_changed(string type, double? limit) =>
+		Assert.Equal(
+			OrderValidationCodes.OVC_015,
+			OrderHelpers.GetModifyBlock(Working(type: type, limit: limit), 101)
+		);
+
+	[Theory]
+	[InlineData("Filled")]
+	[InlineData("Cancelled")]
+	[InlineData("ApiCancelled")]
+	[InlineData("Inactive")]
+	[InlineData("PendingCancel")]
+	public void An_order_that_is_done_or_being_cancelled_cant_be_changed(string status) =>
+		Assert.Equal(
+			OrderValidationCodes.OVC_016,
+			OrderHelpers.GetModifyBlock(Working(status: status), 101)
+		);
+
+	[Fact]
+	public void A_change_is_described_with_the_old_and_new_price() =>
+		Assert.Equal(
+			"SELL 1 SPY 20261029 767 P, limit 1.60 → 1.55, DAY, account U0000001 (order 44)",
+			OrderHelpers.DescribeModification(Working(), 1.55)
+		);
 }

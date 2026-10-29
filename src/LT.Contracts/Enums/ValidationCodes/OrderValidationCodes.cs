@@ -39,4 +39,21 @@ public enum OrderValidationCodes
 
 	[LSCoreValidationMessage("Set a one-click quantity of {0} to {1} whole contracts.")]
 	OVC_012,
+
+	[LSCoreValidationMessage("Pick an order to change.")]
+	OVC_013,
+
+	[LSCoreValidationMessage(
+		"Placed in TWS or by another app: IB lets only the client that placed an order change it, so change it there."
+	)]
+	OVC_014,
+
+	[LSCoreValidationMessage("Only a limit order's price can be changed here.")]
+	OVC_015,
+
+	[LSCoreValidationMessage("The order is no longer working.")]
+	OVC_016,
+
+	[LSCoreValidationMessage("The new limit price is the same as the order's.")]
+	OVC_017,
 }
