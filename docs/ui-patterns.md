@@ -906,14 +906,21 @@ they don't link. The press still selects the row (and so sends it to the source'
 - A left press on a row turns into a drag once it moves 6 px (`WorkspaceHelpers.IsBeyondDragThreshold`,
   like widget headers); clicks, double-clicks, scrolling and presses on buttons inside a row
   (Close, Quick exit, Cancel) never start one.
+- The option chain's strike cell drags an option: its left (C) half the call, its right (P)
+  half the put of that strike and expiration. The chart then shows the option's own bars (IB
+  TRADES history by conId, like any contract; an account without option data permissions gets
+  IB's error in the chart). A drag cancels the half's click, so it doesn't also open the order
+  ticket.
 - While a ticker hovers a chart, the chart shows the `Border.dropTarget` highlight with
   "Show AAPL"; anything else dragged over it is refused.
 - Plumbing in `LT.Widgets.Core`: `Helpers/TickerDragDrop` — attached `IsSource` on the list
   (its view model implements `Workspace/ITickerDragSource`, which says what contract a row
-  item carries), `IsTarget` on the drop area (its view model implements `ITickerDropTarget`),
-  and `HoverText` for the highlight to bind to. The payload is the row's `ContractDto` in an
-  in-process `DataFormat` (Avalonia 12 `DataTransfer` / `DragDrop.DoDragDropAsync`), so it never
-  reaches other applications.
+  item carries), `Contract` on a single control that carries its own contract (the strike
+  halves' panels: a button's press is its own, so the row lookup can't be used, and the panel
+  still takes the press while the button is disabled), `IsTarget` on the drop area (its view
+  model implements `ITickerDropTarget`), and `HoverText` for the highlight to bind to. The
+  payload is the row's `ContractDto` in an in-process `DataFormat` (Avalonia 12 `DataTransfer` /
+  `DragDrop.DoDragDropAsync`), so it never reaches other applications.
 
 ### Account performance
 

@@ -3,6 +3,7 @@
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:LT.App.Widgets.OptionChain"
 	xmlns:enums="using:LT.Contracts.Enums"
+	xmlns:helpers="using:LT.App.Helpers"
 	x:Class="LT.App.Widgets.OptionChain.OptionChainView"
 	x:DataType="vm:OptionChainViewModel"
 >
@@ -235,7 +236,8 @@
 					<Setter Property="Background" Value="{DynamicResource PutItmBrush}" />
 				</Style>
 				<!-- Strike cell: its call half (calls' side) and put half open an order ticket for
-				     that option. Transparent over the σ colour; hovering the cell shows the C / P
+				     that option, and drag it onto a chart (TickerDragDrop.Contract on the half's
+				     panel, so a disabled half still drags). Transparent over the σ colour; hovering the cell shows the C / P
 				     badges, the half under the pointer brightens its own -->
 				<Style Selector="Button.strikeHalf">
 					<Setter Property="HorizontalAlignment" Value="Stretch" />
@@ -420,28 +422,38 @@
 										Text="{Binding StrikeText}"
 									/>
 								</Border>
-								<Button
+								<Panel
 									Grid.Column="0"
-									Classes="strikeHalf call"
-									Command="{Binding OpenCallTicketCommand}"
-									ToolTip.Tip="{Binding CallTicketTip}"
-									ToolTip.ShowOnDisabled="True"
+									Background="Transparent"
+									helpers:TickerDragDrop.Contract="{Binding Strike.Call}"
 								>
-									<Border Classes="badge call">
-										<TextBlock Text="C" />
-									</Border>
-								</Button>
-								<Button
+									<Button
+										Classes="strikeHalf call"
+										Command="{Binding OpenCallTicketCommand}"
+										ToolTip.Tip="{Binding CallTicketTip}"
+										ToolTip.ShowOnDisabled="True"
+									>
+										<Border Classes="badge call">
+											<TextBlock Text="C" />
+										</Border>
+									</Button>
+								</Panel>
+								<Panel
 									Grid.Column="1"
-									Classes="strikeHalf put"
-									Command="{Binding OpenPutTicketCommand}"
-									ToolTip.Tip="{Binding PutTicketTip}"
-									ToolTip.ShowOnDisabled="True"
+									Background="Transparent"
+									helpers:TickerDragDrop.Contract="{Binding Strike.Put}"
 								>
-									<Border Classes="badge put">
-										<TextBlock Text="P" />
-									</Border>
-								</Button>
+									<Button
+										Classes="strikeHalf put"
+										Command="{Binding OpenPutTicketCommand}"
+										ToolTip.Tip="{Binding PutTicketTip}"
+										ToolTip.ShowOnDisabled="True"
+									>
+										<Border Classes="badge put">
+											<TextBlock Text="P" />
+										</Border>
+									</Button>
+								</Panel>
 							</Grid>
 						</DataTemplate>
 					</DataGridTemplateColumn.CellTemplate>

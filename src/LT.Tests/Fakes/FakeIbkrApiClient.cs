@@ -53,6 +53,9 @@ public class FakeIbkrApiClient : IIbkrApiClient
 	/// <summary>The bar size of each historical bars request, in order.</summary>
 	public List<string> HistoricalBarSizes { get; } = [];
 
+	/// <summary>The contract and whatToShow of each historical bars request, in order.</summary>
+	public List<(ContractDto Contract, string WhatToShow)> HistoricalRequests { get; } = [];
+
 	/// <summary>
 	/// Answers each historical bars request by duration and bar size instead of
 	/// <see cref="HistoricalBars"/>; the answer ignores cancellation, like one already on its way.
@@ -294,6 +297,7 @@ public class FakeIbkrApiClient : IIbkrApiClient
 		HistoricalDurations.Add(duration);
 		HistoricalUseRth.Add(useRegularTradingHours);
 		HistoricalBarSizes.Add(barSize);
+		HistoricalRequests.Add((contract, whatToShow));
 		HistoricalEnds.Add(end);
 		if (end is { } before && HistoricalBefore != null)
 			return HistoricalBefore(before);

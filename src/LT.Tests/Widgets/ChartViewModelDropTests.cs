@@ -64,6 +64,36 @@ public class ChartViewModelDropTests : IDisposable
 		Assert.Equal(LinkGroup.Red, second.Link.Group);
 	}
 
+	[Fact]
+	public void An_option_dropped_from_the_chain_loads_that_options_trade_bars()
+	{
+		var chart = TestUiThread.Invoke(CreateChart);
+		var call = new ContractDto
+		{
+			ConId = 701234567,
+			Symbol = "SPY",
+			LocalSymbol = "SPY   261120C00600000",
+			SecurityType = "OPT",
+			Exchange = "SMART",
+			Currency = "USD",
+			LastTradeDateOrContractMonth = "20261120",
+			Strike = 600,
+			Right = "C",
+			Multiplier = "100",
+			TradingClass = "SPY",
+		};
+
+		TestUiThread.Invoke(() => chart.DropContract(call));
+
+		Assert.Equal("SPY 20261120 600 C", chart.Title);
+		WaitFor(() => _ibkr.HistoricalRequests.Any(x => x.Contract.ConId == call.ConId));
+		var request = _ibkr.HistoricalRequests.Last(x => x.Contract.ConId == call.ConId);
+		Assert.Equal("OPT", request.Contract.SecurityType);
+		Assert.Equal("C", request.Contract.Right);
+		Assert.Equal(600, request.Contract.Strike);
+		Assert.Equal("TRADES", request.WhatToShow);
+	}
+
 	public void Dispose()
 	{
 		foreach (var chart in _charts)
@@ -118,6 +148,16 @@ public class ChartViewModelDropTests : IDisposable
 		);
 		_charts.Add(chart);
 		return chart;
+	}
+
+	private static void WaitFor(Func<bool> condition)
+	{
+		var until = DateTime.UtcNow.AddSeconds(5);
+		while (!TestUiThread.Invoke(condition))
+		{
+			Assert.True(DateTime.UtcNow < until, "Timed out");
+			Thread.Sleep(10);
+		}
 	}
 
 	private static ContractDto Stock(int conId, string symbol) =>

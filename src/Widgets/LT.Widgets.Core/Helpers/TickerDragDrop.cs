@@ -16,9 +16,12 @@ namespace LT.App.Helpers;
 /// makes its rows drag sources: a left press on a row becomes a drag once it moves past
 /// <see cref="WorkspaceHelpers.IsBeyondDragThreshold"/>, carrying the contract the list's
 /// <see cref="ITickerDragSource"/> view model gives for the row. A click, double-click or a
-/// press on a button inside the row (Close, Cancel) never starts one. <c>IsTarget</c> makes a
-/// control take drops for its <see cref="ITickerDropTarget"/> view model; while a ticker hovers
-/// it, <c>HoverText</c> holds what the drop will do, for a highlight to bind to.
+/// press on a button inside the row (Close, Cancel) never starts one. <c>Contract</c> on any other
+/// control (the option chain's C / P strike halves, which are buttons) makes the control itself a
+/// source of that contract, the same press-and-move away; the drag cancels the control's own click.
+/// <c>IsTarget</c> makes a control take drops for its <see cref="ITickerDropTarget"/> view model;
+/// while a ticker hovers it, <c>HoverText</c> holds what the drop will do, for a highlight to bind
+/// to.
 /// </summary>
 public static class TickerDragDrop
 {
@@ -32,6 +35,15 @@ public static class TickerDragDrop
 	public static readonly AttachedProperty<bool> IsTargetProperty =
 		AvaloniaProperty.RegisterAttached<Control, bool>("IsTarget", typeof(TickerDragDrop));
 
+	/// <summary>
+	/// The contract a press-and-move on this control drags; null (or unresolved, ConId 0): none.
+	/// </summary>
+	public static readonly AttachedProperty<ContractDto?> ContractProperty =
+		AvaloniaProperty.RegisterAttached<Control, ContractDto?>(
+			"Contract",
+			typeof(TickerDragDrop)
+		);
+
 	/// <summary>"Show AAPL" while a ticker hovers the target, null otherwise.</summary>
 	public static readonly AttachedProperty<string?> HoverTextProperty =
 		AvaloniaProperty.RegisterAttached<Control, string?>("HoverText", typeof(TickerDragDrop));
@@ -42,6 +54,7 @@ public static class TickerDragDrop
 	{
 		IsSourceProperty.Changed.AddClassHandler<Control>(OnIsSourceChanged);
 		IsTargetProperty.Changed.AddClassHandler<Control>(OnIsTargetChanged);
+		ContractProperty.Changed.AddClassHandler<Control>(OnContractChanged);
 	}
 
 	public static bool GetIsSource(Control control) => control.GetValue(IsSourceProperty);
@@ -54,6 +67,11 @@ public static class TickerDragDrop
 	public static void SetIsTarget(Control control, bool value) =>
 		control.SetValue(IsTargetProperty, value);
 
+	public static ContractDto? GetContract(Control control) => control.GetValue(ContractProperty);
+
+	public static void SetContract(Control control, ContractDto? value) =>
+		control.SetValue(ContractProperty, value);
+
 	public static string? GetHoverText(Control control) => control.GetValue(HoverTextProperty);
 
 	public static void SetHoverText(Control control, string? value) =>
@@ -62,8 +80,20 @@ public static class TickerDragDrop
 	private static void OnIsSourceChanged(Control control, AvaloniaPropertyChangedEventArgs e)
 	{
 		if (e.NewValue is true && !Sources.TryGetValue(control, out _))
-			Sources.Add(control, new SourceGesture(control));
+			Sources.Add(control, new SourceGesture(control, ownContract: false));
 		else if (e.NewValue is not true && Sources.TryGetValue(control, out var gesture))
+		{
+			gesture.Detach();
+			Sources.Remove(control);
+		}
+	}
+
+	// A recycled row's cell may lose its contract (no put at the new strike): no gesture then
+	private static void OnContractChanged(Control control, AvaloniaPropertyChangedEventArgs e)
+	{
+		if (e.NewValue != null && !Sources.TryGetValue(control, out _))
+			Sources.Add(control, new SourceGesture(control, ownContract: true));
+		else if (e.NewValue == null && Sources.TryGetValue(control, out var gesture))
 		{
 			gesture.Detach();
 			Sources.Remove(control);
@@ -134,17 +164,22 @@ public static class TickerDragDrop
 		target.DropContract(contract);
 	}
 
-	/// <summary>Press → move past the threshold → drag, on one source list.</summary>
+	/// <summary>
+	/// Press → move past the threshold → drag, on one source list (a row's contract) or one
+	/// control carrying its own <c>Contract</c>.
+	/// </summary>
 	private sealed class SourceGesture
 	{
 		private readonly Control _host;
+		private readonly bool _ownContract;
 		private PointerPressedEventArgs? _press;
 		private Point _pressPoint;
 		private object? _item;
 
-		public SourceGesture(Control host)
+		public SourceGesture(Control host, bool ownContract)
 		{
 			_host = host;
+			_ownContract = ownContract;
 			// The grid handles its own row presses (selection); handled ones count too
 			host.AddHandler(
 				InputElement.PointerPressedEvent,
@@ -180,10 +215,11 @@ public static class TickerDragDrop
 		{
 			Reset();
 			var point = e.GetCurrentPoint(_host);
-			if (
-				point.Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed
-				|| GetRowItem(e.Source as Visual) is not { } item
-			)
+			if (point.Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed)
+				return;
+			// A control with its own contract is the item itself, buttons included
+			var item = _ownContract ? _host : GetRowItem(e.Source as Visual);
+			if (item == null)
 				return;
 			_press = e;
 			_pressPoint = point.Position;
@@ -205,8 +241,17 @@ public static class TickerDragDrop
 				return;
 			var item = _item;
 			Reset();
-			if ((_host.DataContext as ITickerDragSource)?.GetDragContract(item) is { } contract)
-				_ = DragAsync(press, contract);
+			if (!_ownContract)
+			{
+				if ((_host.DataContext as ITickerDragSource)?.GetDragContract(item) is { } row)
+					_ = DragAsync(press, row);
+				return;
+			}
+			if (GetContract(_host) is not { ConId: > 0 } contract)
+				return;
+			// The button under the press loses its capture, so the drop doesn't also click it
+			e.Pointer.Capture(null);
+			_ = DragAsync(press, contract);
 		}
 
 		private void OnReleased(object? sender, PointerReleasedEventArgs e) => Reset();
