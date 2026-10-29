@@ -62,4 +62,7 @@ public static class CalendarConstants
 
 	/// <summary>How much of an unreadable answer the error message quotes.</summary>
 	public const int UnreadableSnippetLength = 200;
+
+	/// <summary>What a figure column shows for a figure the source didn't give.</summary>
+	public const string NoFigure = "\u2014";
 }

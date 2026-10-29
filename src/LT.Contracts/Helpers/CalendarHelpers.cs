@@ -391,6 +391,71 @@ public static class CalendarHelpers
 		};
 
 	/// <summary>
+	/// A money or plain figure as sources write it: <c>$4.89</c>, <c>($0.04)</c> (negative),
+	/// <c>-$1,234.5</c>, <c>3.82</c>, <c>3.82%</c>. Null for none (<c>N/A</c>, blank, anything
+	/// else).
+	/// </summary>
+	public static decimal? ParseFigure(string? text)
+	{
+		var value = text?.Trim() ?? string.Empty;
+		var negative = false;
+		if (value.Length > 1 && value[0] == '(' && value[^1] == ')')
+		{
+			negative = true;
+			value = value[1..^1].Trim();
+		}
+		if (value.StartsWith('-'))
+		{
+			negative = !negative;
+			value = value[1..].Trim();
+		}
+		value = value.TrimStart('$').TrimEnd('%').Trim();
+		if (
+			value.Length == 0
+			|| !char.IsDigit(value[0]) && value[0] != '.'
+			|| !decimal.TryParse(
+				value,
+				NumberStyles.AllowDecimalPoint | NumberStyles.AllowThousands,
+				CultureInfo.InvariantCulture,
+				out var number
+			)
+		)
+			return null;
+		return negative ? -number : number;
+	}
+
+	/// <summary>An EPS: <c>$4.89</c>, <c>-$0.04</c>; an em dash for none.</summary>
+	public static string FormatEps(decimal? eps) =>
+		eps is not { } value ? CalendarConstants.NoFigure
+		: value < 0 ? "-$" + (-value).ToString("0.00##", CultureInfo.InvariantCulture)
+		: "$" + value.ToString("0.00##", CultureInfo.InvariantCulture);
+
+	/// <summary>An EPS surprise: <c>+3.8%</c>, <c>-27.9%</c>, <c>0.0%</c>; an em dash for none.</summary>
+	public static string FormatSurprise(decimal? percent) =>
+		percent is not { } value
+			? CalendarConstants.NoFigure
+			: (value > 0 ? "+" : string.Empty)
+				+ value.ToString("0.0", CultureInfo.InvariantCulture)
+				+ "%";
+
+	/// <summary>
+	/// An earnings event's detail text (tooltip, sources without columns): "EPS est. $4.71" before
+	/// the report, "EPS $4.89 · est. $4.71 · +3.8%" after it (parts missing left out); empty
+	/// without any figure.
+	/// </summary>
+	public static string FormatEarningsDetail(decimal? estimate, decimal? actual, decimal? surprise)
+	{
+		if (actual is null)
+			return estimate is null ? string.Empty : "EPS est. " + FormatEps(estimate);
+		var parts = new List<string> { "EPS " + FormatEps(actual) };
+		if (estimate is not null)
+			parts.Add("est. " + FormatEps(estimate));
+		if (surprise is not null)
+			parts.Add(FormatSurprise(surprise));
+		return string.Join(" · ", parts);
+	}
+
+	/// <summary>
 	/// The event types WSH's metadata names: any object whose type field holds a <c>wshe_</c> tag
 	/// (named by its name field), and any <c>wshe_</c> key holding an object or a name. Empty when
 	/// the document names none or isn't JSON.
@@ -481,7 +546,7 @@ public static class CalendarHelpers
 	/// <summary>
 	/// One event per day, kind and symbol (and type, for <see cref="CalendarEventKind.Other"/>,
 	/// which covers many types), in the order given: two sources reporting the same earnings date
-	/// become one, the first source's, with blanks (company, conId, time, detail) filled from the
+	/// become one, the first source's, with blanks (company, conId, time, detail, EPS figures) filled from the
 	/// others. Events without a symbol (economic releases) merge only when everything shown is the
 	/// same: a release can be listed twice with different figures (Japan's Leading Index as a
 	/// change and as a level). Never changes the events passed in.
@@ -514,6 +579,9 @@ public static class CalendarHelpers
 			}
 			if (copy.Detail.Length == 0)
 				copy.Detail = item.Detail;
+			copy.EpsEstimate ??= item.EpsEstimate;
+			copy.EpsActual ??= item.EpsActual;
+			copy.EpsSurprisePercent ??= item.EpsSurprisePercent;
 			merged[index] = copy;
 		}
 		return merged;
@@ -547,7 +615,10 @@ public static class CalendarHelpers
 			&& kept.TimeText.Length == 0
 			&& (other.Time != CalendarEventTime.Unknown || other.TimeText.Length > 0)
 		)
-		|| (kept.Detail.Length == 0 && other.Detail.Length > 0);
+		|| (kept.Detail.Length == 0 && other.Detail.Length > 0)
+		|| (kept.EpsEstimate is null && other.EpsEstimate is not null)
+		|| (kept.EpsActual is null && other.EpsActual is not null)
+		|| (kept.EpsSurprisePercent is null && other.EpsSurprisePercent is not null);
 
 	private static CalendarEventDto Copy(CalendarEventDto item) =>
 		new()
@@ -562,6 +633,9 @@ public static class CalendarHelpers
 			Time = item.Time,
 			TimeText = item.TimeText,
 			Detail = item.Detail,
+			EpsEstimate = item.EpsEstimate,
+			EpsActual = item.EpsActual,
+			EpsSurprisePercent = item.EpsSurprisePercent,
 			Source = item.Source,
 		};
 

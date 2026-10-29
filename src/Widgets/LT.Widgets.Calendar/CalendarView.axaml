@@ -33,9 +33,29 @@
 				<!-- Day headers group the events; only events can be clicked -->
 				<Setter Property="IsHitTestVisible" Value="{Binding IsSelectable}" />
 			</Style>
-			<!-- Past events and days: dimmed, still readable -->
-			<Style Selector="Grid.event.past">
+			<!-- Past events and days: dimmed, still readable; an earnings report's result (actual,
+			     surprise) stays at full strength, it is what a past row is read for -->
+			<Style Selector="StackPanel.event.past :is(Control).dim">
 				<Setter Property="Opacity" Value="0.45" />
+			</Style>
+			<Style Selector="StackPanel.event.past TextBlock.estimate">
+				<Setter Property="Opacity" Value="0.7" />
+			</Style>
+			<!-- Earnings figures: fixed-width, right-aligned columns with tabular digits; the
+			     captions over them sit in the day's header -->
+			<Style Selector="TextBlock.figure">
+				<Setter Property="Width" Value="62" />
+				<Setter Property="FontSize" Value="12" />
+				<Setter Property="FontFeatures" Value="+tnum" />
+				<Setter Property="TextAlignment" Value="Right" />
+				<Setter Property="VerticalAlignment" Value="Center" />
+			</Style>
+			<Style Selector="TextBlock.caption">
+				<Setter Property="Width" Value="62" />
+				<Setter Property="FontSize" Value="10" />
+				<Setter Property="TextAlignment" Value="Right" />
+				<Setter Property="VerticalAlignment" Value="Bottom" />
+				<Setter Property="Foreground" Value="{DynamicResource SecondaryText}" />
 			</Style>
 			<Style Selector="StackPanel.day.past">
 				<Setter Property="Opacity" Value="0.6" />
@@ -158,16 +178,34 @@
 						Classes.past="{Binding IsPast}"
 						Margin="0,6,0,0"
 					>
-						<DockPanel>
+						<Grid ColumnDefinitions="*,Auto,Auto">
+							<TextBlock Classes="dayTitle" FontWeight="SemiBold" Text="{Binding Title}" />
 							<TextBlock
-								DockPanel.Dock="Right"
+								Grid.Column="1"
 								Classes="secondary"
 								FontSize="11"
 								VerticalAlignment="Bottom"
 								Text="{Binding CountText}"
 							/>
-							<TextBlock Classes="dayTitle" FontWeight="SemiBold" Text="{Binding Title}" />
-						</DockPanel>
+							<StackPanel
+								Grid.Column="2"
+								Margin="8,0,0,0"
+								Orientation="Horizontal"
+								IsVisible="{Binding ShowsCaptions}"
+							>
+								<TextBlock Classes="caption" Text="Est." ToolTip.Tip="Consensus EPS estimate" />
+								<TextBlock
+									Classes="caption"
+									Text="Actual"
+									ToolTip.Tip="Reported EPS (Nasdaq lists it from the day after the report)"
+								/>
+								<TextBlock
+									Classes="caption"
+									Text="Surprise"
+									ToolTip.Tip="Reported EPS against the estimate: green a beat, red a miss"
+								/>
+							</StackPanel>
+						</Grid>
 						<TextBlock
 							Classes="warning"
 							FontSize="11"
@@ -202,56 +240,101 @@
 					</DockPanel>
 				</DataTemplate>
 				<DataTemplate DataType="vm:CalendarEventRowViewModel">
-					<!-- A release's flag on the left (its country in the tooltip); the country as text
-					     on the right only when no flag is drawn for it -->
-					<Grid
+					<!-- A release's flag on the left (its country in the tooltip); on the right either
+					     an earnings report's figure columns or the detail with the type (the country
+					     as text only when no flag is drawn for it) -->
+					<StackPanel
 						Classes="event"
 						Classes.past="{Binding IsPast}"
-						ColumnDefinitions="24,92,64,*,Auto,Auto"
 						Background="Transparent"
 						ToolTip.Tip="{Binding ToolTipText}"
 					>
-						<controls:CountryFlag
-							Grid.Column="0"
-							HorizontalAlignment="Left"
-							VerticalAlignment="Center"
-							Code="{Binding FlagCode}"
-							IsVisible="{Binding HasFlag}"
-							ToolTip.Tip="{Binding Event.TypeName}"
-						/>
-						<Border Grid.Column="1" Classes="badge" IsVisible="{Binding HasTime}">
-							<TextBlock Text="{Binding TimeText}" />
-						</Border>
-						<TextBlock
-							Grid.Column="2"
-							FontWeight="SemiBold"
-							VerticalAlignment="Center"
-							Text="{Binding Event.Symbol}"
-						/>
-						<TextBlock
-							Grid.Column="3"
-							VerticalAlignment="Center"
-							TextTrimming="CharacterEllipsis"
-							Text="{Binding Event.Company}"
-						/>
-						<TextBlock
-							Grid.Column="4"
-							Margin="8,0,0,0"
-							FontSize="11"
-							VerticalAlignment="Center"
-							Text="{Binding Event.Detail}"
-							IsVisible="{Binding HasDetail}"
-						/>
-						<TextBlock
-							Grid.Column="5"
-							Margin="8,0,0,0"
-							Classes="secondary"
-							FontSize="11"
-							VerticalAlignment="Center"
-							Text="{Binding Event.TypeName}"
-							IsVisible="{Binding ShowsTypeName}"
-						/>
-					</Grid>
+						<!-- The figure columns' captions, when the day's header can't have them -->
+						<StackPanel
+							Classes="dim"
+							Margin="0,2,0,2"
+							HorizontalAlignment="Right"
+							Orientation="Horizontal"
+							IsVisible="{Binding ShowsCaptions}"
+						>
+							<TextBlock Classes="caption" Text="Est." ToolTip.Tip="Consensus EPS estimate" />
+							<TextBlock
+								Classes="caption"
+								Text="Actual"
+								ToolTip.Tip="Reported EPS (Nasdaq lists it from the day after the report)"
+							/>
+							<TextBlock
+								Classes="caption"
+								Text="Surprise"
+								ToolTip.Tip="Reported EPS against the estimate: green a beat, red a miss"
+							/>
+						</StackPanel>
+						<Grid ColumnDefinitions="24,92,64,*,Auto">
+							<controls:CountryFlag
+								Grid.Column="0"
+								Classes="dim"
+								HorizontalAlignment="Left"
+								VerticalAlignment="Center"
+								Code="{Binding FlagCode}"
+								IsVisible="{Binding HasFlag}"
+								ToolTip.Tip="{Binding Event.TypeName}"
+							/>
+							<Border Grid.Column="1" Classes="badge dim" IsVisible="{Binding HasTime}">
+								<TextBlock Text="{Binding TimeText}" />
+							</Border>
+							<TextBlock
+								Grid.Column="2"
+								Classes="dim"
+								FontWeight="SemiBold"
+								VerticalAlignment="Center"
+								Text="{Binding Event.Symbol}"
+							/>
+							<TextBlock
+								Grid.Column="3"
+								Classes="dim"
+								VerticalAlignment="Center"
+								TextTrimming="CharacterEllipsis"
+								Text="{Binding Event.Company}"
+							/>
+							<StackPanel
+								Grid.Column="4"
+								Margin="8,0,0,0"
+								Orientation="Horizontal"
+								IsVisible="{Binding ShowsFigures}"
+							>
+								<TextBlock Classes="figure estimate" Text="{Binding EstimateText}" />
+								<TextBlock Classes="figure" Text="{Binding ActualText}" />
+								<TextBlock
+									Classes="figure"
+									Classes.positive="{Binding IsBeat}"
+									Classes.negative="{Binding IsMiss}"
+									Text="{Binding SurpriseText}"
+								/>
+							</StackPanel>
+							<StackPanel
+								Grid.Column="4"
+								Classes="dim"
+								Margin="8,0,0,0"
+								Orientation="Horizontal"
+								Spacing="8"
+								IsVisible="{Binding ShowsDetail}"
+							>
+								<TextBlock
+									FontSize="11"
+									VerticalAlignment="Center"
+									Text="{Binding Event.Detail}"
+									IsVisible="{Binding HasDetail}"
+								/>
+								<TextBlock
+									Classes="secondary"
+									FontSize="11"
+									VerticalAlignment="Center"
+									Text="{Binding Event.TypeName}"
+									IsVisible="{Binding ShowsTypeName}"
+								/>
+							</StackPanel>
+						</Grid>
+					</StackPanel>
 				</DataTemplate>
 			</ListBox.DataTemplates>
 		</ListBox>

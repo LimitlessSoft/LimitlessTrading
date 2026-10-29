@@ -12,7 +12,8 @@ using LT.Contracts.Helpers;
 namespace LT.Nasdaq;
 
 /// <summary>
-/// Reads nasdaq.com's calendar JSON, as recorded on 2026-10-27. Every answer is
+/// Reads nasdaq.com's calendar JSON, as recorded on 2026-10-27 (earnings of a past day on
+/// 2026-10-29). Every answer is
 /// <c>{"data":…,"message":…,"status":{"rCode":200,"bCodeMessage":[{"code":…,"errorMessage":…}]}}</c>;
 /// the rows are <c>data.rows</c> (dividends: <c>data.calendar.rows</c>), null on a day without
 /// any, and a day Nasdaq has no record of answers <c>data: null</c> with business code 1002. An
@@ -120,13 +121,19 @@ public static class NasdaqCalendarParser
 			_ => null,
 		};
 
-	// {"time":"time-after-hours","symbol":"V","name":"Visa Inc.","epsForecast":"$3.43",…}
+	// {"time":"time-after-hours","symbol":"V","name":"Visa Inc.","epsForecast":"$3.43",…}; a past
+	// day's rows also have the result, {"eps":"$4.89","surprise":"3.82",…} ("($0.01)" negative,
+	// "N/A" no surprise), today's and later ones don't (lastYearEPS instead)
 	private static CalendarEventDto? ReadEarnings(JsonElement row, DateOnly day)
 	{
 		var symbol = GetText(row, "symbol");
 		if (symbol.Length == 0)
 			return null;
-		var eps = CleanCell(GetText(row, "epsForecast"));
+		var estimate = CalendarHelpers.ParseFigure(CleanCell(GetText(row, "epsForecast")));
+		var actual = CalendarHelpers.ParseFigure(CleanCell(GetText(row, "eps")));
+		var surprise = actual is null
+			? null
+			: CalendarHelpers.ParseFigure(CleanCell(GetText(row, "surprise")));
 		return new CalendarEventDto
 		{
 			Date = day,
@@ -135,7 +142,10 @@ public static class NasdaqCalendarParser
 			Symbol = symbol.ToUpperInvariant(),
 			Company = GetText(row, "name"),
 			Time = ParseEarningsTime(GetText(row, "time")),
-			Detail = eps.Length > 0 ? $"EPS est. {eps}" : string.Empty,
+			Detail = CalendarHelpers.FormatEarningsDetail(estimate, actual, surprise),
+			EpsEstimate = estimate,
+			EpsActual = actual,
+			EpsSurprisePercent = surprise,
 			Source = CalendarSource.Nasdaq,
 		};
 	}

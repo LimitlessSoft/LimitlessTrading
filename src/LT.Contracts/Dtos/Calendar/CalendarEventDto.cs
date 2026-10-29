@@ -32,8 +32,23 @@ public class CalendarEventDto
 	/// </summary>
 	public string TimeText { get; set; } = string.Empty;
 
-	/// <summary>Short extra facts: "EPS est. $3.43", "2.1077 · pays 4 Nov", "3:1", "Act. 0.07 · Cons. -0.10 · Prev. -0.08".</summary>
+	/// <summary>
+	/// Short extra facts, as text: "EPS est. $3.43", "EPS $4.89 · est. $4.71 · +3.82%",
+	/// "2.1077 · pays 4 Nov", "3:1", "Act. 0.07 · Cons. -0.10 · Prev. -0.08".
+	/// </summary>
 	public string Detail { get; set; } = string.Empty;
+
+	/// <summary>Earnings: the consensus EPS estimate; null when the source gave none.</summary>
+	public decimal? EpsEstimate { get; set; }
+
+	/// <summary>Earnings: the reported EPS; null until reported (Nasdaq: only for past days).</summary>
+	public decimal? EpsActual { get; set; }
+
+	/// <summary>
+	/// Earnings: how far the reported EPS beat (positive) or missed (negative) the estimate, in
+	/// percent as the source gives it (3.82 = 3.82 %); null when it gave none ("N/A").
+	/// </summary>
+	public decimal? EpsSurprisePercent { get; set; }
 
 	/// <summary>The source that reported it (the first one, when several did).</summary>
 	public CalendarSource Source { get; set; }
