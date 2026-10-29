@@ -1,4 +1,5 @@
 using LT.Contracts.Constants;
+using LT.Contracts.Dtos.Calendar;
 using LT.Contracts.Dtos.Fundamentals;
 using LT.Contracts.Interfaces.IApiClients;
 
@@ -20,6 +21,26 @@ public class FakeSecApiClient : ISecApiClient
 	public int ConceptCalls { get; private set; }
 	public int CompanyFactsCalls { get; private set; }
 	public int FilingCalls { get; private set; }
+
+	/// <summary>The latest filings feed, newest first; each call answers the page at its start.</summary>
+	public List<SecCurrentFilingDto> CurrentFilings { get; } = [];
+
+	/// <summary>The start of every feed page asked for.</summary>
+	public List<int> CurrentFilingsStarts { get; } = [];
+
+	public Task<IReadOnlyList<SecCurrentFilingDto>> GetCurrentFilingsAsync(
+		string form,
+		int start,
+		CancellationToken cancellationToken = default
+	)
+	{
+		CurrentFilingsStarts.Add(start);
+		if (Failure != null)
+			return Task.FromException<IReadOnlyList<SecCurrentFilingDto>>(Failure);
+		return Task.FromResult<IReadOnlyList<SecCurrentFilingDto>>([
+			.. CurrentFilings.Skip(start).Take(SecConstants.CurrentFilingsPageSize),
+		]);
+	}
 
 	public Task<IReadOnlyDictionary<string, int>> GetTickerCiksAsync(
 		CancellationToken cancellationToken = default

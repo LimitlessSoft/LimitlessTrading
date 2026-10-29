@@ -63,7 +63,9 @@ public sealed class CalendarNowMarkerViewModel : CalendarItemViewModel
 /// columns (EPS estimate, reported EPS, surprise coloured as a beat or a miss) or the detail
 /// (dividend, ratio, a release's figures) with the type (or a release's country when no flag is
 /// drawn for it). Dimmed once past (<see cref="CalendarHelpers.GetPassedAt"/>), all but the
-/// reported figures.
+/// reported figures. An earnings row its source gave no result for takes one from
+/// <see cref="Result"/> (another source's, filled in while the widget is open); with only the
+/// company's 8-K known, the Actual column links to it.
 /// </summary>
 public sealed partial class CalendarEventRowViewModel : CalendarItemViewModel
 {
@@ -72,10 +74,14 @@ public sealed partial class CalendarEventRowViewModel : CalendarItemViewModel
 		string timeText,
 		DateTimeOffset passedAt,
 		bool isPast,
-		bool showsCaptions = false
+		bool showsCaptions = false,
+		Func<DateTimeOffset, string>? formatTime = null
 	)
 	{
 		Event = item;
+		_formatTime =
+			formatTime
+			?? (x => x.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture));
 		TimeText = timeText;
 		PassedAt = passedAt;
 		IsPast = isPast;
@@ -87,9 +93,45 @@ public sealed partial class CalendarEventRowViewModel : CalendarItemViewModel
 				: null;
 	}
 
+	private readonly Func<DateTimeOffset, string> _formatTime;
+
 	public override bool IsSelectable => true;
 
 	public CalendarEventDto Event { get; }
+
+	/// <summary>
+	/// The result found for this row by the earnings result sources (its own source had none);
+	/// null until one is.
+	/// </summary>
+	[ObservableProperty]
+	[NotifyPropertyChangedFor(
+		nameof(ShowsFigures),
+		nameof(ShowsDetail),
+		nameof(ActualText),
+		nameof(HasActualText),
+		nameof(SurpriseText),
+		nameof(IsBeat),
+		nameof(IsMiss),
+		nameof(FilingUrl),
+		nameof(ShowsFilingLink),
+		nameof(ToolTipText)
+	)]
+	public partial EarningsResultDto? Result { get; set; }
+
+	/// <summary>The reported EPS: the row's source's, else the result's.</summary>
+	public decimal? EpsActual => Event.EpsActual ?? Result?.EpsActual;
+
+	/// <summary>The surprise to the reported EPS (worked out from the estimate when a source gave none).</summary>
+	public decimal? EpsSurprisePercent =>
+		Event.EpsActual is not null
+			? Event.EpsSurprisePercent
+			: EarningsResultHelpers.GetSurprisePercent(Event.EpsEstimate, Result);
+
+	/// <summary>The company's earnings release on EDGAR, when its 8-K was found.</summary>
+	public string? FilingUrl => Result?.FilingUrl;
+
+	/// <summary>Reported (the 8-K is out) but no figure yet: the Actual column links to the filing.</summary>
+	public bool ShowsFilingLink => EpsActual is null && FilingUrl != null;
 
 	public string TimeText { get; }
 
@@ -119,7 +161,10 @@ public sealed partial class CalendarEventRowViewModel : CalendarItemViewModel
 	public bool ShowsFigures =>
 		Event.Kind == CalendarEventKind.Earnings
 		&& (
-			Event.EpsEstimate is not null || Event.EpsActual is not null || Event.Detail.Length == 0
+			Event.EpsEstimate is not null
+			|| EpsActual is not null
+			|| Result != null
+			|| Event.Detail.Length == 0
 		);
 
 	/// <summary>The detail text and type, right-aligned where earnings have their figures.</summary>
@@ -142,21 +187,24 @@ public sealed partial class CalendarEventRowViewModel : CalendarItemViewModel
 
 	/// <summary>The reported EPS; empty until reported.</summary>
 	public string ActualText =>
-		Event.EpsActual is null ? string.Empty : CalendarHelpers.FormatEps(Event.EpsActual);
+		EpsActual is null ? string.Empty : CalendarHelpers.FormatEps(EpsActual);
+
+	public bool HasActualText => !ShowsFilingLink;
 
 	/// <summary>The surprise (an em dash when the source gave none); empty until reported.</summary>
 	public string SurpriseText =>
-		Event.EpsActual is null
-			? string.Empty
-			: CalendarHelpers.FormatSurprise(Event.EpsSurprisePercent);
+		EpsActual is null ? string.Empty : CalendarHelpers.FormatSurprise(EpsSurprisePercent);
 
 	/// <summary>Beat the estimate: the surprise in the positive colour.</summary>
-	public bool IsBeat => Event.EpsActual is not null && Event.EpsSurprisePercent > 0;
+	public bool IsBeat => EpsActual is not null && EpsSurprisePercent > 0;
 
 	/// <summary>Missed the estimate: the surprise in the negative colour.</summary>
-	public bool IsMiss => Event.EpsActual is not null && Event.EpsSurprisePercent < 0;
+	public bool IsMiss => EpsActual is not null && EpsSurprisePercent < 0;
 
-	/// <summary>"Earnings · EPS est. $3.43 · from Nasdaq": everything, and where it came from.</summary>
+	/// <summary>
+	/// "Earnings · EPS $7.48 · est. $6.35 · +17.9% · from Nasdaq · EPS from Yahoo Finance · 8-K
+	/// filed 07:03 (SEC EDGAR)": everything, and where each part came from.
+	/// </summary>
 	public string ToolTipText =>
 		string.Join(
 			" · ",
@@ -164,8 +212,15 @@ public sealed partial class CalendarEventRowViewModel : CalendarItemViewModel
 			{
 				Event.Company,
 				Event.TypeName,
-				Event.Detail,
+				Result?.HasFigures == true && Event.EpsActual is null
+					? CalendarHelpers.FormatEarningsDetail(
+						Event.EpsEstimate,
+						EpsActual,
+						EpsSurprisePercent
+					)
+					: Event.Detail,
 				"from " + CalendarHelpers.GetSourceName(Event.Source),
+				EarningsResultHelpers.Describe(Result, _formatTime),
 			}.Where(x => x.Length > 0)
 		);
 }

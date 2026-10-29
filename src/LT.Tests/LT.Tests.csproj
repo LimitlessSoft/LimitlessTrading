@@ -13,6 +13,7 @@
 		<ProjectReference Include="..\LT.Indicators.Scripting\LT.Indicators.Scripting.csproj" />
 		<ProjectReference Include="..\LT.Sec\LT.Sec.csproj" />
 		<ProjectReference Include="..\LT.Nasdaq\LT.Nasdaq.csproj" />
+		<ProjectReference Include="..\LT.Yahoo\LT.Yahoo.csproj" />
 		<!-- UI-free helpers only (FlexStatusHelpers); no view is created in tests -->
 		<ProjectReference Include="..\Widgets\LT.Widgets.Core\LT.Widgets.Core.csproj" />
 		<!-- Chart view model only (dropping a ticker); its view is never created -->

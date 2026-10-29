@@ -26,11 +26,16 @@ namespace LT.App.Widgets.Calendar;
 /// already past are dimmed and a "now" line sits between them and the ones to come, both kept
 /// current by a <see cref="TimeProvider"/> timer due when the next event passes (or at New York
 /// midnight, which loads the range again); opening the widget or switching the range scrolls to
-/// it.
+/// it. Earnings rows of today and the few days before without a reported EPS are looked up in
+/// the earnings result sources (<see cref="IEarningsResultManager"/>) after every load and filled
+/// in place; while today still has such rows, they are looked up again on the sources' interval
+/// (a <see cref="TimeProvider"/> timer, New York 06:00–22:00), so after-close results come in
+/// without pressing Refresh.
 /// </summary>
 public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWidgetState
 {
 	private readonly ICalendarManager _calendarManager;
+	private readonly IEarningsResultManager _earningsResultManager;
 	private readonly IContractManager _contractManager;
 	private readonly DisplayTimeStore _displayTime;
 	private readonly SettingsNavigator _settingsNavigator;
@@ -44,9 +49,16 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 	private CancellationToken _session;
 	private CancellationTokenSource? _load;
 	private CancellationTokenSource? _resolve;
+	private CancellationTokenSource? _lookup;
+	private ITimer? _poll;
+	private CalendarResultDto? _shown;
+
+	// Results found by the sources, kept across loads (the rows are rebuilt by each)
+	private readonly Dictionary<(string Symbol, DateOnly Date), EarningsResultDto> _results = [];
 
 	public CalendarViewModel(
 		ICalendarManager calendarManager,
+		IEarningsResultManager earningsResultManager,
 		IContractManager contractManager,
 		IConnectionManager connectionManager,
 		LinkGroupStore linkGroupStore,
@@ -58,6 +70,7 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 	{
 		_timeProvider = timeProvider;
 		_calendarManager = calendarManager;
+		_earningsResultManager = earningsResultManager;
 		_contractManager = contractManager;
 		_displayTime = displayTime;
 		_settingsNavigator = settingsNavigator;
@@ -212,6 +225,7 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 		_lifetime.Cancel();
 		CancelLoad();
 		StopClock();
+		StopPoll();
 		_resolve?.Cancel();
 		_resolve?.Dispose();
 		Link.Dispose();
@@ -268,7 +282,10 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 				load.Token
 			);
 			if (!load.IsCancellationRequested)
+			{
 				Show(result);
+				LookUpResults(refresh);
+			}
 		}
 		catch (OperationCanceledException) { }
 		catch (Exception ex)
@@ -276,6 +293,7 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 			if (!load.IsCancellationRequested)
 			{
 				StopClock();
+				StopPoll();
 				ClearItems();
 				NoticeText = null;
 				StatusText = null;
@@ -294,7 +312,9 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 	private void Show(CalendarResultDto result)
 	{
 		StopClock();
+		StopPoll();
 		ClearItems();
+		_shown = result.Status == CalendarStatus.Loaded ? result : null;
 		if (result.Status != CalendarStatus.Loaded)
 		{
 			NoticeTitle = result.Status switch
@@ -354,8 +374,17 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 						CalendarHelpers.FormatTime(item.Time, item.TimeText),
 						passedAt,
 						now >= passedAt,
-						!captionsInHeader && item == firstEarnings
+						!captionsInHeader && item == firstEarnings,
+						x => _displayTime.Format(x, "HH:mm")
 					)
+					{
+						Result =
+							item.Kind == CalendarEventKind.Earnings
+								? _results.GetValueOrDefault(
+									(EarningsResultHelpers.GetSymbolKey(item.Symbol), item.Date)
+								)
+								: null,
+					}
 				);
 			}
 		}
@@ -427,6 +456,111 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 			row.IsPast = now >= row.PassedAt;
 		PlaceNowMarker();
 		StartClock(now);
+	}
+
+	// The shown earnings rows of the lookup days still without figures, asked for day by day and
+	// filled in place (no reload, the list keeps its scroll); then the next look while today has
+	// some left. The newest lookup wins: a load or a poll cancels the one running
+	private async void LookUpResults(bool refresh)
+	{
+		if (_lifetime.IsCancellationRequested || _shown is not { } shown)
+			return;
+		StopPoll();
+		_lookup?.Cancel();
+		_lookup?.Dispose();
+		var lookup = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+		_lookup = lookup;
+		var today = CalendarHelpers.GetToday(_timeProvider.GetUtcNow());
+		var days = EarningsResultHelpers.GetLookupDays(shown.Start, shown.End, today);
+		try
+		{
+			foreach (var day in days)
+			{
+				var symbols = GetPendingRows(day)
+					.Select(x => x.Event.Symbol)
+					.Distinct(StringComparer.OrdinalIgnoreCase)
+					.ToList();
+				if (symbols.Count == 0)
+					continue;
+				var results = await _earningsResultManager.GetResultsAsync(
+					new GetEarningsResultsRequest
+					{
+						Date = day,
+						Symbols = symbols,
+						Refresh = refresh,
+					},
+					lookup.Token
+				);
+				if (lookup.IsCancellationRequested || _shown != shown)
+					return;
+				Apply(results);
+			}
+		}
+		catch (OperationCanceledException) when (lookup.IsCancellationRequested)
+		{
+			return;
+		}
+		catch (Exception)
+		{
+			// The sources log their own failures; the calendar shows what it has
+		}
+		if (_lookup != lookup || _shown != shown || !days.Contains(today))
+			return;
+		if (GetPendingRows(today).Any())
+			StartPoll();
+	}
+
+	private IEnumerable<CalendarEventRowViewModel> GetPendingRows(DateOnly day) =>
+		Items
+			.OfType<CalendarEventRowViewModel>()
+			.Where(x =>
+				x.Event.Date == day && EarningsResultHelpers.NeedsResult(x.Event, x.Result)
+			);
+
+	private void Apply(IReadOnlyList<EarningsResultDto> results)
+	{
+		foreach (var result in results)
+		{
+			var key = (EarningsResultHelpers.GetSymbolKey(result.Symbol), result.Date);
+			var combined = EarningsResultHelpers.Combine(_results.GetValueOrDefault(key), result);
+			_results[key] = combined;
+			foreach (
+				var row in Items
+					.OfType<CalendarEventRowViewModel>()
+					.Where(x =>
+						x.Event.Kind == CalendarEventKind.Earnings
+						&& x.Event.Date == result.Date
+						&& EarningsResultHelpers.GetSymbolKey(x.Event.Symbol) == key.Item1
+					)
+			)
+				row.Result = combined;
+		}
+	}
+
+	private void StartPoll()
+	{
+		var now = _timeProvider.GetUtcNow();
+		if (
+			EarningsResultHelpers.GetPollDelay(
+				now,
+				_earningsResultManager.GetPollInterval(now),
+				_zone
+			)
+			is not { } delay
+		)
+			return;
+		_poll = _timeProvider.CreateTimer(
+			_ => Dispatcher.UIThread.Post(() => LookUpResults(refresh: false)),
+			null,
+			delay,
+			Timeout.InfiniteTimeSpan
+		);
+	}
+
+	private void StopPoll()
+	{
+		_poll?.Dispose();
+		_poll = null;
 	}
 
 	private void StartClock(DateTimeOffset now)

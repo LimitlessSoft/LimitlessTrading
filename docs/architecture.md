@@ -39,11 +39,13 @@ src/
 │   ├── Managers/                  # IConnectionManager → ConnectionManager, …
 │   ├── NewsSources/               # INewsSource implementations (IbkrNewsSource)
 │   ├── CalendarSources/           # ICalendarSource implementations (WshCalendarSource, NasdaqCalendarSource)
+│   ├── EarningsResultSources/     # IEarningsResultSource implementations (Sec…, Yahoo…, Nasdaq…)
 │   └── Validators/                # LSCoreValidatorBase<TRequest>
 ├── LT.Repository/
 │   └── Repositories/              # SettingsRepository (JSON in the user's app-data folder)
-├── LT.Sec/                       # SecApiClient + SecJsonParser: SEC EDGAR (shares outstanding)
+├── LT.Sec/                       # SecApiClient + parsers: SEC EDGAR (shares outstanding, latest 8-Ks)
 ├── LT.Nasdaq/                    # NasdaqApiClient + NasdaqCalendarParser: nasdaq.com calendars
+├── LT.Yahoo/                     # YahooApiClient + YahooEarningsParser: Yahoo's earnings calendar page
 ├── LT.Ibkr/
 │   ├── DtoMappings/               # IBKR.Net types ↔ LT.Contracts DTOs
 │   ├── Gateway/                   # GatewayProcess — starts / stops IB Gateway's launcher
@@ -102,7 +104,8 @@ LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
   `LT.App.Stores`, …).
 - `LT.Sec` is the typed client of SEC EDGAR (public JSON over HTTPS, no IB): the second external
   API, in its own project like `LT.Ibkr`, referencing only `LT.Contracts`. `LT.Nasdaq` (Nasdaq's
-  calendar JSON) is the third, the same way.
+  calendar JSON) is the third and `LT.Yahoo` (Yahoo Finance's earnings calendar page) the fourth,
+  the same way: each external service its own client, pacing and parser.
 - `LT.App` is the composition root: it references every layer only to wire DI. ViewModels inject
   **managers** (`IConnectionManager`), never repositories or `IIbkrApiClient` directly — same rule as
   Termodom controllers.
@@ -118,7 +121,10 @@ LT.App ──► LT.Domain ──► LT.Contracts ◄── LT.Repository
   repositories) are re-registered as **singletons after** the scan — the last registration wins.
 - Calendar sources (`ICalendarSource`) are registered the same way as news sources below, in the
   order the calendar merges them (`WshCalendarSource`, then `NasdaqCalendarSource`); the Nasdaq
-  client is a singleton with its own `HttpClient` like the SEC one.
+  client is a singleton with its own `HttpClient` like the SEC one. Earnings result sources
+  (`IEarningsResultSource`) likewise, fastest first (`SecEarningsResultSource`,
+  `YahooEarningsResultSource`, `NasdaqEarningsResultSource`), for `EarningsResultManager`; the
+  Yahoo client is a singleton too.
 - News sources (`INewsSource`) don't match the `Foo : IFoo` convention, so each is registered
   explicitly (`AddSingleton<INewsSource, IbkrNewsSource>()`); `NewsManager` takes all of them
   (`IEnumerable<INewsSource>`). A new source (RSS, Benzinga …) is one class and one line there.
@@ -282,6 +288,55 @@ releases (every day; there are weekend releases and holidays) — only the calen
 filter shows. A week of everything is 18 requests, a month at most ~80. `NasdaqApiClient` sends
 one at a time, 250 ms apart; `NasdaqCalendarSource` keeps each answer for 30 minutes
 (`CalendarConstants.EventsTtl`, Refresh asks again) and stops at the first failed request.
+
+### External data: earnings results (SEC EDGAR 8-Ks, Yahoo Finance, Nasdaq)
+
+Nasdaq's calendar has the reported EPS only from the day after; for today's reporters the
+Calendar widget fills its earnings rows in from `IEarningsResultManager`, which asks every
+`IEarningsResultSource` and keeps the **first result per symbol and day**
+(`EarningsResultHelpers.Merge` / `Combine`: the first source with figures wins and is never
+replaced; a source that only knows the report is out gives way to figures but keeps its filing
+link and time; symbols matched across share-class spellings, `GetSymbolKey`). Each source keeps
+its own answers and asks its service again only after its own interval; a failing one is logged
+to Messages (source "Calendar") once until it fails differently, and the rows keep what they
+have. Measured on 2026-10-29 (times New York):
+
+| Source | What it gives | Lag seen | Interval |
+|---|---|---|---|
+| `SecEarningsResultSource` — EDGAR's latest filings Atom feed, `browse-edgar?action=getcurrent&type=8-K&output=atom` (`SecApiClient.GetCurrentFilingsAsync`, `SecAtomParser`) | an **8-K with Item 2.02** (Results of Operations): the company's own release, its acceptance time and index page — **no EPS** | accepted 2–18 min after the release hit the wire (CAT 06:33, MRK 06:43, LLY 07:03, MA 08:04, AMZN 16:05, INTC 16:08; Dow Jones carried the releases 06:30–16:01) | 30 s 06:00–09:30 and 16:00–16:30, else 2 min (`EarningsResultHelpers.GetSecInterval`) |
+| `YahooEarningsResultSource` — `finance.yahoo.com/calendar/earnings?day=…&offset=N&size=100` (`YahooApiClient`, `YahooEarningsParser`) | reported EPS and surprise (adjusted EPS, the consensus' basis: LLY 7.48, CAT 7.20, MRK 2.49, MA 5.31) | hours: the morning reporters were in by 17:18, but AMZN / INTC / SBUX / GILD (16:01–16:08) still had none at 17:50 | 5 min |
+| `NasdaqEarningsResultSource` — the earnings calendar above | reported EPS and surprise | next day | 15 min |
+
+The feed lists about 400 8-Ks a day, 100 a page, newest first; the source reads pages until it
+reaches a filing seen by an earlier poll or one from yesterday (at most 6 pages, so the first
+poll covers the whole day), matches CIKs to tickers through `company_tickers.json` (every ticker
+of a CIK: GOOG and GOOGL), and keeps the day's first release per company. The feed lists some
+filings twice (once per filer), which doesn't end the paging. One request per page through
+`SecApiClient`'s 125 ms spacing.
+
+Yahoo's page is server-rendered HTML: a `<table>` with `<tr data-testid="data-table-v2-row">`
+and cells named `data-testid-cell="ticker|epsestimate|epsactual|epssurprisepct|…"` ("-" for
+none, the surprise signed), "1-100 of 298" under it; the parser finds cells by name. **Unofficial:**
+it pages (`offset`, `size` up to 100) only for a browser `User-Agent` with an HTML `Accept`
+(otherwise every page was the first 25); a page that doesn't start where asked ends the paging,
+a page without a table is a day without earnings, and a table whose rows can't be read is a
+"layout the app can't read" failure — logged, never an empty result. Pages 1 s apart, at most
+4 per day (`YahooConstants`).
+
+Looked at and left out (2026-10-29):
+
+- **EPS from the 8-K's EX-99.1.** The six releases read (LLY, CAT, MRK, MA, AMZN, INTC) each word
+  it differently ("EPS increased … to $7.48 on a non-GAAP basis", "Adjusted Profit Per Share
+  $7.20 $4.95", "Non-GAAP EPS Was $2.49", "adjusted diluted EPS of $5.31", "non-GAAP EPS
+  attributable to Intel was $0.52"; Amazon only in its income statement, last year's column
+  first), most give GAAP and adjusted side by side, and the consensus is on the adjusted basis
+  for some and GAAP for others. A pattern reading them would put wrong numbers next to the
+  estimate, so the 8-K only marks the row as reported, with the link.
+- **IB news headlines** (`DJ-N`, `DJ-RTA`, `BRFG`, `BRFUPDN` … on the live account). Dow Jones
+  carries the release minutes before EDGAR, but an EPS figure in a headline only for one of the
+  six ("* Mastercard 3Q Adj EPS $5.31 >MA"); the others give only beats / misses or guidance
+  ("Eli Lilly Sees FY Adj EPS $35.00-…", "Intel Sees 4Q Adj EPS 25c"), which a parser would
+  mistake for the quarter's result. Briefing carried none of them per symbol.
 
 ### Data cache
 

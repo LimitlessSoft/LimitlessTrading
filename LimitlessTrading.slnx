@@ -28,4 +28,5 @@
 	<Project Path="src/LT.Repository/LT.Repository.csproj" />
 	<Project Path="src/LT.Sec/LT.Sec.csproj" />
 	<Project Path="src/LT.Tests/LT.Tests.csproj" />
+	<Project Path="src/LT.Yahoo/LT.Yahoo.csproj" />
 </Solution>

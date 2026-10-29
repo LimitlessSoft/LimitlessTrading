@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<!-- Yahoo Finance's earnings calendar page (reported EPS and surprise); no IB code -->
+	<ItemGroup>
+		<ProjectReference Include="..\LT.Contracts\LT.Contracts.csproj" />
+	</ItemGroup>
+</Project>

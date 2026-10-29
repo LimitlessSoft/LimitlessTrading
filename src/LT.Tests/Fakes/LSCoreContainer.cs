@@ -93,6 +93,10 @@ public static class LSCoreContainer
 					GetCalendarEventsRequestValidator
 				>()
 				.AddSingleton<
+					LSCoreValidatorBase<GetEarningsResultsRequest>,
+					GetEarningsResultsRequestValidator
+				>()
+				.AddSingleton<
 					LSCoreValidatorBase<SubscribeOrderBookRequest>,
 					SubscribeOrderBookRequestValidator
 				>()
