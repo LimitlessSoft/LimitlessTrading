@@ -124,6 +124,7 @@ public static class MarketDataConstants
 	public const string StockType = "STK";
 	public const string OptionType = "OPT";
 	public const string FutureType = "FUT";
+	public const string FutureOptionType = "FOP";
 	public const string ForexType = "CASH";
 	public const string IndexType = "IND";
 	public const string CryptoType = "CRYPTO";
