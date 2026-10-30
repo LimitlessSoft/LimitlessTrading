@@ -494,6 +494,31 @@ new instance) and lives in one of four wrappers:
   it subscribes again. Several Depth widgets can be open (each on its own link
   group's contract); past IB's three subscriptions, the extra one shows IB's refusal. Data from `IMarketDepthManager`
   ([ibkr-tws-api.md → Market depth](ibkr-tws-api.md#market-depth)).
+- **Gamma exposure** (`LT.Widgets.GammaExposure`, center, closed on first run, Ctrl+Alt+G): gamma
+  exposure (GEX) by strike of one expiration of the link group's underlying, or one typed into
+  the header title (`TickerTitle`, as on the option chain; it moves the group along). A combo
+  picks the expiration (nearest first, `IOptionChainManager.GetExpirationsAsync`). A chart draws
+  one column per strike: the call exposure as a faint green bar up, the put exposure as a faint
+  red bar down, the net as a solid bar in front; a blue line marks the spot price and a dashed
+  orange one the gamma flip, each placed between the strikes around it. Hover shows the strike's
+  net, call and put exposure with their open interest. Above it: net, calls, puts, spot, flip and
+  how many options counted ("80 / 82 options · 13:42:05"). GEX per option = IB's model gamma
+  (tick 13 of `tickOptionComputation`) × open interest × multiplier × spot² × 1%, in dollars per
+  1% move, dealers taken long the calls (positive) and short the puts (negative)
+  (`GammaExposureHelpers`). The flip is where the net, worked out again at other spot prices with
+  Black-Scholes gamma at each option's IB implied volatility (no rates or dividends, at least 30
+  minutes to expiry), changes sign — the crossing nearest the spot between the lowest and highest
+  strike, "—" when there is none. A reading (`IGammaExposureManager`) takes the
+  `GammaExposureConstants.DefaultStrikesAroundSpot` (20) strikes each side of the price from the
+  chain (`IOptionChainManager.GetChainAsync`, which also gives the price) and streams each call
+  and put through `IMarketDataManager` with generic tick 101 only until its gamma and open
+  interest came (IB sent both within 1.5 s when recorded; at most 6 s,
+  `OptionReadTimeout`), then gives the line back: at most 20 lines at once
+  (`MaxConcurrentLines`) and never into the last 10 free ones (`ReservedLines`; none free → an
+  error before asking). SPY's 82 options take about 7–10 s. An option without both values is left
+  out; when none answered, IB's error (e.g. no options market data) shows. It reads when shown,
+  every 2 minutes (`RefreshInterval`) and on Refresh; hidden or disconnected it reads nothing and
+  keeps the last chart. The lines show as "Gamma exposure" in the streams list.
 - **Calendar** (`LT.Widgets.Calendar`, right side, closed on first run, Ctrl+Alt+V): upcoming
   earnings, other corporate events and economic releases of the **whole market**, merged from
   the sources switched on in **Settings → Calendar → Sources** (`CalendarNasdaq`,
@@ -951,8 +976,8 @@ York on the expiry date (`GetExpirationTime`, via `TimeProvider`). Bands ≤ 1σ
 keeps an accent outline on top and the strike tooltip shows the distance ("+1.4σ from the
 underlying"). IV is the underlying's 30-day option implied volatility — generic tick 106 →
 tick 24, asked for on the underlying's existing quote line, so no extra line — not the ATM
-option's own IV for that expiry: IBKR.Net doesn't decode option computation ticks
-(`tickOptionComputation`) yet. No IV, no price, or past expiry → no band colouring.
+option's own IV for that expiry (IBKR.Net decodes option computation ticks since 0.12.0, but the
+chain doesn't use them yet). No IV, no price, or past expiry → no band colouring.
 
 **One-click trading (real orders, no confirmation).** In the option chain a single click on an
 **ask** cell buys and on a **bid** cell sells — calls and puts alike — the widget's one-click
@@ -1149,7 +1174,7 @@ hidden: a chart's bars and a news feed would miss what arrives meanwhile.
 | F5 | Refresh chart, account, positions, orders, executions, day trade performance, calendar |
 | Ctrl+, | Settings |
 | Ctrl+1 … Ctrl+9 | Show an open Watchlist, Positions, Orders, Executions, Account, Messages, Chart, Option chain, Order ticket, opening one if none is (collapses an expanded side widget); Ctrl+7 always opens a new chart in the current view |
-| Ctrl+Alt+W / P / O / E / A / M / C / B / N / R / J / K / S / V | Show and focus an open Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News, Account performance, Day trade performance, Depth, Notes, Calendar, opening one if none is (works from floating windows too) |
+| Ctrl+Alt+W / P / O / E / A / M / C / B / N / R / J / K / S / V / G | Show and focus an open Watchlist, Positions, Orders, Executions, Account, Messages, Option chain, Order ticket, News, Account performance, Day trade performance, Depth, Notes, Calendar, Gamma exposure, opening one if none is (works from floating windows too) |
 | Esc (side or bottom widget) | Back to the last focused center widget; an unpinned widget collapses |
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous center view |
 | Alt+A (chart) | Add a price alert at the price under the pointer, or at the last price |

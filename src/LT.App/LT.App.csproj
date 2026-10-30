@@ -36,6 +36,7 @@
 		<ProjectReference Include="..\Widgets\LT.Widgets.Chart\LT.Widgets.Chart.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.DayTradePerformance\LT.Widgets.DayTradePerformance.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.Executions\LT.Widgets.Executions.csproj" />
+		<ProjectReference Include="..\Widgets\LT.Widgets.GammaExposure\LT.Widgets.GammaExposure.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.Messages\LT.Widgets.Messages.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.News\LT.Widgets.News.csproj" />
 		<ProjectReference Include="..\Widgets\LT.Widgets.Depth\LT.Widgets.Depth.csproj" />

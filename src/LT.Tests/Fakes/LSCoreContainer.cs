@@ -30,6 +30,7 @@ using LT.Contracts.Requests.ChartTemplates;
 using LT.Contracts.Requests.Connection;
 using LT.Contracts.Requests.Contracts;
 using LT.Contracts.Requests.Flex;
+using LT.Contracts.Requests.GammaExposure;
 using LT.Contracts.Requests.Gateway;
 using LT.Contracts.Requests.Indicators;
 using LT.Contracts.Requests.MarketDepth;
@@ -45,6 +46,7 @@ using LT.Domain.Validators.ChartTemplates;
 using LT.Domain.Validators.Connection;
 using LT.Domain.Validators.Contracts;
 using LT.Domain.Validators.Flex;
+using LT.Domain.Validators.GammaExposure;
 using LT.Domain.Validators.Gateway;
 using LT.Domain.Validators.Indicators;
 using LT.Domain.Validators.MarketDepth;
@@ -84,6 +86,10 @@ public static class LSCoreContainer
 				.AddSingleton<
 					LSCoreValidatorBase<GetOptionChainRequest>,
 					GetOptionChainRequestValidator
+				>()
+				.AddSingleton<
+					LSCoreValidatorBase<GetGammaExposureRequest>,
+					GetGammaExposureRequestValidator
 				>()
 				.AddSingleton<LSCoreValidatorBase<PlaceOrderRequest>, PlaceOrderRequestValidator>()
 				.AddSingleton<

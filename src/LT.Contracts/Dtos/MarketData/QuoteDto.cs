@@ -37,5 +37,15 @@ public class QuoteDto
 	/// </summary>
 	public double? ImpliedVolatility { get; set; }
 
+	/// <summary>An option's greeks from IB's model (tick 13), the latest; null for other contracts.</summary>
+	public OptionComputationDto? ModelGreeks { get; set; }
+
+	/// <summary>
+	/// An option's open interest in contracts, only with generic tick 101 (tick 27 for a call,
+	/// 28 for a put; IB sends the other side as 0). On an underlying: its whole chain's.
+	/// </summary>
+	public decimal? CallOpenInterest { get; set; }
+	public decimal? PutOpenInterest { get; set; }
+
 	public QuoteDto Clone() => (QuoteDto)MemberwiseClone();
 }

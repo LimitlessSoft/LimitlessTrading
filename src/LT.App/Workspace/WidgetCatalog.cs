@@ -6,6 +6,7 @@ using LT.App.Widgets.Chart;
 using LT.App.Widgets.DayTradePerformance;
 using LT.App.Widgets.Depth;
 using LT.App.Widgets.Executions;
+using LT.App.Widgets.GammaExposure;
 using LT.App.Widgets.Messages;
 using LT.App.Widgets.News;
 using LT.App.Widgets.Notes;
@@ -41,6 +42,7 @@ public static class WidgetCatalog
 		new NotesWidget(),
 		new CalendarWidget(),
 		new OverviewWidget(),
+		new GammaExposureWidget(),
 	];
 
 	public static IWidgetDefinition Get(WorkspaceTool tool) =>

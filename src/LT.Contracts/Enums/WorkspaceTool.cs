@@ -19,4 +19,5 @@ public enum WorkspaceTool
 	Notes = 13,
 	Calendar = 14,
 	Overview = 15,
+	GammaExposure = 16,
 }

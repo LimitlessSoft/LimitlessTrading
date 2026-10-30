@@ -14,4 +14,5 @@ public static class MarketDataStreamOwners
 	public const string PriceAlerts = "Price alerts";
 	public const string News = "News";
 	public const string Overview = "Overview";
+	public const string GammaExposure = "Gamma exposure";
 }
