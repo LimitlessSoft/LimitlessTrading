@@ -645,7 +645,16 @@ new instance) and lives in one of four wrappers:
   market cap (SEC shares outstanding × the widget's quote), P/E, P/S and P/FCF over the
   trailing four quarters, P/B, TTM revenue and net income. A ticker without statements says why
   instead of an empty table: not a US stock, "The SEC has no 10-K / 10-Q statements for SPY…"
-  (ETFs, funds, 20-F / 40-F filers), or the SEC unreachable. Adding a tab: an
+  (ETFs, funds, 20-F / 40-F filers), or the SEC unreachable. **News**: the contract's past
+  headlines, newest first (time · provider badge · headline), through `INewsManager` — IB's
+  providers while connected, the app's own feeds when on, the archive — with the providers a News
+  widget starts with that have news per symbol (`NewsHelpers.GetSymbolNewsProviders`, listed
+  above the list). Loads when the tab is shown for a contract, again on connect / disconnect and
+  on Refresh; "Load older" pages back. No live subscription, so no market data line. Selecting a
+  headline shows its article (plain text) under the list, with "Open in browser" when the source
+  links one; a document article points to the News widget. Says why when there is nothing: no
+  providers (not connected, no news subscriptions), "No recent news for SPY.", or IB's error.
+  Adding a tab: an
   `OverviewTab` value at the end, a subclass of `OverviewTabViewModel` created in
   `OverviewViewModel`'s constructor, and a `DataTemplate` for its view in `OverviewView.axaml`.
 - **Notes** (`LT.Widgets.Notes`, a Tools widget, right side, closed on first run, Ctrl+Alt+S): a

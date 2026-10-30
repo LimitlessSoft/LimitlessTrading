@@ -37,5 +37,8 @@ public abstract class OverviewTabViewModel : ViewModelBase, IDisposable
 	/// <summary>The tab became the one shown (true) or another one did: a tab can load only then.</summary>
 	public virtual void OnSelected(bool selected) { }
 
+	/// <summary>The widget connected to IB (true) or lost the connection; called on every change.</summary>
+	public virtual void OnConnectionChanged(bool connected) { }
+
 	public virtual void Dispose() => GC.SuppressFinalize(this);
 }

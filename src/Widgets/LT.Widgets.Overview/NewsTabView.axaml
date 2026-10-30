@@ -1,0 +1,179 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.Overview"
+	x:Class="LT.App.Widgets.Overview.NewsTabView"
+	x:DataType="vm:NewsTabViewModel"
+>
+	<UserControl.Styles>
+		<!-- Colored by where the headline comes from (WidgetCategoryBrushes): IB or our feeds -->
+		<Style Selector="Border.badge">
+			<Setter Property="CornerRadius" Value="3" />
+			<Setter Property="Padding" Value="4,0" />
+			<Setter Property="Margin" Value="6,0" />
+			<Setter Property="VerticalAlignment" Value="Center" />
+		</Style>
+		<Style Selector="Border.badge TextBlock">
+			<Setter Property="FontSize" Value="10" />
+			<Setter Property="Foreground" Value="White" />
+		</Style>
+		<Style Selector="ListBoxItem">
+			<Setter Property="Padding" Value="6,3" />
+			<Setter Property="MinHeight" Value="0" />
+		</Style>
+	</UserControl.Styles>
+
+	<!-- The providers asked and Refresh, the state, then the headlines over the reading pane -->
+	<DockPanel Margin="4,8,4,4">
+		<DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+			<Button
+				DockPanel.Dock="Right"
+				Margin="8,0,0,0"
+				Padding="10,3"
+				MinHeight="0"
+				FontSize="12"
+				Content="Refresh"
+				ToolTip.Tip="Ask for the latest headlines again"
+				Command="{Binding RefreshCommand}"
+			/>
+			<TextBlock
+				VerticalAlignment="Center"
+				Classes="secondary"
+				FontSize="12"
+				TextTrimming="CharacterEllipsis"
+				Text="{Binding SourceText}"
+				ToolTip.Tip="The news providers asked: those a News widget starts with that have news per symbol"
+			/>
+		</DockPanel>
+		<StackPanel
+			DockPanel.Dock="Top"
+			Margin="0,0,0,6"
+			Orientation="Horizontal"
+			Spacing="8"
+			IsVisible="{Binding StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+		>
+			<ProgressBar
+				Width="48"
+				MinWidth="48"
+				VerticalAlignment="Center"
+				IsIndeterminate="True"
+				IsVisible="{Binding IsLoading}"
+			/>
+			<TextBlock
+				Classes="secondary"
+				Classes.negative="{Binding IsError}"
+				TextWrapping="Wrap"
+				Text="{Binding StatusText}"
+			/>
+		</StackPanel>
+
+		<Grid RowDefinitions="3*,6,2*">
+			<DockPanel>
+				<Button
+					DockPanel.Dock="Bottom"
+					HorizontalAlignment="Stretch"
+					HorizontalContentAlignment="Center"
+					Margin="0,4,0,0"
+					Content="Load older"
+					Command="{Binding LoadOlderCommand}"
+					IsVisible="{Binding CanLoadOlder}"
+				/>
+				<TextBlock
+					DockPanel.Dock="Bottom"
+					Classes="secondary"
+					Margin="2,4,0,0"
+					Text="Loading older…"
+					IsVisible="{Binding IsLoadingOlder}"
+				/>
+				<ListBox
+					ItemsSource="{Binding Rows}"
+					SelectedItem="{Binding SelectedRow}"
+					Background="Transparent"
+				>
+					<ListBox.ItemTemplate>
+						<DataTemplate x:DataType="vm:NewsTabRow">
+							<Grid ColumnDefinitions="Auto,Auto,*">
+								<TextBlock
+									Classes="secondary"
+									VerticalAlignment="Center"
+									FontFeatures="tnum"
+									Text="{Binding TimeText}"
+								/>
+								<Border
+									Grid.Column="1"
+									Classes="badge"
+									Background="{Binding SourceBrush}"
+									ToolTip.Tip="{Binding SourceTip}"
+								>
+									<TextBlock Text="{Binding Provider}" />
+								</Border>
+								<TextBlock
+									Grid.Column="2"
+									VerticalAlignment="Center"
+									FontSize="13"
+									TextTrimming="CharacterEllipsis"
+									Text="{Binding Text}"
+									ToolTip.Tip="{Binding Text}"
+								/>
+							</Grid>
+						</DataTemplate>
+					</ListBox.ItemTemplate>
+				</ListBox>
+			</DockPanel>
+
+			<GridSplitter Grid.Row="1" ResizeDirection="Rows" Background="Transparent" />
+
+			<!-- Reading pane: plain text only (HTML is turned into text) -->
+			<Border
+				Grid.Row="2"
+				BorderBrush="{DynamicResource PanelStroke}"
+				BorderThickness="0,1,0,0"
+				Padding="2,8,0,0"
+			>
+				<Panel>
+					<TextBlock
+						Classes="secondary"
+						Text="Select a headline to read it."
+						IsVisible="{Binding !HasArticle}"
+					/>
+					<DockPanel IsVisible="{Binding HasArticle}">
+						<StackPanel DockPanel.Dock="Top" Spacing="4" Margin="0,0,0,8">
+							<SelectableTextBlock
+								FontWeight="SemiBold"
+								FontSize="14"
+								TextWrapping="Wrap"
+								Text="{Binding ArticleTitle}"
+							/>
+							<TextBlock Classes="secondary" TextWrapping="Wrap" Text="{Binding ArticleMeta}" />
+							<TextBlock
+								Classes="secondary"
+								Text="Loading…"
+								IsVisible="{Binding IsArticleLoading}"
+							/>
+							<TextBlock
+								Classes="negative"
+								TextWrapping="Wrap"
+								Text="{Binding ArticleError}"
+								IsVisible="{Binding ArticleError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+							/>
+							<Button
+								Content="Open in browser"
+								ToolTip.Tip="{Binding ArticleUrl}"
+								Click="OnOpenInBrowserClick"
+								IsVisible="{Binding HasArticleUrl}"
+							/>
+						</StackPanel>
+						<ScrollViewer HorizontalScrollBarVisibility="Disabled">
+							<SelectableTextBlock
+								FontSize="13"
+								LineHeight="19"
+								TextWrapping="Wrap"
+								Text="{Binding ArticleText}"
+							/>
+						</ScrollViewer>
+					</DockPanel>
+				</Panel>
+			</Border>
+		</Grid>
+	</DockPanel>
+</UserControl>

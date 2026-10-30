@@ -265,6 +265,38 @@ public static partial class NewsHelpers
 		);
 
 	/// <summary>
+	/// The providers asked for a contract's news without a choice of the user's (the Overview
+	/// widget's News tab): those selected by default that have past headlines per symbol, IB's
+	/// first, each source's by code.
+	/// </summary>
+	public static List<NewsProviderDto> GetSymbolNewsProviders(
+		IEnumerable<NewsProviderDto> providers
+	) =>
+		[
+			.. providers
+				.Where(x =>
+					x.SelectedByDefault
+					&& x.Capabilities.HasFlag(
+						NewsSourceCapabilities.History | NewsSourceCapabilities.BySymbol
+					)
+				)
+				.OrderBy(x => x.SourceId == NewsConstants.IbkrSourceId ? 0 : 1)
+				.ThenBy(x => x.SourceId, StringComparer.Ordinal)
+				.ThenBy(x => x.Code, StringComparer.Ordinal),
+		];
+
+	/// <summary>"IB: BRFG, DJ-N · LimitlessTrading: SEC, PRN", the providers' codes per source.</summary>
+	public static string FormatProviders(IEnumerable<NewsProviderDto> providers) =>
+		string.Join(
+			" · ",
+			providers
+				.GroupBy(x => x.SourceId)
+				.Select(x =>
+					$"{(x.Key == FeedNewsConstants.SourceId ? FeedNewsConstants.SourceName : "IB")}: {string.Join(", ", x.Select(p => p.Code).Distinct())}"
+				)
+		);
+
+	/// <summary>
 	/// Whether a widget's saved selection selects the provider: no saved selection, or none for
 	/// its source (saved before the source existed), means its default; otherwise whether its key
 	/// is saved.

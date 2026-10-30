@@ -5,4 +5,5 @@ public enum OverviewTab
 {
 	BasicInfo = 0,
 	Financials = 1,
+	News = 2,
 }

@@ -16,8 +16,8 @@ using LT.Contracts.Interfaces.IManagers;
 namespace LT.App.Widgets.Overview;
 
 /// <summary>
-/// One contract in depth: a live quote header above tabs (Basic info, Financials; news,
-/// options … later, see <see cref="OverviewTabViewModel"/>). The contract comes from the link
+/// One contract in depth: a live quote header above tabs (Basic info, Financials, News; options
+/// … later, see <see cref="OverviewTabViewModel"/>). The contract comes from the link
 /// group, a ticker typed into the header title or a ticker dropped on the widget, and is saved
 /// with the widget. Its IB details are read once per contract (cached) and handed to every tab;
 /// the quote takes one market data line (with the 52-week range and average volume), only while
@@ -91,8 +91,10 @@ public partial class OverviewViewModel
 		IMarketDataManager marketDataManager,
 		ISharesOutstandingManager sharesOutstandingManager,
 		IFinancialsManager financialsManager,
+		INewsManager newsManager,
 		IConnectionManager connectionManager,
 		LinkGroupStore linkGroupStore,
+		DisplayTimeStore displayTime,
 		TimeProvider timeProvider
 	)
 		: base(connectionManager)
@@ -104,6 +106,7 @@ public partial class OverviewViewModel
 		[
 			new BasicInfoTabViewModel(sharesOutstandingManager, timeProvider),
 			new FinancialsTabViewModel(financialsManager, sharesOutstandingManager),
+			new NewsTabViewModel(newsManager, displayTime),
 		];
 		SelectedTab = Tabs[0];
 		QuoteStats =
@@ -262,6 +265,8 @@ public partial class OverviewViewModel
 	{
 		_session = session;
 		_ = LoadDetailsAsync();
+		foreach (var tab in Tabs)
+			tab.OnConnectionChanged(true);
 	}
 
 	protected override void OnDisconnected()
@@ -271,6 +276,8 @@ public partial class OverviewViewModel
 			QuoteStatus = "Not connected";
 		if (!_detailsLoaded)
 			_ = LoadDetailsAsync();
+		foreach (var tab in Tabs)
+			tab.OnConnectionChanged(false);
 	}
 
 	protected override void OnStreamsStarted(CancellationToken streams) => StartQuotes(streams);
