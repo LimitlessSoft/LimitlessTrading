@@ -127,10 +127,19 @@ public class ChartViewportHelpersTests
 	[InlineData(4000, 0)] // a month of 5-minute bars: denser than the wheel goes
 	[InlineData(100, 10)]
 	[InlineData(1, 0)]
-	public void Fitting_shows_every_bar_and_the_margin(int barCount, double margin)
+	public void A_window_ending_at_the_latest_bar_shows_every_period_bar_and_the_margin(
+		int barCount,
+		double margin
+	)
 	{
-		var spacing = ChartViewportHelpers.GetFitBarSpacing(barCount, margin, PlotWidth, 40);
-		var edge = ChartViewportHelpers.GetRightEdge(barCount, 0, margin);
+		var (spacing, edge) = ChartViewportHelpers.GetPeriodView(
+			0,
+			barCount,
+			null,
+			margin,
+			PlotWidth,
+			40
+		);
 
 		Assert.True(spacing <= 40);
 		Assert.Equal(
@@ -138,61 +147,67 @@ public class ChartViewportHelpersTests
 			ChartViewportHelpers.GetVisibleRange(barCount, edge, PlotWidth, spacing)
 		);
 		Assert.True(ChartViewportHelpers.GetBarX(0, edge, PlotRight, spacing) - spacing / 2 >= 0);
+		Assert.True(
+			ChartViewportHelpers.GetMarginHandleX(barCount, edge, PlotRight, spacing) <= PlotRight
+		);
 	}
 
 	[Fact]
-	public void Few_bars_are_fitted_no_wider_than_the_widest_zoom()
+	public void The_periods_first_bar_is_at_the_left_edge_and_no_older_bar_is_in_view()
 	{
-		Assert.Equal(40, ChartViewportHelpers.GetFitBarSpacing(3, 0, PlotWidth, 40));
-		Assert.Equal(40, ChartViewportHelpers.GetFitBarSpacing(0, 0, PlotWidth, 40));
+		// 1,000 bars loaded, the period holds the latest 80: the bar before them was half in view
+		// (the previous session's last candle at the far left)
+		var (spacing, edge) = ChartViewportHelpers.GetPeriodView(920, 1000, null, 0, PlotWidth, 40);
+
+		var left = ChartViewportHelpers.GetBarX(920, edge, PlotRight, spacing) - spacing / 2;
+		Assert.Equal(spacing / 2, left, 6);
+		Assert.True(ChartViewportHelpers.GetBarX(919, edge, PlotRight, spacing) <= 0);
 	}
 
 	[Fact]
-	public void A_fitted_view_fits_again_when_the_plot_widens()
+	public void A_fixed_window_lays_out_all_its_slots_with_the_periods_few_bars_at_the_left()
 	{
-		// A restored 5-minute Today chart at 12:35 (38 RTH bars, a margin of 5) is first laid out
-		// 253 wide, then gets its real width; fitted once at 253 its bars filled only the right
-		// part of the plot
-		const int bars = 38;
-		const double margin = 5;
-		var first = ChartViewportHelpers.GetBarSpacing(8, true, bars, margin, 253, 40);
+		// Today on 5-minute RTH bars two candles after the open: 78 slots, 2 bars, after a
+		// thousand older ones that used to fill the rest of the plot
+		var (spacing, edge) = ChartViewportHelpers.GetPeriodView(1000, 1002, 78, 0, PlotWidth, 40);
 
-		var spacing = ChartViewportHelpers.GetBarSpacing(first, true, bars, margin, 534, 40);
-
-		Assert.Equal(ChartViewportHelpers.GetFitBarSpacing(bars, margin, 534, 40), spacing);
-		var edge = ChartViewportHelpers.GetRightEdge(bars, 0, margin);
-		var left = ChartViewportHelpers.GetBarX(0, edge, 534, spacing) - spacing / 2;
-		// The bars span the plot: only the spare slot is left of the first one
-		Assert.InRange(left, 0, spacing * 1.001);
+		Assert.Equal(PlotWidth / 79, spacing, 6);
+		Assert.Equal(spacing, ChartViewportHelpers.GetBarX(1000, edge, PlotRight, spacing), 6);
+		// The window's last slot ends half a slot before the plot's right edge
+		Assert.Equal(1000 + 78 + 0.5, edge, 6);
 	}
 
 	[Fact]
-	public void A_fitted_view_fits_the_bars_that_arrive()
+	public void A_fixed_window_ignores_the_margin_and_widens_to_more_bars_than_slots()
 	{
-		var first = ChartViewportHelpers.GetBarSpacing(8, true, 18, 0, PlotWidth, 40);
-
-		var spacing = ChartViewportHelpers.GetBarSpacing(first, true, 200, 0, PlotWidth, 40);
-
-		Assert.Equal(ChartViewportHelpers.GetFitBarSpacing(200, 0, PlotWidth, 40), spacing);
+		Assert.Equal(
+			ChartViewportHelpers.GetPeriodView(0, 2, 78, 0, PlotWidth, 40),
+			ChartViewportHelpers.GetPeriodView(0, 2, 78, 25, PlotWidth, 40)
+		);
+		var (spacing, _) = ChartViewportHelpers.GetPeriodView(0, 100, 78, 0, PlotWidth, 40);
+		Assert.Equal(PlotWidth / 101, spacing, 6);
 	}
 
 	[Fact]
-	public void A_fitted_view_fits_only_the_periods_bars()
+	public void A_window_of_few_slots_is_no_wider_than_the_widest_zoom_and_stays_at_the_left()
 	{
-		// 1,000 bars loaded, the period holds the latest 80: they fill the plot, older ones are left of it
-		var spacing = ChartViewportHelpers.GetBarSpacing(8, true, 80, 0, PlotWidth, 40);
+		// Today on daily bars: one slot
+		var (spacing, edge) = ChartViewportHelpers.GetPeriodView(500, 501, 1, 0, PlotWidth, 40);
 
-		Assert.Equal(ChartViewportHelpers.GetFitBarSpacing(80, 0, PlotWidth, 40), spacing);
-		var edge = ChartViewportHelpers.GetRightEdge(1000, 0, 0);
-		var (start, end) = ChartViewportHelpers.GetVisibleRange(1000, edge, PlotWidth, spacing);
-		Assert.Equal(1000, end);
-		Assert.InRange(start, 919, 921);
+		Assert.Equal(40, spacing);
+		Assert.Equal(spacing, ChartViewportHelpers.GetBarX(500, edge, PlotRight, spacing), 6);
 	}
 
 	[Fact]
-	public void A_period_without_bars_keeps_the_zoom()
+	public void The_window_fits_again_when_the_plot_widens()
 	{
-		Assert.Equal(8, ChartViewportHelpers.GetBarSpacing(8, true, 0, 0, PlotWidth, 40));
+		// A restored chart is first laid out 253 wide, then gets its real width
+		var narrow = ChartViewportHelpers.GetPeriodView(0, 38, 78, 0, 253, 40);
+		var wide = ChartViewportHelpers.GetPeriodView(0, 38, 78, 0, 534, 40);
+
+		Assert.Equal(253 / 79.0, narrow.Spacing, 6);
+		Assert.Equal(534 / 79.0, wide.Spacing, 6);
+		Assert.Equal(narrow.RightEdge, wide.RightEdge, 6);
 	}
 
 	[Theory]
@@ -208,12 +223,6 @@ public class ChartViewportHelpersTests
 	)
 	{
 		Assert.Equal(needed, ChartViewportHelpers.NeedsOlderBars(start, end));
-	}
-
-	[Fact]
-	public void A_zoomed_view_keeps_its_zoom_when_the_plot_is_resized()
-	{
-		Assert.Equal(12.5, ChartViewportHelpers.GetBarSpacing(12.5, false, 38, 5, 534, 40));
 	}
 
 	[Fact]

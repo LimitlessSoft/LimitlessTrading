@@ -309,24 +309,39 @@ new instance) and lives in one of four wrappers:
   timeframe:** click the timeframe beside the chart's header title (e.g. "5m"); a menu lists 1m,
   5m, 15m, 1h, 1D and 1W with the current one checked, and picking one reloads the bars
   (historical + real-time) at that size. **Changing the period:** the button after the
-  timeframe (e.g. "Auto") zooms the chart to a span ending now, in two groups: rolling (1 day,
-  7 days, 1/3/6 months, 1/5 years back from now) and calendar (Today, This week, This month,
-  This year — from midnight of the current day, Monday, the 1st, 1 January in the display time
-  zone, the zone of the chart's time axis). **A period is a zoom preset, not a filter**
-  (TradingView-style): the chart always loads at least the timeframe's own span (what Auto loads;
-  more when the period needs it) and keeps every bar; the period only fits the view, from its
-  start (`ChartViewModel.PeriodStart` → `CandlestickChart.FitStart`) to the latest bar, the older
-  bars left of it. Picking a period the loaded bars already reach back to just refits; otherwise
-  the chart reloads with enough history. Auto is the latest bars at the default zoom (the
-  behaviour before periods; older layouts load as Auto). Logic in `ChartPeriodHelpers`
-  (`GetRange`, `GetFirstIndex`). Small bars have a longest period (1m 7 days, 5m 1 month, 15m 3
-  months, 1h 1 year): a longer one is cut to it and the status line says "… periods go back … at
-  most"; a period with no bars yet (e.g. Today before the session) keeps the default zoom and says
-  "no bars since …". The fitted view stays fitted as the plot is resized or bars arrive
-  (`ChartViewportHelpers.GetBarSpacing`; a restored chart is laid out narrower first). **Custom:**
+  timeframe (e.g. "Auto") shows a period, in two groups: rolling (1 day, 7 days, 1/3/6 months,
+  1/5 years back from now) and calendar (Today, This week, This month, This year). **A period is
+  the window the chart shows** (`ChartPeriodHelpers.GetWindow`): the chart always loads at least
+  the timeframe's own span (what Auto loads; more when the period needs it) and keeps every bar
+  (history, indicator lookback such as RVOL's earlier days), but while the view is on the period
+  it draws only the bars from the period's start on (`ChartViewModel.PeriodStart` →
+  `CandlestickChart.FitStart`): the period's first bar at the left edge, nothing older, the price
+  scale and the indicator panes fitted to the period's bars only. **Calendar periods are fixed
+  windows** laid out whole (`ChartViewModel.PeriodSlotTimes` → `CandlestickChart.FitSlotTimes`,
+  `ChartViewportHelpers.GetPeriodView`), the slots still to come empty and labelled with their
+  session times: on intraday bars the window is the exchange's trading days in the contract's
+  sessions from IB's contract details (`IChartManager.GetTradingHoursAsync`: liquidHours for
+  RTH, tradingHours for ETH; read along with every intraday load, cached), from the open of the
+  first session to the close of the last — Today on 5m RTH is 09:30–16:00 New York, 78 slots, two
+  candles after the open sit at the left. Today is the trading day of the session running now (a
+  futures evening session belongs to the next day), else today's date in the exchange's zone (before
+  the open: today's session, still empty; a closed day: an empty chart saying "No bars in this
+  period yet"). The next trading day's first bar moves the window on. Daily bars count trading days
+  (Monday to Friday) of the calendar period from midnight in the display time zone, weekly bars
+  weeks. Without hours from IB an intraday calendar period starts at midnight in the display zone
+  and ends at the latest bar. Rolling periods (and a calendar period cut to the timeframe's
+  longest) end at the latest bar plus the right margin. Picking a period the loaded bars already
+  reach back to just refits; otherwise the chart reloads with enough history. Auto is the latest
+  bars at the default zoom (the behaviour before periods; older layouts load as Auto). Logic in
+  `ChartPeriodHelpers` (`GetRange`, `GetWindow`, `GetFirstIndex`, `GetSlotTime`). Small bars have
+  a longest period (1m 7 days, 5m 1 month, 15m 3 months, 1h 1 year): a longer one is cut to it and
+  the status line says "… periods go back … at most"; a period with no bars yet says "no bars
+  since …". The view stays on the window as the plot is resized or bars arrive (laid out again
+  every render; a restored chart is laid out narrower first). **Custom:**
   zooming (wheel), panning (drag) or dragging the margin handle leaves the period's view: the chart
   reports it (`CandlestickChart.IsFitted` → `ChartViewModel.IsPeriodFitted`), the header says
-  "Custom" and the period menu checks nothing. Picking a period again (the same one too) or
+  "Custom" and the period menu checks nothing; the view then moves freely and shows the older bars
+  too (it carries on from where the window was). Picking a period again (the same one too) or
   double-clicking the chart fits the view to it again and the header shows it. Auto is never
   Custom (it is no span). What is saved — per chart, in templates, and for new charts (they start
   at the last chart's period) — is the chosen period, never Custom. **Older history:** scrolling or

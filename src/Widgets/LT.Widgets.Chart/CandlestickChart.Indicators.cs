@@ -40,12 +40,17 @@ public partial class CandlestickChart
 	)> _legendButtons = [];
 	private string? _hoveredLegend;
 
-	/// <summary>The visible bar range and how a bar index maps to x.</summary>
+	/// <summary>
+	/// The visible bar range and how a bar index maps to x. Lines run on to the bar before
+	/// <see cref="Start"/> (off the plot's edge), never before <see cref="First"/>: on a period,
+	/// its first bar, so nothing of the bars before the period is drawn.
+	/// </summary>
 	private readonly record struct Viewport(
 		int Start,
 		int End,
 		double BarSpacing,
-		Func<int, double> X
+		Func<int, double> X,
+		int First
 	);
 
 	private void DrawIndicatorPane(
@@ -490,7 +495,7 @@ public partial class CandlestickChart
 	}
 
 	private static (int From, int To) GetDrawRange(int length, Viewport view) =>
-		(Math.Max(0, view.Start - 1), Math.Min(length - 1, view.End));
+		(Math.Max(view.First, view.Start - 1), Math.Min(length - 1, view.End));
 
 	private static ImmutableSolidColorBrush Brush(uint argb) => new(Color.FromUInt32(argb));
 

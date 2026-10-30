@@ -471,6 +471,34 @@ public class ChartManagerTests
 	}
 
 	[Fact]
+	public async Task Extended_hours_are_every_session_from_the_same_cached_details()
+	{
+		_ibkr.SearchResults =
+		[
+			new ContractDetailsDto
+			{
+				Contract = Request.Contract,
+				TimeZoneId = "US/Eastern",
+				TradingHours = "20261026:0400-20261026:2000",
+				LiquidHours = "20261026:0930-20261026:1600",
+			},
+		];
+
+		var regular = await _manager.GetTradingHoursAsync(Request.Contract, true, Ct);
+		var extended = await _manager.GetTradingHoursAsync(Request.Contract, false, Ct);
+
+		var day = new DateOnly(2026, 10, 26);
+		Assert.Equal(
+			new TimeOnly(9, 30),
+			Assert.Single(TradingHoursHelpers.GetSessions(regular!, day)).Start
+		);
+		var session = Assert.Single(TradingHoursHelpers.GetSessions(extended!, day));
+		Assert.Equal(new TimeOnly(4, 0), session.Start);
+		Assert.Equal(TimeSpan.FromHours(16), session.Length);
+		Assert.Equal(1, _ibkr.SearchCalls);
+	}
+
+	[Fact]
 	public async Task A_contract_without_liquid_hours_has_no_regular_hours()
 	{
 		_ibkr.SearchResults = [new ContractDetailsDto { Contract = Request.Contract }];
