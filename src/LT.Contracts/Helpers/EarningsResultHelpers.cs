@@ -162,6 +162,43 @@ public static class EarningsResultHelpers
 	}
 
 	/// <summary>
+	/// The reported EPS came in or changed: <paramref name="current"/> is a figure and differs
+	/// from <paramref name="previous"/> (a figure going away is not news).
+	/// </summary>
+	public static bool IsActualUpdate(decimal? previous, decimal? current) =>
+		current is not null && current != previous;
+
+	/// <summary>
+	/// A row whose reported EPS came in at <paramref name="updatedAt"/> is still highlighted at
+	/// <paramref name="now"/>: for <see cref="EarningsResultConstants.ActualHighlightDuration"/>.
+	/// </summary>
+	public static bool IsActualFresh(DateTimeOffset? updatedAt, DateTimeOffset now) =>
+		updatedAt is { } at
+		&& now >= at
+		&& now - at < EarningsResultConstants.ActualHighlightDuration;
+
+	/// <summary>
+	/// When the next highlight of <paramref name="updates"/> (the times the rows' EPS came in)
+	/// ends after <paramref name="now"/>; null when none is still on.
+	/// </summary>
+	public static DateTimeOffset? GetNextHighlightEnd(
+		IEnumerable<DateTimeOffset> updates,
+		DateTimeOffset now
+	)
+	{
+		DateTimeOffset? next = null;
+		foreach (var at in updates)
+		{
+			if (!IsActualFresh(at, now))
+				continue;
+			var end = at + EarningsResultConstants.ActualHighlightDuration;
+			if (next is not { } kept || end < kept)
+				next = end;
+		}
+		return next;
+	}
+
+	/// <summary>
 	/// What a symbol is matched by across sources, which write share classes differently
 	/// (Nasdaq "BRK/B", Yahoo and the SEC "BRK-B", others "BRK.B"): upper case, one separator.
 	/// </summary>

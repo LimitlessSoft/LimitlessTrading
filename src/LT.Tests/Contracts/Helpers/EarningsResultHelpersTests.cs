@@ -209,4 +209,42 @@ public class EarningsResultHelpersTests
 		);
 		Assert.Equal(string.Empty, EarningsResultHelpers.Describe(null, x => ""));
 	}
+
+	[Fact]
+	public void An_eps_coming_in_or_changing_is_an_update_and_one_going_away_is_not()
+	{
+		Assert.True(EarningsResultHelpers.IsActualUpdate(null, 1.85m));
+		Assert.True(EarningsResultHelpers.IsActualUpdate(1.85m, 1.86m));
+		Assert.False(EarningsResultHelpers.IsActualUpdate(1.85m, 1.85m));
+		Assert.False(EarningsResultHelpers.IsActualUpdate(1.85m, null));
+		Assert.False(EarningsResultHelpers.IsActualUpdate(null, null));
+	}
+
+	[Fact]
+	public void A_highlight_lasts_the_highlight_duration()
+	{
+		var at = At(16, 5);
+		var duration = EarningsResultConstants.ActualHighlightDuration;
+
+		Assert.False(EarningsResultHelpers.IsActualFresh(null, at));
+		Assert.True(EarningsResultHelpers.IsActualFresh(at, at));
+		Assert.True(
+			EarningsResultHelpers.IsActualFresh(at, at + duration - TimeSpan.FromSeconds(1))
+		);
+		Assert.False(EarningsResultHelpers.IsActualFresh(at, at + duration));
+	}
+
+	[Fact]
+	public void The_next_highlight_end_is_the_earliest_still_on()
+	{
+		var duration = EarningsResultConstants.ActualHighlightDuration;
+		var now = At(16, 10);
+
+		Assert.Equal(
+			At(16, 7) + duration,
+			EarningsResultHelpers.GetNextHighlightEnd([At(16, 0), At(16, 9), At(16, 7)], now)
+		);
+		Assert.Null(EarningsResultHelpers.GetNextHighlightEnd([At(16, 0)], now));
+		Assert.Null(EarningsResultHelpers.GetNextHighlightEnd([], now));
+	}
 }

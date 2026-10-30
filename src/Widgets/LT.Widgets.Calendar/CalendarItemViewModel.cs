@@ -142,6 +142,14 @@ public sealed partial class CalendarEventRowViewModel : CalendarItemViewModel
 	[ObservableProperty]
 	public partial bool IsPast { get; set; }
 
+	/// <summary>
+	/// The reported EPS came in (or changed) a moment ago, while the widget was open: the row is
+	/// highlighted for <see cref="LT.Contracts.Constants.EarningsResultConstants.ActualHighlightDuration"/>.
+	/// Never for figures already there when the row was first shown.
+	/// </summary>
+	[ObservableProperty]
+	public partial bool IsActualFresh { get; set; }
+
 	/// <summary>The release's country flag (<c>US</c>, <c>EU</c> …); null for corporate events and unknown countries.</summary>
 	public string? FlagCode { get; }
 
