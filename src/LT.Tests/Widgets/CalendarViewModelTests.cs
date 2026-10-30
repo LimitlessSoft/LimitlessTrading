@@ -556,6 +556,108 @@ public class CalendarViewModelTests : IDisposable
 		Assert.Equal(requests, _yahoo.Requests.Count);
 	}
 
+	// Wednesday 16:00 New York: AAPL's figure is already in Nasdaq's list, MSFT's at Yahoo; TSLA
+	// reports while the widget is open
+	private void AnswerEarningsWhileOpen(Func<bool> reported, Func<decimal?> nasdaqTsla)
+	{
+		_nasdaq.Answer = (calendar, day) =>
+			calendar == NasdaqCalendar.Earnings && day == Wednesday
+				?
+				[
+					WithActual(Earnings("AAPL", Wednesday), 1.85m),
+					Earnings("MSFT", Wednesday),
+					WithActual(Earnings("TSLA", Wednesday), nasdaqTsla()),
+				]
+				: [];
+		_yahoo.Answer = (day, _) =>
+			day == Wednesday
+				? FakeYahooApiClient.Page(
+					day,
+					1,
+					2,
+					("MSFT", 3.10m, 2.5m),
+					("TSLA", reported() ? 0.52m : null, reported() ? 4m : null)
+				)
+				: new();
+	}
+
+	private static CalendarEventDto WithActual(CalendarEventDto item, decimal? eps)
+	{
+		item.EpsActual = eps;
+		return item;
+	}
+
+	private bool Fresh(string symbol) => TestUiThread.Invoke(() => Row(symbol).IsActualFresh);
+
+	[Fact]
+	public async Task Figures_already_out_when_the_widget_opens_are_not_highlighted()
+	{
+		AnswerEarningsWhileOpen(() => true, () => null);
+
+		await Loaded();
+		await WaitFor(() => Row("TSLA").ActualText == "$0.52" && Row("MSFT").ActualText.Length > 0);
+
+		Assert.False(Fresh("AAPL"));
+		Assert.False(Fresh("MSFT"));
+		Assert.False(Fresh("TSLA"));
+	}
+
+	[Fact]
+	public async Task A_figure_coming_in_while_open_is_highlighted_for_five_minutes()
+	{
+		var reported = false;
+		AnswerEarningsWhileOpen(() => reported, () => null);
+		await Loaded();
+		await WaitFor(() => _yahoo.Requests.Count > 0 && !Calendar.IsLoading);
+		Assert.False(Fresh("TSLA"));
+
+		// The next poll finds it
+		reported = true;
+		_cache.Time.Advance(EarningsResultConstants.YahooInterval);
+		await WaitFor(() => Row("TSLA").ActualText == "$0.52");
+		Assert.True(Fresh("TSLA"));
+		Assert.False(Fresh("AAPL"));
+		Assert.False(Fresh("MSFT"));
+
+		// Still on just before the end, off after it
+		_cache.Time.Advance(
+			EarningsResultConstants.ActualHighlightDuration - TimeSpan.FromSeconds(1)
+		);
+		TestUiThread.Invoke(() => Dispatcher.UIThread.RunJobs());
+		Assert.True(Fresh("TSLA"));
+		_cache.Time.Advance(TimeSpan.FromSeconds(1));
+		await WaitFor(() => !Row("TSLA").IsActualFresh);
+	}
+
+	[Fact]
+	public async Task A_figure_changing_again_is_highlighted_again()
+	{
+		var reported = false;
+		decimal? nasdaqTsla = null;
+		AnswerEarningsWhileOpen(() => reported, () => nasdaqTsla);
+		await Loaded();
+		await WaitFor(() => _yahoo.Requests.Count > 0 && !Calendar.IsLoading);
+
+		reported = true;
+		_cache.Time.Advance(EarningsResultConstants.YahooInterval);
+		await WaitFor(() => Row("TSLA").ActualText == "$0.52");
+		_cache.Time.Advance(EarningsResultConstants.ActualHighlightDuration);
+		await WaitFor(() => !Row("TSLA").IsActualFresh);
+
+		// Nasdaq's own figure differs: a Refresh shows it, highlighted again
+		nasdaqTsla = 0.55m;
+		TestUiThread.Invoke(Calendar.Refresh);
+		await WaitFor(() => !Calendar.IsLoading && Row("TSLA").ActualText == "$0.55");
+		Assert.True(Fresh("TSLA"));
+		Assert.False(Fresh("AAPL"));
+
+		// The same figure on the next Refresh is no news
+		_cache.Time.Advance(EarningsResultConstants.ActualHighlightDuration);
+		TestUiThread.Invoke(Calendar.Refresh);
+		await WaitFor(() => !Calendar.IsLoading && !Row("TSLA").IsActualFresh);
+		Assert.Equal("$0.55", TestUiThread.Invoke(() => Row("TSLA").ActualText));
+	}
+
 	[Fact]
 	public async Task When_yahoo_fails_the_nasdaq_rows_still_show()
 	{

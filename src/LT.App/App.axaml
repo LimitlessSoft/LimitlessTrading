@@ -29,6 +29,8 @@
 		<SolidColorBrush x:Key="BuyPressedBrush" Color="#7026A69A" />
 		<SolidColorBrush x:Key="SellHoverBrush" Color="#40EF5350" />
 		<SolidColorBrush x:Key="SellPressedBrush" Color="#70EF5350" />
+		<!-- Calendar earnings row whose reported EPS just came in: the warning amber, translucent -->
+		<SolidColorBrush x:Key="FreshResultBrush" Color="#33FFB74D" />
 
 		<!-- Error badge (e.g. a watchlist row whose quotes failed), on a 12×12 grid -->
 		<StreamGeometry x:Key="ErrorIcon">

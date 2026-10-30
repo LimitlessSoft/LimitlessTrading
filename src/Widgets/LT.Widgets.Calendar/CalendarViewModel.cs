@@ -30,7 +30,11 @@ namespace LT.App.Widgets.Calendar;
 /// the earnings result sources (<see cref="IEarningsResultManager"/>) after every load and filled
 /// in place; while today still has such rows, they are looked up again on the sources' interval
 /// (a <see cref="TimeProvider"/> timer, New York 06:00–22:00), so after-close results come in
-/// without pressing Refresh.
+/// without pressing Refresh. An earnings row whose reported EPS comes in or changes while the
+/// widget is open (a poll's result, or a reload's) is highlighted for
+/// <see cref="EarningsResultConstants.ActualHighlightDuration"/>, ended by a
+/// <see cref="TimeProvider"/> timer; figures already there when a row is first seen, including
+/// those its first lookup finds, are not.
 /// </summary>
 public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWidgetState
 {
@@ -55,6 +59,21 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 
 	// Results found by the sources, kept across loads (the rows are rebuilt by each)
 	private readonly Dictionary<(string Symbol, DateOnly Date), EarningsResultDto> _results = [];
+
+	// The reported EPS last seen per earnings row (symbol, day and its source; kept across loads),
+	// and when it last came in or changed while the widget was open
+	private readonly Dictionary<
+		(string Symbol, DateOnly Date, CalendarSource Source),
+		decimal?
+	> _actuals = [];
+	private readonly Dictionary<
+		(string Symbol, DateOnly Date, CalendarSource Source),
+		DateTimeOffset
+	> _actualUpdatedAt = [];
+
+	// Rows first seen whose first lookup hasn't finished: what it finds was already out, no highlight
+	private readonly HashSet<(string Symbol, DateOnly Date, CalendarSource Source)> _unsettled = [];
+	private ITimer? _highlight;
 
 	public CalendarViewModel(
 		ICalendarManager calendarManager,
@@ -226,6 +245,7 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 		CancelLoad();
 		StopClock();
 		StopPoll();
+		StopHighlight();
 		_resolve?.Cancel();
 		_resolve?.Dispose();
 		Link.Dispose();
@@ -368,26 +388,27 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 			foreach (var item in day.Events)
 			{
 				var passedAt = CalendarHelpers.GetPassedAt(item, _zone);
-				Items.Add(
-					new CalendarEventRowViewModel(
-						item,
-						CalendarHelpers.FormatTime(item.Time, item.TimeText),
-						passedAt,
-						now >= passedAt,
-						!captionsInHeader && item == firstEarnings,
-						x => _displayTime.Format(x, "HH:mm")
-					)
-					{
-						Result =
-							item.Kind == CalendarEventKind.Earnings
-								? _results.GetValueOrDefault(
-									(EarningsResultHelpers.GetSymbolKey(item.Symbol), item.Date)
-								)
-								: null,
-					}
-				);
+				var row = new CalendarEventRowViewModel(
+					item,
+					CalendarHelpers.FormatTime(item.Time, item.TimeText),
+					passedAt,
+					now >= passedAt,
+					!captionsInHeader && item == firstEarnings,
+					x => _displayTime.Format(x, "HH:mm")
+				)
+				{
+					Result =
+						item.Kind == CalendarEventKind.Earnings
+							? _results.GetValueOrDefault(
+								(EarningsResultHelpers.GetSymbolKey(item.Symbol), item.Date)
+							)
+							: null,
+				};
+				Items.Add(row);
+				TrackActual(row, now);
 			}
 		}
+		StartHighlight(now);
 		if (Items.Count > 0 && result.Start <= today && today <= result.End)
 		{
 			_nowMarker = new CalendarNowMarkerViewModel();
@@ -504,6 +525,9 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 		{
 			// The sources log their own failures; the calendar shows what it has
 		}
+		// The rows shown so far have had their first look: what comes from now on is news
+		if (_lookup == lookup && _shown == shown)
+			_unsettled.Clear();
 		if (_lookup != lookup || _shown != shown || !days.Contains(today))
 			return;
 		if (GetPendingRows(today).Any())
@@ -519,6 +543,7 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 
 	private void Apply(IReadOnlyList<EarningsResultDto> results)
 	{
+		var now = _timeProvider.GetUtcNow();
 		foreach (var result in results)
 		{
 			var key = (EarningsResultHelpers.GetSymbolKey(result.Symbol), result.Date);
@@ -533,8 +558,81 @@ public partial class CalendarViewModel : ConnectedViewModelBase, ILinkable, IWid
 						&& EarningsResultHelpers.GetSymbolKey(x.Event.Symbol) == key.Item1
 					)
 			)
+			{
 				row.Result = combined;
+				TrackActual(row, now);
+			}
 		}
+		StartHighlight(now);
+	}
+
+	// A row seen for the first time keeps its figure unhighlighted (and whatever its first lookup
+	// finds); after that a figure coming in or changing marks it fresh
+	private void TrackActual(CalendarEventRowViewModel row, DateTimeOffset now)
+	{
+		if (row.Event.Kind != CalendarEventKind.Earnings || row.Event.Symbol.Length == 0)
+			return;
+		var key = (
+			EarningsResultHelpers.GetSymbolKey(row.Event.Symbol),
+			row.Event.Date,
+			row.Event.Source
+		);
+		var actual = row.EpsActual;
+		if (!_actuals.TryGetValue(key, out var previous))
+		{
+			_actuals[key] = actual;
+			_unsettled.Add(key);
+		}
+		else if (_unsettled.Contains(key))
+			_actuals[key] = actual;
+		else if (EarningsResultHelpers.IsActualUpdate(previous, actual))
+		{
+			_actuals[key] = actual;
+			_actualUpdatedAt[key] = now;
+		}
+		row.IsActualFresh = EarningsResultHelpers.IsActualFresh(
+			_actualUpdatedAt.TryGetValue(key, out var at) ? at : null,
+			now
+		);
+	}
+
+	// Highlights whose time is up are switched off, the timer set for the next one to end
+	private void OnHighlight()
+	{
+		if (_lifetime.IsCancellationRequested)
+			return;
+		var now = _timeProvider.GetUtcNow();
+		foreach (var key in _actualUpdatedAt.Keys.ToList())
+			if (!EarningsResultHelpers.IsActualFresh(_actualUpdatedAt[key], now))
+				_actualUpdatedAt.Remove(key);
+		foreach (var row in Items.OfType<CalendarEventRowViewModel>().Where(x => x.IsActualFresh))
+			row.IsActualFresh = _actualUpdatedAt.ContainsKey(
+				(
+					EarningsResultHelpers.GetSymbolKey(row.Event.Symbol),
+					row.Event.Date,
+					row.Event.Source
+				)
+			);
+		StartHighlight(now);
+	}
+
+	private void StartHighlight(DateTimeOffset now)
+	{
+		StopHighlight();
+		if (EarningsResultHelpers.GetNextHighlightEnd(_actualUpdatedAt.Values, now) is not { } end)
+			return;
+		_highlight = _timeProvider.CreateTimer(
+			_ => Dispatcher.UIThread.Post(OnHighlight),
+			null,
+			end - now,
+			Timeout.InfiniteTimeSpan
+		);
+	}
+
+	private void StopHighlight()
+	{
+		_highlight?.Dispose();
+		_highlight = null;
 	}
 
 	private void StartPoll()

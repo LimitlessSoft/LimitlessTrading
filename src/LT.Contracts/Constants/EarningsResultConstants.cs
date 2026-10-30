@@ -56,4 +56,10 @@ public static class EarningsResultConstants
 
 	/// <summary>A past day's answer is good for this long (results there no longer change much).</summary>
 	public static readonly TimeSpan PastDayTtl = TimeSpan.FromHours(1);
+
+	/// <summary>
+	/// How long a calendar row stays highlighted after its reported EPS came in (or changed)
+	/// while the widget was open, so a fresh release catches the eye.
+	/// </summary>
+	public static readonly TimeSpan ActualHighlightDuration = TimeSpan.FromMinutes(5);
 }
