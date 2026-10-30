@@ -14,5 +14,18 @@ public class MarketDataTickDtoMapper : ILSCoreMapper<MarketDataTick, MarketDataT
 			Size = source.Size,
 			Value = source.Value,
 			StringValue = source.StringValue,
+			Option = source.Option is { } option
+				? new OptionComputationDto
+				{
+					ImpliedVolatility = option.ImpliedVolatility,
+					Delta = option.Delta,
+					OptionPrice = option.OptionPrice,
+					PresentValueDividend = option.PresentValueDividend,
+					Gamma = option.Gamma,
+					Vega = option.Vega,
+					Theta = option.Theta,
+					UnderlyingPrice = option.UnderlyingPrice,
+				}
+				: null,
 		};
 }

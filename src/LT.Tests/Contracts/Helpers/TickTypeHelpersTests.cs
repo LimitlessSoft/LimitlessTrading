@@ -169,4 +169,51 @@ public class TickTypeHelpersTests
 		Assert.Equal(10, TickTypeHelpers.GetChangePercent(quote));
 		Assert.Equal(100, TickTypeHelpers.GetDisplayPrice(new QuoteDto { Close = 100 }));
 	}
+
+	[Fact]
+	public void Model_greeks_and_open_interest_fold_into_the_quote()
+	{
+		var quote = new QuoteDto();
+		var model = new OptionComputationDto { Gamma = 0.11, ImpliedVolatility = 0.25 };
+
+		Assert.True(
+			TickTypeHelpers.Apply(
+				quote,
+				new MarketDataTickDto
+				{
+					Field = TickTypeHelpers.ModelOptionComputation,
+					Option = model,
+				}
+			)
+		);
+		TickTypeHelpers.Apply(
+			quote,
+			new MarketDataTickDto { Field = TickTypeHelpers.CallOpenInterest, Size = 0 }
+		);
+		TickTypeHelpers.Apply(
+			quote,
+			new MarketDataTickDto { Field = TickTypeHelpers.PutOpenInterest, Size = 41057 }
+		);
+
+		Assert.Same(model, quote.ModelGreeks);
+		Assert.Equal((0m, 41057m), (quote.CallOpenInterest, quote.PutOpenInterest));
+	}
+
+	[Fact]
+	public void A_bid_computation_is_not_the_model()
+	{
+		var quote = new QuoteDto();
+
+		var applied = TickTypeHelpers.Apply(
+			quote,
+			new MarketDataTickDto
+			{
+				Field = 10,
+				Option = new OptionComputationDto { Gamma = 0.1 },
+			}
+		);
+
+		Assert.False(applied);
+		Assert.Null(quote.ModelGreeks);
+	}
 }

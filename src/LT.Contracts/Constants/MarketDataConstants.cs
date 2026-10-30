@@ -102,6 +102,12 @@ public static class MarketDataConstants
 	public const string AverageVolumeGenericTick = "165";
 
 	/// <summary>
+	/// Generic tick list for an option's open interest (tick 27 on a call, 28 on a put, once per
+	/// line); the gamma exposure widget uses it. Option lines bring IB's greeks without it.
+	/// </summary>
+	public const string OpenInterestGenericTick = "101";
+
+	/// <summary>
 	/// Generic tick list for IB's trade rate and volume rate (ticks 55 and 56, per minute, as
 	/// generic ticks); the watchlist's Vol/Min column uses the volume rate.
 	/// </summary>

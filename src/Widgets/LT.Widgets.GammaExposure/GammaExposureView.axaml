@@ -1,0 +1,114 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.GammaExposure"
+	x:Class="LT.App.Widgets.GammaExposure.GammaExposureView"
+	x:DataType="vm:GammaExposureViewModel"
+>
+	<UserControl.Styles>
+		<Style Selector="TextBlock.label">
+			<Setter Property="Foreground" Value="{DynamicResource SecondaryText}" />
+			<Setter Property="FontSize" Value="11" />
+		</Style>
+		<Style Selector="TextBlock.value">
+			<Setter Property="FontSize" Value="13" />
+			<Setter Property="FontWeight" Value="SemiBold" />
+			<Setter Property="FontFeatures" Value="+tnum" />
+		</Style>
+	</UserControl.Styles>
+
+	<!-- The underlying comes from the link group and is shown in the frame header -->
+	<DockPanel>
+		<DockPanel DockPanel.Dock="Top" Margin="2,0,0,4">
+			<Button
+				DockPanel.Dock="Right"
+				Padding="8,2"
+				FontSize="12"
+				Content="Refresh"
+				Command="{Binding RefreshCommand}"
+				ToolTip.Tip="Read the exposure again now"
+			/>
+			<ComboBox
+				DockPanel.Dock="Left"
+				MinWidth="130"
+				FontSize="12"
+				ItemsSource="{Binding Expirations}"
+				SelectedItem="{Binding SelectedExpiration}"
+				IsVisible="{Binding Expirations.Count}"
+				ToolTip.Tip="Expiration"
+			/>
+			<TextBlock
+				Classes="secondary"
+				Margin="8,0"
+				VerticalAlignment="Center"
+				TextTrimming="CharacterEllipsis"
+				Text="{Binding ProgressText}"
+			/>
+		</DockPanel>
+
+		<!-- Totals of the reading -->
+		<WrapPanel
+			DockPanel.Dock="Top"
+			Margin="2,0,0,6"
+			IsVisible="{Binding Exposure, Converter={x:Static ObjectConverters.IsNotNull}}"
+		>
+			<StackPanel
+				Margin="0,0,18,0"
+				ToolTip.Tip="Calls plus puts, dollars per 1% move of the underlying (dealers long calls, short puts)"
+			>
+				<TextBlock Classes="label" Text="Net GEX" />
+				<TextBlock
+					Classes="value"
+					Classes.positive="{Binding IsNetPositive}"
+					Classes.negative="{Binding !IsNetPositive}"
+					Text="{Binding NetText}"
+				/>
+			</StackPanel>
+			<StackPanel Margin="0,0,18,0">
+				<TextBlock Classes="label" Text="Calls" />
+				<TextBlock Classes="value positive" Text="{Binding CallsText}" />
+			</StackPanel>
+			<StackPanel Margin="0,0,18,0">
+				<TextBlock Classes="label" Text="Puts" />
+				<TextBlock Classes="value negative" Text="{Binding PutsText}" />
+			</StackPanel>
+			<StackPanel Margin="0,0,18,0">
+				<TextBlock Classes="label" Text="Spot" />
+				<TextBlock Classes="value" Text="{Binding SpotText}" />
+			</StackPanel>
+			<StackPanel
+				Margin="0,0,18,0"
+				ToolTip.Tip="Where the net exposure changes sign as the price moves (Black-Scholes gamma at IB's implied volatility); — when it doesn't within these strikes"
+			>
+				<TextBlock Classes="label" Text="Gamma flip" />
+				<TextBlock Classes="value" Text="{Binding FlipText}" />
+			</StackPanel>
+			<StackPanel ToolTip.Tip="Options with both a gamma and an open interest from IB, of those read; when it was read">
+				<TextBlock Classes="label" Text="Read" />
+				<TextBlock
+					Classes="secondary"
+					FontSize="12"
+					Margin="0,1,0,0"
+					Text="{Binding CoverageText}"
+				/>
+			</StackPanel>
+		</WrapPanel>
+
+		<StackPanel DockPanel.Dock="Top" Margin="2,0,0,4" Spacing="2">
+			<TextBlock
+				Classes="secondary"
+				TextWrapping="Wrap"
+				Text="{Binding InfoText}"
+				IsVisible="{Binding InfoText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+			/>
+			<TextBlock
+				Classes="negative"
+				TextWrapping="Wrap"
+				Text="{Binding ErrorMessage}"
+				IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+			/>
+		</StackPanel>
+
+		<vm:GammaExposureChart Exposure="{Binding Exposure}" />
+	</DockPanel>
+</UserControl>

@@ -27,6 +27,7 @@ public class WidgetsMenuItem : MenuItem
 		WorkspaceTool.Chart,
 		WorkspaceTool.Overview,
 		WorkspaceTool.OptionChain,
+		WorkspaceTool.GammaExposure,
 		WorkspaceTool.Depth,
 		WorkspaceTool.OrderTicket,
 		WorkspaceTool.News,

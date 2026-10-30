@@ -23,7 +23,10 @@ public static class TickTypeHelpers
 	public const int Week52High = 20;
 	public const int AverageVolume = 21;
 	public const int OptionImpliedVolatility = 24;
+	public const int ModelOptionComputation = 13;
 	public const int Open = 14;
+	public const int CallOpenInterest = 27;
+	public const int PutOpenInterest = 28;
 	public const int LastTimestamp = 45;
 	public const int Halted = 49;
 	public const int VolumeRate = 56;
@@ -110,6 +113,15 @@ public static class TickTypeHelpers
 				return true;
 			case OptionImpliedVolatility:
 				quote.ImpliedVolatility = tick.Value is > 0 ? tick.Value : null;
+				return true;
+			case ModelOptionComputation when tick.Option != null:
+				quote.ModelGreeks = tick.Option;
+				return true;
+			case CallOpenInterest:
+				quote.CallOpenInterest = tick.Size is >= 0 ? tick.Size : null;
+				return true;
+			case PutOpenInterest:
+				quote.PutOpenInterest = tick.Size is >= 0 ? tick.Size : null;
 				return true;
 			default:
 				return false;

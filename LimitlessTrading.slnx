@@ -8,6 +8,7 @@
 		<Project Path="src/Widgets/LT.Widgets.DayTradePerformance/LT.Widgets.DayTradePerformance.csproj" />
 		<Project Path="src/Widgets/LT.Widgets.Depth/LT.Widgets.Depth.csproj" />
 		<Project Path="src/Widgets/LT.Widgets.Executions/LT.Widgets.Executions.csproj" />
+		<Project Path="src/Widgets/LT.Widgets.GammaExposure/LT.Widgets.GammaExposure.csproj" />
 		<Project Path="src/Widgets/LT.Widgets.Messages/LT.Widgets.Messages.csproj" />
 		<Project Path="src/Widgets/LT.Widgets.News/LT.Widgets.News.csproj" />
 		<Project Path="src/Widgets/LT.Widgets.Notes/LT.Widgets.Notes.csproj" />
