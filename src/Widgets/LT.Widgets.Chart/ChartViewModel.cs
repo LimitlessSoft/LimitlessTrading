@@ -33,9 +33,13 @@ namespace LT.App.Widgets.Chart;
 /// fills of the contract are drawn on it (trade journal: socket executions and IB Flex), closed
 /// quantity joined entry → exit, and the break-even of an open position (live positions only).
 /// <para>
-/// The period is a zoom preset, not a filter: the chart loads at least the timeframe's own span
-/// and fits its view to the period (<see cref="PeriodStart"/>); zooming or scrolling away shows
-/// "Custom" in the header until a period is picked again or the chart is double-clicked.
+/// The period is the window the chart shows (ChartPeriodHelpers.GetWindow): the chart loads at
+/// least the timeframe's own span (history and indicator lookback) but draws only the bars from
+/// the period's start on (<see cref="PeriodStart"/>); a calendar period's window is laid out
+/// whole (<see cref="PeriodSlotTimes"/>; Today on intraday bars is the exchange's trading day in
+/// the contract's sessions, regular ones for RTH, all for ETH), its slots still to come empty.
+/// Zooming or scrolling away shows "Custom" in the header until a period is picked again or the
+/// chart is double-clicked.
 /// Scrolling or zooming to the oldest bar loads the page of history before it
 /// (<see cref="LoadOlderBars"/>), one page at a time, until IB has no more.
 /// </para>
@@ -107,6 +111,12 @@ public partial class ChartViewModel
 
 	// The regular sessions last read, by contract: a reload of the same contract reuses them
 	private (int ConId, TradingScheduleDto? Schedule)? _regularHours;
+
+	// Every session (pre- and post-market too) last read, by contract: an ETH period's window
+	private (int ConId, TradingScheduleDto? Schedule)? _tradingHours;
+
+	// Where the period's window ends (a calendar period): a bar from there on starts the next one
+	private DateTimeOffset? _periodEnd;
 
 	public ChartViewModel(
 		IChartManager chartManager,
@@ -366,11 +376,19 @@ public partial class ChartViewModel
 	public bool FitsPeriod => SelectedPeriod.Value != ChartPeriod.Auto;
 
 	/// <summary>
-	/// Where the chosen period starts (capped at the timeframe's longest); the chart fits its view
-	/// from here to the latest bar. Null for Auto.
+	/// Where the chosen period starts (capped at the timeframe's longest); the chart shows the
+	/// bars from here on, none older. Null for Auto.
 	/// </summary>
 	[ObservableProperty]
 	public partial DateTimeOffset? PeriodStart { get; set; }
+
+	/// <summary>
+	/// The bar slots of a calendar period's window (its session time, trading days or weeks),
+	/// oldest first: the chart lays them all out, the ones after the latest bar empty. Null when
+	/// the window ends at the latest bar (Auto, rolling periods, intraday without known hours).
+	/// </summary>
+	[ObservableProperty]
+	public partial IReadOnlyList<DateTimeOffset>? PeriodSlotTimes { get; set; }
 
 	/// <summary>
 	/// The chart's view is fitted to the period; the chart clears it when the view is zoomed,
@@ -505,27 +523,31 @@ public partial class ChartViewModel
 		OnTemplateSettingsEdited();
 	}
 
-	// Today, this week… start at midnight in the display zone: another zone moves them
+	// Today, this week… on daily bars (and intraday without hours) start at midnight in the
+	// display zone: another zone moves them
 	private void OnZoneChanged()
 	{
 		if (ChartPeriodHelpers.IsCalendar(SelectedPeriod.Value) && !ApplyPeriodToLoadedBars())
 			Reload();
 	}
 
-	// The period's start on the bars already loaded, when they cover it (a bar before it, or no
-	// older history); false when the chart has to load more (or is loading, or has nothing)
+	// The period's window on the bars already loaded, when they cover its start (a bar before
+	// it, or no older history); false when the chart has to load more (or is loading, has
+	// nothing, or still needs the contract's hours for the window)
 	private bool ApplyPeriodToLoadedBars()
 	{
-		if (IsLoading || _loaded == null || Bars.Count == 0)
+		if (IsLoading || _loaded == null || Bars.Count == 0 || NeedsPeriodHours())
 			return false;
+		var now = _timeProvider.GetUtcNow();
 		var range = ChartPeriodHelpers.GetRange(
 			SelectedPeriod.Value,
 			SelectedTimeframe.Value,
-			_timeProvider.GetUtcNow(),
+			now,
 			DisplayTime.Zone
 		);
+		var window = GetPeriodWindow(now);
 		if (
-			range.From is { } from
+			window?.Start is { } from
 			&& !_olderExhausted
 			&& ChartPeriodHelpers.GetFirstIndex(
 				Bars,
@@ -535,17 +557,79 @@ public partial class ChartViewModel
 			) == 0
 		)
 			return false;
-		PeriodStart = range.From;
+		SetPeriodWindow(window);
 		_loaded = new ChartBarsDto
 		{
 			FetchedAt = _loaded.FetchedAt,
 			IsStale = _loaded.IsStale,
 			Error = _loaded.Error,
-			From = range.From,
+			From = window?.Start,
 			LimitedTo = range.LimitedTo,
 		};
 		SetLoadedStatus();
 		return true;
+	}
+
+	// The chosen period's window at now, in the hours of this chart's contract and trading hours
+	private ChartWindowDto? GetPeriodWindow(DateTimeOffset now) =>
+		ChartPeriodHelpers.GetWindow(
+			SelectedPeriod.Value,
+			SelectedTimeframe.Value,
+			now,
+			DisplayTime.Zone,
+			GetPeriodHours()?.Schedule
+		);
+
+	private void SetPeriodWindow(ChartWindowDto? window)
+	{
+		PeriodStart = window?.Start;
+		PeriodSlotTimes = window?.SlotTimes;
+		_periodEnd = window?.End;
+	}
+
+	// The sessions an intraday calendar period's window is laid out in (regular ones for RTH,
+	// all for ETH), as last read for this chart's contract; null when not read for it
+	private (int ConId, TradingScheduleDto? Schedule)? GetPeriodHours()
+	{
+		var hours = UseRegularTradingHours ? _regularHours : _tradingHours;
+		return hours is { } known && known.ConId == _contract?.ConId ? known : null;
+	}
+
+	// An intraday calendar period whose window needs the contract's hours, not read yet
+	private bool NeedsPeriodHours() =>
+		ChartPeriodHelpers.IsCalendar(SelectedPeriod.Value)
+		&& ChartTimeframeHelpers.IsIntraday(SelectedTimeframe.Value)
+		&& _contract != null
+		&& GetPeriodHours() == null;
+
+	// Without them the window ends at the latest bar, from midnight in the display zone
+	private async Task LoadPeriodHoursAsync(
+		ContractDto contract,
+		bool regularOnly,
+		CancellationToken cancellationToken
+	)
+	{
+		try
+		{
+			var schedule = await _chartManager.GetTradingHoursAsync(
+				contract,
+				regularOnly,
+				cancellationToken
+			);
+			if (regularOnly)
+				_regularHours = (contract.ConId, schedule);
+			else
+				_tradingHours = (contract.ConId, schedule);
+		}
+		catch (OperationCanceledException) { }
+		catch (Exception ex)
+		{
+			_messageLogManager.Add(
+				MessageSeverity.Info,
+				MessageLogConstants.SourceChart,
+				$"{ContractHelpers.GetDisplayName(contract)}: trading hours unavailable, the period shows its bars to the latest without the session's empty slots ({ErrorMessageHelpers.ToUserMessage(ex)})"
+			);
+		}
 	}
 
 	// The view back to the period: fitted from its start (Auto: the latest bars, default zoom)
@@ -806,12 +890,21 @@ public partial class ChartViewModel
 		IsLoading = true;
 		try
 		{
+			// The hours a calendar period's window is laid out in, along with the bars and
+			// whatever the period (picking one later then needs no reload); cached per contract
+			var hours =
+				IsIntraday && GetPeriodHours() == null
+					? LoadPeriodHoursAsync(contract, UseRegularTradingHours, cancellationToken)
+					: Task.CompletedTask;
 			var result = await _chartManager.GetBarsAsync(request, cancellationToken);
+			await hours;
 			// Superseded (another timeframe, period or contract) while IB answered: the newer
 			// load's bars stay
 			cancellationToken.ThrowIfCancellationRequested();
-			// The fit's start before the bars: the chart fits a new series to it at once
-			PeriodStart = result.From;
+			// The window before the bars: the chart shows a new series in it at once
+			var window = GetPeriodWindow(_timeProvider.GetUtcNow());
+			SetPeriodWindow(window);
+			result.From = window?.Start;
 			Bars = result.Bars;
 			_loaded = result;
 			SetLoadedStatus();
@@ -1061,6 +1154,9 @@ public partial class ChartViewModel
 			IndicatorResults = [.. IndicatorResults.Select(IndicatorChartHelpers.WithoutPlots)];
 		ScheduleIndicators();
 		RefreshTools();
+		// A bar past the period's window (the next trading day's first): the period moves on
+		if (_periodEnd is { } end && newValue.Count > 0 && newValue[^1].Time >= end)
+			ApplyPeriodToLoadedBars();
 	}
 
 	public void RefreshIndicatorChoices() =>

@@ -145,41 +145,29 @@ public static class ChartViewportHelpers
 	}
 
 	/// <summary>
-	/// Bar spacing that shows every bar and the right margin across a plot
-	/// <paramref name="plotWidth"/> wide (with half a slot to spare on each side), at most
-	/// <paramref name="maxSpacing"/>; <paramref name="maxSpacing"/> when there is nothing to fit.
+	/// A view fitted to a period's window: the period's first bar <paramref name="firstIndex"/>
+	/// at the plot's left edge and the window's <paramref name="windowSlots"/> bar slots across
+	/// the plot (the slots still to come empty), half a slot to spare on each side. A window
+	/// ending at the latest bar (<paramref name="windowSlots"/> null) holds the period's bars and
+	/// the right margin. More bars than slots widen it to them. At most
+	/// <paramref name="maxSpacing"/>: a window of few slots keeps its bars at the left, the space
+	/// after the window empty. Returns the spacing and the plot's right edge (bar position).
 	/// </summary>
-	public static double GetFitBarSpacing(
+	public static (double Spacing, double RightEdge) GetPeriodView(
+		int firstIndex,
 		int barCount,
+		int? windowSlots,
 		double rightMargin,
 		double plotWidth,
 		double maxSpacing
 	)
 	{
-		if (barCount <= 0 || !(plotWidth > 0))
-			return maxSpacing;
-		var slots = barCount + (rightMargin > 0 ? rightMargin : 0) + 1;
-		return Math.Min(maxSpacing, plotWidth / slots);
+		var bars = Math.Max(0, barCount - firstIndex);
+		var margin = double.IsNaN(rightMargin) ? 0 : Math.Max(0, rightMargin);
+		var slots = windowSlots is { } window ? Math.Max(window, bars) : bars + margin;
+		var spacing = plotWidth > 0 ? Math.Min(maxSpacing, plotWidth / (slots + 1)) : maxSpacing;
+		return (spacing, firstIndex - 0.5 + (plotWidth > 0 ? plotWidth / spacing : slots + 1));
 	}
-
-	/// <summary>
-	/// Bar spacing for a render: a fitted view (<paramref name="fitted"/>) fits its latest
-	/// <paramref name="fitCount"/> bars (the period's, from its start to now) and the right
-	/// margin into the plot as it is now (<see cref="GetFitBarSpacing"/>), so it stays fitted when
-	/// the plot is resized or bars arrive; otherwise, or with no bars to fit (a period without bars
-	/// yet), the current zoom, <paramref name="barSpacing"/>.
-	/// </summary>
-	public static double GetBarSpacing(
-		double barSpacing,
-		bool fitted,
-		int fitCount,
-		double rightMargin,
-		double plotWidth,
-		double maxSpacing
-	) =>
-		fitted && fitCount > 0
-			? GetFitBarSpacing(fitCount, rightMargin, plotWidth, maxSpacing)
-			: barSpacing;
 
 	/// <summary>
 	/// Whether to load the page of bars before the oldest: the view's first visible bar

@@ -39,6 +39,18 @@ public interface IChartManager
 		CancellationToken cancellationToken = default
 	);
 
+	/// <summary>
+	/// The contract's sessions for a chart's period window: the regular ones
+	/// (<paramref name="regularOnly"/>, liquidHours, as <see cref="GetRegularHoursAsync"/>) or
+	/// every session with pre- and post-market (tradingHours), from the same cached contract
+	/// details; null when IB gives none usable.
+	/// </summary>
+	Task<TradingScheduleDto?> GetTradingHoursAsync(
+		ContractDto contract,
+		bool regularOnly,
+		CancellationToken cancellationToken = default
+	);
+
 	/// <summary>5-second real-time bars; merge them with BarHelpers.Merge.</summary>
 	IAsyncEnumerable<BarDto> SubscribeRealtimeBarsAsync(
 		GetBarsRequest request,

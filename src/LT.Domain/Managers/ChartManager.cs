@@ -128,8 +128,14 @@ public class ChartManager(
 		return result.Value.ToMappedList<BarEntity, BarDto>();
 	}
 
-	public async Task<TradingScheduleDto?> GetRegularHoursAsync(
+	public Task<TradingScheduleDto?> GetRegularHoursAsync(
 		ContractDto contract,
+		CancellationToken cancellationToken = default
+	) => GetTradingHoursAsync(contract, true, cancellationToken);
+
+	public async Task<TradingScheduleDto?> GetTradingHoursAsync(
+		ContractDto contract,
+		bool regularOnly,
 		CancellationToken cancellationToken = default
 	)
 	{
@@ -150,7 +156,10 @@ public class ChartManager(
 			x => x != null
 		);
 		return result.Value is { } details
-			? TradingHoursHelpers.Parse(details.LiquidHours, details.TimeZoneId)
+			? TradingHoursHelpers.Parse(
+				regularOnly ? details.LiquidHours : details.TradingHours,
+				details.TimeZoneId
+			)
 			: null;
 	}
 

@@ -34,9 +34,12 @@ namespace LT.App.Widgets.Chart;
 /// </para>
 /// <para>
 /// With <see cref="FitStart"/> (a chosen period) a new series, <see cref="ResetView"/> and a
-/// double-click fit the bars from that start to the latest into the plot (older bars stay loaded,
-/// left of the view), and keep them fitted as the plot is resized or bars arrive until the view
-/// is zoomed, panned or its margin dragged; <see cref="IsFitted"/> tells which. When the view
+/// double-click show the period's window: its first bar at the left edge and nothing older (older
+/// bars stay loaded for history and indicators, not drawn), across the plot the window's bar
+/// slots (<see cref="FitSlotTimes"/>, the ones still to come empty) or, without them, the bars to
+/// the latest and the right margin. The price scale and the indicator panes fit the period's bars
+/// only. The view stays on the window as the plot is resized or bars arrive until it is zoomed,
+/// panned or its margin dragged; <see cref="IsFitted"/> tells which. When the view
 /// nears the oldest bar, <see cref="OlderBarsNeeded"/> asks for older history; bars put in front
 /// of the series leave the view where it is (positions count from the latest bar).
 /// </para>
@@ -99,6 +102,11 @@ public partial class CandlestickChart : Control
 
 	public static readonly StyledProperty<DateTimeOffset?> FitStartProperty =
 		AvaloniaProperty.Register<CandlestickChart, DateTimeOffset?>(nameof(FitStart));
+
+	public static readonly StyledProperty<IReadOnlyList<DateTimeOffset>?> FitSlotTimesProperty =
+		AvaloniaProperty.Register<CandlestickChart, IReadOnlyList<DateTimeOffset>?>(
+			nameof(FitSlotTimes)
+		);
 
 	public static readonly StyledProperty<bool> IsFittedProperty = AvaloniaProperty.Register<
 		CandlestickChart,
@@ -232,6 +240,7 @@ public partial class CandlestickChart : Control
 			IndicatorsProperty,
 			RegularHoursProperty,
 			FitStartProperty,
+			FitSlotTimesProperty,
 			AlertsProperty,
 			IsPlacingAlertProperty,
 			OrderLinesProperty,
@@ -330,6 +339,17 @@ public partial class CandlestickChart : Control
 	}
 
 	/// <summary>
+	/// The bar slots of the period's window (a calendar period: its session time, trading days or
+	/// weeks), oldest first: the fitted view lays them all out, the time axis labels the empty ones
+	/// after the latest bar with them. Null: the window ends at the latest bar.
+	/// </summary>
+	public IReadOnlyList<DateTimeOffset>? FitSlotTimes
+	{
+		get => GetValue(FitSlotTimesProperty);
+		set => SetValue(FitSlotTimesProperty, value);
+	}
+
+	/// <summary>
 	/// Set by the chart (bound one way to the source): the view is fitted to
 	/// <see cref="FitStart"/>. Turns false when the view is zoomed, panned or its margin dragged,
 	/// true again on <see cref="ResetView"/> (also a new series, a double-click). Never true
@@ -418,17 +438,17 @@ public partial class CandlestickChart : Control
 		IsFitted = fitted;
 	}
 
-	// Bars the fit shows: those from the period's start on (all of them without one)
-	private int GetFitCount(IReadOnlyList<BarDto> bars) =>
-		FitStart is { } from
-			? bars.Count
-				- ChartPeriodHelpers.GetFirstIndex(
-					bars,
-					from,
-					Timeframe,
-					TimeZone ?? TimeZoneInfo.Local
-				)
-			: bars.Count;
+	// The period's first bar while the view is on the period (bars.Count: none yet); null when
+	// it isn't (Auto, or zoomed / panned away)
+	private int? GetPeriodFirstIndex(IReadOnlyList<BarDto> bars) =>
+		_fitted && FitStart is { } from
+			? ChartPeriodHelpers.GetFirstIndex(
+				bars,
+				from,
+				Timeframe,
+				TimeZone ?? TimeZoneInfo.Local
+			)
+			: null;
 
 	// Which visible bars (start..end) are outside the regular session; all false without hours
 	private bool[] GetExtendedBars(IReadOnlyList<BarDto> bars, int start, int end)
@@ -450,13 +470,20 @@ public partial class CandlestickChart : Control
 		_legendButtons.Clear();
 
 		var bars = Bars;
+		// On the period, its bars only: none yet (Today before the open) is an empty chart
+		var noPeriodBars = bars is { Count: > 0 } && GetPeriodFirstIndex(bars) == bars.Count;
 		if (
 			bars is not { Count: > 0 }
+			|| noPeriodBars
 			|| size.Width < ChartConstants.MinPriceAxisWidth + 20
 			|| size.Height < 80
 		)
 		{
-			var empty = Text("No data", 13, TextBrush);
+			var empty = Text(
+				noPeriodBars ? "No bars in this period yet" : "No data",
+				13,
+				TextBrush
+			);
 			context.DrawText(
 				empty,
 				new Point((size.Width - empty.Width) / 2, (size.Height - empty.Height) / 2)
@@ -518,7 +545,7 @@ public partial class CandlestickChart : Control
 		double Y(double value) => price.Y(value);
 		double X(int index) =>
 			ChartViewportHelpers.GetBarX(index, rightEdge, plot.Right, _barSpacing);
-		var view = new Viewport(start, end, _barSpacing, X);
+		var view = new Viewport(start, end, _barSpacing, X, GetPeriodFirstIndex(bars) ?? 0);
 
 		// pre- / post-market: a lighter band behind each run of bars outside the regular session
 		var extended = GetExtendedBars(bars, start, end);
@@ -568,9 +595,7 @@ public partial class CandlestickChart : Control
 		{
 			if ((bars.Count - 1 - i) % labelEvery != 0)
 				continue;
-			var time = ToShown(
-				i < bars.Count ? bars[i].Time : ChartDrawingHelpers.GetTimeAt(bars, i, BarLength)
-			);
+			var time = ToShown(ChartPeriodHelpers.GetSlotTime(bars, i, FitSlotTimes, BarLength));
 			var x = Math.Round(X(i)) + 0.5;
 			context.DrawLine(GridPen, new Point(x, plot.Y), new Point(x, plot.Bottom));
 			var label = Text(FormatTime(time, previous), 11, TextBrush);
@@ -830,34 +855,65 @@ public partial class CandlestickChart : Control
 			volumeHeight
 		);
 
-		_barSpacing = ChartViewportHelpers.GetBarSpacing(
-			_barSpacing,
-			_fitted,
-			_fitted ? GetFitCount(bars) : 0,
-			RightMargin,
-			plot.Width,
-			GetMaxBarSpacing()
-		);
-		var rightMargin = ChartViewportHelpers.ClampRightMargin(
-			RightMargin,
-			plot.Width,
-			_barSpacing
-		);
-		// Negative: panned into the future, a few bars kept at the left edge
-		_offset = ChartViewportHelpers.ClampOffset(
-			_offset,
-			bars.Count,
-			rightMargin,
-			plot.Width,
-			_barSpacing
-		);
-		var rightEdge = ChartViewportHelpers.GetRightEdge(bars.Count, _offset, rightMargin);
-		var (start, end) = ChartViewportHelpers.GetVisibleRange(
-			bars.Count,
-			rightEdge,
-			plot.Width,
-			_barSpacing
-		);
+		double rightEdge;
+		int start;
+		int end;
+		if (GetPeriodFirstIndex(bars) is { } first)
+		{
+			// On the period: its window across the plot (laid out again every render, so it stays
+			// as the plot is resized or bars arrive), nothing before its first bar
+			(_barSpacing, rightEdge) = ChartViewportHelpers.GetPeriodView(
+				first,
+				bars.Count,
+				FitSlotTimes?.Count,
+				RightMargin,
+				plot.Width,
+				GetMaxBarSpacing()
+			);
+			// The offset a pan or zoom away from the window carries on from
+			var margin = ChartViewportHelpers.ClampRightMargin(
+				RightMargin,
+				plot.Width,
+				_barSpacing
+			);
+			_offset = ChartViewportHelpers.ClampOffset(
+				(int)Math.Round(bars.Count + margin - rightEdge),
+				bars.Count,
+				margin,
+				plot.Width,
+				_barSpacing
+			);
+			(start, end) = ChartViewportHelpers.GetVisibleRange(
+				bars.Count,
+				rightEdge,
+				plot.Width,
+				_barSpacing
+			);
+			start = Math.Max(start, first);
+		}
+		else
+		{
+			var rightMargin = ChartViewportHelpers.ClampRightMargin(
+				RightMargin,
+				plot.Width,
+				_barSpacing
+			);
+			// Negative: panned into the future, a few bars kept at the left edge
+			_offset = ChartViewportHelpers.ClampOffset(
+				_offset,
+				bars.Count,
+				rightMargin,
+				plot.Width,
+				_barSpacing
+			);
+			rightEdge = ChartViewportHelpers.GetRightEdge(bars.Count, _offset, rightMargin);
+			(start, end) = ChartViewportHelpers.GetVisibleRange(
+				bars.Count,
+				rightEdge,
+				plot.Width,
+				_barSpacing
+			);
+		}
 
 		var low = double.MaxValue;
 		var high = double.MinValue;
