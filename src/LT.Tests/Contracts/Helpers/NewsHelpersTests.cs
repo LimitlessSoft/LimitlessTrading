@@ -245,4 +245,32 @@ public class NewsHelpersTests
 		Assert.Equal("news-BRFG-BRFG_12_34.pdf", NewsHelpers.GetDocumentFileName(headline, pdf));
 		Assert.Equal("news-BRFG-BRFG_12_34.bin", NewsHelpers.GetDocumentFileName(headline, [1, 2]));
 	}
+
+	[Fact]
+	public void Symbol_news_providers_are_the_default_ones_with_news_per_symbol_ibs_first()
+	{
+		var cnbc = new NewsProviderDto
+		{
+			SourceId = "lt",
+			Code = "CNBC",
+			Capabilities = NewsSourceCapabilities.History | NewsSourceCapabilities.BroadTape,
+		};
+		var yahoo = new NewsProviderDto
+		{
+			SourceId = "lt",
+			Code = "YF",
+			SelectedByDefault = false,
+		};
+		var sec = new NewsProviderDto { SourceId = "lt", Code = "SEC" };
+		var djn = new NewsProviderDto { SourceId = "ibkr", Code = "DJ-N" };
+		var brfg = new NewsProviderDto { SourceId = "ibkr", Code = "BRFG" };
+
+		var providers = NewsHelpers.GetSymbolNewsProviders([cnbc, yahoo, sec, djn, brfg]);
+
+		Assert.Equal(["BRFG", "DJ-N", "SEC"], providers.Select(x => x.Code));
+		Assert.Equal(
+			"IB: BRFG, DJ-N · LimitlessTrading: SEC",
+			NewsHelpers.FormatProviders(providers)
+		);
+	}
 }

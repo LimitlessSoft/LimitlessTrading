@@ -17,7 +17,8 @@ namespace LT.Tests.Widgets;
 /// <summary>
 /// The Overview widget: one contract from the link group, a typed ticker or a drop, saved with
 /// the widget; its IB details handed to the Basic info tab with clear states while loading,
-/// disconnected or not found; one quote line (with generic tick 165) only while shown.
+/// disconnected or not found; one quote line (with generic tick 165) only while shown; the News
+/// tab's headlines and articles of the contract, loaded once the tab is shown.
 /// </summary>
 public class OverviewViewModelTests : IDisposable
 {
@@ -54,6 +55,10 @@ public class OverviewViewModelTests : IDisposable
 	private readonly MarketDataManager _marketData;
 	private readonly Dictionary<int, ContractDetailsDto> _details = [];
 	private readonly ContractManager _contracts;
+	private readonly FakeNewsSource _news = new("ibkr") { IsAvailable = false };
+	private readonly TestNewsArchive _archive = new();
+	private readonly NewsManager _newsManager;
+	private readonly DisplayTimeStore _displayTime;
 	private OverviewViewModel? _overview;
 
 	public OverviewViewModelTests()
@@ -61,6 +66,18 @@ public class OverviewViewModelTests : IDisposable
 		_marketData = new MarketDataManager(_ibkr, TimeProvider.System);
 		_contracts = new ContractManager(_ibkr, _cache.Settings, _cache.Manager);
 		_financials = new FinancialsManager(_sec, new MessageLogManager(), TimeProvider.System);
+		_newsManager = new NewsManager([_news], _archive.Manager, _cache.Time);
+		_displayTime = new DisplayTimeStore(
+			new SettingsManager(_cache.Settings, _ibkr),
+			_cache.Time
+		);
+		_news.Providers = [_news.Provider("BRFG"), _news.Provider("DJ-N")];
+		_news.History =
+		[
+			_news.Headline("BRFG", "BRFG$1", 5),
+			_news.Headline("DJ-N", "DJN$2", 30),
+			_news.Headline("BRFG", "BRFG$3", 10),
+		];
 		_sec.Ciks["AAPL"] = 320193;
 		_sec.Ciks["SPY"] = 884394;
 		_sec.FinancialFacts[320193] = new SecCompanyFactsDto
@@ -476,10 +493,133 @@ public class OverviewViewModelTests : IDisposable
 		Assert.Equal(Aapl.ConId, _ibkr.MarketDataRequested[^1].ConId);
 	}
 
+	[Fact]
+	public void The_news_load_only_once_their_tab_is_shown_newest_first()
+	{
+		_links.Set(LinkGroup.Red, Aapl);
+		var overview = Create();
+		Connect();
+		var news = News(overview);
+
+		Assert.Empty(_news.HeadlineRequests);
+		Ui(() => overview.SelectedTab = news);
+		WaitFor(() => !news.IsLoading && news.Rows.Count == 3);
+
+		var request = Assert.Single(_news.HeadlineRequests);
+		Assert.Equal(Aapl.ConId, request.Contract?.ConId);
+		Assert.Equal(["BRFG", "DJ-N"], request.Providers.Select(x => x.Code));
+		Assert.Equal(["DJN$2", "BRFG$3", "BRFG$1"], news.Rows.Select(x => x.Headline.ArticleId));
+		Assert.Equal("IB: BRFG, DJ-N", news.SourceText);
+		Assert.Null(news.StatusText);
+	}
+
+	[Fact]
+	public void The_news_follow_the_contract()
+	{
+		_links.Set(LinkGroup.Red, Aapl);
+		var overview = Create();
+		Connect();
+		var news = News(overview);
+		Ui(() => overview.SelectedTab = news);
+		WaitFor(() => news.Rows.Count == 3);
+
+		_news.History = [_news.Headline("BRFG", "BRFG$9", 40)];
+		Ui(() => _links.Set(LinkGroup.Red, Spy));
+		WaitFor(() => news.Rows.Count == 1);
+
+		Assert.Equal(Spy.ConId, _news.HeadlineRequests[^1].Contract?.ConId);
+		Assert.Equal("BRFG$9", news.Rows[0].Headline.ArticleId);
+	}
+
+	[Fact]
+	public void A_contract_without_news_says_so()
+	{
+		_news.History = [];
+		_links.Set(LinkGroup.Red, Spy);
+		var overview = Create();
+		Connect();
+		var news = News(overview);
+
+		Ui(() => overview.SelectedTab = news);
+		WaitFor(() => !news.IsLoading && news.StatusText != null);
+
+		Assert.Equal("No recent news for SPY.", news.StatusText);
+		Assert.False(news.IsError);
+	}
+
+	[Fact]
+	public void Disconnected_it_says_where_news_come_from_and_loads_ibs_once_connected()
+	{
+		_links.Set(LinkGroup.Red, Aapl);
+		var overview = Create();
+		var news = News(overview);
+
+		Ui(() => overview.SelectedTab = news);
+		WaitFor(() => !news.IsLoading && news.StatusText != null);
+		Assert.StartsWith("Not connected to IB", news.StatusText);
+		Assert.Empty(news.Rows);
+
+		Connect();
+		WaitFor(() => news.Rows.Count == 3);
+		Assert.Null(news.StatusText);
+	}
+
+	[Fact]
+	public void A_failed_news_request_shows_the_error()
+	{
+		_links.Set(LinkGroup.Red, Aapl);
+		var overview = Create();
+		Connect();
+		_news.Error = new InvalidOperationException("News feed is not allowed");
+		var news = News(overview);
+
+		Ui(() => overview.SelectedTab = news);
+		WaitFor(() => !news.IsLoading && news.IsError);
+
+		Assert.Contains("News feed is not allowed", news.StatusText);
+	}
+
+	[Fact]
+	public void A_selected_headline_shows_its_article()
+	{
+		_links.Set(LinkGroup.Red, Aapl);
+		var overview = Create();
+		Connect();
+		var news = News(overview);
+		Ui(() => overview.SelectedTab = news);
+		WaitFor(() => news.Rows.Count == 3);
+
+		Ui(() => news.SelectedRow = news.Rows[0]);
+		WaitFor(() => !news.IsArticleLoading && news.ArticleText.Length > 0);
+
+		Assert.True(news.HasArticle);
+		Assert.Equal("DJ-N DJN$2", news.ArticleTitle);
+		Assert.Equal("ibkr DJN$2", news.ArticleText);
+		Assert.Contains("DJ-N · IB", news.ArticleMeta);
+		Assert.Null(news.ArticleError);
+	}
+
+	[Fact]
+	public void A_saved_news_tab_is_shown_again()
+	{
+		var first = Create();
+		Ui(() => first.SelectedTab = News(first));
+		var placement = new WidgetPlacementDto();
+		first.SaveState(placement);
+
+		var restored = TestUiThread.Invoke(() => Create(new LinkGroupStore()));
+		Ui(() => restored.LoadState(placement));
+
+		Assert.Equal(OverviewTab.News, placement.OverviewTab);
+		Assert.Same(News(restored), restored.SelectedTab);
+		Ui(restored.Dispose);
+	}
+
 	public void Dispose()
 	{
 		if (_overview != null)
 			TestUiThread.Invoke(_overview.Dispose);
+		_archive.Dispose();
 		GC.SuppressFinalize(this);
 	}
 
@@ -492,10 +632,21 @@ public class OverviewViewModelTests : IDisposable
 	}
 
 	private OverviewViewModel Create(LinkGroupStore links) =>
-		new(_contracts, _marketData, _shares, _financials, _connection, links, _cache.Time);
+		new(
+			_contracts,
+			_marketData,
+			_shares,
+			_financials,
+			_newsManager,
+			_connection,
+			links,
+			_displayTime,
+			_cache.Time
+		);
 
 	private void Connect()
 	{
+		_news.IsAvailable = true;
 		_connection.SetStatus(ConnectionState.Connected, "U1");
 		Ui(() => { });
 	}
@@ -515,6 +666,9 @@ public class OverviewViewModelTests : IDisposable
 			SecurityIds = contract == Aapl ? new() { ["ISIN"] = "US0378331005" } : [],
 		};
 	}
+
+	private static NewsTabViewModel News(OverviewViewModel overview) =>
+		Assert.IsType<NewsTabViewModel>(overview.Tabs[2]);
 
 	private static FinancialsTabViewModel Financials(OverviewViewModel overview) =>
 		Assert.IsType<FinancialsTabViewModel>(overview.Tabs[1]);
