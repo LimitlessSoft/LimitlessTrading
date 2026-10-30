@@ -1,7 +1,10 @@
+using Avalonia.Threading;
 using LT.App.Stores;
 using LT.App.Widgets.Chart;
 using LT.Contracts.Constants;
+using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.ChartTemplates;
+using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
 using LT.Domain.Managers;
@@ -18,6 +21,15 @@ namespace LT.Tests.Widgets;
 /// </summary>
 public class ChartViewModelTemplateTests : IDisposable
 {
+	private static readonly ContractDto Spy = new()
+	{
+		ConId = 756733,
+		Symbol = "SPY",
+		SecurityType = "STK",
+		Exchange = "SMART",
+		Currency = "USD",
+	};
+
 	private readonly TestCache _cache = new();
 	private readonly FakeIbkrApiClient _ibkr = new();
 	private readonly FakeConnectionManager _connection = new();
@@ -264,6 +276,57 @@ public class ChartViewModelTemplateTests : IDisposable
 			Assert.Equal(ChartPeriod.Auto, State(bystander).ChartPeriod);
 		});
 
+	// The template is 5 minute bars over seven days; the editor changes the period (one the
+	// loaded bars cover: zoomed at once; one reaching past them: reloaded), the timeframe, or both
+	[Theory]
+	[InlineData(ChartTimeframe.FiveMinutes, ChartPeriod.Today)]
+	[InlineData(ChartTimeframe.FiveMinutes, ChartPeriod.OneMonth)]
+	[InlineData(ChartTimeframe.OneHour, ChartPeriod.SevenDays)]
+	[InlineData(ChartTimeframe.OneHour, ChartPeriod.OneMonth)]
+	public void A_scrolled_follower_takes_the_change_and_shows_the_period_whole(
+		ChartTimeframe timeframe,
+		ChartPeriod period
+	)
+	{
+		_ibkr.HistoricalBy = (_, _) =>
+			Task.FromResult<IReadOnlyList<BarDto>>([
+				Bar(_cache.Time.GetUtcNow().AddDays(-3)),
+				Bar(_cache.Time.GetUtcNow().AddMinutes(-30)),
+			]);
+		var id = TestUiThread.Invoke(SaveFiveDays);
+		var editor = TestUiThread.Invoke(() => Following(id));
+		var follower = TestUiThread.Invoke(() => Following(id));
+		TestUiThread.Invoke(() =>
+		{
+			editor.OpenContract(Spy);
+			follower.OpenContract(Spy);
+		});
+		WaitFor(() => follower.Bars.Count == 2 && !follower.IsLoading);
+		var resets = 0;
+		TestUiThread.Invoke(() =>
+		{
+			follower.ViewResetRequested += () => resets++;
+			// The chart reports the follower was scrolled away from the period
+			follower.IsPeriodFitted = false;
+			Assert.True(follower.IsPeriodCustom);
+
+			editor.SetTimeframe(timeframe);
+			editor.SetPeriod(period);
+			editor.SaveFollowedTemplate();
+		});
+
+		// Like the editor's view: back on the period, not left where it was scrolled to
+		WaitFor(() => !follower.IsLoading && resets > 0);
+		TestUiThread.Invoke(() =>
+		{
+			Assert.Equal(timeframe, follower.SelectedTimeframe.Value);
+			Assert.Equal(period, follower.SelectedPeriod.Value);
+			Assert.False(follower.IsPeriodCustom);
+			Assert.Equal(follower.SelectedPeriod.ToString(), follower.PeriodLabel);
+			Assert.Equal(editor.PeriodStart, follower.PeriodStart);
+		});
+	}
+
 	[Fact]
 	public void Followers_of_a_template_from_before_periods_share_their_period() =>
 		TestUiThread.Invoke(() =>
@@ -464,6 +527,49 @@ public class ChartViewModelTemplateTests : IDisposable
 				}
 			)
 			.Id;
+
+	// A template "5 days": 5 minute bars over seven days
+	private string SaveFiveDays() =>
+		_templates
+			.Save(
+				new()
+				{
+					Name = "5 days",
+					Settings = new()
+					{
+						Timeframe = ChartTimeframe.FiveMinutes,
+						Period = ChartPeriod.SevenDays,
+					},
+				}
+			)
+			.Id;
+
+	private static BarDto Bar(DateTimeOffset time) =>
+		new()
+		{
+			Time = time,
+			Open = 1,
+			High = 1,
+			Low = 1,
+			Close = 1,
+			Volume = 100,
+		};
+
+	private static void WaitFor(Func<bool> condition)
+	{
+		var until = DateTime.UtcNow.AddSeconds(5);
+		while (
+			!TestUiThread.Invoke(() =>
+			{
+				Dispatcher.UIThread.RunJobs();
+				return condition();
+			})
+		)
+		{
+			Assert.True(DateTime.UtcNow < until, "Timed out");
+			Thread.Sleep(10);
+		}
+	}
 
 	private ChartViewModel Following(string templateId)
 	{
