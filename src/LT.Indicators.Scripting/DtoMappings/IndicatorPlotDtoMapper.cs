@@ -21,6 +21,7 @@ public class IndicatorPlotDtoMapper : ILSCoreMapper<PlotOutput, IndicatorPlotDto
 			},
 			Color = source.Color.ToArgb(),
 			Color2 = source.Color2?.ToArgb(),
+			BarColors = source.BarColors is { } colors ? [.. colors.Select(x => x.ToArgb())] : null,
 			Width = source.Width,
 			LineStyle = source.LineStyle switch
 			{

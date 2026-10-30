@@ -10,11 +10,19 @@ public static class ChartTemplateConstants
 	/// span, so it is read as holding <see cref="Enums.ChartPeriod.Auto"/>
 	/// (<see cref="PeriodSinceVersion"/>).
 	/// </para>
+	/// <para>
+	/// 3: volume is an indicator. Charts of older versions always drew the volume bars, so an
+	/// older template holding indicators is read with the volume indicator added
+	/// (<see cref="VolumeIndicatorSinceVersion"/>).
+	/// </para>
 	/// </summary>
-	public const int CurrentVersion = 2;
+	public const int CurrentVersion = 3;
 
 	/// <summary>The first version whose templates say their period themselves.</summary>
 	public const int PeriodSinceVersion = 2;
+
+	/// <summary>The first version whose templates hold the volume bars as an indicator.</summary>
+	public const int VolumeIndicatorSinceVersion = 3;
 
 	/// <summary>Marks an exported file as chart templates (checked on import).</summary>
 	public const string FileFormat = "LimitlessTrading.ChartTemplates";

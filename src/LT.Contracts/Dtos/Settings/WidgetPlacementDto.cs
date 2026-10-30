@@ -51,6 +51,12 @@ public class WidgetPlacementDto
 	/// <summary>Chart instances: their indicators in legend order (null: none; older layouts).</summary>
 	public List<IndicatorInstanceDto>? ChartIndicators { get; set; }
 
+	/// <summary>
+	/// Chart instances: saved since volume is an indicator (null: older layouts, whose charts
+	/// always drew the volume bars: the volume indicator is added to them once on load).
+	/// </summary>
+	public bool? ChartVolumeMigrated { get; set; }
+
 	/// <summary>Chart instances: the template last applied to or saved from it (null: none).</summary>
 	public string? ChartTemplateId { get; set; }
 

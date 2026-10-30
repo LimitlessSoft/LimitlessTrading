@@ -149,8 +149,8 @@ public static class IndicatorWorkspaceHelpers
 		  TrueRange Atr Rsi Vwap Macd BollingerBands Stoch Max Min Abs Nz Iff`.
 		- Inputs: `Input(name, default[, min, max])` for whole numbers, decimals (add a step) and
 		  on / off; they show in the indicator's settings on the chart.
-		- Drawing: `Plot`, `Histogram`, `Band`, `Markers`, `Level`; colours from `Colors` or
-		  `Color.FromHex("#RRGGBB")`.
+		- Drawing: `Plot`, `Histogram`, `ColoredHistogram` (a colour per bar), `Band`, `Markers`,
+		  `Level`; colours from `Colors` or `Color.FromHex("#RRGGBB")`.
 		- Meta: `Name`, `ShortName`, `Pane`, `ScaleMin` / `ScaleMax`, `Decimals`.
 
 		## What a script can't do

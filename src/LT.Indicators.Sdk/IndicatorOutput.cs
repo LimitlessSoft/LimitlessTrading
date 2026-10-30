@@ -19,6 +19,9 @@ public sealed record PlotOutput(string Name, PlotKind Kind, Color Color, double[
 	/// <summary>Band: the lower line; markers: where they sit with <see cref="MarkerPosition.AtValue"/>.</summary>
 	public double[]? Values2 { get; init; }
 
+	/// <summary>Histogram: each bar's colour (one per bar), in place of <see cref="Color"/> and <see cref="Color2"/>.</summary>
+	public Color[]? BarColors { get; init; }
+
 	public double Width { get; init; } = 1.5;
 	public LineStyle LineStyle { get; init; }
 	public double Level { get; init; }

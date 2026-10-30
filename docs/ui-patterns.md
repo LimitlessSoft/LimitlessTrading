@@ -700,12 +700,14 @@ template stops following.
   storage provider) and hands their text to `ChartViewModel.ImportTemplates` / takes
   `ExportTemplates`; at most `MaxFileLength` (2 MB) is read.
 - **Format, versioned for later settings.** A template (`ChartTemplateEntity`) has a `Version`
-  (`ChartTemplateConstants.CurrentVersion`, 2) and its `Settings`, every one optional: a setting
+  (`ChartTemplateConstants.CurrentVersion`, 3) and its `Settings`, every one optional: a setting
   a template doesn't hold (saved before it existed) leaves the chart's own when applied. Version
   2 added the period: a version 1 template (stored or imported) that holds a timeframe is read as
   holding period Auto (`ChartTemplateHelpers.ToDto`), what its charts showed, so charts following
-  it share their period too. An
-  exported file is `{ "format": "LimitlessTrading.ChartTemplates", "version": 2, "templates":
+  it share their period too. Version 3 made the volume bars an indicator: an older template that
+  holds indicators is read with the volume indicator added first (`IndicatorHelpers.AddVolume`),
+  since its charts always drew the bars; one saved since keeps whatever it holds. An
+  exported file is `{ "format": "LimitlessTrading.ChartTemplates", "version": 3, "templates":
   [...] }` in camelCase with timeframes by name; reading accepts any property case, enum numbers,
   comments and trailing commas, and ignores fields it doesn't know, so files from newer versions
   import with what this one understands (and are stored as the current version). Adding a
@@ -1171,7 +1173,8 @@ while a text box has focus. On macOS, Cmd works in place of Ctrl.
 ## Charts
 
 `Widgets/Chart/CandlestickChart` is a custom `Control` drawn with `DrawingContext` (no chart
-library): candles, volume, price grid, last-price line, crosshair + OHLCV readout. Wheel zooms,
+library): candles, price grid, last-price line, crosshair + OHLCV readout; the volume bars are
+the built-in Volume indicator (see below). Wheel zooms,
 drag pans, double-click resets (zoom and pan, not the right margin); the right button doesn't
 pan — releasing it opens the chart's context menu (Add alert at …, Remove alert, Remove triggered
 alerts, Manage indicators…, Apply template, Templates…, Show toolbox). Drawings (trend lines,
@@ -1289,7 +1292,9 @@ button's colour; each has a tooltip saying how to draw it.
 
 **Indicators and panes.** Right-click → Manage indicators… adds and removes indicators; they draw on the
 price chart, on the volume bars or in panes of their own stacked under the price chart, each
-pane with its own scale and a legend (hover a row for hide / settings / remove). All panes share
+pane with its own scale and a legend (hover a row for hide / settings / remove). The volume bars
+themselves are the Volume indicator, which new charts have and which can be hidden or removed
+like any other. All panes share
 the horizontal viewport and the crosshair. While bars load, a `LoadingSpinner` (shared control in
 `LT.Widgets.Core/Controls`: an accent arc sweeping round a faint track, animated only while
 visible) sits in the middle of the chart; the error text sits top centre, clear of the legend.

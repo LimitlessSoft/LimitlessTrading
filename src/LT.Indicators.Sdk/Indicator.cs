@@ -3,7 +3,7 @@ namespace LT.Indicators.Sdk;
 /// <summary>
 /// An indicator: reads the bars (<see cref="Close"/>, …) and its inputs (<see cref="Input(string, int, int, int)"/>),
 /// computes series with <see cref="Ta"/> and declares what to draw (<see cref="Plot"/>,
-/// <see cref="Histogram"/>, <see cref="Band"/>, <see cref="Markers"/>, <see cref="Level"/>).
+/// <see cref="Histogram"/>, <see cref="ColoredHistogram"/>, <see cref="Band"/>, <see cref="Markers"/>, <see cref="Level"/>).
 /// <para>
 /// <see cref="Compute"/> runs once over all bars (series-based, not once per bar). It also runs
 /// once on zero bars when the indicator is loaded: that is how its inputs and plots are learnt,
@@ -125,6 +125,18 @@ public abstract class Indicator
 		Color? color = null,
 		Color? negativeColor = null
 	) => AddHistogram(name, series, color, negativeColor);
+
+	/// <summary>
+	/// Columns from 0, each in its own colour: <paramref name="colors"/> has one per bar (e.g.
+	/// volume green on up bars, red on down bars). <paramref name="color"/> is the plot's own
+	/// colour, for the legend where there is no bar.
+	/// </summary>
+	protected void ColoredHistogram(
+		string name,
+		Series series,
+		IReadOnlyList<Color> colors,
+		Color? color = null
+	) => AddColoredHistogram(name, series, colors, color);
 
 	/// <summary>Two lines with the space between them filled.</summary>
 	protected void Band(
@@ -249,6 +261,26 @@ public abstract class Indicator
 				Color2 = negativeColor,
 			}
 		);
+
+	internal void AddColoredHistogram(
+		string name,
+		Series series,
+		IReadOnlyList<Color> colors,
+		Color? color
+	)
+	{
+		ArgumentNullException.ThrowIfNull(colors, name);
+		if (colors.Count != _bars.Count)
+			throw new ArgumentException(
+				$"Plot '{name}' has {colors.Count} colours for {_bars.Count} bars."
+			);
+		AddPlot(
+			new PlotOutput(name, PlotKind.Histogram, PickColor(color), Check(name, series))
+			{
+				BarColors = [.. colors],
+			}
+		);
+	}
 
 	internal void AddBand(string name, Series upper, Series lower, Color? color, double fillOpacity)
 	{

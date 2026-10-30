@@ -80,7 +80,7 @@ public partial class ChartViewModel
 	private readonly TimeProvider _timeProvider;
 	private readonly DispatcherTimer _computeTimer;
 	private readonly DispatcherTimer _templateSaveTimer;
-	private List<IndicatorInstanceDto> _indicators = [];
+	private List<IndicatorInstanceDto> _indicators = IndicatorHelpers.GetNewChartIndicators();
 	private bool _computing;
 	private bool _computePending;
 	private bool _disposed;
@@ -189,6 +189,7 @@ public partial class ChartViewModel
 			ApplyTemplateSettings(template.Settings);
 			SetAppliedTemplate(template);
 		}
+		RefreshChartIndicators();
 
 		_contract = linkGroupStore.Get(Link.Group);
 		Reload();
@@ -280,7 +281,11 @@ public partial class ChartViewModel
 		DrawingMagnet = placement.ChartDrawingMagnet ?? false;
 		KeepDrawingTool = placement.ChartKeepDrawingTool ?? false;
 		BarStyle = placement.ChartBarStyle ?? ChartBarStyle.Candles;
-		_indicators = [.. placement.ChartIndicators ?? []];
+		// Layouts from before volume was an indicator drew the volume bars: they keep them
+		_indicators =
+			placement.ChartVolumeMigrated == true
+				? [.. placement.ChartIndicators ?? []]
+				: IndicatorHelpers.AddVolume(placement.ChartIndicators ?? []);
 		RefreshChartIndicators();
 		ScheduleIndicators();
 		LoadTemplateState(placement);
@@ -297,6 +302,7 @@ public partial class ChartViewModel
 		placement.ChartContract = _contract;
 		placement.ChartRightMargin = RightMargin > 0 ? RightMargin : null;
 		placement.ChartIndicators = _indicators.Count > 0 ? [.. _indicators] : null;
+		placement.ChartVolumeMigrated = true;
 		placement.ChartTemplateId = _templateId;
 		placement.ChartFollowTemplate = FollowTemplate;
 		placement.ChartShowToolbox = ShowToolbox;

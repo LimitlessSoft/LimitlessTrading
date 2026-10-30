@@ -141,6 +141,41 @@ public class IndicatorScriptTests
 	}
 
 	[Fact]
+	public void A_colored_histogram_carries_a_colour_per_bar()
+	{
+		Compile(
+			"""
+			var colors = new Color[BarCount];
+			for (var i = 0; i < BarCount; i++)
+				colors[i] = i % 2 == 0 ? Colors.Green : Colors.Red;
+			ColoredHistogram("Range", High - Low, colors, Colors.Blue);
+			"""
+		);
+
+		var plot = Assert.Single(Run("test.cs", bars: 4).Plots);
+
+		Assert.Equal(IndicatorPlotKind.Histogram, plot.Kind);
+		Assert.Equal(0xFF2962FF, plot.Color);
+		Assert.Equal([0xFF4CAF50, 0xFFEF5350, 0xFF4CAF50, 0xFFEF5350], plot.BarColors!);
+	}
+
+	[Fact]
+	public void A_colored_histogram_needs_one_colour_per_bar()
+	{
+		Compile(
+			"""
+			// Right on zero bars (when the file is loaded), one short on any others
+			var colors = new Color[Math.Max(0, BarCount - 1)];
+			ColoredHistogram("Range", High - Low, colors);
+			"""
+		);
+
+		var result = Run("test.cs", bars: 3);
+
+		Assert.Contains("2 colours for 3 bars", result.Error);
+	}
+
+	[Fact]
 	public void Helper_functions_and_types_in_a_script_work()
 	{
 		Compile(

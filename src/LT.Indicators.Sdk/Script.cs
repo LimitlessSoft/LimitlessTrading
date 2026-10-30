@@ -92,6 +92,13 @@ public static class Script
 		Color? negativeColor = null
 	) => Indicator.Current.AddHistogram(name, series, color, negativeColor);
 
+	public static void ColoredHistogram(
+		string name,
+		Series series,
+		IReadOnlyList<Color> colors,
+		Color? color = null
+	) => Indicator.Current.AddColoredHistogram(name, series, colors, color);
+
 	public static void Band(
 		string name,
 		Series upper,

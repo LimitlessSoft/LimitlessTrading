@@ -85,6 +85,43 @@ public class IndicatorChartHelpersTests
 	}
 
 	[Fact]
+	public void A_user_colour_replaces_a_histograms_per_bar_colours()
+	{
+		var plot = new IndicatorPlotDto
+		{
+			Name = "Volume",
+			Kind = IndicatorPlotKind.Histogram,
+			Color = 1,
+			BarColors = [2, 3],
+		};
+
+		IndicatorChartHelpers.ApplyPlotColors(
+			[plot],
+			new Dictionary<string, uint> { ["Volume"] = 9 }
+		);
+
+		Assert.Equal((9u, (uint[]?)null), (plot.Color, plot.BarColors));
+	}
+
+	[Fact]
+	public void The_legend_shows_a_value_in_its_bars_colour_opaque()
+	{
+		var plot = new IndicatorPlotDto
+		{
+			Color = 0x10000001,
+			BarColors = [0x55000002, 0x55000003],
+		};
+
+		Assert.Equal(0xFF000003, IndicatorChartHelpers.GetLegendColor(plot, 1));
+		// No such bar (an empty chart, the hovered bar beyond the values): the plot's own
+		Assert.Equal(0xFF000001, IndicatorChartHelpers.GetLegendColor(plot, 5));
+		Assert.Equal(
+			0xFF000001,
+			IndicatorChartHelpers.GetLegendColor(new IndicatorPlotDto { Color = 1 }, 0)
+		);
+	}
+
+	[Fact]
 	public void The_legend_names_the_values_only_when_an_indicator_shows_more_than_one()
 	{
 		var rvol = IndicatorChartHelpers.GetLegendPlots([

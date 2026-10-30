@@ -14,6 +14,12 @@ public class IndicatorPlotDto
 	/// <summary>Band: its fill; histogram: the colour below 0 (null: <see cref="Color"/>).</summary>
 	public uint? Color2 { get; set; }
 
+	/// <summary>
+	/// Histogram: each bar's colour (0xAARRGGBB, aligned with <see cref="Values"/>), in place of
+	/// <see cref="Color"/> and <see cref="Color2"/>; null: those.
+	/// </summary>
+	public uint[]? BarColors { get; set; }
+
 	public double Width { get; set; } = 1.5;
 	public IndicatorLineStyle LineStyle { get; set; }
 	public double[] Values { get; set; } = [];

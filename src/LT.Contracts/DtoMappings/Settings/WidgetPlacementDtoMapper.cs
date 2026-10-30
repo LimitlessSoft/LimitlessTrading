@@ -34,6 +34,7 @@ public class WidgetPlacementDtoMapper : ILSCoreMapper<WidgetPlacementEntity, Wid
 			ChartIndicators = source.ChartIndicators is { } indicators
 				? [.. indicators.Select(new IndicatorInstanceDtoMapper().ToMapped)]
 				: null,
+			ChartVolumeMigrated = source.ChartVolumeMigrated,
 			ChartTemplateId = source.ChartTemplateId,
 			ChartFollowTemplate = source.ChartFollowTemplate,
 			ChartShowToolbox = source.ChartShowToolbox,
