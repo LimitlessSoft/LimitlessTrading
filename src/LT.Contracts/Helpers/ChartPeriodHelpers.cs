@@ -14,11 +14,12 @@ namespace LT.Contracts.Helpers;
 public static class ChartPeriodHelpers
 {
 	/// <summary>IB durations in days a request is rounded up to (fewer distinct cache entries).</summary>
-	private static readonly int[] DurationDays = [2, 8, 32, 93, 185, 365];
+	private static readonly int[] DurationDays = [2, 3, 8, 32, 93, 185, 365];
 
 	public static IReadOnlyList<ChartPeriod> RollingPeriods { get; } =
 	[
 		ChartPeriod.OneDay,
+		ChartPeriod.TwoDays,
 		ChartPeriod.SevenDays,
 		ChartPeriod.OneMonth,
 		ChartPeriod.ThreeMonths,
@@ -29,6 +30,13 @@ public static class ChartPeriodHelpers
 
 	public static IReadOnlyList<ChartPeriod> CalendarPeriods { get; } =
 	[ChartPeriod.Today, ChartPeriod.ThisWeek, ChartPeriod.ThisMonth, ChartPeriod.ThisYear];
+
+	/// <summary>
+	/// Every period in the order the chart's menu lists them: Auto, the rolling ones shortest
+	/// first, then the calendar ones (not the enum's order, which only ever grows at the end).
+	/// </summary>
+	public static IReadOnlyList<ChartPeriod> AllPeriods { get; } =
+	[ChartPeriod.Auto, .. RollingPeriods, .. CalendarPeriods];
 
 	public static bool IsCalendar(ChartPeriod period) => CalendarPeriods.Contains(period);
 
@@ -42,6 +50,7 @@ public static class ChartPeriodHelpers
 		period switch
 		{
 			ChartPeriod.OneDay => "1 day",
+			ChartPeriod.TwoDays => "2 days",
 			ChartPeriod.SevenDays => "7 days",
 			ChartPeriod.OneMonth => "1 month",
 			ChartPeriod.ThreeMonths => "3 months",
@@ -70,6 +79,7 @@ public static class ChartPeriodHelpers
 		return period switch
 		{
 			ChartPeriod.OneDay => now.AddDays(-1),
+			ChartPeriod.TwoDays => now.AddDays(-2),
 			ChartPeriod.SevenDays => now.AddDays(-7),
 			ChartPeriod.OneMonth => now.AddMonths(-1),
 			ChartPeriod.ThreeMonths => now.AddMonths(-3),

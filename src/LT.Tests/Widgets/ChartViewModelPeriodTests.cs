@@ -4,6 +4,7 @@ using LT.App.Widgets.Chart;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Enums;
+using LT.Contracts.Helpers;
 using LT.Domain.Managers;
 using LT.Indicators.Scripting;
 using LT.Tests.Fakes;
@@ -51,6 +52,16 @@ public class ChartViewModelPeriodTests : IDisposable
 		WaitForClose(chart, 2);
 		Assert.NotEqual(auto, _ibkr.HistoricalDurations[^1]);
 		Assert.True(chart.FitsPeriod);
+	}
+
+	[Fact]
+	public void The_periods_are_offered_in_menu_order_with_two_days_after_one_day()
+	{
+		var chart = TestUiThread.Invoke(CreateChart);
+
+		var periods = chart.Periods.Select(x => x.Value).ToList();
+		Assert.Equal(ChartPeriodHelpers.AllPeriods, periods);
+		Assert.Equal(periods.IndexOf(ChartPeriod.OneDay) + 1, periods.IndexOf(ChartPeriod.TwoDays));
 	}
 
 	[Fact]

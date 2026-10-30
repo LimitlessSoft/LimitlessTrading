@@ -20,4 +20,5 @@ public enum ChartPeriod
 	ThisWeek = 9,
 	ThisMonth = 10,
 	ThisYear = 11,
+	TwoDays = 12,
 }
