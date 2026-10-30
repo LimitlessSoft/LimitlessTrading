@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using LT.App.Controls;
+using LT.App.Helpers;
 using LT.Contracts.Helpers;
 
 namespace LT.App.Workspace;
@@ -140,7 +141,8 @@ public partial class WorkspaceView
 			return;
 		if (target.Detach)
 		{
-			var scaling = TopLevel.GetTopLevel(handle)?.RenderScaling ?? 1;
+			// Window pixels per unscaled unit: the display's scaling and the UI scale
+			var scaling = (TopLevel.GetTopLevel(handle)?.RenderScaling ?? 1) * UiScale.Factor;
 			var x = screen.X - DetachOffsetX * scaling;
 			var y = screen.Y - DetachOffsetY * scaling;
 			// The move rebuilds the tabs, the dragged one included: after this release is handled

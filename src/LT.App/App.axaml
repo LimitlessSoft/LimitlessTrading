@@ -236,23 +236,27 @@
 						<Border Background="{TemplateBinding Background}" IsHitTestVisible="False" />
 						<Panel Background="Transparent" Margin="{TemplateBinding WindowDecorationMargin}" />
 						<VisualLayerManager Name="PART_VisualLayerManager">
-							<DockPanel>
-								<controls:WindowTitleBar
-									Name="PART_TitleBar"
-									DockPanel.Dock="Top"
-									Title="{TemplateBinding Title}"
-									LeftContent="{TemplateBinding TitleBarLeftContent}"
-									RightContent="{TemplateBinding TitleBarRightContent}"
-								/>
-								<ContentPresenter
-									Name="PART_ContentPresenter"
-									ContentTemplate="{TemplateBinding ContentTemplate}"
-									Content="{TemplateBinding Content}"
-									Margin="{TemplateBinding Padding}"
-									HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-									VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
-								/>
-							</DockPanel>
+							<!-- The UI scale: bar and content, inside the layer manager so overlay
+							     popups (which inherit their target's scale) aren't scaled twice -->
+							<controls:UiScaleHost>
+								<DockPanel>
+									<controls:WindowTitleBar
+										Name="PART_TitleBar"
+										DockPanel.Dock="Top"
+										Title="{TemplateBinding Title}"
+										LeftContent="{TemplateBinding TitleBarLeftContent}"
+										RightContent="{TemplateBinding TitleBarRightContent}"
+									/>
+									<ContentPresenter
+										Name="PART_ContentPresenter"
+										ContentTemplate="{TemplateBinding ContentTemplate}"
+										Content="{TemplateBinding Content}"
+										Margin="{TemplateBinding Padding}"
+										HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+										VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+									/>
+								</DockPanel>
+							</controls:UiScaleHost>
 						</VisualLayerManager>
 					</Panel>
 				</ControlTemplate>
@@ -263,6 +267,13 @@
 	<Application.Styles>
 		<FluentTheme />
 		<StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+
+		<!-- The UI scale reaches popups (menus, flyouts, tooltips, drop-downs; separate windows on
+		     desktop): each takes its placement target's scale, which comes from the window's
+		     UiScaleHost -->
+		<Style Selector="Popup">
+			<Setter Property="InheritsTransform" Value="True" />
+		</Style>
 
 		<!-- App icon on every window (taskbar, Alt+Tab) -->
 		<Style Selector=":is(Window)">
@@ -622,6 +633,16 @@
 			<Setter Property="BorderThickness" Value="0" />
 			<Setter Property="Padding" Value="4,1" />
 			<Setter Property="MinHeight" Value="0" />
+		</Style>
+		<!-- A picker in the status bar (UI scale): as slim as the other status items -->
+		<Style Selector="ComboBox.statusItem">
+			<Setter Property="MinHeight" Value="0" />
+			<Setter Property="Height" Value="22" />
+			<Setter Property="Padding" Value="6,0,0,0" />
+			<Setter Property="FontSize" Value="12" />
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="BorderThickness" Value="0" />
+			<Setter Property="VerticalContentAlignment" Value="Center" />
 		</Style>
 		<Style Selector="Ellipse.status">
 			<Setter Property="Width" Value="10" />

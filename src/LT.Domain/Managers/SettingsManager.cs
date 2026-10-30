@@ -127,4 +127,14 @@ public class SettingsManager(ISettingsRepository settingsRepository, IIbkrApiCli
 		settings.HideSensitiveValues = hide;
 		settingsRepository.Save(settings);
 	}
+
+	public int GetUiScalePercent() => UiScaleHelpers.Clamp(settingsRepository.Get().UiScalePercent);
+
+	public void SaveUiScale(SaveUiScaleRequest request)
+	{
+		request.Validate();
+		var settings = settingsRepository.Get();
+		settings.UiScalePercent = request.Percent;
+		settingsRepository.Save(settings);
+	}
 }

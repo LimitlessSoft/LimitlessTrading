@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using LT.App.Helpers;
@@ -24,6 +25,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 	private readonly IFlexImportManager _flexImportManager;
 	private readonly INewsManager _newsManager;
 	private readonly DisplayTimeStore _displayTime;
+	private readonly UiScaleStore _uiScaleStore;
 
 	private readonly GuideSettingViewModel _flexSetup = FlexSetupGuide.Create();
 
@@ -69,6 +71,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 	);
 
 	private readonly ChoiceSettingViewModel _displayTimeZone;
+	private readonly ChoiceSettingViewModel _uiScale;
 
 	private readonly BoolSettingViewModel _autoReconnect = new(
 		"Reconnect automatically when the connection drops",
@@ -222,7 +225,8 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		ICacheManager cacheManager,
 		IFlexImportManager flexImportManager,
 		INewsManager newsManager,
-		DisplayTimeStore displayTime
+		DisplayTimeStore displayTime,
+		UiScaleStore uiScaleStore
 	)
 	{
 		_settingsManager = settingsManager;
@@ -230,6 +234,18 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		_flexImportManager = flexImportManager;
 		_newsManager = newsManager;
 		_displayTime = displayTime;
+		_uiScaleStore = uiScaleStore;
+		_uiScale = new ChoiceSettingViewModel(
+			"UI scale",
+			[.. uiScaleStore.Options],
+			"Makes everything in the app bigger or smaller: text, widgets, menus and dialogs, on top of the system's display scaling. Also in the status bar, next to the clock.",
+			"ui scale zoom size text font bigger larger smaller small tiny readable dpi"
+		)
+		{
+			Value = uiScaleStore.Selected,
+		};
+		// Picked in the status bar meanwhile: shown here too, so Save doesn't undo it
+		uiScaleStore.PropertyChanged += OnUiScaleStoreChanged;
 		_flexImport = new ActionSettingViewModel(
 			"Flex import",
 			"Save & import now",
@@ -319,7 +335,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 					),
 				]
 			),
-			new SettingsPageViewModel("Appearance", [new("Layout", _layoutStyle)]),
+			new SettingsPageViewModel("Appearance", [new("Layout", _uiScale, _layoutStyle)]),
 			new SettingsPageViewModel(
 				"Connection",
 				[
@@ -446,6 +462,8 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 					NewsAlertSound = _newsAlertSound.Value,
 				}
 			);
+			if (_uiScale.Value is UiScaleOption scale)
+				_uiScaleStore.Percent = scale.Percent;
 			// a lowered limit applies now, not at the next cache write
 			Task.Run(_cacheManager.EnforceSizeLimit);
 			return true;
@@ -483,7 +501,17 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		return null;
 	}
 
-	public void Dispose() => _flexImportManager.StatusChanged -= OnFlexStatusChanged;
+	public void Dispose()
+	{
+		_flexImportManager.StatusChanged -= OnFlexStatusChanged;
+		_uiScaleStore.PropertyChanged -= OnUiScaleStoreChanged;
+	}
+
+	private void OnUiScaleStoreChanged(object? sender, PropertyChangedEventArgs e)
+	{
+		if (e.PropertyName == nameof(UiScaleStore.Percent))
+			_uiScale.Value = _uiScaleStore.Selected;
+	}
 
 	private SaveFlexSettingsRequest GetFlexRequest() =>
 		new()

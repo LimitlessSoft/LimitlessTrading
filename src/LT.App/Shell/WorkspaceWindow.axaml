@@ -8,6 +8,7 @@
 	x:DataType="vm:WorkspaceWindowViewModel"
 	Title="{Binding Title}"
 	Classes.flush="{Binding Appearance.IsFlush}"
+	ScalesSizeWithUi="False"
 >
 	<!-- Its own menu: widgets picked here open in this window -->
 	<controls:AppWindow.TitleBarLeftContent>

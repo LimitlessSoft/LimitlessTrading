@@ -4,4 +4,5 @@
 	xmlns:controls="using:LT.App.Controls"
 	x:Class="LT.App.Workspace.FloatingWidgetWindow"
 	ShowInTaskbar="False"
+	ScalesSizeWithUi="False"
 />

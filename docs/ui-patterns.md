@@ -67,6 +67,34 @@ splitters — a 6 px transparent gap in cards, a 1 px line in flush that is grab
 side (`FlushSplitterColumnBrush` / `RowBrush`, ZIndex 1 over its neighbours). A collapsed side
 leaves its gap in cards and none in flush.
 
+## UI scale (Settings → Appearance, and the status bar)
+
+The whole app can be zoomed: 75, 90, 100, 110, 125, 150, 175 or 200 % (`UiScaleConstants`), on
+top of the OS display scaling. `UiScaleStore` (a store in `LT.Widgets.Core`, saved as
+`UiScalePercent` in `settings.json` through `ISettingsManager.SaveUiScale` — range checked,
+`SVC_015`; a hand-edited value out of range loads clamped, one between the steps is offered as
+an extra choice) is shared by the status bar picker (applies on pick) and Settings → Appearance
+(applies on Save); both show the same value. It is resolved before the main window is built and
+pushes into `UiScale.Factor`, the view side:
+
+- **Windows** — `AppWindow`'s template wraps the title bar and content in a `UiScaleHost` (a
+  `LayoutTransformControl`), inside the `VisualLayerManager`. Layout runs at the scaled size,
+  drawing stays vector (text and charts are re-rasterised, not stretched), and pointer
+  positions, hit tests, `PointToScreen` / `PointToClient` and drag and drop go through the
+  transform, so controls that draw themselves (charts, order lines) need nothing.
+- **Popups** — menus, context menus, flyouts, tooltips and drop-downs take their placement
+  target's scale (`Popup.InheritsTransform`, set app-wide in App.axaml); as overlay popups they
+  live outside the `UiScaleHost` and are not scaled twice.
+- **Window sizes** — a dialog's Width / Height and their limits are in unscaled units and grow
+  with the scale (at Show, and live while open), never past the screen's working area. Windows
+  whose size the user owns and the layout saves (main, workspace, floating widget) set
+  `ScalesSizeWithUi="False"`; a new floating widget window is sized for the scale. Code that
+  turns a widget offset into screen pixels multiplies by `RenderScaling * UiScale.Factor`.
+
+Charts snap their 1 px lines to whole units, so at 100 and 200 % they are pixel-exact; at the
+fractional steps a line can straddle two device pixels (a faint fringe), the same as under a
+fractional OS display scaling.
+
 ## Display time zone (Settings → General → Time zone)
 
 `DisplayTimeZoneId` (`GeneralSettingsEntity`, a system time zone id): null — the default, also
