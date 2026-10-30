@@ -198,6 +198,7 @@ public static class Program
 		builder.Services.AddSingleton<AppearanceStore>();
 		builder.Services.AddSingleton<DisplayTimeStore>();
 		builder.Services.AddSingleton<PrivacyStore>();
+		builder.Services.AddSingleton<UiScaleStore>();
 		builder.Services.AddSingleton<SettingsNavigator>();
 		builder.Services.AddSingleton<OrderTicketNavigator>();
 		// One reading of the working orders for every chart's order lines

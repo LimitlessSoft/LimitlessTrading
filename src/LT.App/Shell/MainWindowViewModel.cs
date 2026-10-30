@@ -34,6 +34,7 @@ public partial class MainWindowViewModel : ViewModelBase
 		AppearanceStore appearance,
 		DisplayTimeStore displayTime,
 		PrivacyStore privacy,
+		UiScaleStore uiScale,
 		ConnectionBarViewModel connectionBar,
 		TradingPageViewModel tradingPage,
 		UpdateViewModel update,
@@ -48,6 +49,7 @@ public partial class MainWindowViewModel : ViewModelBase
 		ConnectionBar = connectionBar;
 		Appearance = appearance;
 		Privacy = privacy;
+		UiScale = uiScale;
 		Update = update;
 		CurrentPage = tradingPage;
 
@@ -80,6 +82,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
 	/// <summary>Privacy mode, switched by the eye in the title bar.</summary>
 	public PrivacyStore Privacy { get; }
+
+	/// <summary>The UI scale, picked in the status bar.</summary>
+	public UiScaleStore UiScale { get; }
 
 	public UpdateViewModel Update { get; }
 

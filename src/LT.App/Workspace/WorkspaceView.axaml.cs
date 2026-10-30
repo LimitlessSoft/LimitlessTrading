@@ -7,6 +7,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using LT.App.Helpers;
 using LT.App.Stores;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Settings;
@@ -779,8 +780,11 @@ public partial class WorkspaceView : UserControl
 			{
 				X = widget.FloatX,
 				Y = widget.FloatY,
-				Width = widget.FloatWidth ?? WorkspaceConstants.FloatingDefaultWidth,
-				Height = widget.FloatHeight ?? WorkspaceConstants.FloatingDefaultHeight,
+				// A new one is sized for the UI scale its content is drawn at
+				Width =
+					widget.FloatWidth ?? WorkspaceConstants.FloatingDefaultWidth * UiScale.Factor,
+				Height =
+					widget.FloatHeight ?? WorkspaceConstants.FloatingDefaultHeight * UiScale.Factor,
 				State = widget.FloatState ?? WindowPlacementState.Normal,
 				Screen = widget.FloatScreen,
 			},

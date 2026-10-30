@@ -1,3 +1,5 @@
+using LT.Contracts.Constants;
+
 namespace LT.Contracts.Entities;
 
 public class SettingsEntity
@@ -19,6 +21,12 @@ public class SettingsEntity
 
 	/// <summary>Privacy mode (the eye in the title bar); off in settings saved before it.</summary>
 	public bool HideSensitiveValues { get; set; }
+
+	/// <summary>
+	/// App-wide UI scale (the status bar picker, Settings → Appearance), percent of the normal
+	/// size; 100 in settings saved before it.
+	/// </summary>
+	public int UiScalePercent { get; set; } = UiScaleConstants.DefaultPercent;
 
 	/// <summary>Named chart setups (timeframe, indicators, …), applied from a chart's header.</summary>
 	public List<ChartTemplateEntity> ChartTemplates { get; set; } = [];

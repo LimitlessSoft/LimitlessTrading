@@ -49,4 +49,7 @@ public enum SettingsValidationCodes
 
 	[LSCoreValidationMessage("News alert keywords can be at most {0} characters.")]
 	SVC_014,
+
+	[LSCoreValidationMessage("UI scale must be between {0} and {1} %.")]
+	SVC_015,
 }

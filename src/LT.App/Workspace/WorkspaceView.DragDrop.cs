@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using LT.App.Helpers;
 using LT.Contracts.Constants;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
@@ -204,7 +205,8 @@ public partial class WorkspaceView
 		if (target.Dock == WidgetDock.Floating)
 		{
 			// Put the window where the handle was released, under the pointer
-			var scaling = TopLevel.GetTopLevel(handle)?.RenderScaling ?? 1;
+			// Window pixels per unscaled unit: the display's scaling and the UI scale
+			var scaling = (TopLevel.GetTopLevel(handle)?.RenderScaling ?? 1) * UiScale.Factor;
 			var grab = grabOffset + new Point(FloatingPadding.Left, FloatingPadding.Top);
 			var position =
 				screen - new PixelPoint((int)(grab.X * scaling), (int)(grab.Y * scaling));

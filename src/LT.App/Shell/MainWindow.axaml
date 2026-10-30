@@ -14,6 +14,7 @@
 	MinWidth="1100"
 	MinHeight="680"
 	WindowStartupLocation="CenterScreen"
+	ScalesSizeWithUi="False"
 	Classes.flush="{Binding Appearance.IsFlush}"
 >
 	<!-- The app's title bar (AppWindow's template; the OS one is off). Everything lives under the
@@ -127,6 +128,16 @@
 			>
 				<DockPanel>
 					<TextBlock DockPanel.Dock="Right" Classes="secondary" Text="{Binding CurrentTimeText}" />
+					<!-- UI scale (zoom) of the whole app; the same setting as Settings → Appearance -->
+					<ComboBox
+						DockPanel.Dock="Right"
+						Classes="statusItem"
+						Margin="0,0,12,0"
+						VerticalAlignment="Center"
+						ItemsSource="{Binding UiScale.Options}"
+						SelectedItem="{Binding UiScale.Selected}"
+						ToolTip.Tip="UI scale: make everything in the app bigger or smaller"
+					/>
 					<StackPanel Orientation="Horizontal" Spacing="16">
 						<connectionBar:ConnectionBarView
 							VerticalAlignment="Center"

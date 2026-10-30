@@ -127,6 +127,10 @@ public static class LSCoreContainer
 					LSCoreValidatorBase<ImportLayoutRequest>,
 					ImportLayoutRequestValidator
 				>()
+				.AddSingleton<
+					LSCoreValidatorBase<SaveUiScaleRequest>,
+					SaveUiScaleRequestValidator
+				>()
 				.AddSingleton<ILSCoreMapper<ContractEntity, ContractDto>, ContractDtoMapper>()
 				.AddSingleton<ILSCoreMapper<WatchlistEntity, WatchlistDto>, WatchlistDtoMapper>()
 				.AddSingleton<

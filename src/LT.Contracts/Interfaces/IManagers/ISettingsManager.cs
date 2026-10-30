@@ -41,4 +41,13 @@ public interface ISettingsManager
 	/// <summary>Privacy mode: sensitive values (accounts, balances, P&amp;L) show masked.</summary>
 	bool GetHideSensitiveValues();
 	void SaveHideSensitiveValues(bool hide);
+
+	/// <summary>
+	/// App-wide UI scale in percent of the normal size; a saved value out of range (a hand-edited
+	/// file) comes back clamped to it.
+	/// </summary>
+	int GetUiScalePercent();
+
+	/// <summary>Validates (<see cref="Constants.UiScaleConstants"/> range) and saves the UI scale.</summary>
+	void SaveUiScale(SaveUiScaleRequest request);
 }
