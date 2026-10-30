@@ -18,7 +18,7 @@ using LT.Contracts.Helpers;
 namespace LT.App.Widgets.Chart;
 
 /// <summary>
-/// Lightweight OHLC + volume chart. Wheel zooms, drag pans, double-click resets, hover shows the
+/// Lightweight OHLC chart. Wheel zooms, drag pans, double-click resets, hover shows the
 /// bar under the cursor. Optionally the user's fills (buy ▲ / sell ▼ at their price, on the bar
 /// that contains their time), lines from each entry to the exit that closed it (green: won, red:
 /// lost) and the open position's break-even line. A handle in the time axis, at the end of the
@@ -26,7 +26,9 @@ namespace LT.App.Widgets.Chart;
 /// place across zoom, new bars and timeframe switches); double-clicking the handle removes it.
 /// <para>
 /// Indicators (<see cref="Indicators"/>) draw on the price chart, on the volume bars or in
-/// panes of their own stacked under the price chart; every pane shares the horizontal viewport
+/// panes of their own stacked under the price chart. The volume bars are an indicator too (the
+/// built-in Volume): the strip for them at the bottom of the price chart is only there while the
+/// chart has an indicator of that pane; every pane shares the horizontal viewport
 /// and has its own vertical scale (<see cref="ChartPane"/>). Each pane has a legend at its top
 /// left (CandlestickChart.Indicators.cs) whose rows raise <see cref="IndicatorAction"/>.
 /// </para>
@@ -120,12 +122,6 @@ public partial class CandlestickChart : Control
 	);
 	private static readonly ImmutableSolidColorBrush DownBrush = new ImmutableSolidColorBrush(
 		Color.Parse("#EF5350")
-	);
-	private static readonly ImmutableSolidColorBrush UpVolumeBrush = new ImmutableSolidColorBrush(
-		Color.Parse("#5526A69A")
-	);
-	private static readonly ImmutableSolidColorBrush DownVolumeBrush = new ImmutableSolidColorBrush(
-		Color.Parse("#55EF5350")
 	);
 	private static readonly ImmutableSolidColorBrush TextBrush = new ImmutableSolidColorBrush(
 		Color.Parse("#8A93A3")
@@ -499,7 +495,6 @@ public partial class CandlestickChart : Control
 			end,
 			low,
 			high,
-			maxVolume,
 			step,
 			decimals
 		) = layout;
@@ -577,7 +572,7 @@ public partial class CandlestickChart : Control
 			previous = time;
 		}
 
-		// volume + candles (or footprints), the visible bars' volume profile behind them
+		// candles (or footprints), the visible bars' volume profile behind them
 		var footprint = GetFootprintFrame(bars, start, end, price, priceRect);
 		if (footprint != null)
 			DrawVolumeProfile(context, footprint, price, priceRect);
@@ -587,16 +582,6 @@ public partial class CandlestickChart : Control
 			var bar = bars[i];
 			var up = bar.Close >= bar.Open;
 			var x = X(i);
-
-			if (maxVolume > 0 && bar.Volume > 0)
-			{
-				var top = volume.Y((double)bar.Volume);
-				context.DrawRectangle(
-					up ? UpVolumeBrush : DownVolumeBrush,
-					null,
-					new Rect(x - bodyWidth / 2, top, bodyWidth, volumeRect.Bottom - top)
-				);
-			}
 
 			// Footprint bars draw their cells and a thin candle of their own
 			if (footprint != null && DrawFootprintBar(context, footprint, bar, x, price, priceRect))
@@ -788,7 +773,6 @@ public partial class CandlestickChart : Control
 		int End,
 		double Low,
 		double High,
-		decimal MaxVolume,
 		double Step,
 		int Decimals
 	);
@@ -810,11 +794,17 @@ public partial class CandlestickChart : Control
 			size.Height - TopPadding - TimeAxisHeight
 		);
 
-		// Price chart (with the volume bars at its bottom) on top, one pane per separate indicator under it
+		// Price chart (with the volume bars at its bottom while it has volume indicators) on top,
+		// one pane per separate indicator under it
 		var paneHeight = IndicatorChartHelpers.GetPaneHeight(plot.Height, separate.Count);
 		var mainHeight = plot.Height - paneHeight * separate.Count;
-		var volumeHeight = mainHeight * VolumeFraction;
-		var priceRect = new Rect(plot.X, plot.Y, plot.Width, mainHeight - volumeHeight - 6);
+		var volumeHeight = volumeIndicators.Count > 0 ? mainHeight * VolumeFraction : 0;
+		var priceRect = new Rect(
+			plot.X,
+			plot.Y,
+			plot.Width,
+			mainHeight - (volumeHeight > 0 ? volumeHeight + PaneGap : 0)
+		);
 		var volumeRect = new Rect(
 			plot.X,
 			plot.Y + mainHeight - volumeHeight,
@@ -853,12 +843,10 @@ public partial class CandlestickChart : Control
 
 		var low = double.MaxValue;
 		var high = double.MinValue;
-		decimal maxVolume = 0;
 		for (var i = start; i < end; i++)
 		{
 			low = Math.Min(low, bars[i].Low);
 			high = Math.Max(high, bars[i].High);
-			maxVolume = Math.Max(maxVolume, bars[i].Volume);
 		}
 		// Overlays on the price scale widen it, like the bars do
 		if (
@@ -881,16 +869,15 @@ public partial class CandlestickChart : Control
 		var padding = (high - low) * 0.06;
 		low -= padding;
 		high += padding;
-		var volumeMax = (double)maxVolume;
-		if (
-			IndicatorChartHelpers.GetRange(
-				volumeIndicators.Where(x => x.IsVisible).SelectMany(x => x.Plots),
-				start,
-				end
-			) is
-			{ } volumeRange
+		// The volume bars' scale runs from 0 to the highest visible value of their indicators
+		var volumeMax = IndicatorChartHelpers.GetRange(
+			volumeIndicators.Where(x => x.IsVisible).SelectMany(x => x.Plots),
+			start,
+			end
 		)
-			volumeMax = Math.Max(volumeMax, volumeRange.Max);
+			is { } volumeRange
+			? volumeRange.Max
+			: 0;
 
 		var price = new ChartPane(priceRect, low, high);
 		var volume = new ChartPane(volumeRect, 0, volumeMax > 0 ? volumeMax : 1);
@@ -921,7 +908,6 @@ public partial class CandlestickChart : Control
 			end,
 			low,
 			high,
-			maxVolume,
 			step,
 			decimals
 		);

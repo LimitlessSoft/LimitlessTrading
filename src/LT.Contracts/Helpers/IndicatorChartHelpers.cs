@@ -101,7 +101,10 @@ public static class IndicatorChartHelpers
 			Error = result.Error,
 		};
 
-	/// <summary>Applies the user's colours (by plot name) to <paramref name="plots"/>.</summary>
+	/// <summary>
+	/// Applies the user's colours (by plot name) to <paramref name="plots"/>; a chosen colour
+	/// replaces a histogram's per-bar colours too.
+	/// </summary>
 	public static void ApplyPlotColors(
 		IEnumerable<IndicatorPlotDto> plots,
 		IReadOnlyDictionary<string, uint>? colors
@@ -111,8 +114,22 @@ public static class IndicatorChartHelpers
 			return;
 		foreach (var plot in plots)
 			if (colors.TryGetValue(plot.Name, out var color))
+			{
 				plot.Color = color;
+				plot.BarColors = null;
+			}
 	}
+
+	/// <summary>
+	/// Colour of a plot's value at bar <paramref name="index"/> in the legend: the bar's own
+	/// (histograms with per-bar colours) or the plot's, always opaque.
+	/// </summary>
+	public static uint GetLegendColor(IndicatorPlotDto plot, int index) =>
+		(
+			plot.BarColors is { } colors && index >= 0 && index < colors.Length
+				? colors[index]
+				: plot.Color
+		) | 0xFF000000;
 
 	/// <summary>Plots whose value shows in the legend (lines, histograms, bands).</summary>
 	public static bool HasLegendValue(IndicatorPlotDto plot) =>

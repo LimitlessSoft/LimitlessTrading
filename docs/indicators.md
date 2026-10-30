@@ -1,7 +1,7 @@
 # Chart indicators
 
-Charts draw indicators: built-in ones (SMA, EMA, VWAP, Bollinger Bands, RSI, MACD, ATR, volume
-moving average, relative volume) and the user's own, written as C# script files in any editor and recompiled the
+Charts draw indicators: built-in ones (SMA, EMA, VWAP, Bollinger Bands, RSI, MACD, ATR, volume,
+volume moving average, relative volume) and the user's own, written as C# script files in any editor and recompiled the
 moment they are saved. Both are written against the same SDK, `LT.Indicators.Sdk`.
 
 ## Using them on a chart
@@ -28,11 +28,29 @@ moment they are saved. Both are written against the same SDK, `LT.Indicators.Sdk
   `IIndicatorManager.UpdateInputs` (validated, `IndicatorValidationCodes`).
 - **Saved** per chart in the layout (`WidgetPlacementDto.ChartIndicators`: instance id,
   definition id, input values, visibility, optional plot colours). Layouts from before
-  indicators have none. A saved value that no longer fits the definition (the script changed its
+  indicators have none.
+- **Volume bars** are the built-in Volume indicator (`builtin:volume`,
+  `IndicatorConstants.VolumeDefinitionId`), not part of the chart: a new chart starts with it
+  (`IndicatorHelpers.GetNewChartIndicators`), and hiding or removing it hides or removes the
+  bars. The strip for them at the bottom of the price chart (18 % of it) only exists while the
+  chart has an indicator of the volume pane; without one the price chart takes the room.
+  Charts always drew the bars before, so a layout saved before
+  (`WidgetPlacementDto.ChartVolumeMigrated` null) gets the indicator once, first, on load
+  (`IndicatorHelpers.AddVolume`; not when it already has one or is full); every save marks the
+  chart, so a removal sticks. Chart templates do the same by version (3, see
+  [ui-patterns.md → Chart templates](ui-patterns.md#chart-templates)): an older template that
+  holds indicators is read with the volume indicator added. A saved value that no longer fits the definition (the script changed its
   range or dropped the input) falls back to the default (`IndicatorHelpers.ResolveInputs`).
 - **Templates:** a chart's indicators can be saved with its timeframe as a chart template and
   applied to other charts, exported and imported — see
   [ui-patterns.md → Chart templates](ui-patterns.md#chart-templates).
+
+### Volume
+
+The volume pane; no inputs. Each bar's volume as a column, green (teal at a third opacity) on a
+bar that closed at or above its open, red on one below — the colours the chart drew its volume
+bars in before they were an indicator (`ColoredHistogram`, one colour per bar). A bar without
+volume draws nothing. The legend shows the hovered bar's volume in its bar's colour.
 
 ### Relative volume (RVOL)
 
@@ -80,8 +98,8 @@ LT.Widgets.Chart           CandlestickChart panes + legend, picker, settings dia
   again after it — and posts the results to the UI thread. A different series (new contract or
   timeframe) drops the old plots at once so they never sit on the wrong bars. Every indicator runs
   in a fresh instance; whatever it throws becomes its result's `Error` and the others still draw.
-- **Panes** (`CandlestickChart`, `ChartPane`): price chart with the volume bars at its bottom on
-  top, then one pane per separate indicator (`IndicatorChartHelpers.GetPaneHeight`: 20 % each,
+- **Panes** (`CandlestickChart`, `ChartPane`): price chart with the volume bars (the volume-pane
+  indicators, scaled from 0 to their highest visible value) at its bottom on top, then one pane per separate indicator (`IndicatorChartHelpers.GetPaneHeight`: 20 % each,
   60 % at most together). All share the horizontal viewport (zoom, pan, right margin,
   crosshair); each has its own vertical scale — overlays widen the price scale like the bars do,
   a separate pane uses the indicator's fixed `ScaleMin` / `ScaleMax` (RSI 0 … 100) or autoscales
@@ -143,7 +161,7 @@ Markers("Up", Ta.CrossOver(fast, slow), MarkerShape.TriangleUp, Colors.Green, Ma
 | `Series` | one double per bar, oldest first, NaN = no value. `+ - * / %` with series or numbers (÷0 → NaN), `> < >= <=` → conditions (1 / 0 / NaN), `& \| !`, `EqualTo`, `Shift(n)` (n bars back), `s[i]` (NaN outside), `Last`, `Length`, `Select`, `Zip`, `ToArray`, `Series.Constant/Create/Empty`, implicit from `double[]` |
 | `Ta` | `Sma Ema Rma Wma Stdev Sum Highest Lowest Change Roc CrossOver CrossUnder TrueRange Atr Rsi Vwap Macd BollingerBands Stoch Max Min Abs Nz Iff` |
 | Inputs | `Input(name, int default, min, max)`, `Input(name, double default, min, max, step)`, `Input(name, bool default)`; a value out of range is clamped |
-| Drawing | `Plot(name, series, color, width, LineStyle)`, `Histogram(name, series, color, negativeColor)`, `Band(name, upper, lower, color, fillOpacity)`, `Markers(name, condition, MarkerShape, color, MarkerPosition, at)`, `Level(name, value, color, LineStyle)`; plot names are unique per indicator; plots without a colour take `Colors.Palette` in turn |
+| Drawing | `Plot(name, series, color, width, LineStyle)`, `Histogram(name, series, color, negativeColor)`, `ColoredHistogram(name, series, colors, color)` (one colour per bar, e.g. volume by up / down bar; `color` is the plot's own, a user's plot colour replaces them all), `Band(name, upper, lower, color, fillOpacity)`, `Markers(name, condition, MarkerShape, color, MarkerPosition, at)`, `Level(name, value, color, LineStyle)`; plot names are unique per indicator; plots without a colour take `Colors.Palette` in turn |
 | Meta | `Name`, `ShortName`, `Pane` (`PaneKind`), `ScaleMin`, `ScaleMax`, `Decimals` |
 | Colours | `Colors.*`, `Color.FromHex("#RRGGBB[AA]")`, `Color.FromRgb`, `WithOpacity` — no Avalonia dependency |
 

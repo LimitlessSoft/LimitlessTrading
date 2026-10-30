@@ -133,6 +133,60 @@ public class ChartTemplateHelpersTests
 	}
 
 	[Fact]
+	public void A_template_from_before_volume_was_an_indicator_holds_it_first()
+	{
+		var old = new ChartTemplateEntity
+		{
+			Id = "a",
+			Name = "Old",
+			Version = 2,
+			Settings = new() { Indicators = [new() { DefinitionId = "builtin:ema" }] },
+		};
+		var timeframeOnly = new ChartTemplateEntity
+		{
+			Id = "b",
+			Name = "Timeframe only",
+			Version = 2,
+			Settings = new() { Timeframe = ChartTimeframe.OneDay },
+		};
+		// Written since: the volume indicator was removed on purpose
+		var current = ChartTemplateHelpers.ToEntity("c", "New", new() { Indicators = [Ema(20)] });
+
+		Assert.Equal(
+			[IndicatorConstants.VolumeDefinitionId, "builtin:ema"],
+			ChartTemplateHelpers.ToDto(old, null).Settings.Indicators!.Select(x => x.DefinitionId)
+		);
+		Assert.Null(ChartTemplateHelpers.ToDto(timeframeOnly, null).Settings.Indicators);
+		Assert.Equal(
+			["ema"],
+			ChartTemplateHelpers
+				.ToDto(current, null)
+				.Settings.Indicators!.Select(x => x.DefinitionId)
+		);
+	}
+
+	[Fact]
+	public void Adding_volume_leaves_indicators_that_have_it_or_are_full()
+	{
+		var withVolume = new List<IndicatorInstanceDto>
+		{
+			Ema(20),
+			new() { DefinitionId = IndicatorConstants.VolumeDefinitionId, IsVisible = false },
+		};
+		var full = Enumerable
+			.Range(0, IndicatorConstants.MaxIndicatorsPerChart)
+			.Select(x => Ema(x + 1))
+			.ToList();
+
+		Assert.Equal(withVolume, IndicatorHelpers.AddVolume(withVolume));
+		Assert.Equal(full, IndicatorHelpers.AddVolume(full));
+		Assert.Equal(
+			[IndicatorConstants.VolumeDefinitionId],
+			IndicatorHelpers.AddVolume([]).Select(x => x.DefinitionId)
+		);
+	}
+
+	[Fact]
 	public void An_unknown_period_is_refused() =>
 		Assert.Equal(
 			"Mine: unknown period.",

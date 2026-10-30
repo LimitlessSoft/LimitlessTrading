@@ -37,7 +37,9 @@ public static class ChartTemplateHelpers
 	/// <summary>
 	/// The template as shown; <paramref name="defaultId"/> marks the default one. A template
 	/// written before periods that holds a timeframe holds <see cref="ChartPeriod.Auto"/> with it
-	/// (what charts showed then), so charts following it share their period too.
+	/// (what charts showed then), so charts following it share their period too. One written
+	/// before volume was an indicator that holds indicators holds the volume indicator too
+	/// (charts always drew the volume bars then).
 	/// </summary>
 	public static ChartTemplateDto ToDto(ChartTemplateEntity template, string? defaultId)
 	{
@@ -48,6 +50,11 @@ public static class ChartTemplateHelpers
 			&& dto.Settings.Timeframe != null
 		)
 			dto.Settings.Period ??= ChartPeriod.Auto;
+		if (
+			template.Version < ChartTemplateConstants.VolumeIndicatorSinceVersion
+			&& dto.Settings.Indicators is { } indicators
+		)
+			dto.Settings.Indicators = IndicatorHelpers.AddVolume(indicators);
 		return dto;
 	}
 

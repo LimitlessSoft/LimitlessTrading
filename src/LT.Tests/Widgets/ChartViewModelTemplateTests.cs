@@ -1,5 +1,6 @@
 using LT.App.Stores;
 using LT.App.Widgets.Chart;
+using LT.Contracts.Constants;
 using LT.Contracts.Dtos.ChartTemplates;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
@@ -121,7 +122,10 @@ public class ChartViewModelTemplateTests : IDisposable
 			var fresh = State(CreateChart());
 
 			Assert.Equal(ChartTimeframe.FifteenMinutes, fresh.ChartTimeframe);
-			Assert.Single(fresh.ChartIndicators!);
+			Assert.Equal(
+				[IndicatorConstants.VolumeDefinitionId, TwoBuiltIns().First],
+				fresh.ChartIndicators!.Select(x => x.DefinitionId)
+			);
 		});
 
 	[Fact]
@@ -142,6 +146,7 @@ public class ChartViewModelTemplateTests : IDisposable
 					Tool = WorkspaceTool.Chart,
 					ChartTimeframe = ChartTimeframe.OneDay,
 					ChartLinked = true,
+					ChartVolumeMigrated = true,
 				}
 			);
 
@@ -168,7 +173,10 @@ public class ChartViewModelTemplateTests : IDisposable
 
 			var state = State(chart);
 			Assert.Equal(ChartTimeframe.OneWeek, state.ChartTimeframe);
-			Assert.Single(state.ChartIndicators!);
+			Assert.Equal(
+				[IndicatorConstants.VolumeDefinitionId, TwoBuiltIns().First],
+				state.ChartIndicators!.Select(x => x.DefinitionId)
+			);
 		});
 
 	[Fact]

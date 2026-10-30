@@ -14,7 +14,8 @@ namespace LT.Tests.Widgets;
 /// <summary>
 /// The chart's indicator manager: it lists the chart's indicators by their legend label, removing
 /// one takes it off the chart and out of the saved layout (and the followed template), and a full
-/// chart still removes, after which it can add again.
+/// chart still removes, after which it can add again. A new chart has the volume indicator; a
+/// layout saved before volume was an indicator gets it once, and a removal sticks.
 /// </summary>
 public class ChartViewModelIndicatorTests : IDisposable
 {
@@ -42,7 +43,10 @@ public class ChartViewModelIndicatorTests : IDisposable
 			chart.AddIndicator(second);
 
 			Assert.True(chart.HasChartIndicators);
-			Assert.Equal([Label(first), Label(second)], chart.ChartIndicators.Select(x => x.Label));
+			Assert.Equal(
+				[Label(IndicatorConstants.VolumeDefinitionId), Label(first), Label(second)],
+				chart.ChartIndicators.Select(x => x.Label)
+			);
 			Assert.Equal(
 				State(chart).ChartIndicators!.Select(x => x.Id),
 				chart.ChartIndicators.Select(x => x.InstanceId)
@@ -53,7 +57,7 @@ public class ChartViewModelIndicatorTests : IDisposable
 	public void Removing_one_takes_it_off_the_chart_and_the_saved_layout() =>
 		TestUiThread.Invoke(() =>
 		{
-			var chart = CreateChart();
+			var chart = CreateEmptyChart();
 			var (first, second) = TwoBuiltIns();
 			chart.AddIndicator(first);
 			chart.AddIndicator(second);
@@ -88,6 +92,7 @@ public class ChartViewModelIndicatorTests : IDisposable
 				{
 					Tool = WorkspaceTool.Chart,
 					ChartIndicators = [instance, missing],
+					ChartVolumeMigrated = true,
 				}
 			);
 
@@ -97,6 +102,65 @@ public class ChartViewModelIndicatorTests : IDisposable
 			);
 			chart.RemoveIndicator(missing.Id);
 			Assert.Equal(instance.Id, Assert.Single(State(chart).ChartIndicators!).Id);
+		});
+
+	[Fact]
+	public void A_new_chart_has_the_volume_indicator_and_removing_it_sticks() =>
+		TestUiThread.Invoke(() =>
+		{
+			var chart = CreateChart();
+
+			var volume = Assert.Single(chart.ChartIndicators);
+			Assert.Equal(Label(IndicatorConstants.VolumeDefinitionId), volume.Label);
+			Assert.True(volume.IsVisible);
+
+			chart.RemoveIndicator(volume.InstanceId);
+			var saved = State(chart);
+			Assert.Null(saved.ChartIndicators);
+			Assert.True(saved.ChartVolumeMigrated);
+
+			var restored = CreateChart();
+			restored.LoadState(saved);
+			Assert.Empty(restored.ChartIndicators);
+		});
+
+	[Fact]
+	public void A_layout_from_before_volume_was_an_indicator_gets_it_once_first() =>
+		TestUiThread.Invoke(() =>
+		{
+			var (first, _) = TwoBuiltIns();
+			var instance = _indicators.CreateInstance(first);
+			var chart = CreateChart();
+
+			chart.LoadState(
+				new WidgetPlacementDto { Tool = WorkspaceTool.Chart, ChartIndicators = [instance] }
+			);
+
+			Assert.Equal(
+				[IndicatorConstants.VolumeDefinitionId, first],
+				State(chart).ChartIndicators!.Select(x => x.DefinitionId)
+			);
+			// Loading what it saves doesn't add another
+			var again = CreateChart();
+			again.LoadState(State(chart));
+			Assert.Equal(
+				[IndicatorConstants.VolumeDefinitionId, first],
+				State(again).ChartIndicators!.Select(x => x.DefinitionId)
+			);
+		});
+
+	[Fact]
+	public void An_old_layout_without_indicators_gets_the_volume_bars() =>
+		TestUiThread.Invoke(() =>
+		{
+			var chart = CreateChart();
+
+			chart.LoadState(new WidgetPlacementDto { Tool = WorkspaceTool.Chart });
+
+			Assert.Equal(
+				IndicatorConstants.VolumeDefinitionId,
+				Assert.Single(State(chart).ChartIndicators!).DefinitionId
+			);
 		});
 
 	[Fact]
@@ -166,6 +230,15 @@ public class ChartViewModelIndicatorTests : IDisposable
 				chart.Dispose();
 		});
 		GC.SuppressFinalize(this);
+	}
+
+	// A new chart without its volume indicator
+	private ChartViewModel CreateEmptyChart()
+	{
+		var chart = CreateChart();
+		foreach (var item in chart.ChartIndicators)
+			chart.RemoveIndicator(item.InstanceId);
+		return chart;
 	}
 
 	private (string First, string Second) TwoBuiltIns()

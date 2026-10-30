@@ -18,6 +18,11 @@ public static class IndicatorConstants
 	public const string BuiltInIdPrefix = "builtin:";
 	public const string ScriptIdPrefix = "script:";
 
+	/// <summary>Key of the built-in volume indicator (the volume bars every new chart has).</summary>
+	public const string VolumeKey = "volume";
+
+	public const string VolumeDefinitionId = BuiltInIdPrefix + VolumeKey;
+
 	/// <summary>One indicator's compute (or its describe run) is stopped after this long.</summary>
 	public static readonly TimeSpan ComputeBudget = TimeSpan.FromSeconds(2);
 

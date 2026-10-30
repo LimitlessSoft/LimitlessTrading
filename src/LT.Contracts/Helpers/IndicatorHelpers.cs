@@ -19,6 +19,27 @@ public static class IndicatorHelpers
 	public static string? GetScriptFileName(string definitionId) =>
 		IsScriptId(definitionId) ? definitionId[IndicatorConstants.ScriptIdPrefix.Length..] : null;
 
+	/// <summary>The indicators of a new chart: the volume bars (the volume indicator, no inputs).</summary>
+	public static List<IndicatorInstanceDto> GetNewChartIndicators() =>
+		[new IndicatorInstanceDto { DefinitionId = IndicatorConstants.VolumeDefinitionId }];
+
+	/// <summary>
+	/// Indicators saved before volume was an indicator (charts always drew the volume bars then),
+	/// with the volume indicator put first so the bars stay; as they are when they already have
+	/// it or are full (<see cref="IndicatorConstants.MaxIndicatorsPerChart"/>). Done once per
+	/// saved chart or template, so a later removal sticks.
+	/// </summary>
+	public static List<IndicatorInstanceDto> AddVolume(IEnumerable<IndicatorInstanceDto> indicators)
+	{
+		var list = indicators.ToList();
+		if (
+			list.Count >= IndicatorConstants.MaxIndicatorsPerChart
+			|| list.Any(x => x.DefinitionId == IndicatorConstants.VolumeDefinitionId)
+		)
+			return list;
+		return [.. GetNewChartIndicators(), .. list];
+	}
+
 	/// <summary>Whether <paramref name="value"/> is allowed for <paramref name="input"/> as it is.</summary>
 	public static bool IsValidInputValue(IndicatorInputDto input, double value) =>
 		double.IsFinite(value)

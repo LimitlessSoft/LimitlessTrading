@@ -69,7 +69,7 @@ public class IndicatorManagerTests
 		var definitions = _manager.GetDefinitions();
 
 		Assert.Equal(
-			["sma", "ema", "vwap", "bb", "rsi", "macd", "atr", "volume-ma", "rvol"],
+			["sma", "ema", "vwap", "bb", "rsi", "macd", "atr", "volume", "volume-ma", "rvol"],
 			definitions.Select(x => x.Id[IndicatorConstants.BuiltInIdPrefix.Length..])
 		);
 		var rsi = _manager.GetDefinition(BuiltIn("rsi"))!;

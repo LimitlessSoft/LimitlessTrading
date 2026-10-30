@@ -1,3 +1,4 @@
+using LT.Contracts.Constants;
 using LT.Contracts.Dtos.Charts;
 using LT.Contracts.Dtos.Indicators;
 using LT.Contracts.Enums;
@@ -114,6 +115,24 @@ public class BuiltInIndicatorTests
 			histogram.Values[^1],
 			9
 		);
+	}
+
+	[Fact]
+	public void Volume_is_a_column_per_bar_on_the_volume_bars_green_up_red_down()
+	{
+		var bars = TwoSessions();
+		var result = Run(IndicatorConstants.VolumeKey);
+
+		Assert.Equal((IndicatorPane.Volume, 0), (result.Pane, result.Decimals));
+		var plot = Assert.Single(result.Plots);
+		Assert.Equal(IndicatorPlotKind.Histogram, plot.Kind);
+		Assert.Equal(bars.Select(x => (double)x.Volume), plot.Values);
+		// The colours the chart drew its volume bars in before they were an indicator
+		Assert.Equal(
+			bars.Select(x => x.Close >= x.Open ? 0x5526A69Au : 0x55EF5350u),
+			plot.BarColors!
+		);
+		Assert.Contains(bars, x => x.Close < x.Open);
 	}
 
 	[Fact]

@@ -178,16 +178,26 @@ public partial class CandlestickChart
 	{
 		var up = Brush(plot.Color);
 		var down = plot.Color2 is { } negative ? Brush(negative) : up;
+		// Per-bar colours: one brush per colour, not per column
+		var brushes = new Dictionary<uint, IBrush>();
 		var width = Math.Max(1, view.BarSpacing * 0.7);
 		var zero = pane.Y(Math.Clamp(0, pane.Min, pane.Max));
 		for (var i = view.Start; i < Math.Min(view.End, plot.Values.Length); i++)
 		{
 			var value = plot.Values[i];
-			if (!double.IsFinite(value))
+			// A zero column has no height: nothing to draw (a bar without volume)
+			if (!double.IsFinite(value) || value == 0)
 				continue;
 			var y = pane.Y(value);
+			IBrush brush = value >= 0 ? up : down;
+			if (plot.BarColors is { } colors && i < colors.Length)
+			{
+				if (!brushes.TryGetValue(colors[i], out var own))
+					brushes[colors[i]] = own = Brush(colors[i]);
+				brush = own;
+			}
 			context.DrawRectangle(
-				value >= 0 ? up : down,
+				brush,
 				null,
 				new Rect(
 					view.X(i) - width / 2,
@@ -366,7 +376,7 @@ public partial class CandlestickChart
 			else if (result.IsVisible)
 				foreach (var (plot, name) in IndicatorChartHelpers.GetLegendPlots(result.Plots))
 				{
-					var brush = Brush(plot.Color | 0xFF000000);
+					var brush = Brush(IndicatorChartHelpers.GetLegendColor(plot, hovered));
 					// With more than one value, each says which plot it is
 					if (name != null)
 						parts.Add((Text(name, 11, brush), 8));

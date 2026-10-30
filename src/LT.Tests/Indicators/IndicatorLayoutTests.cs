@@ -57,6 +57,33 @@ public class IndicatorLayoutTests
 	}
 
 	[Fact]
+	public void The_volume_migration_mark_round_trips_with_the_layout()
+	{
+		var manager = new SettingsManager(_settings, _ibkr);
+		var layout = manager.GetLayout();
+		layout.Widgets =
+		[
+			new WidgetPlacementDto
+			{
+				Id = "chart-1",
+				Tool = WorkspaceTool.Chart,
+				ChartVolumeMigrated = true,
+			},
+		];
+
+		manager.SaveLayout(layout);
+
+		Assert.True(Assert.Single(manager.GetLayout().Widgets).ChartVolumeMigrated);
+		Assert.Null(
+			System
+				.Text.Json.JsonSerializer.Deserialize<WidgetPlacementEntity>(
+					"""{"Id":"chart-1","Tool":6}"""
+				)!
+				.ChartVolumeMigrated
+		);
+	}
+
+	[Fact]
 	public void A_layout_saved_before_indicators_loads_with_none()
 	{
 		_settings.Settings.Layout.Widgets =

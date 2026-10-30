@@ -1,3 +1,4 @@
+using LT.Contracts.Constants;
 using LT.Indicators.Sdk;
 
 namespace LT.Indicators.Scripting.BuiltIns;
@@ -14,6 +15,7 @@ public static class BuiltInIndicators
 		("rsi", () => new RsiIndicator()),
 		("macd", () => new MacdIndicator()),
 		("atr", () => new AtrIndicator()),
+		(IndicatorConstants.VolumeKey, () => new VolumeIndicator()),
 		("volume-ma", () => new VolumeMaIndicator()),
 		("rvol", () => new RelativeVolumeIndicator()),
 	];
