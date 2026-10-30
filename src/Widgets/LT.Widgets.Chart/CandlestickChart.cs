@@ -247,7 +247,8 @@ public partial class CandlestickChart : Control
 			BarStyleProperty,
 			FootprintProperty,
 			FootprintVersionProperty,
-			FootprintImbalanceRatioProperty
+			FootprintImbalanceRatioProperty,
+			IsCrosshairModeProperty
 		);
 		ClipToBoundsProperty.OverrideDefaultValue<CandlestickChart>(true);
 		FocusableProperty.OverrideDefaultValue<CandlestickChart>(true);
@@ -367,6 +368,7 @@ public partial class CandlestickChart : Control
 			UpdateHandleHover(_pointer);
 		OnDrawingPropertyChanged(change);
 		OnFootprintPropertyChanged(change);
+		OnCrosshairPropertyChanged(change);
 		// A view the user hasn't moved follows the period's start (also when it is bound after
 		// the bars); a moved one stays where it is
 		if (change.Property == FitStartProperty && !_moved)
@@ -382,7 +384,11 @@ public partial class CandlestickChart : Control
 				change.GetNewValue<IReadOnlyList<BarDto>?>() ?? []
 			) < 0
 		)
+		{
+			// A ruler measured another series
+			ClearRuler();
 			ResetView();
+		}
 	}
 
 	/// <summary>
@@ -680,9 +686,21 @@ public partial class CandlestickChart : Control
 			context.DrawText(label, new Point(AxisLabelX(plot), lastY - label.Height / 2));
 		}
 
+		DrawRuler(context, priceRect, decimals);
+
 		// crosshair: through every pane, the value of the pane under the pointer on the axis
+		// (crosshair mode: on the bar's centre, the time and value highlighted on the axes)
 		var hovered = end - 1;
-		if (_pointer is { } p && plot.Contains(p))
+		if (_pointer is { } c && plot.Contains(c) && IsCrosshairMode)
+		{
+			hovered = Math.Clamp(
+				ChartViewportHelpers.GetBarIndexAt(c.X, rightEdge, plot.Right, _barSpacing),
+				start,
+				end - 1
+			);
+			DrawCrosshairMode(context, c, plot, priceRect, price, panes, decimals, bars, rightEdge);
+		}
+		else if (_pointer is { } p && plot.Contains(p))
 		{
 			context.DrawLine(CrosshairPen, new Point(p.X, plot.Y), new Point(p.X, plot.Bottom));
 			context.DrawLine(CrosshairPen, new Point(plot.X, p.Y), new Point(plot.Right, p.Y));
@@ -941,7 +959,8 @@ public partial class CandlestickChart : Control
 		double x,
 		double y,
 		double value,
-		int decimals
+		int decimals,
+		IBrush? background = null
 	)
 	{
 		var label = Text(
@@ -950,7 +969,7 @@ public partial class CandlestickChart : Control
 			LabelBrush
 		);
 		context.DrawRectangle(
-			AxisLabelBrush,
+			background ?? AxisLabelBrush,
 			null,
 			new Rect(x, y - label.Height / 2 - 2, _priceAxisWidth, label.Height + 4)
 		);
@@ -1000,6 +1019,7 @@ public partial class CandlestickChart : Control
 		_handleHovered =
 			position is { } p
 			&& _dragStart == null
+			&& _rulerPressAt == null
 			&& !IsPlacingAlert
 			&& !IsDrawingToolArmed
 			&& IsOnMarginHandle(p);
@@ -1012,8 +1032,25 @@ public partial class CandlestickChart : Control
 			|| _draggedOrder != null
 			|| IsPlacingAlert
 			|| _edit != null
-			|| IsDrawingToolArmed;
+			|| IsDrawingToolArmed
+			|| _rulerPressAt != null;
 		UpdateLegendHover(dragging ? null : position);
+		// Crosshair mode: a press on the price chart measures, so its lines read as nothing to
+		// drag (the legend still clicks)
+		if (
+			_rulerPressAt != null
+			|| (
+				IsRulerArmed
+				&& position is { } r
+				&& IsOnPriceChart(r)
+				&& (dragging || HitLegend(r) == null)
+			)
+		)
+		{
+			SetOrderTip(null);
+			Cursor = CrossCursor;
+			return;
+		}
 		Cursor =
 			GetOrderCursor(position) is { } orderCursor ? orderCursor
 			: GetAlertCursor(position) is { } alertCursor ? alertCursor
@@ -1100,7 +1137,9 @@ public partial class CandlestickChart : Control
 		base.OnPointerMoved(e);
 		var position = e.GetPosition(this);
 		_pointer = position;
-		if (_stroke != null || _edit != null)
+		if (_rulerPressAt != null)
+			DragRuler(position);
+		else if (_stroke != null || _edit != null)
 			OnDrawingPointerMoved(position);
 		else if (_draggedOrder != null)
 			DragOrder(position);
@@ -1137,6 +1176,8 @@ public partial class CandlestickChart : Control
 	{
 		base.OnPointerPressed(e);
 		var position = e.GetPosition(this);
+		// A ruler goes on the next press, wherever it is
+		ClearRuler();
 		if (OnAlertPlacementPressed(e, position))
 		{
 			UpdateHandleHover(position);
@@ -1160,6 +1201,11 @@ public partial class CandlestickChart : Control
 			return;
 		}
 		if (OnDrawingToolPressed(e, position))
+		{
+			UpdateHandleHover(position);
+			return;
+		}
+		if (OnRulerPressed(e, position))
 		{
 			UpdateHandleHover(position);
 			return;
@@ -1216,6 +1262,7 @@ public partial class CandlestickChart : Control
 	{
 		base.OnPointerReleased(e);
 		OnDrawingReleased(e.GetPosition(this));
+		OnRulerReleased();
 		OnOrderReleased();
 		OnAlertReleased();
 		_dragStart = null;
@@ -1238,6 +1285,8 @@ public partial class CandlestickChart : Control
 		_edit = null;
 		_stroke = null;
 		_newPressAt = null;
+		// A ruler being dragged stays as far as it got
+		OnRulerReleased();
 		UpdateHandleHover(_pointer);
 	}
 

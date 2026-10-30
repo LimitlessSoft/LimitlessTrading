@@ -50,6 +50,12 @@ namespace LT.App.Widgets.Chart;
 /// drawing selects it and the menu offers copy, duplicate, lock, hide and delete; "Show hidden
 /// drawings" brings back the ones hidden one by one.
 /// </para>
+/// <para>
+/// Crosshair mode: F toggles it on the chart under the pointer, else on the chart that has the
+/// keyboard (not while typing in a text box); Esc turns it off once nothing else is to be put
+/// back. Its ruler goes on the next press anywhere in the window, when the window is
+/// deactivated, or when the keyboard focus leaves the chart widget.
+/// </para>
 /// </summary>
 public partial class ChartView : UserControl
 {
@@ -68,6 +74,11 @@ public partial class ChartView : UserControl
 		Chart.DrawingTextEditRequested += OnDrawingTextEditRequested;
 		DataContextChanged += (_, _) => OnViewModelChanged();
 		KeyDown += OnKeyDown;
+		PropertyChanged += (_, e) =>
+		{
+			if (e.Property == IsKeyboardFocusWithinProperty && !IsKeyboardFocusWithin)
+				Chart.ClearRuler();
+		};
 		ChartMenu.Opening += (_, _) => FillApplyTemplateMenu();
 		ChartMenu.Opening += (_, _) => FillAlertMenu();
 		ChartMenu.Opening += (_, _) => FillDrawingMenu();
@@ -146,6 +157,62 @@ public partial class ChartView : UserControl
 
 	private ChartViewModel? ViewModel => DataContext as ChartViewModel;
 
+	// The window this chart is in, while attached: F over the chart and presses anywhere in it
+	private TopLevel? _topLevel;
+
+	protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+	{
+		base.OnAttachedToVisualTree(e);
+		_topLevel = TopLevel.GetTopLevel(this);
+		if (_topLevel == null)
+			return;
+		_topLevel.AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel);
+		_topLevel.AddHandler(
+			PointerPressedEvent,
+			OnWindowPointerPressed,
+			RoutingStrategies.Tunnel,
+			handledEventsToo: true
+		);
+		if (_topLevel is Window window)
+			window.Deactivated += OnWindowDeactivated;
+	}
+
+	protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+	{
+		if (_topLevel != null)
+		{
+			_topLevel.RemoveHandler(KeyDownEvent, OnWindowKeyDown);
+			_topLevel.RemoveHandler(PointerPressedEvent, OnWindowPointerPressed);
+			if (_topLevel is Window window)
+				window.Deactivated -= OnWindowDeactivated;
+			_topLevel = null;
+		}
+		base.OnDetachedFromVisualTree(e);
+	}
+
+	// F with the pointer over this chart, wherever the keyboard is (before the focused control
+	// sees it). Without the pointer over a chart, the chart with the keyboard takes it (OnKeyDown)
+	private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+	{
+		if (!IsCrosshairKey(e) || !IsPointerOver)
+			return;
+		e.Handled = true;
+		Chart.IsCrosshairMode = !Chart.IsCrosshairMode;
+	}
+
+	// The ruler goes on any press in the window (one on the chart clears it there too)
+	private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e) =>
+		Chart.ClearRuler();
+
+	private void OnWindowDeactivated(object? sender, EventArgs e) => Chart.ClearRuler();
+
+	// Plain F, not while a text box has the keyboard
+	private bool IsCrosshairKey(KeyEventArgs e) =>
+		e.Key == Key.F
+		&& e.KeyModifiers == KeyModifiers.None
+		&& e.Source is not TextBox
+		&& _topLevel?.FocusManager?.GetFocusedElement() is not TextBox;
+
 	// The view model asks for the period's view (a period picked); only the current one is heard
 	private ChartViewModel? _resetSource;
 
@@ -177,7 +244,7 @@ public partial class ChartView : UserControl
 
 	// Alt+A (TradingView's): an alert at the pointer's price, or the last price. Esc first puts
 	// back an order line being dragged or waiting for its confirmation, then disarms the
-	// toolbox's armed tool
+	// toolbox's armed tool, then turns crosshair mode off. F toggles crosshair mode
 	private void OnKeyDown(object? sender, KeyEventArgs e)
 	{
 		if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
@@ -187,8 +254,15 @@ public partial class ChartView : UserControl
 				|| ViewModel?.CancelOrderMove() == true
 				|| Chart.CancelDrawing()
 				|| ViewModel?.CancelTool() == true
+				|| TurnOffCrosshair()
 			)
 				e.Handled = true;
+			return;
+		}
+		if (IsCrosshairKey(e))
+		{
+			Chart.IsCrosshairMode = !Chart.IsCrosshairMode;
+			e.Handled = true;
 			return;
 		}
 		// Delete (Backspace on a Mac keyboard) removes the selected drawing; not while typing
@@ -212,6 +286,14 @@ public partial class ChartView : UserControl
 			return;
 		e.Handled = true;
 		viewModel.AddAlert(Chart.PointerPrice ?? viewModel.LastPrice);
+	}
+
+	private bool TurnOffCrosshair()
+	{
+		if (!Chart.IsCrosshairMode)
+			return false;
+		Chart.IsCrosshairMode = false;
+		return true;
 	}
 
 	// Drawing mode, not while typing: undo / redo, copy / paste / duplicate. True when handled

@@ -1153,7 +1153,8 @@ hidden: a chart's bars and a news feed would miss what arrives meanwhile.
 | Esc (side or bottom widget) | Back to the last focused center widget; an unpinned widget collapses |
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous center view |
 | Alt+A (chart) | Add a price alert at the price under the pointer, or at the last price |
-| Esc (chart) | Put back an order line being dragged or waiting for its confirmation; else drop a drawing being placed or moved; else disarm the toolbox's armed tool (placing an alert, a drawing tool → the cursor); else drop the selected drawing |
+| F (chart) | Toggle crosshair mode on the chart under the pointer, else on the chart with the keyboard (not while typing in a text box) |
+| Esc (chart) | Put back an order line being dragged or waiting for its confirmation; else drop a drawing being placed or moved; else disarm the toolbox's armed tool (placing an alert, a drawing tool → the cursor); else drop the selected drawing; else turn crosshair mode off |
 | Delete / Backspace (chart, drawing mode) | Remove the selected drawing (not while it or all drawings are locked) |
 | Ctrl+Z / Ctrl+Y, Ctrl+Shift+Z (chart, drawing mode) | Undo / redo the symbol's last drawing change |
 | Ctrl+C / Ctrl+V / Ctrl+D (chart, drawing mode) | Copy the selected drawing / paste the copied one (any chart) / duplicate the selected one |
@@ -1196,6 +1197,27 @@ left click there adds the alert (`ChartViewModel.PlaceAlert` → the same create
 alert*) and disarms. The click doesn't pan, drag an alert line or hit a legend; a click off the
 price chart does nothing, the right button still opens the menu. Disabled (and disarmed) while
 the chart has no bars.
+
+**Crosshair mode.** F toggles it on the chart under the pointer — whichever control has the
+keyboard, except a text box — or, with the pointer over no chart, on the chart widget that has
+the keyboard (`ChartView`: a tunnelling `KeyDown` on its window for the pointer case, its own
+`KeyDown` for the focused one); Esc turns it off once nothing else is to be put back. Not saved.
+While on (`CandlestickChart.IsCrosshairMode`, CandlestickChart.Crosshair.cs) the crosshair's
+vertical line snaps to the centre of the bar slot under the pointer (`ChartCrosshairHelpers`;
+slots in the right margin too) and runs through every pane, and its time ("Thu 29 Oct 26  14:35";
+daily and weekly bars only the date) and the value of the pane under the pointer are highlighted
+on the axes; the lines go when the pointer leaves the plot. Off, the plain hover crosshair is
+drawn as before. **Ruler:** in crosshair mode, pressing on the price chart and dragging draws a
+measurement from the press to the pointer — a box and an arrow, green going up and red going
+down, with a tag giving the price change and its percentage, the bars and the time between the
+two bars (`ChartCrosshairHelpers.Measure` / `GetLabel`). Its ends sit on bar centres at the
+pointer's price, so it follows zoom and new bars. It stays after the release and goes on the
+next press anywhere in the window (a press on the chart that isn't dragged only clears it), when
+the window is deactivated, when the keyboard leaves the chart widget, when the mode goes off or
+the chart switches series. While the mode is on, a left press on the price chart only measures:
+it doesn't pan, drag an order or alert line or pick a drawing (the legend still clicks, a
+double-click still resets the view); an armed toolbox tool (alert, a drawing tool) still takes
+the click, and presses off the price chart (panes, time axis, margin handle) work as without it.
 
 **Drawing mode.** The toolbox's first button, **Draw** (highlighted while on), turns drawing mode
 on for that chart (`ChartViewModel.IsDrawingMode`, saved per chart as `ChartDrawingMode`; null in
