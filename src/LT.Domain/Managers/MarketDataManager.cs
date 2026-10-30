@@ -17,18 +17,21 @@ namespace LT.Domain.Managers;
 /// Keeps the market data lines in use across the app (quotes here, news ticks through
 /// AcquireLine), one registry entry per line, and counts tick-by-tick subscriptions and quote
 /// snapshots; registered as a singleton (see Program.cs). Quote subscriptions of the same contract
-/// and generic ticks share one IB line, fanned out to every subscriber.
+/// and generic ticks share one IB line, and tick-by-tick subscriptions of the same contract and
+/// tick type one IB tick-by-tick stream, each fanned out to every subscriber.
 /// </summary>
 public class MarketDataManager(IIbkrApiClient ibkrApiClient, TimeProvider timeProvider)
 	: IMarketDataManager
 {
-	// Guards _streams and _shared: the limit check and the add happen together, and a shared
-	// line's subscribers, latest quote and fan-out change together
+	// Guards _streams, _shared and _sharedTickByTick: the limit check and the add happen
+	// together, and a shared stream's subscribers, latest quote and fan-out change together
 	private readonly Lock _lock = new();
 	private readonly Dictionary<long, MarketDataStreamDto> _streams = [];
 	private readonly Dictionary<string, SharedQuoteLine> _shared = [];
+
+	// One entry per IB tick-by-tick subscription: what counts against IB's limit
+	private readonly Dictionary<string, SharedTickByTickStream> _sharedTickByTick = [];
 	private long _nextStreamId;
-	private int _activeTickByTick;
 	private int _activeSnapshots;
 
 	public int ActiveLines
@@ -40,7 +43,14 @@ public class MarketDataManager(IIbkrApiClient ibkrApiClient, TimeProvider timePr
 		}
 	}
 
-	public int ActiveTickByTick => Volatile.Read(ref _activeTickByTick);
+	public int ActiveTickByTick
+	{
+		get
+		{
+			lock (_lock)
+				return _sharedTickByTick.Count;
+		}
+	}
 
 	public int ActiveSnapshots => Volatile.Read(ref _activeSnapshots);
 
@@ -201,29 +211,44 @@ public class MarketDataManager(IIbkrApiClient ibkrApiClient, TimeProvider timePr
 			throw new LSCoreBadRequestException(
 				MarketDataValidationCodes.MDVC_002.GetValidationMessage()
 			);
-		if (Interlocked.Increment(ref _activeTickByTick) > MarketDataConstants.MaxTickByTick)
+
+		var key = MarketDataShareHelpers.GetTickByTickShareKey(contract, tickType);
+		var subscriber = new TickByTickSubscriber();
+		SharedTickByTickStream stream;
+		var opened = false;
+		lock (_lock)
 		{
-			Interlocked.Decrement(ref _activeTickByTick);
-			throw new LSCoreBadRequestException(
-				MarketDataValidationCodes.MDVC_003.GetValidationMessage(
-					MarketDataConstants.MaxTickByTick
-				)
-			);
+			if (_sharedTickByTick.TryGetValue(key, out var existing))
+				stream = existing;
+			else
+			{
+				// Only a new IB subscription takes one of IB's few
+				if (_sharedTickByTick.Count >= MarketDataConstants.MaxTickByTick)
+					throw new LSCoreBadRequestException(
+						MarketDataValidationCodes.MDVC_003.GetValidationMessage(
+							MarketDataConstants.MaxTickByTick
+						)
+					);
+				stream = new SharedTickByTickStream(key, contract, tickType);
+				_sharedTickByTick[key] = stream;
+				opened = true;
+			}
+			stream.Subscribers.Add(subscriber);
 		}
 		try
 		{
+			if (opened)
+				_ = Task.Run(() => PumpTickByTickAsync(stream));
 			await foreach (
-				var tick in ibkrApiClient.SubscribeTickByTickAsync(
-					contract,
-					tickType,
-					cancellationToken
-				)
+				var tick in subscriber
+					.Ticks.Reader.ReadAllAsync(cancellationToken)
+					.ConfigureAwait(false)
 			)
 				yield return tick;
 		}
 		finally
 		{
-			Interlocked.Decrement(ref _activeTickByTick);
+			LeaveTickByTick(stream, subscriber);
 		}
 	}
 
@@ -336,6 +361,90 @@ public class MarketDataManager(IIbkrApiClient ibkrApiClient, TimeProvider timePr
 		}
 		if (closed)
 			StreamsChanged?.Invoke();
+	}
+
+	// One tick-by-tick subscriber is done: the last one ends the IB subscription (outside the
+	// lock: cancelling runs the stream's callbacks)
+	private void LeaveTickByTick(SharedTickByTickStream stream, TickByTickSubscriber subscriber)
+	{
+		bool cancel;
+		lock (_lock)
+		{
+			if (!stream.Subscribers.Remove(subscriber) || stream.Subscribers.Count > 0)
+				return;
+			cancel = CloseTickByTick(stream);
+		}
+		if (cancel)
+			stream.Cancel.Cancel();
+	}
+
+	// Under _lock: frees the stream's slot and new subscribers open a fresh one; true the first
+	// time only
+	private bool CloseTickByTick(SharedTickByTickStream stream)
+	{
+		if (stream.IsClosed)
+			return false;
+		stream.IsClosed = true;
+		_sharedTickByTick.Remove(stream.Key);
+		return true;
+	}
+
+	// The IB subscription of a shared tick-by-tick stream: every tick to every subscriber; its
+	// end or error ends them (the slot is free before they see it)
+	private async Task PumpTickByTickAsync(SharedTickByTickStream stream)
+	{
+		Exception? error = null;
+		try
+		{
+			await foreach (
+				var tick in ibkrApiClient
+					.SubscribeTickByTickAsync(stream.Contract, stream.TickType, stream.Cancel.Token)
+					.ConfigureAwait(false)
+			)
+				lock (_lock)
+					foreach (var subscriber in stream.Subscribers)
+						subscriber.Ticks.Writer.TryWrite(tick);
+		}
+		catch (OperationCanceledException) when (stream.Cancel.IsCancellationRequested) { }
+		catch (Exception ex)
+		{
+			error = ex;
+		}
+
+		lock (_lock)
+		{
+			CloseTickByTick(stream);
+			foreach (var subscriber in stream.Subscribers)
+				subscriber.Ticks.Writer.TryComplete(error);
+		}
+	}
+
+	private sealed class SharedTickByTickStream(
+		string key,
+		ContractDto contract,
+		TickByTickType tickType
+	)
+	{
+		public string Key { get; } = key;
+		public ContractDto Contract { get; } = contract;
+		public TickByTickType TickType { get; } = tickType;
+		public List<TickByTickSubscriber> Subscribers { get; } = [];
+
+		// Not disposed: no timer behind it, and the last subscriber may cancel it at any time
+		public CancellationTokenSource Cancel { get; } = new();
+
+		// Out of _sharedTickByTick (under _lock)
+		public bool IsClosed { get; set; }
+	}
+
+	private sealed class TickByTickSubscriber
+	{
+		// Every tick from the moment it joined, in IB's order; the same (read-only) tick objects
+		// go to every subscriber
+		public Channel<TickByTickDto> Ticks { get; } =
+			Channel.CreateUnbounded<TickByTickDto>(
+				new UnboundedChannelOptions { SingleReader = true }
+			);
 	}
 
 	private sealed class SharedQuoteLine(

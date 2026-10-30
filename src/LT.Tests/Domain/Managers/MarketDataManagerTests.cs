@@ -244,11 +244,16 @@ public class MarketDataManagerTests
 		using var cts = CancellationTokenSource.CreateLinkedTokenSource(
 			TestContext.Current.CancellationToken
 		);
+		// One contract each: subscriptions of one contract share a single IB subscription
 		var open = Enumerable
-			.Range(0, MarketDataConstants.MaxTickByTick)
-			.Select(_ =>
+			.Range(1, MarketDataConstants.MaxTickByTick)
+			.Select(conId =>
 				manager
-					.SubscribeTickByTickAsync(Aapl, TickByTickType.Last, cts.Token)
+					.SubscribeTickByTickAsync(
+						new ContractDto { ConId = conId, Symbol = $"X{conId}" },
+						TickByTickType.Last,
+						cts.Token
+					)
 					.ToListAsync(cts.Token)
 					.AsTask()
 			)

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using LSCore.Exceptions;
 using LT.Contracts.Constants;
+using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Entities;
 using LT.Contracts.Enums;
@@ -191,6 +192,150 @@ public class SettingsManagerTests
 				}
 			)
 		);
+
+	private static readonly ContractDto SpyStock = new()
+	{
+		ConId = 756733,
+		Symbol = "SPY",
+		SecurityType = "STK",
+		Exchange = "SMART",
+		PrimaryExchange = "ARCA",
+		Currency = "USD",
+	};
+
+	private static readonly ContractDto SpyCall = new()
+	{
+		ConId = 812345678,
+		Symbol = "SPY",
+		SecurityType = "OPT",
+		Exchange = "SMART",
+		Currency = "USD",
+		LastTradeDateOrContractMonth = "20261120",
+		Strike = 600,
+		Right = "C",
+		Multiplier = "100",
+	};
+
+	private static SaveAppSettingsRequest TickerRequest(params TickerSettingsDto[] tickers) =>
+		new()
+		{
+			MarketDataType = MarketDataType.Delayed,
+			HeartbeatSeconds = 10,
+			ChartLiveUpdateMode = ChartLiveUpdateMode.Quotes,
+			TickerSettings = [.. tickers],
+		};
+
+	[Fact]
+	public void Ticker_settings_round_trip_through_the_settings_file_and_are_announced()
+	{
+		var manager = new SettingsManager(_settings, _ibkr);
+		AppSettingsDto? raised = null;
+		manager.AppSettingsChanged += x => raised = x;
+
+		manager.SaveAppSettings(
+			TickerRequest(
+				new TickerSettingsDto
+				{
+					Contract = SpyStock,
+					ChartLiveUpdateMode = ChartLiveUpdateMode.TickByTick,
+				},
+				new TickerSettingsDto
+				{
+					Contract = SpyCall,
+					ChartLiveUpdateMode = ChartLiveUpdateMode.RealtimeBars,
+				}
+			)
+		);
+		// What settings.json holds, read back as the next start reads it
+		var reloaded = new InMemorySettingsRepository();
+		reloaded.Save(
+			JsonSerializer.Deserialize<SettingsEntity>(JsonSerializer.Serialize(_settings.Get()))!
+		);
+		var settings = new SettingsManager(reloaded, _ibkr).GetAppSettings();
+
+		Assert.Equal(
+			[
+				(756733, "SPY", "STK", "ARCA", ChartLiveUpdateMode.TickByTick),
+				(812345678, "SPY", "OPT", "", ChartLiveUpdateMode.RealtimeBars),
+			],
+			settings.TickerSettings.Select(x =>
+				(
+					x.Contract.ConId,
+					x.Contract.Symbol,
+					x.Contract.SecurityType,
+					x.Contract.PrimaryExchange,
+					x.ChartLiveUpdateMode
+				)
+			)
+		);
+		Assert.Equal(
+			(600, "C"),
+			(settings.TickerSettings[1].Contract.Strike, settings.TickerSettings[1].Contract.Right)
+		);
+		Assert.Equal(2, raised?.TickerSettings.Count);
+		Assert.Equal(ChartLiveUpdateMode.Quotes, settings.ChartLiveUpdateMode);
+
+		// Saving an empty list removes them
+		manager.SaveAppSettings(TickerRequest());
+		Assert.Empty(manager.GetAppSettings().TickerSettings);
+	}
+
+	[Fact]
+	public void Settings_saved_before_ticker_settings_load_with_none() =>
+		Assert.Empty(
+			JsonSerializer
+				.Deserialize<SettingsEntity>("""{ "General": { "ChartLiveUpdateMode": 1 } }""")!
+				.General.TickerSettings
+		);
+
+	[Fact]
+	public void A_ticker_listed_twice_is_rejected() =>
+		Assert.Throws<LSCoreBadRequestException>(() =>
+			new SettingsManager(_settings, _ibkr).SaveAppSettings(
+				TickerRequest(
+					new TickerSettingsDto
+					{
+						Contract = SpyStock,
+						ChartLiveUpdateMode = ChartLiveUpdateMode.TickByTick,
+					},
+					new TickerSettingsDto
+					{
+						Contract = new ContractDto { ConId = SpyStock.ConId, Symbol = "SPY" },
+						ChartLiveUpdateMode = ChartLiveUpdateMode.Quotes,
+					}
+				)
+			)
+		);
+
+	[Fact]
+	public void A_ticker_setting_without_a_con_id_or_with_an_unknown_mode_is_rejected()
+	{
+		var manager = new SettingsManager(_settings, _ibkr);
+
+		Assert.Throws<LSCoreBadRequestException>(() =>
+			manager.SaveAppSettings(
+				TickerRequest(
+					new TickerSettingsDto
+					{
+						Contract = new ContractDto { Symbol = "SPY" },
+						ChartLiveUpdateMode = ChartLiveUpdateMode.TickByTick,
+					}
+				)
+			)
+		);
+		Assert.Throws<LSCoreBadRequestException>(() =>
+			manager.SaveAppSettings(
+				TickerRequest(
+					new TickerSettingsDto
+					{
+						Contract = SpyStock,
+						ChartLiveUpdateMode = (ChartLiveUpdateMode)99,
+					}
+				)
+			)
+		);
+		Assert.Empty(manager.GetAppSettings().TickerSettings);
+	}
 
 	[Fact]
 	public void Unknown_chart_live_update_mode_is_rejected() =>

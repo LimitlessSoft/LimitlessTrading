@@ -1,0 +1,67 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:LT.App.Widgets.Settings"
+	xmlns:controls="using:LT.App.Controls"
+	x:Class="LT.App.Widgets.Settings.TickerSettingsView"
+	x:DataType="vm:TickerSettingsSettingViewModel"
+>
+	<!-- Ticker settings: the ticker box adds a contract, each row has its own live update mode -->
+	<StackPanel Classes="setting" IsVisible="{Binding IsVisible}" IsEnabled="{Binding IsEnabled}">
+		<TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+		<TextBlock
+			Classes="secondary settingHelp"
+			Text="{Binding Description}"
+			IsVisible="{Binding HasDescription}"
+		/>
+		<controls:ContractSearchBox
+			x:Name="TickerBox"
+			Width="320"
+			Margin="0,4,0,0"
+			HorizontalAlignment="Left"
+			Placeholder="Add ticker: type a symbol, or pick a recent one"
+		/>
+		<TextBlock
+			Classes="negative settingHelp"
+			Text="{Binding Status}"
+			IsVisible="{Binding HasStatus}"
+		/>
+		<TextBlock
+			Classes="secondary settingHelp"
+			Margin="0,4,0,0"
+			Text="No tickers yet: every chart uses Charts › Chart live updates."
+			IsVisible="{Binding !HasEntries}"
+		/>
+		<ItemsControl Margin="0,4,0,0" ItemsSource="{Binding Entries}">
+			<ItemsControl.ItemsPanel>
+				<ItemsPanelTemplate>
+					<StackPanel Spacing="6" />
+				</ItemsPanelTemplate>
+			</ItemsControl.ItemsPanel>
+			<ItemsControl.ItemTemplate>
+				<DataTemplate DataType="vm:TickerSettingItemViewModel">
+					<Grid ColumnDefinitions="220,Auto,Auto" HorizontalAlignment="Left">
+						<StackPanel VerticalAlignment="Center" Spacing="0">
+							<TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
+							<TextBlock Classes="secondary" FontSize="12" Text="{Binding Details}" />
+						</StackPanel>
+						<ComboBox
+							Grid.Column="1"
+							MinWidth="300"
+							VerticalAlignment="Center"
+							ItemsSource="{Binding Modes}"
+							SelectedItem="{Binding Mode}"
+						/>
+						<Button
+							Grid.Column="2"
+							Margin="8,0,0,0"
+							VerticalAlignment="Center"
+							Content="Remove"
+							Command="{Binding RemoveCommand}"
+						/>
+					</Grid>
+				</DataTemplate>
+			</ItemsControl.ItemTemplate>
+		</ItemsControl>
+	</StackPanel>
+</UserControl>

@@ -1410,7 +1410,23 @@ price stream runs on the thread pool and queues prices, which are folded one bur
 `LivePriceMaxBarAge` on the app's clock. The status line names the price source in use
 ("Live · 10:31:05 · tick-by-tick", "· quotes", "· 5-second bars only"); every fallback is logged
 to the message log.
-Saving a different mode (or interval, for the throttled modes) reloads every open chart.
+
+**Per-ticker mode.** Settings → General → *Ticker settings* lists contracts, each with its own
+live update mode (`TickerSettingsDto` in `AppSettingsDto.TickerSettings`, saved as
+`GeneralSettingsEntity.TickerSettings`, one entry per conId; `TickerSettingsSettingViewModel` /
+`TickerSettingsView`). A ticker is added with the app's ticker box (`ContractSearchBox`: a typed
+symbol resolves to its first listing, a picked IB listing, or a recent contract from the empty
+box, which is how an option charted before gets its own entry, apart from its underlying), its
+mode picked in the row's drop-down (a new one starts on tick-by-tick), and removed with *Remove*;
+like every setting it applies on Save. A chart's mode is its contract's entry, else the app-wide
+*Chart live updates* (`ChartLiveUpdateHelpers.GetMode`); the redraw interval stays app-wide. The
+typical use is tick-by-tick for the few tickers traded, since every chart of one ticker shares a
+single IB tick-by-tick subscription (`IMarketDataManager.SubscribeTickByTickAsync`, see
+[ibkr-tws-api.md](ibkr-tws-api.md#tick-by-tick)) and IB allows 5. There is no per-chart setting.
+
+Saving reloads exactly the open charts whose mode changes (or interval, for the throttled modes):
+a changed entry reloads the charts of that contract, a different app-wide mode the charts of the
+tickers not listed (`ChartViewModel.OnAppSettingsChanged`).
 
 **Footprint bars.** The last button of a chart's header (*Candles* / *Footprint*,
 `ChartViewModel.BarStyle`, `ChartBarStyle`, saved per chart as `ChartBarStyle`; null in older
@@ -1430,7 +1446,7 @@ tick rules, `AddTrade`, `GetRows`, `FormatVolume`).
 
 - **Trades.** After the bars load, `ChartFootprint` (one per load, UI thread) takes live trades
   from the current whole second on (`IFootprintManager.SubscribeTradesAsync`: tick-by-tick
-  `AllLast` + `BidAsk`, two of IB's five — see
+  `AllLast` + `BidAsk`, two of IB's five, shared with every other footprint of the contract — see
   [ibkr-tws-api.md](ibkr-tws-api.md#tick-by-tick)) and fills the past bars from the footprint
   trade cache first, then from IB pages for what the cache lacks
   (`IFootprintManager.GetTradesAsync`, IB historical ticks, 1000 a page, one at a time — see

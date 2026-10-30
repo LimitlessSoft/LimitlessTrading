@@ -1,5 +1,6 @@
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.MarketData;
+using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
 
 namespace LT.Contracts.Helpers;
@@ -7,6 +8,14 @@ namespace LT.Contracts.Helpers;
 /// <summary>Decisions behind a chart's live updates (<see cref="ChartLiveUpdateMode"/>).</summary>
 public static class ChartLiveUpdateHelpers
 {
+	/// <summary>
+	/// The mode of a chart of the contract <paramref name="conId"/>: its Ticker settings entry's
+	/// when it has one, else the app-wide <see cref="AppSettingsDto.ChartLiveUpdateMode"/>.
+	/// </summary>
+	public static ChartLiveUpdateMode GetMode(AppSettingsDto settings, int? conId) =>
+		TickerSettingsHelpers.Find(settings.TickerSettings, conId)?.ChartLiveUpdateMode
+		?? settings.ChartLiveUpdateMode;
+
 	/// <summary>Modes that move the last bar with live prices on top of the 5-second bars.</summary>
 	public static bool UsesLivePrices(ChartLiveUpdateMode mode) =>
 		mode != ChartLiveUpdateMode.RealtimeBars;

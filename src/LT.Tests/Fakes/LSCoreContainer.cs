@@ -132,6 +132,14 @@ public static class LSCoreContainer
 					SaveUiScaleRequestValidator
 				>()
 				.AddSingleton<ILSCoreMapper<ContractEntity, ContractDto>, ContractDtoMapper>()
+				.AddSingleton<
+					ILSCoreMapper<TickerSettingsDto, TickerSettingsEntity>,
+					TickerSettingsEntityMapper
+				>()
+				.AddSingleton<
+					ILSCoreMapper<TickerSettingsEntity, TickerSettingsDto>,
+					TickerSettingsDtoMapper
+				>()
 				.AddSingleton<ILSCoreMapper<WatchlistEntity, WatchlistDto>, WatchlistDtoMapper>()
 				.AddSingleton<
 					LSCoreValidatorBase<SaveWatchlistNameRequest>,

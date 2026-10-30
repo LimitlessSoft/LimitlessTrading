@@ -1,4 +1,5 @@
 using LT.Contracts.Constants;
+using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
 
 namespace LT.Contracts.Requests.Settings;
@@ -29,6 +30,12 @@ public class SaveAppSettingsRequest
 	/// </summary>
 	public int ChartFootprintImbalancePercent { get; set; } =
 		FootprintConstants.DefaultImbalancePercent;
+
+	/// <summary>
+	/// Per-contract settings, one entry per conId; replaces the saved list (an empty list
+	/// removes every entry).
+	/// </summary>
+	public List<TickerSettingsDto> TickerSettings { get; set; } = [];
 
 	/// <summary>Zone times are shown in; null = the system's local zone.</summary>
 	public string? DisplayTimeZoneId { get; set; }

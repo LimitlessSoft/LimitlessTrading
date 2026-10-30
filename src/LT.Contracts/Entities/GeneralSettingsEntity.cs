@@ -31,6 +31,12 @@ public class GeneralSettingsEntity
 		FootprintConstants.DefaultImbalancePercent;
 
 	/// <summary>
+	/// Per-contract settings (one entry per conId), e.g. a chart live update mode that replaces
+	/// <see cref="ChartLiveUpdateMode"/> for that contract; empty in older settings files.
+	/// </summary>
+	public List<TickerSettingsEntity> TickerSettings { get; set; } = [];
+
+	/// <summary>
 	/// Zone every shown time is converted to (a system time zone id); null, the default and what
 	/// older settings files load as, is the system's local zone.
 	/// </summary>

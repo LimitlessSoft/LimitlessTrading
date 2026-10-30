@@ -1,5 +1,7 @@
 using LT.Contracts.Constants;
+using LT.Contracts.Dtos.Contracts;
 using LT.Contracts.Dtos.MarketData;
+using LT.Contracts.Dtos.Settings;
 using LT.Contracts.Enums;
 using LT.Contracts.Helpers;
 
@@ -8,6 +10,49 @@ namespace LT.Tests.Contracts.Helpers;
 public class ChartLiveUpdateHelpersTests
 {
 	private static readonly DateTimeOffset T0 = new(2026, 10, 23, 13, 30, 0, TimeSpan.Zero);
+
+	private static readonly AppSettingsDto WithSpyOnTickByTick = new()
+	{
+		ChartLiveUpdateMode = ChartLiveUpdateMode.Quotes,
+		TickerSettings =
+		[
+			new TickerSettingsDto
+			{
+				Contract = new ContractDto { ConId = 756733, Symbol = "SPY" },
+				ChartLiveUpdateMode = ChartLiveUpdateMode.TickByTick,
+			},
+		],
+	};
+
+	[Fact]
+	public void A_listed_ticker_uses_its_own_mode()
+	{
+		Assert.Equal(
+			ChartLiveUpdateMode.TickByTick,
+			ChartLiveUpdateHelpers.GetMode(WithSpyOnTickByTick, 756733)
+		);
+	}
+
+	[Theory]
+	[InlineData(265598)] // another ticker
+	[InlineData(812345678)] // an option on SPY: its own contract, not listed
+	[InlineData(0)] // no conId
+	[InlineData(null)] // no contract
+	public void Any_other_contract_uses_the_app_wide_mode(int? conId) =>
+		Assert.Equal(
+			ChartLiveUpdateMode.Quotes,
+			ChartLiveUpdateHelpers.GetMode(WithSpyOnTickByTick, conId)
+		);
+
+	[Fact]
+	public void Without_ticker_settings_every_chart_uses_the_app_wide_mode() =>
+		Assert.Equal(
+			ChartLiveUpdateMode.RealtimeBars,
+			ChartLiveUpdateHelpers.GetMode(
+				new AppSettingsDto { ChartLiveUpdateMode = ChartLiveUpdateMode.RealtimeBars },
+				756733
+			)
+		);
 
 	[Fact]
 	public void A_trade_gives_its_price_and_a_quote_without_a_new_trade_gives_none()

@@ -134,6 +134,9 @@
 				</ItemsControl>
 			</StackPanel>
 		</DataTemplate>
+		<DataTemplate DataType="vm:TickerSettingsSettingViewModel">
+			<vm:TickerSettingsView />
+		</DataTemplate>
 		<DataTemplate DataType="vm:ActionSettingViewModel">
 			<StackPanel Classes="setting" IsVisible="{Binding IsVisible}" IsEnabled="{Binding IsEnabled}">
 				<TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
