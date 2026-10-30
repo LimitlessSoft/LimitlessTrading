@@ -112,7 +112,26 @@
 						Content="{Binding Label}"
 						ToolTip.Tip="{Binding Tip}"
 						IsChecked="{Binding IsSelected}"
-					/>
+					>
+						<!-- Selected: the source's color (WidgetCategoryBrushes), as on the headline
+						     badges, instead of the accent; off chips keep the theme's grey. The
+						     presenter's DataContext is the label, so the chip comes from the button -->
+						<ToggleButton.Styles>
+							<Style Selector="ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
+								<Setter
+									Property="Background"
+									Value="{Binding $parent[ToggleButton].((vm:NewsProviderChip)DataContext).SourceBrush}"
+								/>
+								<Setter Property="Foreground" Value="White" />
+							</Style>
+							<Style Selector="ToggleButton:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+								<Setter Property="Opacity" Value="0.85" />
+							</Style>
+							<Style Selector="ToggleButton:checked:pressed /template/ ContentPresenter#PART_ContentPresenter">
+								<Setter Property="Opacity" Value="0.7" />
+							</Style>
+						</ToggleButton.Styles>
+					</ToggleButton>
 				</DataTemplate>
 			</ItemsControl.ItemTemplate>
 		</ItemsControl>

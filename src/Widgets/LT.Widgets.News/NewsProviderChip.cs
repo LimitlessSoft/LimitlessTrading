@@ -1,4 +1,6 @@
+using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
+using LT.App.Workspace;
 using LT.Contracts.Constants;
 using LT.Contracts.Dtos.News;
 using LT.Contracts.Enums;
@@ -15,8 +17,16 @@ public partial class NewsProviderChip(NewsProviderDto provider) : ObservableObje
 
 	public string Label => Provider.Code;
 
+	/// <summary>
+	/// IB's or the app's own feeds: the chip's color while selected, the same as the headline
+	/// badges and the frame corners.
+	/// </summary>
+	public WidgetCategory SourceCategory => NewsHelpers.GetSourceCategory(Provider.SourceId);
+
+	public IBrush SourceBrush => WidgetCategoryBrushes.Get(SourceCategory);
+
 	public string Tip =>
-		Provider.SourceId == FeedNewsConstants.SourceId
+		SourceCategory == WidgetCategory.Tools
 			? $"{Provider.Name} ({Provider.Code}) · {FeedNewsConstants.SourceName} feed"
 			: $"{Provider.Name} ({Provider.Code}) · IB";
 

@@ -260,8 +260,8 @@ new instance) and lives in one of four wrappers:
   both, split along the diagonal; chosen away from buy / sell green and red, the fullscreen
   amber and the link group dots); hovering it names the source ("Interactive Brokers + own
   sources" for Mixed). Widgets that mix sources reuse the same brushes per item: the News
-  headline badges are indigo for IB's providers and gold for the app's own feeds
-  (`NewsHelpers.GetSourceCategory`).
+  headline badges and selected provider chips are indigo for IB's providers and gold for the
+  app's own feeds (`NewsHelpers.GetSourceCategory`); unselected chips stay grey.
   The wedge (`Workspace/CornerMarker`) takes the frame's top-left corner radius, so it is rounded
   in the card look and square when flush or docked.
 - **Spawning.** Menu → Widgets → any widget always opens a **new instance**
