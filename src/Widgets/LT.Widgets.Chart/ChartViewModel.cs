@@ -493,6 +493,11 @@ public partial class ChartViewModel
 
 	partial void OnSelectedTimeframeChanged(TimeframeOption value)
 	{
+		// Another bar size is another series: the view goes back to the period once it loads.
+		// The chart can't always tell on its own (the old first bar's time is in the new series
+		// too, so it looks like older bars put in front), which kept a scrolled view — also on a
+		// chart following a template another chart changed
+		_resetViewOnLoad = true;
 		ReloadUnlessApplyingTemplate();
 		OnTemplateSettingsEdited();
 	}

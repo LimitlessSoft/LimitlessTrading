@@ -342,7 +342,9 @@ new instance) and lives in one of four wrappers:
   reports it (`CandlestickChart.IsFitted` → `ChartViewModel.IsPeriodFitted`), the header says
   "Custom" and the period menu checks nothing; the view then moves freely and shows the older bars
   too (it carries on from where the window was). Picking a period again (the same one too) or
-  double-clicking the chart fits the view to it again and the header shows it. Auto is never
+  double-clicking the chart fits the view to it again and the header shows it. So does another
+  timeframe once its bars load — also on a Custom chart taking a timeframe or period from the
+  template it follows, which ends up showing the period like the chart that changed it. Auto is never
   Custom (it is no span). What is saved — per chart, in templates, and for new charts (they start
   at the last chart's period) — is the chosen period, never Custom. **Older history:** scrolling or
   zooming to within half a screen of the oldest loaded bar (`CandlestickChart.OlderBarsNeeded`,
