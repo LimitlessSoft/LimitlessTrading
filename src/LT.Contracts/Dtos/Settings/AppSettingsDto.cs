@@ -28,6 +28,13 @@ public class AppSettingsDto
 	/// </summary>
 	public int ChartFootprintImbalancePercent { get; set; }
 
+	/// <summary>
+	/// Per-contract settings (one entry per conId), e.g. a chart live update mode that replaces
+	/// <see cref="ChartLiveUpdateMode"/> for that contract
+	/// (<see cref="Helpers.ChartLiveUpdateHelpers.GetMode"/>).
+	/// </summary>
+	public IReadOnlyList<TickerSettingsDto> TickerSettings { get; set; } = [];
+
 	/// <summary>Zone times are shown in; null = the system's local zone.</summary>
 	public string? DisplayTimeZoneId { get; set; }
 

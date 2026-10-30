@@ -72,6 +72,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 
 	private readonly ChoiceSettingViewModel _displayTimeZone;
 	private readonly ChoiceSettingViewModel _uiScale;
+	private readonly TickerSettingsSettingViewModel _tickerSettings;
 
 	private readonly BoolSettingViewModel _autoReconnect = new(
 		"Reconnect automatically when the connection drops",
@@ -200,7 +201,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 	private readonly ChoiceSettingViewModel _chartLiveUpdates = new(
 		"Chart live updates",
 		[.. ChartLiveUpdateOption.All],
-		"5-second bars: IB's real-time bars, the chart moves every 5 seconds. Every trade: the last bar also follows each last-trade price (the midpoint for forex), like TWS. Quotes take one market data line per open chart. Tick-by-tick is IB's own trade-by-trade feed with IB's timestamps; IB allows only 5 at a time, so further charts use quotes. Without a free line a chart stays on 5-second bars; the status line shows the source in use. Throttled: redrawn at most once per redraw interval. Open charts reload when this changes.",
+		"5-second bars: IB's real-time bars, the chart moves every 5 seconds. Every trade: the last bar also follows each last-trade price (the midpoint for forex), like TWS. Quotes take one market data line per ticker, shared by its charts. Tick-by-tick is IB's own trade-by-trade feed with IB's timestamps; IB allows only 5 at a time (charts of one ticker share one), so further tickers use quotes. Without a free line a chart stays on 5-second bars; the status line shows the source in use. Throttled: redrawn at most once per redraw interval. Tickers listed in Ticker settings use their own mode instead. Open charts reload when this changes.",
 		"chart live real-time realtime bars quotes ticks trades update speed refresh line"
 	);
 
@@ -225,6 +226,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		ICacheManager cacheManager,
 		IFlexImportManager flexImportManager,
 		INewsManager newsManager,
+		IContractManager contractManager,
 		DisplayTimeStore displayTime,
 		UiScaleStore uiScaleStore
 	)
@@ -308,6 +310,13 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 		_chartLiveUpdates.Value = ChartLiveUpdateOption.Find(settings.ChartLiveUpdateMode);
 		_chartRedrawInterval.Value = settings.ChartRedrawIntervalMs;
 		_chartFootprintImbalance.Value = settings.ChartFootprintImbalancePercent;
+		_tickerSettings = new TickerSettingsSettingViewModel(
+			contractManager,
+			settings.TickerSettings,
+			"Chart live updates per ticker",
+			"Charts of a listed ticker use its mode instead of Charts › Chart live updates; every other ticker keeps that one. Each contract is its own entry, so an option is set apart from its underlying (pick it from the recent tickers once it has been charted). Typical use: tick-by-tick for the few tickers you trade, as IB allows only 5 tick-by-tick streams; all charts of one ticker share one. Charts of a changed ticker reload on Save.",
+			"ticker symbol contract per ticker override chart live real-time tick-by-tick quotes bars mode option"
+		);
 		UpdateChartRedrawInterval();
 		_chartLiveUpdates.PropertyChanged += (_, e) =>
 		{
@@ -332,6 +341,10 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 							new("Live updates", _chartLiveUpdates, _chartRedrawInterval),
 							new("Footprint", _chartFootprintImbalance),
 						]
+					),
+					new SettingsPageViewModel(
+						"Ticker settings",
+						[new("Live updates", _tickerSettings)]
 					),
 				]
 			),
@@ -449,6 +462,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
 					ChartFootprintImbalancePercent = (int)(
 						_chartFootprintImbalance.Value ?? FootprintConstants.DefaultImbalancePercent
 					),
+					TickerSettings = _tickerSettings.ToDtos(),
 					DisplayTimeZoneId = (_displayTimeZone.Value as TimeZoneOption)?.Id,
 					PlayFillSound = _playFillSound.Value,
 					CalendarNasdaq = _calendarNasdaq.Value,

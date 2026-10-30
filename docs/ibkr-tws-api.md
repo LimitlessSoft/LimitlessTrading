@@ -414,8 +414,15 @@ deduplicated by IB's execution id, so the same fill from either stays one:
   sampled). Without a free line, or when the quote stream fails, the chart stays on 5-second bars
   and logs "quotes unavailable, using 5-second bars".
 - <a id="tick-by-tick"></a>**Tick-by-tick (`reqTickByTickData`) is limited to 5 subscriptions
-  per account** (error 10190 beyond). `IMarketDataManager.SubscribeTickByTickAsync` counts them
-  (`MarketDataConstants.MaxTickByTick`) and refuses the sixth before asking IB. The chart's
+  per account** (error 10190 beyond). `IMarketDataManager.SubscribeTickByTickAsync` shares
+  them like quote lines: subscriptions of the same contract (conId and routing exchange,
+  `MarketDataShareHelpers.GetTickByTickShareKey`) and tick type read one IB subscription, opened
+  by the first, cancelled when the last leaves, an IB error or end ending all of them; a joiner
+  gets the ticks from then on (no replay). Only an IB subscription counts
+  (`MarketDataConstants.MaxTickByTick`, `ActiveTickByTick`): a sixth contract / tick type is
+  refused before asking IB, another chart of a streaming ticker still joins. So all charts of
+  SPY on tick-by-tick take one, and Settings → General → *Ticker settings* picks which tickers
+  get tick-by-tick ([ui-patterns.md](ui-patterns.md#charts)). The chart's
   tick-by-tick modes ask for `Last` (no odd lots; `AllLast` would add odd lots flagged
   unreported) and `MidPoint` for forex — `Last` on forex fails with 10189. Other refusals: 10189
   no permission, 354 not subscribed, 200 unknown contract; all end the stream with an
@@ -424,7 +431,8 @@ deduplicated by IB's execution id, so the same fill from either stays one:
   "tick-by-tick unavailable, using quotes". A chart showing footprint bars takes two more
   (`AllLast` for every trade, odd lots included like the historical trades, and `BidAsk` to tell
   each trade's side; `IFootprintManager.SubscribeTradesAsync`, the quotes only once trades flow so
-  a last free one goes to the trades). Without the trades the chart says "not live" and newer bars
+  a last free one goes to the trades); footprints of one contract share both, so two SPY
+  footprint charts on tick-by-tick take three (`Last`, `AllLast`, `BidAsk`), not six. Without the trades the chart says "not live" and newer bars
   show as candles; without the quotes the sides go by the tick rule.
 - <a id="historical-ticks"></a>**Historical ticks (`reqHistoricalTicks`) answer at most 1000 a
   request** (1001 → `10187` "Max length exceeded"; no permission → `10187` too, unknown contract

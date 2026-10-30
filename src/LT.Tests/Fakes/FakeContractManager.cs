@@ -85,10 +85,11 @@ public class FakeContractManager : IContractManager
 		CancellationToken cancellationToken = default
 	) => Task.FromResult(Details.GetValueOrDefault(contract.ConId));
 
-	public Task<ContractDto> ResolveTickerAsync(
+	/// <summary>A known symbol's listing; any other fails like IB does for an unknown symbol.</summary>
+	public async Task<ContractDto> ResolveTickerAsync(
 		string ticker,
 		CancellationToken cancellationToken = default
-	) => throw new NotSupportedException();
+	) => (await SearchSymbolAsync(ticker, cancellationToken))[0].Contract;
 
 	public IReadOnlyList<ContractDto> GetRecentContracts() => [];
 

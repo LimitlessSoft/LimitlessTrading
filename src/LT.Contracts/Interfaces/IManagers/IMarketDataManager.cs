@@ -66,12 +66,19 @@ public interface IMarketDataManager
 	/// <summary>Releases a line taken with <see cref="AcquireLine"/>; an unknown id is ignored.</summary>
 	void ReleaseLine(long streamId);
 
-	/// <summary>Tick-by-tick subscriptions currently in use by this app.</summary>
+	/// <summary>
+	/// IB tick-by-tick subscriptions currently open by this app: one per shared stream, however
+	/// many subscribers read it.
+	/// </summary>
 	int ActiveTickByTick { get; }
 
 	/// <summary>
-	/// IB tick-by-tick data; counts against IB's limit of
-	/// <c>MarketDataConstants.MaxTickByTick</c> until the enumeration ends and throws at it.
+	/// IB tick-by-tick data. Subscriptions of the same contract and <paramref name="tickType"/>
+	/// share one IB subscription: the first opens it (and counts against IB's limit of
+	/// <c>MarketDataConstants.MaxTickByTick</c>, throwing at it), later ones get every tick from
+	/// the moment they join (no replay of earlier ticks), and the last one to leave cancels it.
+	/// Cancelling one subscription leaves the others streaming; an IB error or end ends all of
+	/// them, with the slot already free. Every subscriber gets the same tick objects: read only.
 	/// </summary>
 	IAsyncEnumerable<TickByTickDto> SubscribeTickByTickAsync(
 		ContractDto contract,

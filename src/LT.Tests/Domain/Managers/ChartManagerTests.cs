@@ -382,6 +382,8 @@ public class ChartManagerTests
 			},
 		];
 		var inUse = new List<int>();
+		// Open until the chart stops: IB's end would free the subscription at once
+		_ibkr.KeepTickByTickOpen = true;
 
 		var prices = new List<ChartPriceDto>();
 		await foreach (
@@ -394,6 +396,8 @@ public class ChartManagerTests
 		{
 			prices.Add(price);
 			inUse.Add(_marketData.ActiveTickByTick);
+			if (prices.Count == 2)
+				break;
 		}
 
 		Assert.Equal([(ibTime, 100d), (ibTime, 100.1)], prices.Select(x => (x.Time, x.Price)));

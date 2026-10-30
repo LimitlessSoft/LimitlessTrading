@@ -69,6 +69,27 @@ public class SaveAppSettingsRequestValidator : LSCoreValidatorBase<SaveAppSettin
 				)
 			);
 
+		RuleForEach(x => x.TickerSettings)
+			.Must(x => x.Contract is { ConId: > 0 })
+			.WithMessage(SettingsValidationCodes.SVC_017.GetValidationMessage())
+			.Must(x => Enum.IsDefined(x.ChartLiveUpdateMode))
+			.WithMessage(
+				(_, x) =>
+					SettingsValidationCodes.SVC_016.GetValidationMessage(
+						x.Contract != null ? ContractHelpers.GetDisplayName(x.Contract) : "a ticker"
+					)
+			);
+
+		RuleFor(x => x.TickerSettings)
+			.Must(x => TickerSettingsHelpers.FindDuplicate(x) == null)
+			.WithMessage(x =>
+				SettingsValidationCodes.SVC_018.GetValidationMessage(
+					ContractHelpers.GetDisplayName(
+						TickerSettingsHelpers.FindDuplicate(x.TickerSettings)!.Contract
+					)
+				)
+			);
+
 		RuleFor(x => x.NewsRetentionDays)
 			.InclusiveBetween(NewsConstants.RetentionDaysMin, NewsConstants.RetentionDaysMax)
 			.WithMessage(

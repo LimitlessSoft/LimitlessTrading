@@ -52,4 +52,13 @@ public enum SettingsValidationCodes
 
 	[LSCoreValidationMessage("UI scale must be between {0} and {1} %.")]
 	SVC_015,
+
+	[LSCoreValidationMessage("Unknown chart live update mode for {0}.")]
+	SVC_016,
+
+	[LSCoreValidationMessage("A ticker setting needs a contract IB has resolved (with a conId).")]
+	SVC_017,
+
+	[LSCoreValidationMessage("{0} has more than one ticker setting.")]
+	SVC_018,
 }

@@ -674,21 +674,19 @@ public partial class ChartViewModel
 		UpdateOrderLines();
 	}
 
-	// From the thread that saved the settings. Live-update changes reload
+	// From the thread that saved the settings. A change of this chart's live updates (its
+	// contract's Ticker settings entry, else the app-wide mode) reloads; other charts stay
 	private void OnAppSettingsChanged(AppSettingsDto settings) =>
 		Dispatcher.UIThread.Post(() =>
 		{
 			if (_disposed)
 				return;
 			ApplyFootprintSettings(settings.ChartFootprintImbalancePercent);
+			var mode = ChartLiveUpdateHelpers.GetMode(settings, _contract?.ConId);
 			if (
-				(
-					settings.ChartLiveUpdateMode == _liveMode
-					&& ChartLiveUpdateHelpers.GetRedrawInterval(
-						settings.ChartLiveUpdateMode,
-						settings.ChartRedrawIntervalMs
-					) == _redrawInterval
-				)
+				mode == _liveMode
+				&& ChartLiveUpdateHelpers.GetRedrawInterval(mode, settings.ChartRedrawIntervalMs)
+					== _redrawInterval
 			)
 				return;
 			Reload();
@@ -764,12 +762,12 @@ public partial class ChartViewModel
 	private async Task LoadAsync(CancellationToken cancellationToken)
 	{
 		var settings = _settingsManager.GetAppSettings();
-		_liveMode = settings.ChartLiveUpdateMode;
+		var contract = _contract;
+		_liveMode = ChartLiveUpdateHelpers.GetMode(settings, contract?.ConId);
 		_redrawInterval = ChartLiveUpdateHelpers.GetRedrawInterval(
-			settings.ChartLiveUpdateMode,
+			_liveMode,
 			settings.ChartRedrawIntervalMs
 		);
-		var contract = _contract;
 		ErrorMessage = null;
 		_status.Clear();
 		if (contract == null)

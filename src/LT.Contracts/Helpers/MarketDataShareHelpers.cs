@@ -5,7 +5,10 @@ using LT.Contracts.Enums;
 
 namespace LT.Contracts.Helpers;
 
-/// <summary>Which quote subscriptions can share one market data line.</summary>
+/// <summary>
+/// Which quote subscriptions can share one market data line, and which tick-by-tick
+/// subscriptions one IB tick-by-tick stream.
+/// </summary>
 public static class MarketDataShareHelpers
 {
 	/// <summary>
@@ -17,27 +20,34 @@ public static class MarketDataShareHelpers
 		ContractDto contract,
 		string genericTicks,
 		MarketDataType? marketDataType
-	)
-	{
-		var listing =
-			contract.ConId > 0
-				? $"{contract.ConId}@{Normalize(contract.Exchange)}"
-				: string.Join(
-					"|",
-					Normalize(contract.Symbol),
-					Normalize(contract.SecurityType),
-					Normalize(contract.Exchange),
-					Normalize(contract.PrimaryExchange),
-					Normalize(contract.Currency),
-					Normalize(contract.LastTradeDateOrContractMonth),
-					contract.Strike.ToString("R", CultureInfo.InvariantCulture),
-					Normalize(contract.Right),
-					Normalize(contract.Multiplier),
-					Normalize(contract.LocalSymbol),
-					Normalize(contract.TradingClass)
-				);
-		return $"{listing}#{(genericTicks ?? string.Empty).Trim()}#{(int?)marketDataType}";
-	}
+	) =>
+		$"{GetListingKey(contract)}#{(genericTicks ?? string.Empty).Trim()}#{(int?)marketDataType}";
+
+	/// <summary>
+	/// The key of a tick-by-tick stream: the same contract (as in <see cref="GetShareKey"/>) and
+	/// tick type. Subscriptions with the same key share one IB tick-by-tick subscription.
+	/// </summary>
+	public static string GetTickByTickShareKey(ContractDto contract, TickByTickType tickType) =>
+		$"{GetListingKey(contract)}#tbt:{(int)tickType}";
+
+	// The contract by conId and routing exchange, or by its fields when it has no conId
+	private static string GetListingKey(ContractDto contract) =>
+		contract.ConId > 0
+			? $"{contract.ConId}@{Normalize(contract.Exchange)}"
+			: string.Join(
+				"|",
+				Normalize(contract.Symbol),
+				Normalize(contract.SecurityType),
+				Normalize(contract.Exchange),
+				Normalize(contract.PrimaryExchange),
+				Normalize(contract.Currency),
+				Normalize(contract.LastTradeDateOrContractMonth),
+				contract.Strike.ToString("R", CultureInfo.InvariantCulture),
+				Normalize(contract.Right),
+				Normalize(contract.Multiplier),
+				Normalize(contract.LocalSymbol),
+				Normalize(contract.TradingClass)
+			);
 
 	/// <summary>The owners of a shared line, each once, in the order given; empty ones dropped.</summary>
 	public static IReadOnlyList<string> GetOwners(IEnumerable<string> owners) =>

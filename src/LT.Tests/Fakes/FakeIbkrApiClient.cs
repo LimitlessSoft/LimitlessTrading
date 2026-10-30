@@ -393,23 +393,57 @@ public class FakeIbkrApiClient : IIbkrApiClient
 		[EnumeratorCancellation] CancellationToken cancellationToken = default
 	)
 	{
-		TickByTickRequests.Add((contract, tickType));
-		foreach (var tick in TickByTicksByType.GetValueOrDefault(tickType) ?? TickByTicks)
+		lock (TickByTickRequests)
+			TickByTickRequests.Add((contract, tickType));
+		Interlocked.Increment(ref _openTickByTickStreams);
+		try
 		{
-			await Task.Yield();
-			yield return tick;
+			foreach (var tick in TickByTicksByType.GetValueOrDefault(tickType) ?? TickByTicks)
+			{
+				await Task.Yield();
+				yield return tick;
+			}
+			if (
+				(TickByTickExceptionByType.GetValueOrDefault(tickType) ?? TickByTickException) is
+				{ } error
+			)
+				throw error;
+			if (
+				(TickByTickStreamGatesByType.GetValueOrDefault(tickType) ?? TickByTickStreamGate) is
+				{ } gate
+			)
+			{
+				await foreach (var tick in gate.Reader.ReadAllAsync(cancellationToken))
+					yield return tick;
+			}
+			else if (KeepTickByTickOpen)
+				await Task.Delay(Timeout.Infinite, cancellationToken);
 		}
-		if (
-			(TickByTickExceptionByType.GetValueOrDefault(tickType) ?? TickByTickException) is
-			{ } error
-		)
-			throw error;
-		if (KeepTickByTickOpen)
-			await Task.Delay(Timeout.Infinite, cancellationToken);
+		finally
+		{
+			Interlocked.Decrement(ref _openTickByTickStreams);
+		}
 	}
 
 	/// <summary>Keep tick-by-tick streams open after their ticks until cancelled.</summary>
 	public bool KeepTickByTickOpen { get; set; }
+
+	/// <summary>
+	/// After its ticks, each tick-by-tick stream reads this channel: write to push ticks,
+	/// complete it (with an exception for an IB error) to end the streams.
+	/// </summary>
+	public System.Threading.Channels.Channel<TickByTickDto>? TickByTickStreamGate { get; set; }
+
+	/// <summary>A tick type's own <see cref="TickByTickStreamGate"/>.</summary>
+	public Dictionary<
+		TickByTickType,
+		System.Threading.Channels.Channel<TickByTickDto>
+	> TickByTickStreamGatesByType { get; } = [];
+
+	private int _openTickByTickStreams;
+
+	/// <summary>Tick-by-tick streams IB-side open right now (started, not yet ended or cancelled).</summary>
+	public int OpenTickByTickStreams => Volatile.Read(ref _openTickByTickStreams);
 
 	public IAsyncEnumerable<AccountValueDto> SubscribeAccountSummaryAsync(
 		CancellationToken cancellationToken = default
