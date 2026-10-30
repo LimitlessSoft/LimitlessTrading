@@ -164,6 +164,7 @@ public class ChartPeriodWindowTests
 
 	[Theory]
 	[InlineData(ChartPeriod.OneDay, ChartTimeframe.FiveMinutes)]
+	[InlineData(ChartPeriod.TwoDays, ChartTimeframe.OneMinute)]
 	[InlineData(ChartPeriod.SevenDays, ChartTimeframe.OneHour)]
 	[InlineData(ChartPeriod.ThisYear, ChartTimeframe.FiveMinutes)] // cut to a month
 	public void Rolling_and_cut_periods_end_at_the_latest_bar(

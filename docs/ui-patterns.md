@@ -309,8 +309,8 @@ new instance) and lives in one of four wrappers:
   timeframe:** click the timeframe beside the chart's header title (e.g. "5m"); a menu lists 1m,
   5m, 15m, 1h, 1D and 1W with the current one checked, and picking one reloads the bars
   (historical + real-time) at that size. **Changing the period:** the button after the
-  timeframe (e.g. "Auto") shows a period, in two groups: rolling (1 day, 7 days, 1/3/6 months,
-  1/5 years back from now) and calendar (Today, This week, This month, This year). **A period is
+  timeframe (e.g. "Auto") shows a period, in two groups: rolling (1 day, 2 days, 7 days, 1/3/6
+  months, 1/5 years back from now) and calendar (Today, This week, This month, This year). **A period is
   the window the chart shows** (`ChartPeriodHelpers.GetWindow`): the chart always loads at least
   the timeframe's own span (what Auto loads; more when the period needs it) and keeps every bar
   (history, indicator lookback such as RVOL's earlier days), but while the view is on the period

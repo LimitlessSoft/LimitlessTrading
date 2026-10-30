@@ -22,6 +22,10 @@ public class ChartPeriodHelpersTests
 	public void Rolling_periods_go_back_from_now()
 	{
 		Assert.Equal(
+			Now.AddDays(-2),
+			ChartPeriodHelpers.GetStart(ChartPeriod.TwoDays, Now, Belgrade)
+		);
+		Assert.Equal(
 			Now.AddDays(-7),
 			ChartPeriodHelpers.GetStart(ChartPeriod.SevenDays, Now, Belgrade)
 		);
@@ -32,6 +36,39 @@ public class ChartPeriodHelpersTests
 		Assert.Equal(
 			Now.AddYears(-1),
 			ChartPeriodHelpers.GetStart(ChartPeriod.OneYear, Now, Belgrade)
+		);
+	}
+
+	[Fact]
+	public void Two_days_is_listed_after_one_day()
+	{
+		Assert.Equal(
+			[
+				ChartPeriod.OneDay,
+				ChartPeriod.TwoDays,
+				ChartPeriod.SevenDays,
+				ChartPeriod.OneMonth,
+				ChartPeriod.ThreeMonths,
+				ChartPeriod.SixMonths,
+				ChartPeriod.OneYear,
+				ChartPeriod.FiveYears,
+			],
+			ChartPeriodHelpers.RollingPeriods
+		);
+		Assert.Equal("2 days", ChartPeriodHelpers.GetDisplayName(ChartPeriod.TwoDays));
+	}
+
+	[Fact]
+	public void All_periods_list_every_period_once_in_menu_order()
+	{
+		Assert.Equal(Enum.GetValues<ChartPeriod>().Order(), ChartPeriodHelpers.AllPeriods.Order());
+		Assert.Equal(
+			[
+				ChartPeriod.Auto,
+				.. ChartPeriodHelpers.RollingPeriods,
+				.. ChartPeriodHelpers.CalendarPeriods,
+			],
+			ChartPeriodHelpers.AllPeriods
 		);
 	}
 
@@ -98,6 +135,7 @@ public class ChartPeriodHelpersTests
 	}
 
 	[Theory]
+	[InlineData(ChartPeriod.TwoDays, ChartTimeframe.OneMinute, "3 D")]
 	[InlineData(ChartPeriod.SevenDays, ChartTimeframe.OneMinute, "8 D")]
 	[InlineData(ChartPeriod.OneMonth, ChartTimeframe.FifteenMinutes, "32 D")]
 	[InlineData(ChartPeriod.ThreeMonths, ChartTimeframe.OneHour, "93 D")]
@@ -120,6 +158,7 @@ public class ChartPeriodHelpersTests
 
 	[Theory]
 	[InlineData(ChartPeriod.OneDay, ChartTimeframe.FiveMinutes)]
+	[InlineData(ChartPeriod.TwoDays, ChartTimeframe.FiveMinutes)]
 	[InlineData(ChartPeriod.Today, ChartTimeframe.FifteenMinutes)]
 	[InlineData(ChartPeriod.SixMonths, ChartTimeframe.OneDay)]
 	[InlineData(ChartPeriod.ThisYear, ChartTimeframe.OneDay)]

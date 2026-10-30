@@ -188,7 +188,7 @@ public partial class ChartViewModel
 
 		displayTime.ZoneChanged += OnZoneChanged;
 		var layout = settingsManager.GetLayout();
-		Periods = Enum.GetValues<ChartPeriod>().Select(x => new PeriodOption(x)).ToList();
+		Periods = ChartPeriodHelpers.AllPeriods.Select(x => new PeriodOption(x)).ToList();
 		SelectedPeriod = Periods.FirstOrDefault(x => x.Value == layout.ChartPeriod) ?? Periods[0];
 		Timeframes = Enum.GetValues<ChartTimeframe>().Select(x => new TimeframeOption(x)).ToList();
 		var saved = layout.ChartTimeframe;
